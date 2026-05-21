@@ -1,14 +1,165 @@
 ---
 title: Deployment
-description: Three modes — local CLI, hosted browser, self-hosted static studio.
+description: Three deploy modes — local CLI, hosted browser studio, self-hosted static studio. Same renderer, same canvas, same code.
 ---
 
 # Deployment
 
-This page is a stub. Topics that will land here:
+Lerret runs in **three modes** — all rendering the same studio against the same kind of project folder. Switch freely; nothing about your `.lerret/` directory needs to change.
 
-- **Local CLI mode** — `npx @lerret/cli dev` against a local folder. Vite HMR. The dev-default.
-- **Hosted mode** — the studio served as a static site; users open a local folder via the File System Access API. Chromium-only.
-- **Self-host** — the same hosted-mode static build, packaged for self-deployment.
-- **Trust acknowledgement** — first-time per-folder confirmation before user code runs.
-- **The `.lerret/.state/` sidecar** — local studio state, gitignored automatically.
+| Mode | What it is | When to use |
+|---|---|---|
+| **Local CLI** | A Node process running `lerret dev` against a folder on disk. Native Vite HMR. | Your daily dev loop. |
+| **Hosted** | The studio served as a static site. Open any local folder via the browser's File System Access API. | One-tap "try it" link. No install. |
+| **Self-host** | The same static studio, packaged for self-deployment on your own infrastructure. | Private / team contexts, internal-only access. |
+
+All three modes share **one React codebase** and the same `@lerret/core` engine. The only difference is which **filesystem backend** the studio talks to: Node `fs` in CLI mode, the File System Access API in hosted and self-host modes. Both backends implement the same `FilesystemAccess` contract from `@lerret/core`.
+
+## Local CLI mode
+
+The dev-default mode. Run the CLI against any folder containing `.lerret/`:
+
+```bash
+npx @lerret/cli dev
+```
+
+What happens:
+
+1. The CLI walks up from your CWD to find the nearest `.lerret/` (or uses the explicit `--folder` you pass).
+2. It boots a Vite dev server, serves the pre-built studio bundle, and mounts your `.lerret/` folder via the Node `fs` backend.
+3. The studio opens in your default browser (skip with `--no-open`). Vite's React Fast Refresh handles HMR.
+4. A chokidar watcher emits normalized `{ type, path }` events that incrementally patch the in-memory project model — sub-second canvas updates without a full directory rescan.
+
+**Works in any browser** — the CLI mode does not depend on the File System Access API. Safari and Firefox users can run `lerret dev` even though the hosted studio is Chromium-only.
+
+**Requirements:**
+- Node.js ≥ 20.19
+- Any modern browser for viewing the studio
+
+**Offline:** after the first run, dev startup is fully offline-capable. No outbound network calls during development.
+
+See the [CLI Reference](/cli/#lerret-dev) for the full flag list.
+
+## Hosted mode
+
+The studio published as a **static SPA** served from `lerret.belikely.com` (Belikely-hosted), or any static host you control (see [Self-host](#self-host) below).
+
+What's different from CLI mode:
+
+| Aspect | CLI mode | Hosted mode |
+|---|---|---|
+| Filesystem backend | Node `fs` | Browser File System Access API |
+| Folder mount | Walked up from CWD | User picks via `showDirectoryPicker()` |
+| Asset transform | Vite + esbuild | In-browser Sucrase + service worker module graph |
+| Watcher | chokidar | Directory-handle polling |
+| Account / signup | No | No (still local-only — no upload) |
+
+The hosted studio reads and writes your local files through the browser's File System Access API. **Files never leave your machine.** There is no backend; the hosted page is a static site that talks to your filesystem.
+
+### Browser support
+
+The File System Access API requires a **Chromium-based browser**:
+
+| Browser | Status |
+|---|---|
+| Chrome | ✅ Supported (Chrome 86+) |
+| Edge | ✅ Supported (Edge 86+) |
+| Brave | ✅ Supported |
+| Arc | ✅ Supported |
+| Opera | ✅ Supported |
+| Safari | ❌ Not supported — shows guidance screen |
+| Firefox | ❌ Not supported — shows guidance screen |
+
+Safari and Firefox users get a calm guidance screen pointing them at:
+- Switching to a Chromium-based browser, or
+- Running `npx @lerret/cli dev` locally instead.
+
+### Secure-context requirement
+
+The File System Access API and the studio's service worker both require a **secure context**:
+
+- ✅ **HTTPS** — any TLS origin works.
+- ✅ **`http://localhost`** — browsers treat localhost as secure, so local smoke-testing works without a cert.
+- ❌ **`http://` on a non-localhost domain** is NOT a secure context. Folder access silently fails and the service worker cannot register. Always deploy hosted instances over HTTPS.
+
+### Trust acknowledgement
+
+The first time you open a `.lerret/` folder in hosted or self-host mode, the studio shows a **one-time per-folder trust prompt** before running any of your code. The acknowledgement is persisted in IndexedDB, never written into your project folder.
+
+## Self-host
+
+The hosted studio is just a static build. You can host it yourself.
+
+### Build
+
+From a repo checkout:
+
+```bash
+pnpm install
+pnpm --filter @lerret/studio build
+```
+
+Output lands in `packages/studio/dist/`. It is self-contained — copy the whole directory to any static host.
+
+Directory structure:
+
+```
+dist/
+├── index.html       Entry page; auto-sets the hosted-mode flag at load
+├── module-sw.js     Service worker (stable name, top-level — required)
+└── assets/          Hashed JS / CSS chunks and static images
+```
+
+### Serve
+
+Any static server works:
+
+```bash
+# npx serve (Node.js)
+npx serve packages/studio/dist
+
+# Python built-in
+python3 -m http.server 5000 --directory packages/studio/dist
+
+# Caddy (production)
+caddy file-server --root packages/studio/dist --listen :443
+```
+
+The studio boots into the open-folder empty state. Pick a folder containing `.lerret/` and the canvas loads.
+
+### Sub-path hosting
+
+The build uses **relative asset URLs** (`./assets/…` in `index.html`) so it works at any sub-path without rebuilding. Upload `dist/` to a sub-path on your CDN or server and the service worker scope resolves correctly.
+
+Example with nginx:
+
+```nginx
+location /lerret/ {
+  root /var/www;            # serves files from /var/www/lerret/
+  try_files $uri $uri/ /lerret/index.html;
+}
+```
+
+The service-worker URL is derived from `import.meta.env.BASE_URL` at build time (which becomes `./` with the current config). When the page loads from `https://my-site.com/lerret/`, `./module-sw.js` resolves to `https://my-site.com/lerret/module-sw.js` — the correct location — and the SW scope covers the studio page.
+
+### CDN upload
+
+Upload `dist/` to Firebase Hosting, Cloudflare Pages, S3 + CloudFront, or any static host. No server-side code required. Configure the CDN to serve `index.html` for unmatched paths (SPA routing).
+
+### Service worker
+
+`module-sw.js` is **required** at the **site root** alongside `index.html`. The studio's hosted runtime uses it to intercept dynamic `import()` calls for transformed asset modules. The main thread reads your `.jsx` / `.tsx` files via the File System Access API, transforms them with Sucrase in-browser, and pre-registers the result with the service worker. The SW serves the cached source at a predictable URL so the browser's module system can load it.
+
+Cache hint: configure your host to send `Cache-Control: max-age=0, must-revalidate` for `module-sw.js` so service-worker updates roll out cleanly.
+
+## Choosing a mode
+
+| You want to | Use mode |
+|---|---|
+| Iterate on assets with the fastest reload, native Vite HMR | **CLI** |
+| Hand someone a link they can open in a browser, no install | **Hosted** |
+| Keep the studio inside your company perimeter, with your access controls | **Self-host** |
+| Use Safari or Firefox | **CLI** (hosted/self-host are Chromium-only) |
+| Run a CI export pipeline (no GUI) | **CLI**, via `lerret export` |
+
+All three modes render the **same** folder. There is no "hosted format" vs "local format"; nothing in `.lerret/` is mode-specific. You can edit a project locally with the CLI, share it on a Chromebook via hosted, and self-host it for your team — same files, same canvas, same renderer.

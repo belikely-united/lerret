@@ -1,26 +1,34 @@
 ---
 title: Getting Started
-description: Scaffold a Lerret project and render your first canvas in under a minute.
+description: Scaffold a Lerret project, render your first canvas, edit a component, and export it — in under five minutes.
 ---
 
 # Getting Started
 
-This page is a stub. Full content lands in a follow-up commit.
+This guide walks you from zero to a rendered canvas, a first edit, and an exported image in under five minutes. You will need:
 
-## Install
+- **Node.js ≥ 20.19**
+- A **Chromium-based browser** (Chrome, Edge, Brave, Arc) — for the studio. The CLI itself runs anywhere Node runs.
+
+## 1. Scaffold a project
 
 ```bash
 npx create-lerret my-canvas
-cd my-canvas
-npx @lerret/cli dev
 ```
 
-## Requirements
+The scaffolder downloads from npm and writes a new project at `./my-canvas/`. Total install — including Vite and React, downloaded once and cached — typically runs in under a minute on a warm broadband connection. No global install is required.
 
-- Node.js ≥ 20.19
-- A modern Chromium browser (Chrome / Edge / Brave / Arc) for hosted mode. The CLI works in any environment Node runs in.
+If `my-canvas` already exists, the scaffolder refuses to overwrite a non-empty directory but is happy to populate an empty one.
 
-## What `create-lerret` produces
+You can also use other runners:
+
+```bash
+pnpm dlx create-lerret my-canvas
+yarn dlx create-lerret my-canvas
+bunx create-lerret my-canvas
+```
+
+### What you got
 
 ```
 my-canvas/
@@ -29,11 +37,200 @@ my-canvas/
     ├── _fonts/
     │   └── LerretFixtureMono.woff2
     └── social/
-        ├── twitter-banner.jsx
         ├── instagram-square.jsx
+        ├── twitter-banner.jsx
+        ├── twitter-banner.data.json
         └── youtube-thumbnail.jsx
 ```
 
-Each `.jsx` file under `.lerret/` is an asset that renders as an artboard. Save a file → the canvas re-renders.
+The `.lerret/` folder is the only thing Lerret cares about. Everything else in the project is yours — Lerret never touches files outside it (the **separation invariant**).
 
-## Next: [Concepts](/concepts/) — how the folder maps to the canvas.
+| Path | What it is |
+|---|---|
+| `.lerret/config.json` | Project-root config. The `vars` block flows down the cascade as CSS-like variables. |
+| `.lerret/_fonts/` | Reserved folder. Any `.woff2` / `.woff` / `.ttf` / `.otf` here is auto-registered as a CSS `@font-face` rule. Available to every asset by its file name. |
+| `.lerret/social/` | A **page** — top-level non-underscore folders become pages on the canvas. |
+| `*.jsx` | Each component file becomes an artboard. The default export is the primary variant; named exports become extra variants. |
+| `*.data.json` | Co-located data file for an asset (here, `twitter-banner.data.json`). Overrides component props at runtime. |
+
+### Want a minimal start?
+
+For an empty project — just `.lerret/config.json` with `{ "vars": {} }`, no sample assets:
+
+```bash
+npx create-lerret my-canvas --no-samples
+```
+
+## 2. Start the studio
+
+```bash
+cd my-canvas
+npx @lerret/cli dev
+```
+
+The Vite dev server boots and your default browser opens to the studio. You should see three artboards on the canvas: a Twitter banner, an Instagram square, and a YouTube thumbnail — each rendered at its real pixel dimensions.
+
+### Common flags
+
+```bash
+npx @lerret/cli dev --port 4000   # custom port (default: Vite's default, usually 5173)
+npx @lerret/cli dev --no-open     # don't auto-open the browser
+npx @lerret/cli dev --folder ./   # explicit project folder (bypasses walk-up)
+```
+
+If you do not pass `--folder`, the CLI walks up from the current working directory looking for the nearest `.lerret/` — like `git` walks up looking for `.git/`.
+
+## 3. Edit a component
+
+Open `.lerret/social/twitter-banner.jsx` in your editor. Find the headline and change it:
+
+```jsx
+// Before
+<div style={{ fontSize: 80, fontWeight: 800, ... }}>
+  {headline}
+</div>
+
+// After
+<div style={{ fontSize: 80, fontWeight: 800, ... }}>
+  Hello from my first Lerret canvas
+</div>
+```
+
+Save the file. The Twitter banner artboard re-renders in under a second. No page reload, no manual rebuild. The watcher detects the change, Vite's React Fast Refresh swaps the module, and the canvas updates in place.
+
+## 4. Add a second asset
+
+Create a new file `.lerret/social/release-card.jsx`:
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 630 },
+  label: 'Release card',
+  tags: ['release', 'og'],
+};
+
+export default function ReleaseCard() {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--brandColor, #3D5A80)',
+      color: 'white',
+      fontSize: 72,
+      fontWeight: 800,
+      fontFamily: 'system-ui',
+    }}>
+      v1.0 — Shipping today
+    </div>
+  );
+}
+```
+
+Save it. A new artboard appears on the canvas — at exactly 1200×630 — alongside the others. The watcher reports an `add` event, the loader incorporates the new asset into the project model, and the canvas adds the artboard.
+
+Notice the `var(--brandColor, #3D5A80)`. The project-root `config.json` declares `vars.brandColor = "#3D5A80"`, which the studio exposes as a CSS custom property on the artboard. Change the value in `config.json`, save, and every artboard re-renders with the new color.
+
+## 5. Add a variant
+
+Variants are extra components in the same file, exported by name. Add this to `release-card.jsx`:
+
+```jsx
+export const Dark = () => (
+  <div style={{
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#0A0A0A',
+    color: '#E0FBFC',
+    fontSize: 72,
+    fontWeight: 800,
+    fontFamily: 'system-ui',
+  }}>
+    v1.0 — Shipping today
+  </div>
+);
+```
+
+Save. A second artboard appears next to the original — labelled `Dark` — also at 1200×630. The `meta` export is shared across all variants in the file; the default export is the primary variant; each named function export is an extra variant.
+
+> Component-valued exports = variants. Non-function exports (constants, the `meta` object) are ignored.
+
+## 6. Add data
+
+Lerret can supply props to your component from a co-located data file — no code change required.
+
+Create `.lerret/social/release-card.data.json`:
+
+```json
+{
+  "default": {
+    "label": "v1.0 — Shipping today"
+  },
+  "Dark": {
+    "label": "v1.0 — Shipping today (dark mode)"
+  }
+}
+```
+
+Then accept `label` as a prop in your component:
+
+```jsx
+export default function ReleaseCard({ label = 'Untitled' }) {
+  return (
+    <div style={{ /* ... */ }}>
+      {label}
+    </div>
+  );
+}
+```
+
+The top-level keys match your variant export names (`default`, `Dark`), so each variant gets its own data. This is **per-variant data keying**. If the top-level keys do not match any export name, the entire data object is applied as **shared data** to every variant.
+
+There is also a **`.data.js`** form when you need computed or conditional data — see [Authoring Assets](/authoring/#data-files) for the full mechanics.
+
+## 7. Export to image files
+
+When you are happy with the canvas, render every artboard to image files from the command line:
+
+```bash
+npx @lerret/cli export
+```
+
+By default, output goes to `./lerret-export/` (relative to your CWD, never inside `.lerret/`). Each artboard becomes a PNG, nested under folders that mirror the project's page/group structure:
+
+```
+lerret-export/
+└── social/
+    ├── instagram-square.png
+    ├── release-card.png
+    ├── release-card-Dark.png
+    ├── twitter-banner.png
+    └── youtube-thumbnail.png
+```
+
+Useful flags:
+
+```bash
+npx @lerret/cli export --format jpg            # JPG instead of PNG (jpeg also accepted)
+npx @lerret/cli export --out ./assets          # custom output directory
+npx @lerret/cli export --flat                  # all images at one level, no nested folders
+npx @lerret/cli export .lerret/social          # scope: only this page
+```
+
+The CLI boots a headless Chromium through Playwright and uses the same rendering path the in-studio export buttons use, so a `lerret export` run produces a pixel-faithful match to what the studio captures.
+
+See [CLI Reference](/cli/#lerret-export) for the full flag list, including the `--data` and `--config` override flags that let you re-render an entire project with different data or theming without modifying any files.
+
+## What's next
+
+- **[Concepts](/concepts/)** — the mental model: pages, groups, variants, the four-tier prop cascade.
+- **[Authoring Assets](/authoring/)** — the full guide to writing components, schemas, data files, and fonts.
+- **[CLI Reference](/cli/)** — every flag and exit code for `dev` and `export`.
+- **[Deployment](/deploy/)** — local CLI, hosted browser, or self-hosted static studio.
+
+Welcome to Lerret.

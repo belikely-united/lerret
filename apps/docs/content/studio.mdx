@@ -1,16 +1,112 @@
 ---
 title: The Studio
-description: The in-browser canvas — navigation, editors, export.
+description: The Lerret studio — canvas navigation, in-place editors, validation, and export.
 ---
 
 # The Studio
 
-This page is a stub. Topics that will land here:
+The Lerret studio is a **desktop-first React app**. It mounts a `.lerret/` folder, scans the project model, renders every asset as an artboard on a pan-and-zoom canvas, and watches the folder for changes. Same UI in all three [deploy modes](/deploy/).
 
-- **Canvas navigation** — pan, zoom, page picker.
-- **Focus mode** — single-artboard fullscreen.
-- **The kebab menus** — per-artboard, per-section, per-asset actions.
-- **The in-studio editors** — data editor, config editor, meta editor, Markdown editor.
-- **Validation badges** — non-blocking warnings surfaced by `propsSchema`.
-- **The re-render cue** — visual confirmation that a save landed.
-- **Export from the studio** — single artboard, group, or whole-project ZIPs.
+## Mounting a folder
+
+The first thing the studio shows depends on the mode:
+
+| Mode | First screen |
+|---|---|
+| **CLI** (`lerret dev`) | The canvas, with the resolved project loaded. |
+| **Hosted** (browser, no folder picked yet) | The **open-folder empty state** — one button, "Open a Lerret folder", that calls `showDirectoryPicker()`. |
+| **Hosted** (browser, unsupported) | The **unsupported-browser guidance** screen — Safari / Firefox / non-Chromium. |
+
+When you pick a folder that does **not** contain a `.lerret/` directory, the studio shows an in-place "Not a Lerret project" message with a "Pick another folder" action and a hint about `npx create-lerret`. You never get a blank or broken screen.
+
+The first time you open a given folder (hosted mode), the studio shows a one-time **trust acknowledgement** dialog before running any of your code. The acknowledgement is persisted in IndexedDB, never written into your project folder.
+
+## The canvas
+
+Each asset in your project becomes one or more **artboards** on a single scrollable canvas. Artboards are organized by their position in the folder tree — pages at the top level, groups nested inside, assets inside those.
+
+Each artboard:
+
+- Renders at its declared `meta.dimensions` (or the studio's default size if absent).
+- Has its own **error boundary**: one broken artboard fails alone with an error card; the rest of the canvas keeps rendering.
+- Updates in place when the underlying file changes — sub-second, courtesy of Vite's React Fast Refresh.
+- Has a stable **artboard id**: `<assetPath>` for the primary, `<assetPath>#<variantName>` for named variants.
+
+The folder structure is visible in the canvas layout — pages and groups are visually grouped, and the page picker switches between top-level pages.
+
+## In-place editors
+
+The studio includes typed editors for the on-disk artifacts that feed an asset. Edits write back to the file on disk — the studio is a true read-write tool, not a viewer.
+
+| Editor | Edits | File written |
+|---|---|---|
+| **Data editor** | An asset's props | `<Name>.data.json` |
+| **Config editor** | A folder's `config.json` | The folder's `config.json` |
+| **Meta editor** | An asset's `meta` (label, tags, dimensions) | The asset source file |
+| **Markdown editor** | A `.md` asset's raw text | The `.md` file |
+
+The **data editor** is schema-driven: when an asset declares `meta.propsSchema`, the editor generates a typed form (string inputs, booleans, selects, etc.) from it. When no schema is declared, the editor falls back to free-form key/value editing.
+
+Edits flow through the same four-tier prop resolution that controls rendering, so what you see in the editor is what the canvas renders.
+
+## Validation
+
+When an asset declares `meta.propsSchema` with `required` fields or constrained types, the studio runs a **props validator** on every artboard render. Failures surface as a small `⚠️` badge on the artboard — non-blocking; the artboard still renders with whatever values it has.
+
+Validation behaviour is **lenient by design** — Lerret always tries to render. The badge is a hint ("you might want to set this field"), not a gate.
+
+## Per-artboard actions
+
+Each artboard has a kebab menu with actions appropriate to its kind:
+
+- **Export to image** — captures this single artboard to PNG or JPG. Same rendering path as `lerret export`.
+- **Edit data** — opens the data editor.
+- **Edit meta** — opens the meta editor.
+- **Reveal in editor** (CLI mode) — opens the source file in your default editor via OS handlers.
+- **Reveal in Finder / Explorer** (CLI mode) — opens the containing folder.
+
+Reveal actions are CLI-only — they require shelling out to the OS and are not available in pure hosted mode (the File System Access API sandbox has no OS-reveal capability).
+
+## Export from the studio
+
+Three scopes:
+
+| Scope | What it captures |
+|---|---|
+| **Single artboard** | One artboard → one image. |
+| **Page or group** | Every artboard in that branch → image files. |
+| **Whole project** | Every artboard in the project → a structured ZIP archive. |
+
+The bulk-export panel lets you choose:
+
+- **Format** — PNG or JPG.
+- **Output style** — structured (folders mirror page/group hierarchy) or flat (all images at one level).
+
+Studio exports use the **exact same** `captureArtboard` function as `lerret export` (the CLI runs it inside a headless Chromium via Playwright). Output is pixel-faithful between the two; you can use either path interchangeably.
+
+## Live refresh
+
+A file change on disk re-renders the affected artboard in under a second.
+
+- **CLI mode** — chokidar watches your `.lerret/` and emits change events; Vite's React Fast Refresh swaps the module.
+- **Hosted / self-host mode** — directory-handle polling produces the same normalized events; the in-browser transformer rebuilds the module and the service worker serves the new version.
+
+Both backends emit identical `{ type: 'add' | 'change' | 'remove', path }` events that feed the same incremental model patcher in `@lerret/core`. The studio re-renders the relevant artboard without disturbing the others.
+
+## Focus mode
+
+Focus mode shows a single artboard fullscreen, with the rest of the canvas dimmed. Useful for:
+
+- Precision work on one component without scrolling distractions.
+- Sharing a screenshot of a single artboard.
+- Reviewing at exact pixel dimensions on a small viewport.
+
+## Keyboard / mouse model
+
+The studio is a **desktop application** — mouse + keyboard. Mobile, touch surfaces, and responsive layouts are explicitly out of scope. The platform's hard constraint is browser support (File System Access API → Chromium-only for hosted/self-host).
+
+## What's next
+
+- **[Authoring Assets](/authoring/)** — how to write components, schemas, data files, and fonts.
+- **[CLI Reference](/cli/)** — `lerret dev` and `lerret export`.
+- **[Deployment](/deploy/)** — the three deploy modes in detail.

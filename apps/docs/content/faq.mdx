@@ -1,28 +1,147 @@
 ---
 title: FAQ
-description: Common questions about Lerret.
+description: Common questions about Lerret — what it is, what it isn't, browser support, security, and more.
 ---
 
 # FAQ
 
-This page is a stub.
+## What is Lerret, exactly?
 
-## Is Lerret a Figma alternative?
+A design canvas that renders a folder of plain React component files as a visual canvas. Each `.jsx` / `.tsx` file in your project's `.lerret/` directory becomes an **artboard** with its own pan-and-zoom card on the canvas; saving the file re-renders the artboard in under a second. You can export every artboard to PNG or JPG headlessly — single asset, page group, or whole project as a structured ZIP.
 
-No. Figma is a vector design tool with a proprietary file format. Lerret renders your existing React components as a canvas — your source of truth stays code.
+There is no proprietary file format, no backend, and no account. The components stay portable — they are just React.
+
+## Is Lerret a Figma replacement?
+
+No. Figma is a **vector design tool** with a proprietary file format and a collaborative cursor culture. Lerret is a **rendering canvas for code** — your components are the source of truth, and Lerret only displays them.
+
+If your team's designs live in Figma and your job is to make production assets from them, Lerret is *complementary*: it gives you a canvas where the React components your app ships can also be the social card, the OG image, the release graphic. Lerret will not replace your designer's tool.
+
+## Is Lerret a "no-code" tool?
+
+No. Every asset is a React component. If you don't write React, Lerret is not your day-one tool.
+
+The in-studio editors do let you change **data** (props, theming variables) without touching code — but the asset itself is always a component file you author in your editor.
+
+## Is there a hosted SaaS?
+
+There is a **hosted studio** at `app.lerret.belikely.com` (Chromium-only) — but it is not a SaaS in the usual sense. It is a **static site** that talks to your local filesystem through the browser's File System Access API. Your files never leave your machine. There is no backend, no database, no account.
+
+You can also [self-host](/deploy/#self-host) the studio on your own infrastructure with the exact same static build.
+
+## Which browsers are supported?
+
+| Browser | CLI mode (`lerret dev`) | Hosted / self-host studio |
+|---|---|---|
+| Chrome | ✅ | ✅ |
+| Edge | ✅ | ✅ |
+| Brave | ✅ | ✅ |
+| Arc | ✅ | ✅ |
+| Opera | ✅ | ✅ |
+| Safari | ✅ | ❌ (unsupported-browser screen) |
+| Firefox | ✅ | ❌ (unsupported-browser screen) |
+
+The hosted and self-host studios require the **File System Access API**, which is Chromium-only today. The CLI mode works in every modern browser because the studio is served from the local Vite server — the FSA is not used.
+
+Safari and Firefox users get a calm guidance screen pointing them at either a Chromium browser or `npx @lerret/cli dev` locally.
 
 ## Does Lerret upload my files?
 
-No. Hosted mode reads and writes locally via the browser's File System Access API; the static studio has no backend.
+No. There is no backend at any layer.
 
-## What browsers does the hosted studio support?
+- **CLI mode** — your files are read by a local Node process. Nothing leaves your machine.
+- **Hosted / self-host mode** — your files are read in the browser via the File System Access API, transformed by an in-browser Sucrase runtime, and served back to the same page through a service worker. No upload, no sync, no remote server holds your project content.
 
-Chromium browsers (Chrome, Edge, Brave, Arc) — the File System Access API requires it. The CLI works everywhere Node runs.
+The first time you open a folder in hosted mode, the browser shows a permission prompt for that specific directory. You can revoke that permission any time from the browser's site settings.
 
 ## Is it production-ready?
 
-The 0.1 series is the first public release. APIs may shift. Open an issue on GitHub if anything breaks.
+Lerret is in the **0.1 series** — the first public release. The full feature set works today:
 
-## More questions
+- The folder-canvas model
+- Sub-second live-edit loop
+- In-studio data / config / meta editors
+- Headless export to PNG/JPG (single asset, page group, whole project ZIP)
+- Zero-install execution across npm, pnpm, yarn, and bun
+- Three deploy modes (CLI, hosted, self-host) with UX parity
 
-Open a discussion at https://github.com/belikely-united/lerret/discussions
+Expect occasional sharp edges in the 0.1.x series; the public API stabilises for 1.0. Bug reports and feedback are welcome at [github.com/belikely-united/lerret/issues](https://github.com/belikely-united/lerret/issues).
+
+## What's the relationship between `@lerret/cli` and `lerret`?
+
+**`@lerret/cli`** is the npm package you install. It ships a binary literally named `lerret` (its `bin` field in `package.json`).
+
+| Context | What to type |
+|---|---|
+| Zero-install via `npx` / `pnpm dlx` | `npx @lerret/cli dev` |
+| After installing the CLI as a dep, then via `package.json` scripts or `pnpm exec` | `lerret dev` |
+| After installing the CLI globally | `lerret dev` |
+
+The bare `lerret` package name on npm belongs to a different, unrelated, deprecated project — so the scoped form `@lerret/cli` is required when invoking via `npx`. Once installed (the binary is on your PATH), `lerret dev` works directly.
+
+## Can I use TypeScript?
+
+Yes. Use the `.tsx` extension for components that use TypeScript syntax (interfaces, generics, type-only imports). The loader recognises both `.jsx` and `.tsx`.
+
+In CLI mode, Vite handles `.tsx` natively. In hosted mode, the in-browser Sucrase transformer strips types at runtime.
+
+## Do I need a `package.json` in my project?
+
+No. A fresh `npx create-lerret` project has no `package.json` — just `.lerret/`. The CLI bundles its own React, Vite, and dependencies, so users never `npm install react` themselves.
+
+If you want to use Lerret inside an **existing** project (e.g., a Next.js app), drop a `.lerret/` directory anywhere in that project and `lerret dev` from there. The existing `package.json` is unaffected — Lerret never reads or writes outside `.lerret/`.
+
+## Where does data get saved when I edit in the studio?
+
+The in-studio editors write back to the **co-located files**:
+
+| Editor | Writes to |
+|---|---|
+| Data editor | `<Name>.data.json` in the same folder as the asset |
+| Config editor | `config.json` in the relevant folder |
+| Meta editor | The asset source file (modifies the `meta` export) |
+| Markdown editor | The `.md` file |
+
+Everything is on your disk, as plain JSON or JSX. No proprietary format, no opaque blob.
+
+## How does Lerret play with version control?
+
+`.lerret/` is just files. Git treats it like any other directory — your `.jsx`, `.json`, and `.md` files diff and merge normally. There is no binary blob, no opaque project file, no schema migration when you upgrade Lerret.
+
+A `.lerret/.state/` directory exists for transient studio state (cursor position, last-opened variant). It is **gitignored automatically** so it does not pollute your commits.
+
+## Can I run `lerret export` in CI?
+
+Yes — that is exactly what it is for. The export pipeline boots a headless Chromium through Playwright and never opens a window. Useful patterns:
+
+- Render OG images for blog posts at build time.
+- Generate release-graphic variants from a `--data` file.
+- Re-render an entire brand kit when `config.json` `vars` change.
+
+The `--data` and `--config` override flags let you re-render with different inputs without modifying any project files — handy for matrix exports (`light × dark × locale`).
+
+The CLI tries a system Chrome / Edge channel first; failing that, it falls back to a Playwright-installed Chromium. If neither is available, it exits with a clear, actionable message.
+
+## How fast is the cold start?
+
+The project's published NFR is **under 60 seconds** from `npx create-lerret` to a rendered canvas on a cold machine over typical broadband. The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped) the first time. On subsequent runs (warm cache), it is single-digit seconds.
+
+The CI benchmark for this target runs on every push to `main` against Ubuntu and macOS runners.
+
+## Does `lerret dev` require network?
+
+Only the first time, to download `@lerret/cli` (plus Vite and React). After that, `lerret dev` makes no outbound network requests at runtime — it serves a local Vite dev server from already-installed packages. Offline development is fully supported.
+
+If you hit a hang in no-network mode, that indicates a runner timeout is misconfigured rather than a Lerret bug. Open an issue.
+
+## What licence is Lerret under?
+
+**MIT** — full source. Use it, fork it, embed it, ship it commercially. The full text is in [LICENSE](https://github.com/belikely-united/lerret/blob/main/LICENSE).
+
+## Who builds Lerret?
+
+Lerret is built openly by **[Belikely United](https://github.com/belikely-united)**. The repo at [github.com/belikely-united/lerret](https://github.com/belikely-united/lerret) is the source of truth — issues, discussions, and pull requests welcome.
+
+## More questions?
+
+Open a discussion at [github.com/belikely-united/lerret/discussions](https://github.com/belikely-united/lerret/discussions). For bugs, [github.com/belikely-united/lerret/issues](https://github.com/belikely-united/lerret/issues). For security reports, see [SECURITY.md](https://github.com/belikely-united/lerret/blob/main/SECURITY.md).

@@ -1,18 +1,358 @@
 ---
 title: Authoring Assets
-description: How to write Lerret assets — JSX components, props, data, fonts, Markdown.
+description: How to write Lerret assets — components, meta, propsSchema, data files, variants, fonts, and Markdown documents.
 ---
 
 # Authoring Assets
 
-This page is a stub. Topics that will land here:
+A Lerret asset is a plain `.jsx` / `.tsx` / `.md` file inside `.lerret/`. This page covers every pattern: components, the `meta` export, schemas, data files, variants, fonts, and Markdown. Each section is grounded in what the loader actually does — nothing here is aspirational.
 
-- **JSX components** — what a Lerret asset looks like, named exports as variants.
-- **`meta` export** — sizing, tags, labels, `propsSchema` for the in-studio data editor.
-- **Props vs. data** — the cascade, when to use which.
-- **Markdown assets** — `.md` files as document cards.
-- **Fonts** — drop `.woff2` / `.woff` into `_fonts/`; auto-registered.
-- **Resources** — import images, JSON, CSS like in any Vite project.
-- **The separation invariant** — Lerret code never touches your component files; your components never depend on Lerret.
+## Your first component
 
-For now, the scaffolded project's `.lerret/social/` directory has working examples of every authoring pattern.
+Save this as `.lerret/social/hello.jsx`:
+
+```jsx
+export default function Hello() {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#1B2A3B',
+      color: '#E0FBFC',
+      fontSize: 96,
+      fontFamily: 'system-ui',
+    }}>
+      Hello, world
+    </div>
+  );
+}
+```
+
+That is the entire contract: a default-exported React component. On save, an artboard appears on the canvas inside the `social` page. No imports from Lerret. No config required.
+
+The component is rendered into a container sized by its `meta.dimensions` (see below). When no `meta` is declared, the studio falls back to a default artboard size. `width: '100%'; height: '100%';` makes the component fill that container.
+
+## The `meta` export
+
+Declare metadata about the asset:
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 630 },
+  label: 'Open Graph card',
+  tags: ['og', 'social'],
+  propsSchema: { /* see below */ },
+};
+```
+
+| Field | Type | Purpose |
+|---|---|---|
+| `dimensions` | `{ width?: number, height?: number }` | Artboard size in CSS pixels. Both keys are optional positive finite numbers. When absent, the canvas uses its default artboard size. |
+| `label` | `string` | Display label. Trimmed; non-empty. When absent, the studio derives a label from the file name and the export name. |
+| `tags` | `string[]` | Free-form tags for searching and grouping. Non-string entries dropped; empty strings dropped. Defaults to `[]`. |
+| `propsSchema` | `object` | Per-prop descriptors that drive the in-studio data editor and props validator. See [propsSchema](#propsschema). |
+
+A few rules worth knowing:
+
+- `meta` is **optional**. An asset with no `meta` still renders.
+- A **malformed** `meta` (not a plain object, throws when read) is caught — the asset renders with defaults and the error is reported per-asset.
+- `meta` is **shared across every variant** in the file. There is no per-variant `meta` today. If you need different dimensions per variant, split into separate files.
+- The well-known keys are read by **exact camelCase name**: `dimensions`, `label`, `tags`, `propsSchema`. Any other key in `meta` is ignored.
+
+## `propsSchema`
+
+`propsSchema` is a plain object whose keys are prop names and whose values are **prop descriptors**:
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 630 },
+  propsSchema: {
+    title: {
+      type: 'string',
+      default: 'Untitled',
+      description: 'Main headline on the card.',
+      required: true,
+    },
+    showBadge: {
+      type: 'boolean',
+      default: true,
+      description: 'Render the small status badge.',
+    },
+    tone: {
+      type: 'select',
+      default: 'ocean',
+      description: 'Color palette.',
+      options: ['ocean', 'sand', 'slate'],
+    },
+  },
+};
+```
+
+Descriptors observed in the shipped sample assets:
+
+| Field | Purpose |
+|---|---|
+| `type` | One of `'string'`, `'boolean'`, `'select'` (and others — the validator decides). Determines the input control in the in-studio data editor. |
+| `default` | The fallback value used by [four-tier prop resolution](/concepts/#four-tier-prop-resolution) at tier 3. |
+| `description` | Helper text rendered next to the field in the in-studio editor. |
+| `required` | When `true`, the props validator flags the artboard if the resolved prop is missing or empty. |
+| `options` | For `type: 'select'`, the list of permitted values. |
+
+The schema flows into two places:
+
+1. **The studio's in-place data editor** — generates a typed form from the schema so the user can edit props without touching code. Edits write back to `<Name>.data.json`.
+2. **The props validator** — runs on every artboard render. If a resolved prop fails its schema, the artboard shows a non-blocking validation badge.
+
+Only the `default` key inside each descriptor is read by the prop resolver — the rest (`type`, `required`, `options`) feed the editor and the validator.
+
+### Tip: align the component's defaults with the schema
+
+```jsx
+// propsSchema declares the default at tier 3
+propsSchema: { title: { type: 'string', default: 'Untitled' } }
+
+// The component declares the same default — tier 4
+function Card({ title = 'Untitled' }) { … }
+```
+
+When tier 3 and tier 4 agree, the rendering is consistent whether someone is using your schema or not. This is the pattern the shipped sample assets follow.
+
+## Variants via named exports
+
+A single file can declare multiple variants. Each component-valued export is one variant:
+
+```jsx
+export const meta = { dimensions: { width: 1500, height: 500 } };
+
+// Primary variant (`default`)
+export default function Banner() {
+  return <div style={{ background: '#1B2A3B', color: 'white' }}>Light</div>;
+}
+
+// Named variant (`Dark`)
+export const Dark = () => (
+  <div style={{ background: '#0A0A0A', color: '#E0FBFC' }}>Dark</div>
+);
+```
+
+This file yields two artboards: `default` and `Dark`. Both share the same `meta` (so both are 1500×500). On the canvas they appear side-by-side, labelled by their variant name.
+
+Rules:
+
+- **Function-valued exports become variants.** Function components and class components both qualify (both are `typeof === 'function'`).
+- **The `default` export is the primary variant.** It is treated as "the asset itself" when nothing selects a specific variant.
+- **Non-function exports are ignored.** A constant, a number, an exported object — none become variants. The reserved `meta` export is always parsed as metadata.
+- **No default export means no primary variant** — only named variants render. The file is still valid; it just has no primary.
+- A file with **zero component-valued exports** yields zero artboards.
+
+The artboard id for a variant is `<assetPath>#<variantName>`, e.g. `social/banner.jsx#Dark`.
+
+## Data files
+
+A `.data.json` or `.data.js` file co-located with an asset supplies values to its component props at runtime. No edit to the source is required.
+
+```
+social/
+├── banner.jsx
+└── banner.data.json   ← values for banner.jsx
+```
+
+### `.data.json` (static)
+
+Plain JSON. Parsed once at load.
+
+```json
+{
+  "title": "Hello, world",
+  "showBadge": true
+}
+```
+
+### `.data.js` (dynamic)
+
+A JS module whose default export is the data — an object, or a function returning one.
+
+```js
+// banner.data.js
+export default {
+  title: `Build ${new Date().toLocaleDateString()}`,
+  showBadge: true,
+};
+```
+
+### Precedence when both exist
+
+If both `<Name>.data.json` and `<Name>.data.js` exist for the same asset, **`.data.js` wins** and a warning is logged. The dynamic form takes precedence over the static form.
+
+### Per-variant data keying
+
+When the top-level keys of the data object match variant export names, each variant gets its own data sub-object:
+
+```json
+// banner.data.json — banner.jsx exports `default` and `Dark`
+{
+  "default": { "title": "Light theme",  "showBadge": true },
+  "Dark":    { "title": "Dark theme",   "showBadge": false }
+}
+```
+
+When **no** top-level key matches any export name, the entire object is applied as **shared** data to every variant:
+
+```json
+// Same data flows to both `default` and `Dark`
+{ "title": "Same title everywhere" }
+```
+
+Keys with no matching export name (stray keys) are silently ignored and logged as a warning.
+
+The result of data file resolution feeds **tier 1** of the [four-tier prop resolution](/concepts/#four-tier-prop-resolution).
+
+## Markdown assets
+
+Drop a `.md` file into a page or group and Lerret renders it as a Markdown card on the canvas:
+
+```markdown
+<!-- .lerret/docs/release-notes.md -->
+
+# v1.0
+
+First public release. Covers:
+
+- Local CLI with sub-second hot reload
+- Hosted browser studio (Chromium)
+- Self-host static build
+```
+
+Markdown cards are useful for:
+
+- Long-form copy that lives next to its visual assets
+- Release notes you also want to export as images
+- README-style overview pages you reference from social cards
+
+Markdown does not get `meta` (today). It also does not get variants — one file is one card.
+
+## Custom fonts
+
+Drop a font file into `.lerret/_fonts/` and Lerret auto-registers it as a CSS `@font-face` rule.
+
+```
+.lerret/
+└── _fonts/
+    └── MyBrand.woff2
+```
+
+| Extension | `format()` hint |
+|---|---|
+| `.woff2` | `woff2` |
+| `.woff`  | `woff` |
+| `.ttf`   | `truetype` |
+| `.otf`   | `opentype` |
+
+The font is registered under a family name derived from the file name without its extension. `MyBrand.woff2` becomes the family `MyBrand`. Use it in any component:
+
+```jsx
+<div style={{ fontFamily: "'MyBrand', sans-serif" }}>Hello</div>
+```
+
+Rules:
+
+- Files in `_fonts/` with any other extension are ignored.
+- Subfolders inside `_fonts/` are ignored — fonts must sit at the top level of `_fonts/`.
+- The font is available to **every** asset in the project, regardless of where it lives in the page tree.
+- On `lerret export`, custom fonts are **fully embedded** into each PNG/JPG capture so the output matches the studio's render.
+
+## Resources (images, JSON, CSS)
+
+Components are loaded by Vite (CLI mode) or transformed in-browser by Sucrase (hosted mode). Standard import paths work — relative imports, image imports, JSON imports:
+
+```jsx
+import logo from './logo.png';
+import data from './facts.json';
+
+export default function Card() {
+  return (
+    <div>
+      <img src={logo} alt="" />
+      <p>{data.tagline}</p>
+    </div>
+  );
+}
+```
+
+A few caveats:
+
+- Imports are **relative to the component file** — not to `.lerret/` or to the project root.
+- In hosted mode, the in-browser transformer handles `.jsx` / `.tsx` directly. For TypeScript-specific syntax (interfaces, type-only imports) you may want `.tsx` rather than `.jsx`.
+- Components stay portable — these imports are standard ES modules. Move the file out of `.lerret/` and into a regular React app and the imports still work.
+
+## The separation invariant
+
+Lerret never writes outside `.lerret/`. Your components never depend on Lerret APIs (no Lerret imports). This is the **separation invariant** — and it is what makes the tool removable.
+
+The contract:
+
+- Default export → primary variant.
+- Named function exports → extra variants.
+- `meta` export → metadata.
+
+That is the entire contract. Everything else is plain React.
+
+## Common patterns
+
+### Theming with CSS variables
+
+Put values in `config.json` `vars`, reference with `var(--name)`:
+
+```json
+// .lerret/config.json
+{ "vars": { "brand": "#3D5A80", "bg": "#1B2A3B" } }
+```
+
+```jsx
+<div style={{ background: 'var(--bg)', color: 'var(--brand)' }}>…</div>
+```
+
+Edit `config.json`, every artboard inheriting it re-renders with the new values.
+
+### Variant explosion for theme matrices
+
+When you want every combination of `theme × locale × size`, decompose into separate files rather than a single file with N×M×K named exports. Variants share `meta` (including `dimensions`), so a single file cannot vary sizes per variant.
+
+### Per-variant data via keying
+
+Use the per-variant keying form when each variant needs distinct copy:
+
+```json
+{
+  "default": { "headline": "Free trial" },
+  "Pro":     { "headline": "Pro plan"   },
+  "Team":    { "headline": "Team plan"  }
+}
+```
+
+### Computing data at load
+
+Use `.data.js` when the data depends on something computed:
+
+```js
+// banner.data.js
+import facts from './facts.json';
+
+export default {
+  headline: facts.headline,
+  builtAt: new Date().toISOString(),
+};
+```
+
+### Shared assets via imports
+
+If two components share a logo, image, or constants file, import it from a normal relative path. The asset stays in `.lerret/` and is bundled by Vite (CLI mode) or fetched at runtime (hosted mode).
+
+## What's next
+
+- **[Concepts](/concepts/)** — the model your assets live inside.
+- **[CLI Reference](/cli/)** — flags for running and exporting.
+- **[Deployment](/deploy/)** — running the studio locally, in a browser, or self-hosted.

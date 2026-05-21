@@ -1,15 +1,13 @@
 ---
 title: CLI Reference
-description: dev and export — flags, semantics, exit codes.
+description: dev and export — complete flag reference, exit codes, and examples.
 ---
 
 # CLI Reference
 
-This page is a stub. Each command will get a full reference card.
+The Lerret CLI ships as the npm package **`@lerret/cli`**. It installs one binary, named `lerret`, with two subcommands: `dev` and `export`. There is no `init` subcommand — use [`create-lerret`](#create-lerret) to scaffold projects.
 
 ## Running the CLI
-
-The CLI is published as **`@lerret/cli`** on npm. The binary it installs is named `lerret`.
 
 | Context | Command |
 |---|---|
@@ -17,34 +15,215 @@ The CLI is published as **`@lerret/cli`** on npm. The binary it installs is name
 | Installed as a project dep | `lerret dev` (via `package.json` scripts, `pnpm exec`, `npx`, etc.) |
 | Installed globally | `lerret dev` |
 
-> Don't run `npx lerret …` — that bare name belongs to a different (unrelated, deprecated) npm package. Always include the `@lerret/cli` scope when invoking via `npx`.
+> Don't run `npx lerret …` — the bare `lerret` name belongs to a different (unrelated, deprecated) npm package. Always include the `@lerret/cli` scope when invoking via `npx`.
 
 The command syntax shown below uses the post-install form (`lerret …`). Prefix with `npx @lerret/cli ` if you haven't installed it.
 
+### Exit codes
+
+Every subcommand uses the same convention:
+
+| Code | Meaning |
+|---|---|
+| `0` | Success — work completed, `--help` printed, or graceful shutdown. |
+| `1` | Failure — unknown subcommand, malformed flags, missing project, fatal runtime error. |
+
+`lerret <command> --help` (or `-h`) prints command-specific help and exits with code `0`.
+
 ## `lerret dev`
 
-Runs the studio against a `.lerret/` project folder.
+Runs the studio against a `.lerret/` project folder. Starts a local Vite dev server, bundles the studio, and opens it in your browser. The server is long-running — it stays up until you `Ctrl+C` (SIGINT) or send SIGTERM.
 
 ```bash
-lerret dev [path-to-project] [--port <port>] [--no-open]
+lerret dev [options]
+```
+
+### Options
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--port <n>` | integer (1–65535) | Vite's default (usually 5173) | Dev-server port. |
+| `--folder <path>` | path | (walk up from CWD) | Project folder. Bypasses the walk-up auto-detection. |
+| `--open` | boolean | true | Open the studio in the default browser on start. |
+| `--no-open` | boolean | (sets `open=false`) | Do not open the browser. |
+| `-h, --help` | — | — | Print this help and exit `0`. |
+
+Unknown flags are a usage error (exit `1`).
+
+### Project resolution
+
+`lerret dev` resolves the project in this order:
+
+1. **`--folder <path>`** if supplied. The path is used directly; the CLI checks that it (or a parent) contains a `.lerret/` directory.
+2. Otherwise the CLI **walks up** from the current working directory looking for the nearest `.lerret/` — the way `git` walks up looking for `.git/`.
+
+If neither path finds a project, the command exits with code `1` and a clear message.
+
+### Examples
+
+```bash
+lerret dev                          # walk up from cwd, default port, auto-open
+lerret dev --port 4000              # custom port
+lerret dev --no-open                # headless: useful in CI / SSH
+lerret dev --folder ./design-tokens # explicit folder, skip walk-up
 ```
 
 ## `lerret export`
 
-Headlessly renders a project (or page/group) to image files.
+Headlessly renders every artboard in scope to image files. The CLI boots a Vite server, launches a headless Chromium through Playwright, navigates the studio against your project, and captures each artboard. Uses the **same rendering path** as the studio's per-artboard PNG button, so the output is pixel-faithful to the studio.
 
 ```bash
-lerret export [path-to-project] --out ./out --format png
-lerret export [path-to-project] --out ./out --flat
-lerret export [path-to-project] --out ./out --page social
+lerret export [path] [options]
 ```
 
-Full flag list lands in a follow-up commit.
+### Argument
+
+| Argument | Description |
+|---|---|
+| `path` *(optional)* | A project root, or a page / group folder inside `.lerret/`. Omitted → walks up from CWD to find the nearest project, then exports the whole project. |
+
+When `path` points at a page or group folder, **only artboards within that scope** are captured.
+
+### Options
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--format <fmt>` | `png` \| `jpg` | `png` | Output image format. `jpeg` is accepted as an alias for `jpg`. |
+| `--out <dir>` | path | `./lerret-export` | Output directory, resolved relative to CWD. Created if absent. |
+| `--flat` | boolean | false | Write all images directly under `--out` with collision-disambiguated names. Default: nested folders mirroring page/group hierarchy. |
+| `--data <path>` | path | — | JSON or `.js` file whose contents override the data tier (tier 1 of [prop resolution](/concepts/#four-tier-prop-resolution)) for every artboard in this run. Missing / invalid → exit `1`. |
+| `--config <path>` | path | — | JSON or `.js` file deep-merged into the cascaded config for this run. Missing / invalid → exit `1`. |
+| `-h, --help` | — | — | Print this help and exit `0`. |
+
+### Output structure
+
+**Default (nested):**
+
+```
+<out>/
+└── <page>/
+    └── <group>/
+        └── ...
+            ├── <asset.name>.<ext>
+            └── <asset.name>-<variant>.<ext>
+```
+
+**`--flat`:**
+
+```
+<out>/
+├── <asset.name>.<ext>
+└── <asset.name>-<variant>.<ext>
+```
+
+In flat mode, file-name collisions (assets with the same `name` in different folders) are disambiguated by joining the path location segments with `-`.
+
+### Override flags: `--data` and `--config`
+
+The override flags let you re-render an entire project with different data or theming **without modifying any files**:
+
+- **`--data <path>`** — a JSON or `.js` file. Its contents override tier 1 (DATA) of prop resolution for every artboard. The file is loaded once before Vite starts; a missing or unparseable file aborts the run immediately (exit `1`) so you get feedback before spending time booting Chromium.
+- **`--config <path>`** — a JSON or `.js` file. Its contents are deep-merged into the cascaded config (using the same merge semantics as the on-disk cascade) for every folder in this run.
+
+Neither override is ever written back to your `.lerret/` (the separation invariant). The values flow through the project plugin as in-memory constructor options and are discarded on exit.
+
+A common pattern: keep a `theme-dark.json` and a `theme-light.json` alongside your project, then export both themes with one command each.
+
+### Failure isolation
+
+A failure to capture an **individual artboard** is reported but does **not** abort the run — the remaining artboards still write to disk. The final summary lists per-artboard failures and any custom fonts that could not be embedded across the run.
+
+The run exits `1` (fatal) only for these conditions:
+
+- No project resolved.
+- No artboards in scope.
+- Output directory could not be created.
+- Vite failed to start.
+- No Chromium could be launched (neither a system `chrome` / `msedge` channel nor a bundled Playwright browser).
+- `--data` or `--config` file missing or unparseable.
+
+### Chromium resolution
+
+`lerret export` tries a system Chromium **channel** first (`chrome`, then `msedge`) so a zero-install `npx @lerret/cli export` stays light. It falls back to a bundled Playwright browser if one has been installed (`npx playwright install chromium`). If neither is available, the command exits with code `1` and a clear, actionable message about how to install one.
+
+### Examples
+
+```bash
+# Whole project, default output
+lerret export
+
+# JPG output to a custom directory
+lerret export --format jpg --out ./assets
+
+# Only the `social` page, flat output
+lerret export .lerret/social --flat
+
+# Re-render with a dark-theme override
+lerret export --config ./theme-dark.json --out ./dark
+
+# Re-render with both data and config overrides (no source edit)
+lerret export \
+  --data ./fixtures/release-1.0.json \
+  --config ./theme-corporate.json \
+  --out ./marketing/release-1.0
+```
 
 ## `create-lerret`
 
-Scaffolds a new Lerret project.
+Scaffolder for new Lerret projects. Always invoke via `npx` (or your runner's dlx) — `create-*` is the npm convention for scaffolders.
 
 ```bash
-npx create-lerret <project-name> [--no-samples]
+npx create-lerret <project-name>             # full scaffold with sample assets (default)
+npx create-lerret <project-name> --no-samples # minimal empty project
 ```
+
+| Runner | Command |
+|---|---|
+| npm | `npx create-lerret my-canvas` |
+| pnpm | `pnpm dlx create-lerret my-canvas` |
+| Yarn | `yarn dlx create-lerret my-canvas` |
+| Bun | `bunx create-lerret my-canvas` |
+
+### Arguments
+
+| Argument | Required | Description |
+|---|---|---|
+| `<project-name>` | yes | Directory name for the new project. Letters, digits, and `.` `-` `_` only — no path separators, no path traversal. |
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--no-samples` | Scaffold only `.lerret/config.json` (with `{ "vars": {} }`). No `_fonts/`, no `social/` page, no sample artboards. The studio opens with a calm empty-but-correct canvas. |
+
+### Default output
+
+```
+<project-name>/
+└── .lerret/
+    ├── config.json
+    ├── _fonts/
+    │   └── LerretFixtureMono.woff2
+    └── social/
+        ├── instagram-square.jsx
+        ├── twitter-banner.jsx
+        ├── twitter-banner.data.json
+        └── youtube-thumbnail.jsx
+```
+
+### Behavior on conflicts
+
+| Condition | Behavior | Exit code |
+|---|---|---|
+| Target dir does not exist | Create it, populate it. | `0` |
+| Target dir is empty | Populate it. | `0` |
+| Target dir is non-empty | Refuse with clear message. No writes. | `1` |
+| Target path is a file | Refuse. No writes. | `1` |
+| Parent dir missing or unwritable | Refuse with clear message. | `1` |
+| Mid-copy filesystem failure | Clean up any partial output, then exit. | `1` |
+
+### Network and offline
+
+`create-lerret` itself has **zero runtime dependencies** — the package contains the template and a single Node script. The npm runner (`npx` / `pnpm dlx` / etc.) needs to fetch the package the first time; once cached, scaffolding is offline-capable.
+
+The follow-up `npx @lerret/cli dev` does need network to fetch Vite, React, and `@lerret/cli` the first time, but **never** makes outbound requests at runtime. After the first run, dev startup is offline-capable.
