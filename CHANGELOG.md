@@ -20,6 +20,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ### Fixed
 - `docsRepositoryBase` in the Nextra layout pointed at the wrong path (missing the `public/` workspace prefix), which 404'd every "Edit this page on GitHub" link.
 
+## @lerret/cli 0.1.11 — 2026-05-22
+
+### Fixed
+- `@lerret/cli export` now captures artboards across **every** project page on a project-scope run, not just the first one. The studio's `ProjectCanvas` (`packages/studio/src/components/canvas/project-canvas.jsx`) only mounts one page at a time, driven by a hash route. Previously the CLI navigated to the bare studio URL and waited for the first slot — non-first pages' slots never appeared in the DOM, so those captures failed with "slot not found" (or, on page-scope runs targeting a non-first page, timed out with "studio did not render any artboards within 30s"). The orchestrator now groups expanded artboards by `pagePath`, sets `window.location.hash = '#<pagePath>'` to drive the studio's `useHashRoute`, waits for that page's first slot to attach, then captures all of its artboards before moving on. A per-page render failure is isolated — other pages still write. No studio changes were needed; the hash-route primitive was already there for the dock's page picker.
+
 ## @lerret/cli 0.1.10 — 2026-05-22
 
 ### Fixed

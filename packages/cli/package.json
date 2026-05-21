@@ -1,6 +1,6 @@
 {
   "name": "@lerret/cli",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "The `lerret` design canvas CLI — a folder of plain React component files renders as a visual canvas. Includes the Vite dev server, headless export, and the bundled studio.",
   "type": "module",
   "license": "AGPL-3.0-only",

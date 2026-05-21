@@ -1126,6 +1126,53 @@ function formatLocation(segments) {
 }
 
 /**
+ * Group expanded artboard entries by their `pagePath`, preserving first-seen
+ * order. Each entry is paired with its pre-computed base filename so the
+ * downstream capture loop doesn't have to re-derive names.
+ *
+ * The studio renders one project-page at a time, so the CLI navigates the
+ * URL hash to each page once and captures every artboard on that page before
+ * moving on. The returned order is whatever order pages first appear in
+ * `expanded` — which mirrors `collectArtboards`'s model-walk order (already
+ * alphabetical, so a project's page-visit order is deterministic).
+ *
+ * @param {Array<{ artboard: object, variantName: string | undefined, domId: string }>} expanded
+ * @param {string[]} baseFilenames  Same length as `expanded`; the precomputed
+ *   filename for each entry.
+ * @returns {Array<{
+ *   pagePath: string | null,
+ *   entries: Array<{ artboard: object, variantName: string | undefined, domId: string, filename: string }>
+ * }>}
+ *   One group per distinct `pagePath`. `pagePath` is `null` only for hand-
+ *   crafted artboards in tests that omit the field — the orchestrator skips
+ *   navigation for that bucket and uses whatever the studio is showing.
+ */
+export function groupEntriesByPage(expanded, baseFilenames) {
+  /** @type {Map<string, Array<{ artboard: object, variantName: string | undefined, domId: string, filename: string }>>} */
+  const byPath = new Map();
+  const NULL_KEY = '__lerret_no_page__';
+  for (let i = 0; i < expanded.length; i++) {
+    const entry = expanded[i];
+    const pagePath =
+      entry.artboard && typeof entry.artboard.pagePath === 'string'
+        ? entry.artboard.pagePath
+        : null;
+    const key = pagePath === null ? NULL_KEY : pagePath;
+    const paired = { ...entry, filename: baseFilenames[i] };
+    const bucket = byPath.get(key);
+    if (bucket) {
+      bucket.push(paired);
+    } else {
+      byPath.set(key, [paired]);
+    }
+  }
+  return [...byPath.entries()].map(([key, entries]) => ({
+    pagePath: key === NULL_KEY ? null : key,
+    entries,
+  }));
+}
+
+/**
  * Run `@lerret/cli export`. Resolves the scope, boots Vite + Chromium, captures
  * each artboard, writes the result to disk, and returns an exit code.
  *
@@ -1288,29 +1335,23 @@ export async function runExport(argv, deps = {}) {
 
     // Open a single page and navigate to the studio. We use one page for the
     // whole run — captureArtboard is independent per artboard and the studio
-    // already renders every artboard in the project on first load. Bringing
-    // a fresh page per artboard would re-bundle / re-fetch fonts each time.
+    // pages share the same Vite/HMR session. A fresh page per artboard would
+    // re-bundle / re-fetch fonts each time.
+    //
+    // The studio renders ONE project-page at a time (the dock's page picker
+    // drives `ProjectStudio`'s hash route — see `packages/studio/src/project-
+    // studio.jsx`). To capture artboards across every project page we group
+    // by `pagePath`, navigate the URL hash to each page, wait for its first
+    // slot to attach, then capture all of that page's artboards before
+    // moving on. The first hash-set fires `hashchange` even when it matches
+    // the default page, which keeps the navigation predictable.
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto(url, { waitUntil: 'load', timeout: 60000 });
 
-    // Wait for the first expected artboard slot. Once one is in the DOM the
-    // studio has mounted; the rest of the project's slots follow in the same
-    // render. A timeout here means the studio could not load the project —
-    // surface that as a fatal error rather than silently producing zero
-    // captures.
-    const firstSelector = ARTBOARD_SELECTORS.slotByDataAttr(expanded[0].domId);
-    try {
-      await page.waitForSelector(firstSelector, { state: 'attached', timeout: 30000 });
-    } catch (err) {
-      process.stderr.write(
-        `@lerret/cli export: studio did not render any artboards within 30s ` +
-          `(${err && err.message ? err.message : String(err)}). The project may be empty or failed to load.\n`,
-      );
-      return 1;
-    }
-
-    // 5. Build name counts for flat-mode disambiguation.
+    // 5. Build name counts for flat-mode disambiguation. These are computed
+    //    across the WHOLE run so collisions are detected even when colliding
+    //    artboards live on different pages.
     /** @type {Map<string, number>} */
     const nameCounts = new Map();
     const baseFilenames = expanded.map((entry) =>
@@ -1320,73 +1361,132 @@ export async function runExport(argv, deps = {}) {
       nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
     }
 
-    // 6. Capture each artboard. Failures are isolated — a single bad
-    //    capture is logged and the run continues. Unembedded fonts are
-    //    aggregated across the run.
+    // 6. Group entries by `pagePath` so we can navigate the studio to each
+    //    page once. Insertion order matters — `collectArtboards` walks pages
+    //    in model order (alphabetical by the loader), so the resulting page
+    //    visit order is deterministic.
+    const pageGroups = groupEntriesByPage(expanded, baseFilenames);
+
+    // 7. Capture each artboard, one page-batch at a time. Failures are
+    //    isolated — a single bad capture is logged and the run continues.
+    //    Unembedded fonts are aggregated across the run.
     const allUnembeddedFonts = new Set();
     /** @type {Array<{ artboard: object, reason: string }>} */
     const failures = [];
     let writtenCount = 0;
+    let runIndex = 0;
 
-    for (let i = 0; i < expanded.length; i++) {
-      const entry = expanded[i];
-      const filename = baseFilenames[i];
-      const nameCount = nameCounts.get(filename) ?? 1;
-      const outputPath = buildOutputPath({
-        outDir: outDirAbs,
-        artboard: entry.artboard,
-        filename,
-        flat: flags.flat,
-        nameCount,
-      });
-
-      const human = `${i + 1}/${expanded.length}`;
-      const label = `${formatLocation(entry.artboard.locationSegments)}/${entry.artboard.asset.name}${entry.variantName ? `#${entry.variantName}` : ''}`;
-      process.stdout.write(`[${human}] capturing ${label}\n`);
-
-      let result;
-      try {
-        result = await captureInPage(page, entry.domId, flags.format);
-      } catch (err) {
-        result = {
-          ok: false,
-          error: err && err.message ? err.message : String(err),
-        };
+    for (const group of pageGroups) {
+      // Navigate the studio to this page via the hash. `ProjectStudio`'s
+      // `useHashRoute` listens on `hashchange`, so setting `location.hash`
+      // re-renders `ProjectCanvas` for the matching page. When `pagePath` is
+      // null (test artboards without a page hint) we skip navigation —
+      // whatever the studio is currently showing serves the capture.
+      if (group.pagePath !== null) {
+        try {
+          await page.evaluate((p) => {
+            // eslint-disable-next-line no-undef
+            window.location.hash = '#' + p;
+          }, group.pagePath);
+        } catch (err) {
+          // A navigation failure for this page is fatal for the page batch
+          // but not for the run — log every entry in this group as failed
+          // and move on. We don't return 1 because other pages may succeed.
+          const reason =
+            `could not navigate to page ${group.pagePath}: ` +
+            `${err && err.message ? err.message : String(err)}`;
+          for (const entry of group.entries) {
+            runIndex++;
+            const human = `${runIndex}/${expanded.length}`;
+            const label = `${formatLocation(entry.artboard.locationSegments)}/${entry.artboard.asset.name}${entry.variantName ? `#${entry.variantName}` : ''}`;
+            process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
+            failures.push({ artboard: entry.artboard, reason });
+          }
+          continue;
+        }
       }
 
-      if (!result || !result.ok) {
-        const reason = (result && result.error) || 'unknown capture failure';
-        process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
-        failures.push({ artboard: entry.artboard, reason });
+      // Wait for the first slot on this page to attach. If the studio fails
+      // to render this page's artboards within the timeout, log every entry
+      // in the batch as failed (with a clear reason) and move to the next
+      // page rather than aborting — partial output is more useful than zero.
+      const firstSelector = ARTBOARD_SELECTORS.slotByDataAttr(group.entries[0].domId);
+      try {
+        await page.waitForSelector(firstSelector, { state: 'attached', timeout: 30000 });
+      } catch (err) {
+        const reason =
+          `studio did not render page ${group.pagePath || '(default)'} within 30s ` +
+          `(${err && err.message ? err.message : String(err)})`;
+        for (const entry of group.entries) {
+          runIndex++;
+          const human = `${runIndex}/${expanded.length}`;
+          const label = `${formatLocation(entry.artboard.locationSegments)}/${entry.artboard.asset.name}${entry.variantName ? `#${entry.variantName}` : ''}`;
+          process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
+          failures.push({ artboard: entry.artboard, reason });
+        }
         continue;
       }
 
-      // Decode base64 → Uint8Array and write the bytes to disk.
-      let bytes;
-      try {
-        const binary = Buffer.from(result.bytesB64, 'base64');
-        bytes = new Uint8Array(binary.buffer, binary.byteOffset, binary.byteLength);
-      } catch (err) {
-        const reason = `failed to decode capture bytes: ${err && err.message ? err.message : String(err)}`;
-        process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
-        failures.push({ artboard: entry.artboard, reason });
-        continue;
-      }
+      for (const entry of group.entries) {
+        runIndex++;
+        const filename = entry.filename;
+        const nameCount = nameCounts.get(filename) ?? 1;
+        const outputPath = buildOutputPath({
+          outDir: outDirAbs,
+          artboard: entry.artboard,
+          filename,
+          flat: flags.flat,
+          nameCount,
+        });
 
-      try {
-        await ensureDirFn(toLerretPath(dirname(outputPath)));
-        await writeBinary(outputPath, bytes);
-        writtenCount++;
-        process.stdout.write(`[${human}] wrote ${outputPath}\n`);
-      } catch (err) {
-        const reason = `write failed: ${err && err.message ? err.message : String(err)}`;
-        process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
-        failures.push({ artboard: entry.artboard, reason });
-        continue;
-      }
+        const human = `${runIndex}/${expanded.length}`;
+        const label = `${formatLocation(entry.artboard.locationSegments)}/${entry.artboard.asset.name}${entry.variantName ? `#${entry.variantName}` : ''}`;
+        process.stdout.write(`[${human}] capturing ${label}\n`);
 
-      for (const font of result.unembeddedFonts || []) {
-        allUnembeddedFonts.add(font);
+        let result;
+        try {
+          result = await captureInPage(page, entry.domId, flags.format);
+        } catch (err) {
+          result = {
+            ok: false,
+            error: err && err.message ? err.message : String(err),
+          };
+        }
+
+        if (!result || !result.ok) {
+          const reason = (result && result.error) || 'unknown capture failure';
+          process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
+          failures.push({ artboard: entry.artboard, reason });
+          continue;
+        }
+
+        // Decode base64 → Uint8Array and write the bytes to disk.
+        let bytes;
+        try {
+          const binary = Buffer.from(result.bytesB64, 'base64');
+          bytes = new Uint8Array(binary.buffer, binary.byteOffset, binary.byteLength);
+        } catch (err) {
+          const reason = `failed to decode capture bytes: ${err && err.message ? err.message : String(err)}`;
+          process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
+          failures.push({ artboard: entry.artboard, reason });
+          continue;
+        }
+
+        try {
+          await ensureDirFn(toLerretPath(dirname(outputPath)));
+          await writeBinary(outputPath, bytes);
+          writtenCount++;
+          process.stdout.write(`[${human}] wrote ${outputPath}\n`);
+        } catch (err) {
+          const reason = `write failed: ${err && err.message ? err.message : String(err)}`;
+          process.stderr.write(`[${human}] FAILED ${label}: ${reason}\n`);
+          failures.push({ artboard: entry.artboard, reason });
+          continue;
+        }
+
+        for (const font of result.unembeddedFonts || []) {
+          allUnembeddedFonts.add(font);
+        }
       }
     }
 

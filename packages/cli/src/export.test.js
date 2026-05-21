@@ -40,6 +40,7 @@ import {
   DEFAULT_OUT_DIR,
   expandArtboardVariants,
   findModelNode,
+  groupEntriesByPage,
   loadOverrideFile,
   loadOverrideFiles,
   parseExportArgs,
@@ -465,6 +466,47 @@ describe('expandArtboardVariants', () => {
   });
 });
 
+describe('groupEntriesByPage', () => {
+  it('groups entries by pagePath, preserving first-seen order', () => {
+    const expanded = [
+      { artboard: { pagePath: '/p/.lerret/landing' }, domId: 'a' },
+      { artboard: { pagePath: '/p/.lerret/social' }, domId: 'b' },
+      { artboard: { pagePath: '/p/.lerret/landing' }, domId: 'c' },
+    ];
+    const filenames = ['a.png', 'b.png', 'c.png'];
+    const groups = groupEntriesByPage(expanded, filenames);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].pagePath).toBe('/p/.lerret/landing');
+    expect(groups[0].entries.map((e) => e.domId)).toEqual(['a', 'c']);
+    expect(groups[1].pagePath).toBe('/p/.lerret/social');
+    expect(groups[1].entries.map((e) => e.domId)).toEqual(['b']);
+  });
+
+  it('attaches the precomputed filename to each entry', () => {
+    const expanded = [{ artboard: { pagePath: '/p/.lerret/landing' }, domId: 'a' }];
+    const groups = groupEntriesByPage(expanded, ['Hero.png']);
+    expect(groups[0].entries[0].filename).toBe('Hero.png');
+  });
+
+  it('buckets entries with no pagePath under a null key', () => {
+    // Hand-crafted artboards in tests can omit pagePath. The orchestrator
+    // skips navigation for that bucket — these tests confirm the grouping.
+    const expanded = [
+      { artboard: {}, domId: 'a' },
+      { artboard: { pagePath: '/p/.lerret/landing' }, domId: 'b' },
+    ];
+    const groups = groupEntriesByPage(expanded, ['a.png', 'b.png']);
+    expect(groups).toHaveLength(2);
+    const nullGroup = groups.find((g) => g.pagePath === null);
+    expect(nullGroup).toBeDefined();
+    expect(nullGroup.entries.map((e) => e.domId)).toEqual(['a']);
+  });
+
+  it('returns an empty array for no entries', () => {
+    expect(groupEntriesByPage([], [])).toEqual([]);
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ARTBOARD_SELECTORS — the contract with the studio's DOM
 // ─────────────────────────────────────────────────────────────────────────────
@@ -645,13 +687,22 @@ describe('runExport — orchestration', () => {
   /**
    * Build a dep-bundle that simulates a successful headless run end-to-end
    * without ever touching Vite or Playwright. The `captureInPage` mock can
-   * be customized per test to inject failures.
+   * be customized per test to inject failures; `waitForSelector` likewise.
+   *
+   * The returned `page` mock is shared across all `newPage()` calls so tests
+   * can spy on `evaluate` (per-page hash navigation) and `waitForSelector`.
    */
-  function makeDeps({ capture, writeBinary } = {}) {
+  function makeDeps({ capture, writeBinary, waitForSelector } = {}) {
     /** @type {Array<{ path: string, bytes: Uint8Array }>} */
     const written = [];
+    const pageMock = {
+      goto: vi.fn(async () => {}),
+      waitForSelector: waitForSelector || vi.fn(async () => {}),
+      evaluate: vi.fn(async () => {}),
+    };
     return {
       written,
+      pageMock,
       deps: {
         getCwd: () => projectRoot,
         bootServer: vi.fn(async () => ({
@@ -661,10 +712,7 @@ describe('runExport — orchestration', () => {
         launchBrowser: vi.fn(async () => ({
           browser: {
             newContext: async () => ({
-              newPage: async () => ({
-                goto: vi.fn(async () => {}),
-                waitForSelector: vi.fn(async () => {}),
-              }),
+              newPage: async () => pageMock,
             }),
             close: vi.fn(async () => {}),
           },
@@ -709,10 +757,15 @@ describe('runExport — orchestration', () => {
     expect(paths[1]).toMatch(/\/out\/ui\/cards\/Card\.png$/);
   });
 
-  it('places assets under their own page folder in a multi-page project', async () => {
+  it('places assets under their own page folder AND visits every page in a multi-page project', async () => {
     // Repro from the PRD bug report: a project with `landing/heroes/Card1.jsx`
     // and `social/Banner.jsx` must write `out/landing/heroes/Card1.png` and
     // `out/social/Banner.png` — never collapsing them into a shared root.
+    //
+    // Also confirms the page-by-page hash navigation fix: the studio renders
+    // one project-page at a time, so the CLI must navigate via `location.hash`
+    // before capturing each page's slots. Without that step, only the first
+    // page's artboards are in the DOM.
     const multiWorkDir = await fsp.mkdtemp(join(tmpdir(), 'lerret-export-multipage-'));
     try {
       const multiLerret = join(multiWorkDir, LERRET_DIR_NAME);
@@ -732,7 +785,7 @@ describe('runExport — orchestration', () => {
       );
 
       const multiOut = join(multiWorkDir, 'out');
-      const { deps, written } = makeDeps();
+      const { deps, written, pageMock } = makeDeps();
       // Point cwd at the multi-page project so resolveScope picks it up.
       deps.getCwd = () => multiWorkDir;
 
@@ -752,6 +805,80 @@ describe('runExport — orchestration', () => {
       const paths = written.map((w) => w.path).sort();
       expect(paths[0]).toMatch(/\/out\/landing\/heroes\/Card1\.png$/);
       expect(paths[1]).toMatch(/\/out\/social\/Banner\.png$/);
+
+      // Confirm page-by-page navigation: `evaluate` should have been called
+      // once per page with the page's path passed as the arg. Strings are
+      // dedicated to the hash-set callback so this is a precise count.
+      const hashSetCalls = pageMock.evaluate.mock.calls;
+      expect(hashSetCalls).toHaveLength(2);
+      // Each call: [callback, pagePath]
+      const navigatedPaths = hashSetCalls.map((c) => c[1]).sort();
+      expect(navigatedPaths[0]).toMatch(/\/landing$/);
+      expect(navigatedPaths[1]).toMatch(/\/social$/);
+
+      // `waitForSelector` is called once per page (for the page's first slot).
+      expect(pageMock.waitForSelector).toHaveBeenCalledTimes(2);
+    } finally {
+      await fsp.rm(multiWorkDir, { recursive: true, force: true });
+    }
+  });
+
+  it('isolates a single page render-timeout to that page (other pages still write)', async () => {
+    // When the studio fails to render one page's slots, the CLI should mark
+    // every artboard in that page's batch as failed and continue with the
+    // next page rather than abort the whole run.
+    const multiWorkDir = await fsp.mkdtemp(join(tmpdir(), 'lerret-export-pagefail-'));
+    try {
+      const multiLerret = join(multiWorkDir, LERRET_DIR_NAME);
+      const landingDir = join(multiLerret, 'landing');
+      const socialDir = join(multiLerret, 'social');
+      await fsp.mkdir(landingDir, { recursive: true });
+      await fsp.mkdir(socialDir, { recursive: true });
+      await fsp.writeFile(
+        join(landingDir, 'Hero.jsx'),
+        "export default function Hero() { return null; }\n",
+        'utf-8',
+      );
+      await fsp.writeFile(
+        join(socialDir, 'Banner.jsx'),
+        "export default function Banner() { return null; }\n",
+        'utf-8',
+      );
+
+      // Reject waitForSelector for any selector that mentions `/social/` so
+      // the second page's batch fails fast. The first page still renders.
+      const waitForSelector = vi.fn(async (selector) => {
+        if (typeof selector === 'string' && selector.includes('/social/')) {
+          throw new Error('Timeout 30000ms exceeded.');
+        }
+      });
+
+      const multiOut = join(multiWorkDir, 'out');
+      const { deps, written } = makeDeps({ waitForSelector });
+      deps.getCwd = () => multiWorkDir;
+
+      const errChunks = [];
+      const outSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation((s) => {
+        errChunks.push(String(s));
+        return true;
+      });
+
+      let code;
+      try {
+        code = await runExport(['--out', multiOut], deps);
+      } finally {
+        outSpy.mockRestore();
+        errSpy.mockRestore();
+      }
+
+      // 0 because at least one page wrote — failure isolation, like a single
+      // bad capture.
+      expect(code).toBe(0);
+      expect(written).toHaveLength(1);
+      expect(written[0].path).toMatch(/\/out\/landing\/Hero\.png$/);
+      expect(errChunks.join('')).toMatch(/studio did not render page/);
+      expect(errChunks.join('')).toMatch(/social/);
     } finally {
       await fsp.rm(multiWorkDir, { recursive: true, force: true });
     }
