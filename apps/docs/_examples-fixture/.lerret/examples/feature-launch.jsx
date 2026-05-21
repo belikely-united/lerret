@@ -3,7 +3,7 @@ export const meta = {
   label: 'Feature launch — typography poster',
   tags: ['poster', 'announcement', 'feature'],
   propsSchema: {
-    feature: { type: 'string', default: 'Multiplayer', required: true },
+    feature: { type: 'string', default: 'Drafts', required: true },
     version: { type: 'string', default: 'V2' },
     issueDate: { type: 'string', default: 'AUTUMN 26' },
     footnote: { type: 'string', default: 'A new way to design together. Available now.' },
@@ -11,7 +11,7 @@ export const meta = {
 };
 
 export default function FeatureLaunchPoster({
-  feature = 'Multiplayer',
+  feature = 'Drafts',
   version = 'V2',
   issueDate = 'AUTUMN 26',
   footnote = 'A new way to design together. Available now.',
@@ -38,12 +38,11 @@ export default function FeatureLaunchPoster({
         background: '#C4392F',
       }} />
 
-      {/* Top eyebrow */}
+      {/* Eyebrow */}
       <div style={{
         position: 'relative',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
         fontFamily: 'ui-monospace, Menlo, monospace',
         fontSize: 13,
         letterSpacing: '0.3em',
@@ -54,44 +53,46 @@ export default function FeatureLaunchPoster({
         <span>{version}</span>
       </div>
 
-      {/* Massive feature name — stacked, overflowing */}
+      {/* Feature word — sized to fit comfortably within the canvas */}
       <div style={{
-        position: 'relative',
-        marginTop: 80,
-        zIndex: 1,
+        position: 'absolute',
+        left: 72,
+        right: 72,
+        top: 280,
+        textAlign: 'center',
       }}>
         <div style={{
-          fontSize: 360,
+          fontSize: 280,
           fontWeight: 900,
-          lineHeight: 0.82,
-          letterSpacing: '-0.06em',
-          color: '#181614',
+          lineHeight: 0.88,
+          letterSpacing: '-0.055em',
           textTransform: 'lowercase',
-          textIndent: '-12px',
+          color: '#181614',
         }}>
           {feature.toLowerCase()}.
         </div>
       </div>
 
-      {/* Outlined echo of feature word, rotated */}
+      {/* Outlined "new" echo — rotated, anchored bottom-left of cream half */}
       <div style={{
         position: 'absolute',
-        right: -90,
-        top: 380,
-        fontSize: 240,
+        left: 60,
+        top: 640,
+        fontSize: 180,
         fontWeight: 900,
         letterSpacing: '-0.05em',
         lineHeight: 1,
+        textTransform: 'lowercase',
         color: 'transparent',
         WebkitTextStroke: '2px rgba(24,22,20,0.18)',
-        transform: 'rotate(-8deg)',
+        transform: 'rotate(-6deg)',
         pointerEvents: 'none',
         userSelect: 'none',
       }}>
         new
       </div>
 
-      {/* Footnote on the cherry block */}
+      {/* Footnote on cherry block */}
       <div style={{
         position: 'absolute',
         left: 72,
@@ -108,7 +109,7 @@ export default function FeatureLaunchPoster({
           fontWeight: 500,
           lineHeight: 1.15,
           letterSpacing: '-0.015em',
-          maxWidth: '70%',
+          maxWidth: '72%',
           fontStyle: 'italic',
         }}>
           {footnote}
@@ -118,7 +119,6 @@ export default function FeatureLaunchPoster({
           fontWeight: 900,
           letterSpacing: '-0.04em',
           lineHeight: 0.9,
-          textAlign: 'right',
           color: '#F0EAD9',
         }}>
           →

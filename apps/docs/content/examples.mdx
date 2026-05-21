@@ -110,9 +110,9 @@ export default function ProductHuntPoster({ productName, tagline, launchDate, is
 
 ## 2. Feature launch — typography poster
 
-**Use case.** "Introducing X" treated as art-directed type, not a UI announcement. Cream top half, cherry-red bottom band, the feature name overflowing in display-weight lowercase, a rotated ghosted "new" echo behind it. Portrait 1200×1500.
+**Use case.** "Introducing X" treated as art-directed type, not a UI announcement. Cream top, cherry-red bottom band, the feature name centered in display-weight lowercase, a rotated ghosted "new" echo nestled below it. Portrait 1200×1500.
 
-![Feature launch poster — top half cream with massive lowercase "multiplayer." overflowing left edge, ghosted outlined "new" rotated diagonally behind it, "INTRODUCING · AUTUMN 26 · V2" monospace eyebrow at top, bottom cherry-red band with italic tagline and oversized arrow](/examples/feature-launch.jpg)
+![Feature launch poster — top section cream with massive centered lowercase "drafts." in deep ink, ghosted outlined rotated "new" echo below-left, "INTRODUCING · AUTUMN 26 · V2" monospace eyebrow at top, bottom cherry-red band with italic "A new way to design together. Available now." and oversized arrow](/examples/feature-launch.jpg)
 
 **Path.** `.lerret/marketing/feature-launch.jsx`
 
@@ -122,7 +122,7 @@ export const meta = {
   label: 'Feature launch — typography poster',
   tags: ['poster', 'announcement', 'feature'],
   propsSchema: {
-    feature: { type: 'string', default: 'Multiplayer', required: true },
+    feature: { type: 'string', default: 'Drafts', required: true },
     version: { type: 'string', default: 'V2' },
     issueDate: { type: 'string', default: 'AUTUMN 26' },
     footnote: { type: 'string', default: 'A new way to design together. Available now.' },
@@ -153,23 +153,25 @@ export default function FeatureLaunchPoster({ feature, version, issueDate, footn
         <span>{version}</span>
       </div>
 
-      {/* Massive feature word, overflowing */}
-      <div style={{ position: 'relative', marginTop: 80, zIndex: 1 }}>
+      {/* Feature word — sized to fit comfortably within the canvas */}
+      <div style={{
+        position: 'absolute', left: 72, right: 72, top: 280, textAlign: 'center',
+      }}>
         <div style={{
-          fontSize: 360, fontWeight: 900, lineHeight: 0.82,
-          letterSpacing: '-0.06em', textTransform: 'lowercase', textIndent: '-12px',
+          fontSize: 280, fontWeight: 900, lineHeight: 0.88,
+          letterSpacing: '-0.055em', textTransform: 'lowercase',
         }}>
           {feature.toLowerCase()}.
         </div>
       </div>
 
-      {/* Ghosted "new" rotated */}
+      {/* Ghosted "new" echo, rotated */}
       <div style={{
-        position: 'absolute', right: -90, top: 380,
-        fontSize: 240, fontWeight: 900, letterSpacing: '-0.05em',
+        position: 'absolute', left: 60, top: 640,
+        fontSize: 180, fontWeight: 900, letterSpacing: '-0.05em',
         color: 'transparent',
         WebkitTextStroke: '2px rgba(24,22,20,0.18)',
-        transform: 'rotate(-8deg)', pointerEvents: 'none',
+        transform: 'rotate(-6deg)', pointerEvents: 'none',
       }}>new</div>
 
       {/* Footnote on cherry block */}
@@ -180,7 +182,7 @@ export default function FeatureLaunchPoster({ feature, version, issueDate, footn
       }}>
         <div style={{
           fontSize: 36, lineHeight: 1.15, fontStyle: 'italic',
-          maxWidth: '70%',
+          maxWidth: '72%',
         }}>{footnote}</div>
         <div style={{ fontSize: 64, fontWeight: 900 }}>→</div>
       </div>
@@ -189,7 +191,7 @@ export default function FeatureLaunchPoster({ feature, version, issueDate, footn
 }
 ```
 
-**Design notes.** The poster move here is **type-as-image**: the feature word is the design. `text-indent: -12px` pulls it visually flush with the left margin. The outlined "new" echo (`-webkit-text-stroke` with transparent fill) plus the diagonal rotation gives risograph-print energy without any actual SVG.
+**Design notes.** The poster move is **type-as-image** — the feature word IS the design. Sized at 280px (down from a more aggressive 360 in an earlier draft that bled past the canvas edge), the word fits cleanly with breathing room either side, while the outlined "new" echo nested below-left and rotated 6° gives the print-shop / risograph energy. The cherry-red band at the bottom is a flat color block, not a gradient — that's the screen-print signal.
 
 ---
 
@@ -380,36 +382,37 @@ export const meta = {
 
 ---
 
-## 7. Conference talk — concert tour poster
+## 7. Conference talk — marquee poster
 
-**Use case.** Conference-talk announcement borrowing tour-poster vocabulary: speaker as the headliner, talk title as the show title, topics as "support acts," date / time / venue ticket strip at the bottom. Deep midnight purple, sunset color band, hairline frame. Portrait 1200×1800, full-bleed cinema proportions.
+**Use case.** Conference-talk announcement borrowing tour-poster vocabulary, but with the **talk title as the headliner** — that's what makes someone want to attend. Speaker name plays the supporting "performer" role below a marquee divider, topics line up like opening acts, ticket strip at the bottom carries date / time / venue. Deep midnight purple with a sunset radial glow anchored bottom-center. Portrait 1200×1500.
 
-![Talk promo poster — deep midnight purple background with a sunset cream-to-amber horizontal band across the middle, hairline cream frame, "— REACT CONF 26 —" centered masthead, "LIVE · ONE NIGHT ONLY" amber eyebrow, gigantic italic serif speaker name, "performing" + giant talk title in quotes, "with topics" + topics list separated by ✦, bottom ticket strip with DATE / TIME / VENUE columns in italic serif](/examples/talk-promo.jpg)
+![Talk promo poster — deep midnight purple background with an amber sunset glow rising from the bottom, hairline cream frame, "— REACT CONF 26 —" centered monospace masthead, "✦ LIVE · ONE NIGHT ONLY" amber eyebrow, giant italic-serif talk title in quotes "How we shipped multiplayer in three weeks.", a horizontal amber marquee gradient line acting as the stage, "A TALK BY" eyebrow + italic-serif speaker name "Sooryagangaraj", "FOUNDER · LERRET" amber mono caps, topics row "CRDT INTERNALS ✦ CURSOR PRESENCE ✦ CONFLICT RESOLUTION", three-column ticket strip with DATE / TIME / VENUE](/examples/talk-promo.jpg)
 
 **Path.** `.lerret/marketing/talk-promo.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 1800 },
-  label: 'Talk promo — tour poster',
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Talk promo — marquee poster',
   tags: ['poster', 'talk', 'conference'],
   propsSchema: {
-    speaker: { type: 'string', default: 'Sooryagangaraj', required: true },
     conference: { type: 'string', default: 'React Conf 26' },
-    venue: { type: 'string', default: 'Henderson, NV' },
+    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks.', required: true },
+    speaker: { type: 'string', default: 'Sooryagangaraj' },
+    role: { type: 'string', default: 'Founder · Lerret' },
     date: { type: 'string', default: 'Oct 17' },
     time: { type: 'string', default: '14:30 PST' },
-    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks.' },
+    venue: { type: 'string', default: 'Henderson, NV' },
     topic1: { type: 'string', default: 'CRDT internals' },
     topic2: { type: 'string', default: 'Cursor presence' },
     topic3: { type: 'string', default: 'Conflict resolution' },
   },
 };
 
-// Full source — see the fixture file in the docs repo.
+// Full source — see the fixture file in the docs repo. Key moves below.
 ```
 
-**Design notes.** The sunset color band (a flat amber strip across the middle of the canvas) anchors the speaker name as the "headliner." Topics are joined with ✦ in monospace caps — the same pattern an old gig flyer uses to list opening acts. The bottom ticket strip with three centered columns mimics actual concert tickets.
+**Design notes.** The earlier draft put the speaker name front-and-center as the headliner; for a conference talk poster that almost never lands — the **talk title** is what makes someone show up. So the hero now is the italic-serif title in quotes, with the speaker treated as the "performer" credit below a horizontal amber marquee gradient line (the "stage"). The sunset radial glow anchored bottom-center reads the way a stage light would. Topics joined with ✦ in mono caps borrow from gig-flyer "with opening acts" patterns. Ticket strip at the bottom holds date, time, venue.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/talk-promo.jsx)
 
