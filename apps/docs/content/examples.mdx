@@ -1,19 +1,144 @@
 ---
 title: Examples
-description: Fourteen art-directed marketing posters — Product Hunt launches, feature drops, store icons, gallery showcases, LinkedIn announcements, OSS releases, teasers and more — all written as plain React.
+description: Sixteen art-directed marketing posters — phone mockups, App Store screenshots, multi-device showcases, Product Hunt launches, feature drops, OSS releases and more — all written as plain React.
 ---
 
 # Examples
 
-The assets indie makers actually publish — but treated as **posters**, not UI banners. Each one leans on art-direction conventions you'd recognise from print: editorial mastheads, tour-poster typography, magazine-cover quote treatments, Swiss modernist grids, brutalist hand-set type. Plain React; no design tool round-trip.
+You shipped the product. Now you need an App Store screenshot, a Product Hunt gallery image with your UI in a phone frame, a "X is live" launch poster, a feature-drop graphic for Twitter. Designers know this drill; most builders don't. **This is the gap.** Sixteen art-directed marketing posters below — each a complete Lerret asset you can drop in, edit, and export.
 
-> **The previews on this page were rendered with Lerret.** Every image below is the output of `@lerret/cli export` against the source code shown next to it.
+The first three are the mockup-based ones (phone, multi-device, App Store screenshot) — the assets devs and indie founders ask "how do I make one of these" most often. The rest cover the announcement / milestone / community surface.
 
-> **Where to put the files.** Inside your project's `.lerret/` folder, put each `.jsx` under a page folder (e.g. `.lerret/marketing/product-hunt.jsx`). Co-located data files live alongside (`.lerret/marketing/product-hunt.data.json`).
+> **The previews on this page were rendered with Lerret.** Every image below is the output of `@lerret/cli export` against the source shown next to it — including the iPhone and laptop frames, drawn as plain CSS.
 
-## 1. Product Hunt launch — tour poster
+> **Where to put the files.** Inside your project's `.lerret/` folder, put each `.jsx` under a page folder (e.g. `.lerret/marketing/phone-hero.jsx`). Co-located data files live alongside.
 
-**Use case.** The card you ship the morning you launch. Treats the moment like a printed handbill: serif italic product name as the centerpiece, condensed sans callout in PH orange, a hairline frame, tour-style date strip. Portrait 1200×1500, Instagram-grid and LinkedIn friendly.
+## 1. Phone hero — App on iPhone showcase
+
+**Use case.** The "look at my app on a phone" hero — for landing pages, Twitter launch posts, App Store landing pages. iPhone-15-style frame drawn entirely in CSS (rounded bezel, dynamic island, status bar) with a mock canvas inside showing three artboard cards. Headline copy + tagline beside it. Portrait 1200×1500.
+
+![Phone hero poster — warm linen-to-sienna gradient background, sienna eyebrow "◆ NOW ON THE APP STORE", huge two-line headline "Your folder is the canvas.", italic serif tagline at the bottom, a tilted iPhone-15-style mockup with dynamic island + status bar showing a Lerret canvas with three artboard preview cards (PH launch in orange, open-source dark, testimonial pink) and a bottom tab bar](/examples/phone-hero.jpg)
+
+**Path.** `.lerret/marketing/phone-hero.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Phone-hero — app showcase',
+  tags: ['poster', 'mockup', 'app-showcase', 'launch'],
+  propsSchema: {
+    eyebrow: { type: 'string', default: 'NOW ON THE APP STORE' },
+    headline: { type: 'string', default: 'Your folder is\nthe canvas.', required: true },
+    tagline: { type: 'string', default: 'Design every social card, OG image, and release graphic — in plain React.' },
+    appName: { type: 'string', default: 'Lerret' },
+  },
+};
+
+// Full source: ~300 lines (includes a reusable PhoneFrame + MockApp).
+// Both helpers are local — they ARE the design.
+```
+
+**Design notes.** The whole iPhone is built in CSS — outer titanium gradient bezel, inner glossy ring, screen, dynamic island, status bar with time + signal indicators. The mock app inside renders three "artboard" cards (the same patterns the user might author in Lerret), so the poster recursively shows the product. `PhoneFrame` and `MockApp` are kept as local helpers in the file so the asset stays self-contained — you can swap the mock-app body for your own.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/phone-hero.jsx)
+
+---
+
+## 2. App Store screenshot — feature highlight
+
+**Use case.** The 1290×2796 portrait screenshot you upload to App Store Connect / Play Console — there are usually 5–10 per app, each highlighting one feature. This pattern: big headline at the top, italic-serif subhead, large phone frame anchored to the bottom-center with a mock editor view inside. Tall portrait 1080×1920 (Instagram-story / App Store screenshot ratio).
+
+![App Store screenshot — tall portrait, deep purple-to-sienna gradient background, "01 / 06" pagination top-left, amber "✦ LERRET FOR iOS" eyebrow centered, gigantic two-line headline "Draft a launch / in minutes.", italic serif "Type, save, export." subhead, large iPhone-15-style mockup anchored to the bottom-center showing a mock code editor with syntax-highlighted JSX and a preview thumbnail card below it](/examples/app-store-screenshot.jpg)
+
+**Path.** `.lerret/marketing/app-store-screenshot.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1080, height: 1920 },
+  label: 'App Store screenshot — feature highlight',
+  tags: ['poster', 'mockup', 'app-store', 'screenshot'],
+  propsSchema: {
+    page: { type: 'string', default: '01 / 06' },
+    headline: { type: 'string', default: 'Draft a launch\nin minutes.', required: true },
+    subhead: { type: 'string', default: 'Type, save, export.' },
+    appName: { type: 'string', default: 'Lerret' },
+  },
+};
+
+// Full source ~270 lines. PhoneFrame + MockEditor inside.
+```
+
+**Design notes.** App Store screenshots are essentially **one big marketing claim + one phone frame**. The phone is anchored bottom-center with `bottom: -60` so the device extends past the canvas — that "spilling out of the page" treatment is the convention you see across the Apple ecosystem screenshot examples. Inside the frame is a mock code editor (mono syntax) followed by a preview-card thumbnail — that combination of "code → preview" shows what the app actually does without faking screenshots. Build five or six of these for an app launch, swap headlines + page number.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/app-store-screenshot.jsx)
+
+---
+
+## 3. Multi-device showcase — phone + laptop
+
+**Use case.** "Available everywhere" promo for cross-platform apps. Landscape 1600×1000, dark cosmic background, a laptop frame on the right with a mock canvas grid showing six artboards, and a tilted iPhone in the bottom-left overlapping the laptop. Headline + tagline on the left.
+
+![Multi-device showcase — landscape, dark cosmic purple gradient with amber bottom glow, amber "◆ AVAILABLE EVERYWHERE" eyebrow, huge headline "Render once. Ship everywhere.", italic serif tagline, large laptop mockup on the right showing a 3×2 bento grid of six artboard cards (PH launch, 10K stars, hiring, open source, testimonial, release v2.0), tilted iPhone mockup overlapping the laptop's bottom-left corner, "iOS · iPadOS · macOS · Web" footer tag](/examples/multi-device.jpg)
+
+**Path.** `.lerret/marketing/multi-device.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1600, height: 1000 },
+  label: 'Multi-device — phone + laptop showcase',
+  tags: ['poster', 'mockup', 'multi-device', 'launch'],
+  propsSchema: {
+    eyebrow: { type: 'string', default: 'AVAILABLE EVERYWHERE' },
+    headline: { type: 'string', default: 'Render once. Ship everywhere.', required: true },
+    tagline: { type: 'string', default: 'One folder of React components. Every social card, OG image, app screenshot, and release graphic — generated from code.' },
+    appName: { type: 'string', default: 'Lerret' },
+  },
+};
+
+// Full source ~400 lines. PhoneFrame, LaptopFrame, MockPhoneCanvas,
+// MockLaptopCanvas — all local helpers.
+```
+
+**Design notes.** The laptop frame is also pure CSS: a tilted-trapezoid base + rounded screen with traffic-light dots and a faux toolbar. The 3×2 bento inside the laptop shows the breadth of what Lerret renders — using the **same patterns** the other examples in this gallery teach (PH launch, stars milestone, OSS release, hiring, testimonial, release card). The phone overlaps the laptop's bottom-left corner like an iOS marketing shot. Restraint: no shadow under the devices that's so dark it looks fake; the natural drop-shadow from `filter: drop-shadow(...)` is enough.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/multi-device.jsx)
+
+---
+
+## 4. Product Hunt gallery image — feature card
+
+**Use case.** The 1270×760 gallery images on a Product Hunt listing page. Each one highlights one feature with a strong value prop. Split layout: text column on the left, a hero-number panel on the right. 1270×760 landscape.
+
+![Product Hunt gallery image — split landscape, left column on cream linen with sienna eyebrow "◆ FEATURE 02 OF 06", display headline "Faster than reaching for Figma.", description copy, monospace "→ lerret.belikely.com" footer. Right column on deep charcoal with sienna radial glow, "THE NUMBER" eyebrow, giant gradient cream-coral "100×" tabular numeral, italic serif "From open-folder to first artboard." footnote](/examples/ph-gallery.jpg)
+
+**Path.** `.lerret/marketing/ph-gallery.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1270, height: 760 },
+  label: 'Product Hunt gallery image',
+  tags: ['poster', 'product-hunt', 'feature-card'],
+  propsSchema: {
+    eyebrow: { type: 'string', default: 'Feature 02 of 06' },
+    metric: { type: 'string', default: '100×' },
+    headline: { type: 'string', default: 'Faster than reaching for Figma.', required: true },
+    description: { type: 'string', default: 'Author every social card, OG image, and release graphic in plain React.' },
+    detail: { type: 'string', default: 'lerret.belikely.com' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** The split layout (60/40) is the PH-gallery convention — readers scan the left for the claim, scan the right for the proof. The right panel inverts the palette so the metric reads as quotable and the whole image holds together as a single object.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/ph-gallery.jsx)
+
+---
+
+## 5. Product Hunt launch — tour poster
+
+**Use case.** The card you ship the morning you launch. Treats the moment like a printed handbill: serif italic product name as the centerpiece, condensed sans callout in PH orange, a hairline frame, tour-style date strip. Portrait 1200×1500.
 
 ![Product Hunt launch poster — cream background with hairline border, monospace masthead "The Belikely Press · NO.001 · Launch Day Edition", condensed orange "WE'RE / LIVE / ON" stacked, massive italic serif product name, italic tagline, date strip with sienna producthunt.com](/examples/product-hunt.jpg)
 
@@ -32,87 +157,20 @@ export const meta = {
   },
 };
 
-export default function ProductHuntPoster({ productName, tagline, launchDate, issue }) {
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      background: '#F5EBD8', color: '#1A1410',
-      fontFamily: 'Georgia, "Times New Roman", serif',
-      position: 'relative', overflow: 'hidden', padding: '72px 80px',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-    }}>
-      {/* Hairline frame */}
-      <div style={{
-        position: 'absolute', inset: '32px 40px',
-        border: '1px solid rgba(26,20,16,0.25)', pointerEvents: 'none',
-      }} />
-
-      {/* Masthead */}
-      <div style={{
-        position: 'relative', display: 'flex', justifyContent: 'space-between',
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: 14, letterSpacing: '0.25em', textTransform: 'uppercase',
-      }}>
-        <span>The Belikely Press · {issue}</span>
-        <span>Launch Day Edition</span>
-      </div>
-
-      {/* Stacked callout + product name */}
-      <div style={{ position: 'relative' }}>
-        <div style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          fontSize: 88, fontWeight: 900, letterSpacing: '-0.04em',
-          lineHeight: 0.86, textTransform: 'uppercase', color: '#DA552F',
-        }}>
-          We're<br />Live<br />on
-        </div>
-        <div style={{
-          fontSize: 220, fontWeight: 400, letterSpacing: '-0.05em',
-          lineHeight: 0.9, fontStyle: 'italic', marginTop: 8,
-        }}>
-          {productName}.
-        </div>
-      </div>
-
-      {/* Tagline */}
-      <div style={{ position: 'relative', maxWidth: '78%' }}>
-        <div style={{ fontSize: 30, lineHeight: 1.3, fontStyle: 'italic' }}>
-          {tagline}
-        </div>
-      </div>
-
-      {/* Tour-date strip */}
-      <div style={{
-        position: 'relative', borderTop: '2px solid #1A1410',
-        paddingTop: 28, display: 'flex',
-        justifyContent: 'space-between', alignItems: 'baseline',
-      }}>
-        <div style={{
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          fontSize: 18, letterSpacing: '0.2em', textTransform: 'uppercase',
-        }}>
-          {launchDate} — Upvote Today
-        </div>
-        <div style={{
-          fontSize: 32, fontStyle: 'italic', color: '#DA552F',
-        }}>
-          producthunt.com
-        </div>
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** No pills, no buttons, no avatars — just a masthead, a stacked callout, the product name as the visual centerpiece, and a tour-style date strip. The italic serif treatment for the product name is what carries the poster feel.
+**Design notes.** No pills, no buttons, no avatars — just a masthead, a stacked callout, the product name as the visual centerpiece, and a tour-style date strip.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/product-hunt.jsx)
 
 ---
 
-## 2. Feature launch — typography poster
+## 6. Feature launch — typography poster
 
 **Use case.** "Introducing X" treated as art-directed type, not a UI announcement. Cream top, cherry-red bottom band, the feature name centered in display-weight lowercase, a rotated ghosted "new" echo nestled below it. Portrait 1200×1500.
 
-![Feature launch poster — top section cream with massive centered lowercase "drafts." in deep ink, ghosted outlined rotated "new" echo below-left, "INTRODUCING · AUTUMN 26 · V2" monospace eyebrow at top, bottom cherry-red band with italic "A new way to design together. Available now." and oversized arrow](/examples/feature-launch.jpg)
+![Feature launch poster — top cream section with massive centered lowercase "drafts." in deep ink, ghosted outlined rotated "new" echo below-left, "INTRODUCING · AUTUMN 26 · V2" monospace eyebrow at top, bottom cherry-red band with italic tagline and oversized arrow](/examples/feature-launch.jpg)
 
 **Path.** `.lerret/marketing/feature-launch.jsx`
 
@@ -129,194 +187,47 @@ export const meta = {
   },
 };
 
-export default function FeatureLaunchPoster({ feature, version, issueDate, footnote }) {
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      background: '#F0EAD9', color: '#181614',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden', padding: '64px 72px',
-    }}>
-      {/* Cherry block */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        height: '38%', background: '#C4392F',
-      }} />
-
-      {/* Eyebrow */}
-      <div style={{
-        position: 'relative', display: 'flex', justifyContent: 'space-between',
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: 13, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.8,
-      }}>
-        <span>Introducing · {issueDate}</span>
-        <span>{version}</span>
-      </div>
-
-      {/* Feature word — sized to fit comfortably within the canvas */}
-      <div style={{
-        position: 'absolute', left: 72, right: 72, top: 280, textAlign: 'center',
-      }}>
-        <div style={{
-          fontSize: 280, fontWeight: 900, lineHeight: 0.88,
-          letterSpacing: '-0.055em', textTransform: 'lowercase',
-        }}>
-          {feature.toLowerCase()}.
-        </div>
-      </div>
-
-      {/* Ghosted "new" echo, rotated */}
-      <div style={{
-        position: 'absolute', left: 60, top: 640,
-        fontSize: 180, fontWeight: 900, letterSpacing: '-0.05em',
-        color: 'transparent',
-        WebkitTextStroke: '2px rgba(24,22,20,0.18)',
-        transform: 'rotate(-6deg)', pointerEvents: 'none',
-      }}>new</div>
-
-      {/* Footnote on cherry block */}
-      <div style={{
-        position: 'absolute', left: 72, right: 72, bottom: 80,
-        color: '#F0EAD9', display: 'flex',
-        justifyContent: 'space-between', alignItems: 'flex-end', gap: 32,
-      }}>
-        <div style={{
-          fontSize: 36, lineHeight: 1.15, fontStyle: 'italic',
-          maxWidth: '72%',
-        }}>{footnote}</div>
-        <div style={{ fontSize: 64, fontWeight: 900 }}>→</div>
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The poster move is **type-as-image** — the feature word IS the design. Sized at 280px (down from a more aggressive 360 in an earlier draft that bled past the canvas edge), the word fits cleanly with breathing room either side, while the outlined "new" echo nested below-left and rotated 6° gives the print-shop / risograph energy. The cherry-red band at the bottom is a flat color block, not a gradient — that's the screen-print signal.
+**Design notes.** Type-as-image — the feature word IS the design. Sized at 280px so it fits cleanly inside the canvas with breathing room either side, while the outlined "new" echo nested below-left at 180px / −6° gives the print-shop / risograph energy. The cherry-red band at the bottom is a flat color block, not a gradient — that's the screen-print signal.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/feature-launch.jsx)
 
 ---
 
-## 3. Stars milestone — constellation poster
+## 7. Open source release — terminal aesthetic
 
-**Use case.** Open-source milestone celebrations belong in the gallery. Deep midnight blue, scattered glowing star dots, a giant italic-serif number as the only loud element, vertical "STARS · STARS · STARS" running text on the side. Square 1080×1080, made for Instagram and PH thumbnails.
+**Use case.** The "we just open sourced X" announcement — a launch shape that's reliably catnip on dev Twitter and HN. Mono ledger top and bottom, `$ git clone` prompt, terminal-grid subtle pattern, green "● running" status indicator. Italic serif project name as the centerpiece. Landscape 1200×800.
 
-![Stars milestone poster — deep navy background with scattered glowing star dots, hairline frame, "★ MILESTONE UNLOCKED · MMXXVI" monospace masthead, vertical outlined "STARS · STARS · STARS" rotated text on left, centered giant italic-serif "10,000" in cream, "STARS on GitHub" subtitle, repo handle bottom-left, italic "with thanks, everyone" bottom-right](/examples/stars-milestone.jpg)
+![Open source release — deep forest-black background with subtle green grid lines, soft green radial bloom top-left, top monospace ledger "● RUNNING · OPEN SOURCE NOW" + "MIT LICENSE", "$ git clone" prompt in green, gigantic italic serif "Lerret." in cream as the centerpiece, italic description below, bottom ledger with repo URL + italic "Free to fork, embed, and ship."](/examples/open-source.jpg)
 
-**Path.** `.lerret/marketing/stars-milestone.jsx`
+**Path.** `.lerret/marketing/open-source.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1080, height: 1080 },
-  label: 'Stars milestone — constellation poster',
-  tags: ['poster', 'milestone', 'github'],
+  dimensions: { width: 1200, height: 800 },
+  label: 'Open source release',
+  tags: ['poster', 'open-source', 'announcement'],
   propsSchema: {
-    count: { type: 'string', default: '10,000' },
-    label: { type: 'string', default: 'STARS' },
-    handle: { type: 'string', default: '@belikely-united/lerret' },
-    note: { type: 'string', default: 'with thanks, everyone' },
+    project: { type: 'string', default: 'Lerret', required: true },
+    description: { type: 'string', default: 'A design canvas where a folder of React components renders as a visual canvas.' },
+    repo: { type: 'string', default: 'github.com/belikely-united/lerret' },
+    licence: { type: 'string', default: 'MIT' },
+    note: { type: 'string', default: 'Free to fork, embed, and ship.' },
   },
 };
 
-const STARS = [
-  [8, 12, 4], [22, 22, 2], [40, 8, 3], [60, 18, 5], [78, 12, 3], [92, 22, 4],
-  [12, 35, 2], [88, 38, 2], [4, 52, 3], [96, 56, 2],
-  [10, 75, 5], [25, 88, 3], [42, 92, 2], [58, 82, 4], [75, 90, 3], [90, 78, 5],
-  [50, 60, 2], [30, 50, 3], [70, 48, 2],
-];
-
-export default function StarsPoster({ count, label, handle, note }) {
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      background: '#0B1426', color: '#F5EBD8',
-      fontFamily: 'Georgia, "Times New Roman", serif',
-      position: 'relative', overflow: 'hidden', padding: '72px',
-    }}>
-      {STARS.map(([x, y, size], i) => (
-        <div key={i} style={{
-          position: 'absolute', left: `${x}%`, top: `${y}%`,
-          width: size, height: size, background: '#F5EBD8', borderRadius: '50%',
-          boxShadow: `0 0 ${size * 3}px rgba(245,235,216,0.8)`,
-          opacity: 0.5 + (i % 5) * 0.1,
-        }} />
-      ))}
-
-      {/* Hairline frame + vertical STARS text + centered number + footer */}
-      <div style={{
-        position: 'absolute', inset: 40,
-        border: '1px solid rgba(245,235,216,0.18)', pointerEvents: 'none',
-      }} />
-
-      <div style={{
-        position: 'absolute', left: 56, top: '50%',
-        transform: 'translateY(-50%) rotate(-90deg)', transformOrigin: 'left center',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: 22, fontWeight: 800, letterSpacing: '0.5em',
-        color: 'transparent', WebkitTextStroke: '1px rgba(245,235,216,0.55)',
-      }}>{label} · {label} · {label}</div>
-
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-      }}>
-        <div style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          fontSize: 12, letterSpacing: '0.6em',
-          color: 'rgba(245,235,216,0.5)', marginBottom: 18,
-          textTransform: 'uppercase', fontWeight: 600,
-        }}>We just crossed</div>
-        <div style={{
-          fontSize: 280, fontWeight: 400, letterSpacing: '-0.05em',
-          lineHeight: 0.85, fontStyle: 'italic',
-          fontVariantNumeric: 'tabular-nums',
-        }}>{count}</div>
-        <div style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          fontSize: 18, letterSpacing: '0.5em', marginTop: 24,
-          textTransform: 'uppercase', fontWeight: 800,
-        }}>{label} on GitHub</div>
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The italic serif number is doing the heavy lifting — it reads as poetry, not a metric. Vertical `transform: rotate(-90deg)` text with `-webkit-text-stroke` gives the side-spine pattern you see on book covers and movie posters. Dot stars with `box-shadow` glow read as actual light sources.
+**Design notes.** Mixing serif and mono is the trick: pure monospace would feel like a literal terminal screenshot, pure serif would lose the dev signal. The Georgia italic project name sits **inside** the terminal scaffolding — green prompt above, repo URL below.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/open-source.jsx)
 
 ---
 
-## 4. Testimonial — magazine cover
-
-**Use case.** Customer quote treated as a magazine cover line, not a website testimonial card. Dusty pink, big masthead "The Customer Quarterly," issue number as an oversized outlined decoration, giant italic serif pull-quote, byline at the bottom like a contributor credit. Portrait 1080×1350, Instagram-feed proportions.
-
-![Testimonial poster — dusty pink background, masthead "THE CUSTOMER QUARTERLY" + "ISSUE NO.01 / 26 / $0", giant outlined rotated "01" decoration filling right side, "ON RECORDS · VERBATIM" eyebrow in sienna, large italic serif pull-quote, byline "—— A NOTE FROM Maya Patel / Head of Design, Lumen Labs" at bottom](/examples/testimonial.jpg)
-
-**Path.** `.lerret/marketing/testimonial.jsx`
-
-```jsx
-export const meta = {
-  dimensions: { width: 1080, height: 1350 },
-  label: 'Testimonial — magazine cover',
-  tags: ['poster', 'testimonial', 'editorial'],
-  propsSchema: {
-    quote: { type: 'string', default: 'We built our entire design system in a weekend. Never opened Figma since.', required: true },
-    author: { type: 'string', default: 'Maya Patel' },
-    role: { type: 'string', default: 'Head of Design' },
-    company: { type: 'string', default: 'Lumen Labs' },
-    issueNumber: { type: 'string', default: '01' },
-  },
-};
-
-// Full source: 100+ lines — see the fixture in the docs repo.
-```
-
-**Design notes.** The decorative outlined `01` is **3× the size of the visible card** and clipped by the edge — that "cropped-by-the-page" effect is straight out of magazine-cover layout. Mixed Georgia italic for editorial weight + system sans + monospace for the masthead grid.
-
-[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/testimonial.jsx)
-
----
-
-## 5. Release — Swiss modernist poster
+## 8. Release / version announcement — Swiss modernist
 
 **Use case.** Version release, treated as a Bauhaus / Swiss-design poster. Off-white background, olive vertical color strip on the left, massive stacked version number, italic serif codename, headline, ledger-style "what's new" rows with numbered indices. Portrait 1200×1500.
 
@@ -344,17 +255,78 @@ export const meta = {
 // Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The single olive accent stripe + numbered ledger rows are pure Swiss modernist conventions (think Müller-Brockmann posters, or Wim Crouwel grids). Each release-note row is a `border-bottom` ledger line with the index in monospace olive on the right — looks like a printed schedule.
+**Design notes.** The single olive accent stripe + numbered ledger rows are pure Swiss modernist conventions (Müller-Brockmann posters, Wim Crouwel grids). Each note row is a `border-bottom` ledger line with the index in monospace olive on the right.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/release-card.jsx)
 
 ---
 
-## 6. We're hiring — brutalist poster
+## 9. Stars milestone — constellation poster
 
-**Use case.** Job-post graphic with the energy of a punk-zine flyer. Electric yellow canvas, outlined "WANTED." filling the top half, diagonal red "APPLY NOW" stamp with a chunky offset shadow, role name in display caps, perks as a thick-bordered ledger, monospace URL at the bottom. Portrait 1080×1350.
+**Use case.** Open-source milestone celebrations. Deep midnight blue, scattered glowing star dots, a giant italic-serif number as the only loud element, vertical "STARS · STARS · STARS" running text on the side. Square 1080×1080.
 
-![Hiring poster — electric yellow background, top-bar rule, gigantic outlined "WANTED." headline, diagonal red "APPLY NOW" stamp with black offset shadow on the right, "BELIKELY IS HIRING A" eyebrow, massive "Senior Engineer." headline, three thick-bordered ledger rows for perks (/1 Remote-first, /2 Real equity, /3 Series A), monospace "→→ BELIKELY.COM/JOBS" at bottom](/examples/hiring.jpg)
+![Stars milestone poster — deep navy background with scattered glowing star dots, hairline frame, "★ MILESTONE UNLOCKED · MMXXVI" monospace masthead, vertical outlined "STARS · STARS · STARS" rotated text on left, centered giant italic-serif "10,000" in cream, "STARS on GitHub" subtitle, repo handle bottom-left, italic "with thanks, everyone" bottom-right](/examples/stars-milestone.jpg)
+
+**Path.** `.lerret/marketing/stars-milestone.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1080, height: 1080 },
+  label: 'Stars milestone — constellation poster',
+  tags: ['poster', 'milestone', 'github'],
+  propsSchema: {
+    count: { type: 'string', default: '10,000' },
+    label: { type: 'string', default: 'STARS' },
+    handle: { type: 'string', default: '@belikely-united/lerret' },
+    note: { type: 'string', default: 'with thanks, everyone' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** The italic serif number is doing the heavy lifting — it reads as poetry, not a metric. Vertical rotated text with `-webkit-text-stroke` gives the side-spine pattern from book covers and movie posters.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/stars-milestone.jsx)
+
+---
+
+## 10. LinkedIn announcement post
+
+**Use case.** B2B-flavoured milestone announcement — funding round, acquisition, hire, year-end recap. Restrained palette (cream linen + navy + lighter steel-blue), italic serif eyebrow + huge tabular-numeral figure + multi-sentence body. Landscape 1200×627 — LinkedIn's native post dimensions.
+
+![LinkedIn announcement — cream linen background with navy ink, hairline frame, "BELIKELY UNITED" + "ANNOUNCEMENT · MMXXVI" mastheads, italic "We are excited to share" eyebrow on the left, gigantic right-aligned "$10M" navy tabular numeral with italic "Series A." label below, multi-sentence body, "— WITH GRATITUDE / belikely.com" footer signature](/examples/linkedin-announcement.jpg)
+
+**Path.** `.lerret/marketing/linkedin-announcement.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 627 },
+  label: 'LinkedIn announcement post',
+  tags: ['poster', 'linkedin', 'announcement'],
+  propsSchema: {
+    eyebrow: { type: 'string', default: 'We are excited to share' },
+    figure: { type: 'string', default: '$10M', required: true },
+    label: { type: 'string', default: 'Series A' },
+    body: { type: 'string', default: 'Led by Bedrock Capital, with participation from existing investors...' },
+    company: { type: 'string', default: 'BELIKELY UNITED' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** Tabular numerals on the figure (always tabular for financial / quantity figures — they line up reading right-to-left). The hairline frame keeps the composition reading as "a printed announcement" rather than "a digital banner."
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/linkedin-announcement.jsx)
+
+---
+
+## 11. We're hiring — brutalist poster
+
+**Use case.** Job-post graphic with the energy of a punk-zine flyer. Electric yellow canvas, outlined "WANTED." filling the top half, diagonal red "APPLY NOW" stamp with a chunky offset shadow, role name in display caps, perks as a thick-bordered ledger. Portrait 1080×1350.
+
+![Hiring poster — electric yellow background, top-bar rule, gigantic outlined "WANTED." headline, diagonal red "APPLY NOW" stamp with black offset shadow on the right, "BELIKELY IS HIRING A" eyebrow, massive "Senior Engineer." headline, three thick-bordered ledger rows for perks, monospace URL at bottom](/examples/hiring.jpg)
 
 **Path.** `.lerret/marketing/hiring.jsx`
 
@@ -376,17 +348,17 @@ export const meta = {
 // Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The brutalist signal is the **outlined "WANTED."** (`-webkit-text-stroke: 4px`), the diagonal `transform: rotate(8deg)` red stamp with a 6px offset shadow, and the thick `4px solid` ledger lines on the perks. Yellow + black + red is the punk-flyer palette.
+**Design notes.** The brutalist signal is the **outlined "WANTED."** (`-webkit-text-stroke: 4px`), the diagonal `transform: rotate(8deg)` red stamp with a 6px offset shadow, and the thick `4px solid` ledger lines on the perks.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/hiring.jsx)
 
 ---
 
-## 7. Conference talk — marquee poster
+## 12. Conference talk — marquee poster
 
-**Use case.** Conference-talk announcement borrowing tour-poster vocabulary, but with the **talk title as the headliner** — that's what makes someone want to attend. Speaker name plays the supporting "performer" role below a marquee divider, topics line up like opening acts, ticket strip at the bottom carries date / time / venue. Deep midnight purple with a sunset radial glow anchored bottom-center. Portrait 1200×1500.
+**Use case.** Conference-talk announcement borrowing tour-poster vocabulary, with the **talk title as the headliner**. Speaker plays the supporting "performer" role below a marquee divider. Deep midnight purple with a sunset radial glow anchored bottom-center. Portrait 1200×1500.
 
-![Talk promo poster — deep midnight purple background with an amber sunset glow rising from the bottom, hairline cream frame, "— REACT CONF 26 —" centered monospace masthead, "✦ LIVE · ONE NIGHT ONLY" amber eyebrow, giant italic-serif talk title in quotes "From Figma to a folder: rebuilding our brand kit in plain React.", a horizontal amber marquee gradient line acting as the stage, "A TALK BY" eyebrow + italic-serif speaker name "Sooryagangaraj", "FOUNDER · LERRET" amber mono caps, topics row "CRDT INTERNALS ✦ CURSOR PRESENCE ✦ CONFLICT RESOLUTION", three-column ticket strip with DATE / TIME / VENUE](/examples/talk-promo.jpg)
+![Talk promo poster — deep midnight purple background with an amber sunset glow rising from the bottom, hairline cream frame, "— REACT CONF 26 —" centered monospace masthead, "✦ LIVE · ONE NIGHT ONLY" amber eyebrow, giant italic-serif talk title in quotes, a horizontal amber marquee gradient line, "A TALK BY" eyebrow + italic-serif speaker name, "FOUNDER · LERRET" amber mono caps, topics row, three-column ticket strip with DATE / TIME / VENUE](/examples/talk-promo.jpg)
 
 **Path.** `.lerret/marketing/talk-promo.jsx`
 
@@ -409,20 +381,51 @@ export const meta = {
   },
 };
 
-// Full source — see the fixture file in the docs repo. Key moves below.
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The earlier draft put the speaker name front-and-center as the headliner; for a conference talk poster that almost never lands — the **talk title** is what makes someone show up. So the hero now is the italic-serif title in quotes, with the speaker treated as the "performer" credit below a horizontal amber marquee gradient line (the "stage"). The sunset radial glow anchored bottom-center reads the way a stage light would. Topics joined with ✦ in mono caps borrow from gig-flyer "with opening acts" patterns. Ticket strip at the bottom holds date, time, venue.
+**Design notes.** Talk title is the hero (84px italic serif, in quotes) — that's what actually sells a talk. Speaker treated as the "performer" credit below a horizontal amber marquee gradient line (the "stage"). Topics joined with ✦ in mono caps borrow from gig-flyer "with opening acts" patterns.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/talk-promo.jsx)
 
 ---
 
-## 8. Year in review — annual report cover
+## 13. Testimonial — magazine cover
 
-**Use case.** Annual recap treated as the cover of a printed annual report, not a "stats bento." Cream background, gigantic wine-red year number filling the left half, italic serif "review." nested next to it, ledger-style stats table at the bottom with numbered indices and right-aligned values. Portrait 1200×1500.
+**Use case.** Customer quote treated as a magazine cover line. Dusty pink, big masthead "The Customer Quarterly," issue number as an oversized outlined decoration, giant italic serif pull-quote, byline at the bottom like a contributor credit. Portrait 1080×1350.
 
-![Year-review poster — cream linen background, "BELIKELY UNITED · ANNUAL REPORT · VOL. III" masthead, gigantic wine-red "26" filling the left half of the canvas, "THE YEAR IN" eyebrow + italic serif "review." nested to its right, italic headline "A year of building, in plain sight.", "BY THE NUMBERS" eyebrow + ledger table with four rows showing 127K / $2.4M / 12 / 847 with labels and indices](/examples/year-review.jpg)
+![Testimonial poster — dusty pink background, masthead "THE CUSTOMER QUARTERLY" + "ISSUE NO.01 / 26 / $0", giant outlined rotated "01" decoration on the right, "ON RECORDS · VERBATIM" eyebrow in sienna, large italic serif pull-quote, byline "—— A NOTE FROM Maya Patel / Head of Design, Lumen Labs" at the bottom](/examples/testimonial.jpg)
+
+**Path.** `.lerret/marketing/testimonial.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1080, height: 1350 },
+  label: 'Testimonial — magazine cover',
+  tags: ['poster', 'testimonial', 'editorial'],
+  propsSchema: {
+    quote: { type: 'string', default: 'We built our entire design system in a weekend. Never opened Figma since.', required: true },
+    author: { type: 'string', default: 'Maya Patel' },
+    role: { type: 'string', default: 'Head of Design' },
+    company: { type: 'string', default: 'Lumen Labs' },
+    issueNumber: { type: 'string', default: '01' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** The decorative outlined `01` is 3× the canvas height and clipped by the edge — straight out of magazine-cover layout. Mixed Georgia italic for editorial weight, system sans + monospace for the masthead grid.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/testimonial.jsx)
+
+---
+
+## 14. Year in review — annual report cover
+
+**Use case.** Annual recap treated as the cover of a printed annual report. Cream background, gigantic wine-red year number filling the left half, italic serif "review." nested next to it, ledger-style stats table at the bottom. Portrait 1200×1500.
+
+![Year-review poster — cream linen background, "BELIKELY UNITED · ANNUAL REPORT · VOL. III" masthead, gigantic wine-red "26" filling the left half of the canvas, italic serif "review." nested to its right, italic headline, "BY THE NUMBERS" eyebrow + ledger table with four rows showing 127K / $2.4M / 12 / 847 with labels and indices](/examples/year-review.jpg)
 
 **Path.** `.lerret/marketing/year-review.jsx`
 
@@ -449,15 +452,45 @@ export const meta = {
 // Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The poster move: **no cards, no boxes**. The year is the visual; the stats are a typed ledger with `border-top` rules and large numbers right-aligned. Wine red (`#8C2A1B`) is the only accent — used on the year, index markers, and the eyebrow lines.
+**Design notes.** No cards, no boxes. The year is the visual; the stats are a typed ledger with `border-top` rules and large numbers right-aligned. Wine red (`#8C2A1B`) is the only accent.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/year-review.jsx)
 
 ---
 
-## 9. Manifesto — statement poster
+## 15. Pre-launch teaser
 
-**Use case.** When you want to declare something. Black canvas, a pink slash carving the canvas vertically into thirds, manifesto-grade statement filling the center, byline in italic serif, monospace filing tag at the bottom. Portrait 1080×1350.
+**Use case.** The "coming soon" card you post a few weeks before launch to build hype and capture waitlist signups. Deep oxblood-black background, soft amber bloom centred, gigantic outlined italic word, a rotated date stamp in the corner, italic serif footnote at the bottom. Portrait 1080×1350.
+
+![Pre-launch teaser — near-black background with soft amber bloom centered, hairline cream frame, "BELIKELY" + "◆ COMING" mono caps mastheads, gigantic outlined italic "soon." in cream stroke filling the canvas, rotated "Save the date 12.15.26" stamp in the top-right corner, italic serif footnote centered at the bottom, "Join the waitlist / belikely.com/soon" tag at the bottom](/examples/teaser.jpg)
+
+**Path.** `.lerret/marketing/teaser.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1080, height: 1350 },
+  label: 'Pre-launch teaser',
+  tags: ['poster', 'teaser', 'pre-launch'],
+  propsSchema: {
+    company: { type: 'string', default: 'BELIKELY' },
+    word: { type: 'string', default: 'Soon', required: true },
+    date: { type: 'string', default: '12.15.26' },
+    footnote: { type: 'string', default: 'Something new for people who write design instead of clicking it.' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** The single outlined word at 320px is the entire poster — `-webkit-text-stroke: 2px` + `color: transparent` so it reads as drawn type. Restraint is the move: don't reveal the product, just promise the date.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/teaser.jsx)
+
+---
+
+## 16. Manifesto — statement poster
+
+**Use case.** When you want to declare something. Black canvas, a pink slash carving the canvas vertically, manifesto-grade statement filling the center, byline in italic serif, monospace filing tag at the bottom. Portrait 1080×1350.
 
 ![Manifesto poster — pure black background, vertical hot-pink slash dividing the canvas, "✦ MANIFESTO · MMXXVI" pink monospace masthead, gigantic statement "Design tools should not require permission." filling the center with the final period accented in pink, italic serif "— Belikely United" byline, "FILE UNDER: BELIEF" monospace footer](/examples/manifesto.jpg)
 
@@ -478,171 +511,20 @@ export const meta = {
 // Full source — see the fixture file in the docs repo.
 ```
 
-**Design notes.** The trick: render the statement word-by-word and color **only the trailing period** in the pink accent. Tiny detail, but it lands like a punctuation mark — literally — that makes the line declarative. The vertical pink slash (8px wide) is a one-line color block doing all the architectural work.
+**Design notes.** Render the statement word-by-word and color only the trailing period in the pink accent. Tiny detail, but it lands like a punctuation mark that makes the line declarative.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/manifesto.jsx)
 
 ---
 
-## 10. App Store icon — letterform mark
-
-**Use case.** The 1024×1024 master icon for the App Store, Play Store, or homescreen. No rounded-corner mask in the source — every store applies its own. Pure brand-mark composition: a stylised letter, a couple of light orbs for depth, a tiny canvas indicator in the corner. Square 1024×1024.
-
-![App icon — square 1024×1024, deep gradient from charcoal-brown through warm sienna to soft coral, cream-amber italic serif "L" letterform centered with soft drop-shadow, a small cream square indicator in the bottom-right corner, and a tiny glow dot in the top-right](/examples/app-icon.jpg)
-
-**Path.** `.lerret/marketing/app-icon.jsx`
-
-```jsx
-export const meta = {
-  dimensions: { width: 1024, height: 1024 },
-  label: 'App icon — letterform mark',
-  tags: ['poster', 'app-icon', 'logo'],
-  propsSchema: {
-    letter: { type: 'string', default: 'L', required: true },
-    accent: { type: 'string', default: '#FFE5A8' },
-  },
-};
-
-// Full source — see the fixture file in the docs repo.
-```
-
-**Design notes.** Square format, no border-radius — let the OS mask the corners. The italic serif letterform reads as a wordmark in miniature, not a generic glyph. Two soft-bloom radial-gradient orbs give the icon visible volume (top-left specular highlight, bottom-right shadow pool). The small cream square in the corner is the "canvas" mnemonic — a quiet hint at what the app does without literal photography.
-
-[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/app-icon.jsx)
-
----
-
-## 11. Product Hunt gallery image — feature card
-
-**Use case.** The 1270×760 gallery images on a Product Hunt listing page. Each one highlights one feature with a strong value prop. Split layout: text column on the left, a hero-number panel on the right. 1270×760 landscape.
-
-![Product Hunt gallery image — split landscape, left column on cream linen with sienna eyebrow "◆ FEATURE 02 OF 06", display headline "Faster than reaching for Figma.", description copy, monospace "→ lerret.belikely.com" footer. Right column on deep charcoal with sienna radial glow, "THE NUMBER" eyebrow, giant gradient cream-coral "100×" tabular numeral, italic serif "From open-folder to first artboard." footnote](/examples/ph-gallery.jpg)
-
-**Path.** `.lerret/marketing/ph-gallery.jsx`
-
-```jsx
-export const meta = {
-  dimensions: { width: 1270, height: 760 },
-  label: 'Product Hunt gallery image',
-  tags: ['poster', 'product-hunt', 'feature-card'],
-  propsSchema: {
-    eyebrow: { type: 'string', default: 'Feature 02 of 06' },
-    metric: { type: 'string', default: '100×' },
-    headline: { type: 'string', default: 'Faster than reaching for Figma.', required: true },
-    description: { type: 'string', default: 'Author every social card, OG image, and release graphic in plain React. No vendor file. No round-trip.' },
-    detail: { type: 'string', default: 'lerret.belikely.com' },
-  },
-};
-
-// Full source — see the fixture file in the docs repo.
-```
-
-**Design notes.** The split layout (60/40) is the PH-gallery convention — readers scan the left for the claim, scan the right for the proof. The right panel inverts the palette so the metric reads as quotable and the whole image holds together as a single object. Build the rest of your six-image gallery with the same split + different metrics.
-
-[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/ph-gallery.jsx)
-
----
-
-## 12. LinkedIn announcement post
-
-**Use case.** B2B-flavoured milestone announcement — funding round, acquisition, hire, year-end recap. Restrained palette (cream linen + navy + lighter steel-blue), italic serif eyebrow + huge tabular-numeral figure + multi-sentence body that reads like a press release. Landscape 1200×627 — LinkedIn's native post dimensions.
-
-![LinkedIn announcement — cream linen background with navy ink, hairline frame, "BELIKELY UNITED" + "ANNOUNCEMENT · MMXXVI" mastheads, italic "We are excited to share" eyebrow on the left, gigantic right-aligned "$10M" navy tabular numeral with italic "Series A." label below, multi-sentence body acknowledging investors, "— WITH GRATITUDE / belikely.com" footer signature](/examples/linkedin-announcement.jpg)
-
-**Path.** `.lerret/marketing/linkedin-announcement.jsx`
-
-```jsx
-export const meta = {
-  dimensions: { width: 1200, height: 627 },
-  label: 'LinkedIn announcement post',
-  tags: ['poster', 'linkedin', 'announcement'],
-  propsSchema: {
-    eyebrow: { type: 'string', default: 'We are excited to share' },
-    figure: { type: 'string', default: '$10M', required: true },
-    label: { type: 'string', default: 'Series A' },
-    body: { type: 'string', default: 'Led by Bedrock Capital, with participation from Boom and existing investors...' },
-    company: { type: 'string', default: 'BELIKELY UNITED' },
-  },
-};
-
-// Full source — see the fixture file in the docs repo.
-```
-
-**Design notes.** The B2B announcement template lives in the **typography pairing**: italic Georgia for the warm "we are excited to share" eyebrow, system-sans 180px tabular numerals for the figure (always tabular for financial / quantity figures — they line up reading right-to-left), italic 40px for the supporting label. The hairline frame keeps the composition reading as "a printed announcement" rather than "a digital banner."
-
-[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/linkedin-announcement.jsx)
-
----
-
-## 13. Pre-launch teaser
-
-**Use case.** The "coming soon" card you post a few weeks before a launch to build hype and capture waitlist signups. Sparse, mysterious, type-led. Deep oxblood-black background, soft amber bloom centred, gigantic outlined italic word, a rotated date stamp tucked in the corner, italic serif footnote at the bottom. Portrait 1080×1350 for Instagram / waitlist landing cards.
-
-![Pre-launch teaser — near-black background with soft amber bloom centered, hairline cream frame, "BELIKELY" + "◆ COMING" mono caps mastheads, gigantic outlined italic "soon." in cream stroke filling the canvas, rotated "Save the date 12.15.26" stamp in the top-right corner, italic serif footnote "Something new for people who write design instead of clicking it." centered at the bottom, "Join the waitlist / belikely.com/soon" tag at the very bottom](/examples/teaser.jpg)
-
-**Path.** `.lerret/marketing/teaser.jsx`
-
-```jsx
-export const meta = {
-  dimensions: { width: 1080, height: 1350 },
-  label: 'Pre-launch teaser',
-  tags: ['poster', 'teaser', 'pre-launch'],
-  propsSchema: {
-    company: { type: 'string', default: 'BELIKELY' },
-    word: { type: 'string', default: 'Soon', required: true },
-    date: { type: 'string', default: '12.15.26' },
-    footnote: { type: 'string', default: 'Something new for people who write design instead of clicking it.' },
-  },
-};
-
-// Full source — see the fixture file in the docs repo.
-```
-
-**Design notes.** The single outlined word at 320px is the entire poster — `-webkit-text-stroke: 2px` + `color: transparent` so it reads as drawn type, not solid. The rotated date stamp (`transform: rotate(8deg)`) is the only break from the strict centre-axis composition — the small tilt makes the whole thing feel handmade. Restraint is the move: don't reveal the product, just promise the date.
-
-[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/teaser.jsx)
-
----
-
-## 14. Open source release — terminal aesthetic
-
-**Use case.** The "we just open sourced X" announcement — a launch shape that's reliably catnip on dev Twitter and HN. Borrows from terminal aesthetics: monospace ledger lines top and bottom, `$ git clone` prompt, terminal-grid subtle pattern, and a green "● running" status indicator. Italic serif project name as the centerpiece so it doesn't feel like a screenshot. Landscape 1200×800.
-
-![Open source release — deep forest-black background with subtle green grid lines, soft green radial bloom top-left, top monospace ledger "● RUNNING · OPEN SOURCE NOW" + "MIT LICENSE", "$ git clone" prompt in green, gigantic italic serif "Lerret." in cream as the centerpiece, italic description below, bottom ledger with "→ github.com/belikely-united/lerret" + italic "Free to fork, embed, and ship."](/examples/open-source.jpg)
-
-**Path.** `.lerret/marketing/open-source.jsx`
-
-```jsx
-export const meta = {
-  dimensions: { width: 1200, height: 800 },
-  label: 'Open source release',
-  tags: ['poster', 'open-source', 'announcement'],
-  propsSchema: {
-    project: { type: 'string', default: 'Lerret', required: true },
-    description: { type: 'string', default: 'A design canvas where a folder of React components renders as a visual canvas.' },
-    repo: { type: 'string', default: 'github.com/belikely-united/lerret' },
-    licence: { type: 'string', default: 'MIT' },
-    note: { type: 'string', default: 'Free to fork, embed, and ship.' },
-  },
-};
-
-// Full source — see the fixture file in the docs repo.
-```
-
-**Design notes.** Mixing serif and mono in this layout is the trick: pure monospace would feel like a literal terminal screenshot (which gets boring fast), pure serif would lose the dev signal entirely. The Georgia italic project name sits **inside** the terminal scaffolding — green prompt above, repo URL below — like the project itself is the only thing not made of code. The grid pattern at low opacity (4%) reads as scan-lines without being noisy.
-
-[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/open-source.jsx)
-
----
-
 ## Why these patterns
 
-The posters above lean on conventions from print, not from the web. A few that translate especially well via plain React + inline styles:
+The posters above lean on conventions from print and from app marketing, not from web components. A few techniques that translate especially well via plain React + inline styles:
 
-- **`-webkit-text-stroke` + `color: transparent`** → outlined display type without an SVG. Survives every Chromium export pipeline.
+- **CSS-rendered device frames** → no PNG mockup needed. An iPhone is a rounded rectangle + inner padding + a dynamic-island pill + a status bar. A laptop is a trapezoidal base + a rounded inner screen. Both render crisply at any scale via the export pipeline.
+- **`-webkit-text-stroke` + `color: transparent`** → outlined display type without an SVG. Survives every Chromium export.
 - **`transform: rotate()` on text blocks** → editorial diagonals, rubber-stamp angles, vertical book-spine text.
-- **`writing-mode: vertical-rl` or rotated transform** → side-spine text for masthead grids.
-- **Solid color blocks (`background`, no gradient)** → screen-printed flat-color feel, prints well at any scale.
+- **Solid color blocks (`background`, no gradient)** → screen-printed flat-color feel.
 - **Numbered ledger rows** → editorial gridding without box-card UI patterns. Each row is a `border-bottom`; indices live in monospace.
 - **Mixed serif + sans + monospace** → masthead grids almost always need all three. System default Georgia + system-ui sans + ui-monospace gets you 90% of the way without webfont overhead.
 
