@@ -2,7 +2,7 @@
 
 ## Our pledge
 
-The Lerret community is committed to providing a welcoming, friendly, and inclusive experience for everyone — regardless of background, identity, or level of experience. We expect everyone who participates in this project (issues, pull requests, discussions, chat, events) to act with respect, patience, and consideration.
+The Lerret community is committed to providing a welcoming, friendly, and inclusive experience for everyone — regardless of background, identity, or level of experience. We expect everyone who participates in this project (issues, pull requests, discussions, events) to act with respect, patience, and consideration.
 
 ## The standard we follow
 
@@ -24,7 +24,7 @@ All reports are handled confidentially. We commit to acknowledging receipt withi
 
 ## Scope
 
-This code applies to all project spaces — the GitHub repository, discussions, issue tracker, official chat channels, project events, and any other context where someone is representing Lerret.
+This code applies to all project spaces — the GitHub repository, [GitHub Discussions](https://github.com/belikely-united/lerret/discussions), the issue tracker, project events, and any other context where someone is representing Lerret.
 
 ## Acknowledgments
 

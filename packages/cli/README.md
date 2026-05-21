@@ -40,9 +40,12 @@ Full docs: **https://docs.lerret.belikely.com**
 - [Authoring Assets](https://docs.lerret.belikely.com/authoring/)
 - [CLI Reference](https://docs.lerret.belikely.com/cli/)
 
-## Source
+## Source & community
 
-[github.com/belikely-united/lerret](https://github.com/belikely-united/lerret) — issues, discussions, contributions welcome.
+- Source: [github.com/belikely-united/lerret](https://github.com/belikely-united/lerret)
+- Discussions: [github.com/belikely-united/lerret/discussions](https://github.com/belikely-united/lerret/discussions)
+- Issues: [github.com/belikely-united/lerret/issues](https://github.com/belikely-united/lerret/issues)
+- Maintainer: [@sooryagangaraj on X](https://x.com/sooryagangaraj)
 
 ## License
 

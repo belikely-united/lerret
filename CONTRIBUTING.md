@@ -70,9 +70,20 @@ npx @lerret/cli dev --port 4321
 git clone https://github.com/<your-username>/lerret.git
 cd lerret
 
-# 3. Install dependencies (instructions will be added once the build pipeline lands)
-# 4. Run the dev server (TBD)
+# 3. Install dependencies (pnpm is the workspace's package manager)
+pnpm install
+
+# 4. Run the studio against the workspace's sample project
+pnpm dev                           # equivalent to: pnpm --filter @lerret/studio dev
+
+# 5. Build everything (studio, CLI's bundled studio, etc.)
+pnpm build
+
+# 6. Run the full test suite
+pnpm test
 ```
+
+The repo is a [pnpm workspace](https://pnpm.io/workspaces). Each package under `packages/` and each app under `apps/` is independently buildable. Use `pnpm --filter <name> <script>` to act on a single package.
 
 ## Pull request process
 
@@ -88,8 +99,24 @@ cd lerret
 ## Coding standards
 
 - Match the existing style of the file you're editing.
-- Run the linter and formatter before pushing (commands TBD as the toolchain lands).
 - Prefer clarity over cleverness.
+- Run the linter and formatter before pushing:
+
+  ```sh
+  pnpm lint           # ESLint across the workspace
+  pnpm format         # Prettier write — formats in place
+  pnpm format:check   # Prettier check — non-zero exit on diff (used in CI)
+  ```
+
+- Run tests for the packages you touched:
+
+  ```sh
+  pnpm test                              # full workspace test run
+  pnpm --filter @lerret/cli test         # just the CLI
+  pnpm --filter @lerret/studio test      # just the studio
+  ```
+
+  All tests run on [Vitest 4](https://vitest.dev/). The studio package uses jsdom; the CLI and core use the default Node environment.
 
 ## Commit conventions
 
@@ -182,4 +209,4 @@ By submitting a contribution you agree that it will be released under the projec
 
 ---
 
-Questions? Start a Discussion or ping us in the project's chat (links in the README once they're live). Welcome aboard.
+Questions? Start a [Discussion](https://github.com/belikely-united/lerret/discussions) — that's the project's primary community channel. Welcome aboard.
