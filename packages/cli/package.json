@@ -1,0 +1,34 @@
+{
+  "name": "@lerret/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The `lerret` binary — Node-side Vite dev server + bundled studio.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bin": {
+    "lerret": "./src/lerret.js"
+  },
+  "files": [
+    "src",
+    "dist-studio"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "build": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js",
+    "prepublishOnly": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js"
+  },
+  "dependencies": {
+    "@lerret/core": "workspace:*",
+    "@lerret/studio": "workspace:*",
+    "@vitejs/plugin-react": "^6.0.2",
+    "chokidar": "^5.0.0",
+    "playwright-core": "^1.60.0",
+    "vite": "^8.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.6"
+  }
+}

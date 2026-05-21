@@ -1,0 +1,298 @@
+/* form-controls.css — Shared visual tokens for the Forms library.
+ *
+ * All variables resolve to --lm-* tokens from colors_and_type.css.
+ *
+ * Focus ring: --lm-focus-ring and --lm-focus-ring-inset are now defined in
+ * colors_and_type.css (consolidation). Do not redefine them here.
+ */
+
+/* ── Field wrapper ────────────────────────────────────────────────────── */
+.lm-field {
+ display: flex;
+ flex-direction: column;
+ gap: var(--lm-space-1, 4px);
+ font-family: var(--lm-font-sans);
+}
+
+/* ── Label row ────────────────────────────────────────────────────────── */
+.lm-field__label-row {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-1, 4px);
+}
+
+.lm-field__label {
+ font-size: var(--lm-size-hint, 10px);
+ font-weight: var(--lm-weight-semibold, 600);
+ color: var(--lm-text-tertiary, #6E6960);
+ text-transform: uppercase;
+ letter-spacing: var(--lm-tracking-caps, 0.5px);
+ line-height: 1;
+}
+
+.lm-field__required {
+ color: var(--lm-error, #A8412B);
+ font-size: var(--lm-size-hint, 10px);
+ line-height: 1;
+ user-select: none;
+}
+
+/* ── Description / help text ─────────────────────────────────────────── */
+.lm-field__description {
+ font-size: var(--lm-size-body-sm, 12px);
+ color: var(--lm-text-muted, #B8B3A8);
+ line-height: var(--lm-lh-body, 1.45);
+ margin: 0;
+}
+
+/* ── Invalid message ─────────────────────────────────────────────────── */
+.lm-field__invalid-msg {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-1, 4px);
+ font-size: var(--lm-size-body-sm, 12px);
+ color: var(--lm-error, #A8412B);
+ line-height: var(--lm-lh-body, 1.45);
+}
+
+.lm-field__invalid-icon {
+ flex-shrink: 0;
+ width: 12px;
+ height: 12px;
+}
+
+/* ── Input base ──────────────────────────────────────────────────────── */
+.lm-input {
+ width: 100%;
+ box-sizing: border-box;
+ padding: var(--lm-space-1, 4px) var(--lm-space-2, 8px);
+ font-family: var(--lm-font-sans);
+ font-size: var(--lm-size-body, 13px);
+ font-weight: var(--lm-weight-regular, 400);
+ color: var(--lm-text-primary, #1A1714);
+ background: var(--lm-bg-primary, #FAF8F2);
+ border: 1px solid var(--lm-border, #DDD7CA);
+ border-radius: var(--lm-radius-sm, 6px);
+ outline: none;
+ transition: border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ appearance: none;
+}
+
+.lm-input::placeholder {
+ color: var(--lm-text-muted, #B8B3A8);
+ opacity: 1;
+}
+
+.lm-input:hover:not(:disabled) {
+ border-color: var(--lm-accent-border, rgba(184, 91, 51, 0.20));
+}
+
+.lm-input:focus {
+ border-color: var(--lm-accent, #B85B33);
+ box-shadow: var(--lm-focus-ring);
+}
+
+.lm-input:disabled {
+ opacity: 0.45;
+ cursor: not-allowed;
+ background: var(--lm-bg-tertiary, #E8E2D4);
+}
+
+.lm-input--invalid {
+ border-color: var(--lm-error-border, rgba(168, 65, 43, 0.20));
+ background: var(--lm-error-light, rgba(168, 65, 43, 0.10));
+}
+
+.lm-input--invalid:focus {
+ border-color: var(--lm-error, #A8412B);
+ box-shadow: 0 0 0 2px var(--lm-error-border, rgba(168, 65, 43, 0.20));
+}
+
+/* ── Select ──────────────────────────────────────────────────────────── */
+.lm-select {
+ cursor: pointer;
+}
+
+/* ── Boolean toggle ──────────────────────────────────────────────────── */
+.lm-toggle {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-2, 8px);
+ cursor: pointer;
+ user-select: none;
+}
+
+.lm-toggle__track {
+ position: relative;
+ display: inline-flex;
+ align-items: center;
+ width: 32px;
+ height: 18px;
+ border-radius: var(--lm-radius-pill, 999px);
+ background: var(--lm-bg-tertiary, #E8E2D4);
+ border: 1px solid var(--lm-border, #DDD7CA);
+ transition: background var(--lm-duration-fast, 120ms) var(--lm-ease),
+ border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ flex-shrink: 0;
+ outline: none;
+}
+
+.lm-toggle__track:focus-visible {
+ box-shadow: var(--lm-focus-ring);
+ border-color: var(--lm-accent, #B85B33);
+}
+
+.lm-toggle__track--on {
+ background: var(--lm-accent, #B85B33);
+ border-color: var(--lm-accent, #B85B33);
+}
+
+.lm-toggle__track--invalid {
+ border-color: var(--lm-error, #A8412B);
+}
+
+.lm-toggle__thumb {
+ position: absolute;
+ left: 2px;
+ width: 12px;
+ height: 12px;
+ border-radius: 50%;
+ background: white;
+ box-shadow: var(--lm-shadow-xs);
+ transition: transform var(--lm-duration-fast, 120ms) var(--lm-ease);
+}
+
+.lm-toggle__track--on .lm-toggle__thumb {
+ transform: translateX(14px);
+}
+
+.lm-toggle__track--disabled {
+ opacity: 0.45;
+ cursor: not-allowed;
+}
+
+.lm-toggle__label {
+ font-size: var(--lm-size-body, 13px);
+ color: var(--lm-text-secondary, #3A3530);
+}
+
+/* ── Array control ───────────────────────────────────────────────────── */
+.lm-array {
+ display: flex;
+ flex-direction: column;
+ gap: var(--lm-space-2, 8px);
+}
+
+.lm-array__items {
+ display: flex;
+ flex-direction: column;
+ gap: var(--lm-space-1, 4px);
+}
+
+.lm-array__item {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-1, 4px);
+ padding: var(--lm-space-1, 4px) var(--lm-space-2, 8px);
+ background: var(--lm-bg-secondary, #F2EEE6);
+ border: 1px solid var(--lm-border, #DDD7CA);
+ border-radius: var(--lm-radius-sm, 6px);
+}
+
+.lm-array__item-field {
+ flex: 1;
+ min-width: 0;
+}
+
+.lm-array__item-actions {
+ display: flex;
+ gap: var(--lm-space-1, 4px);
+ flex-shrink: 0;
+}
+
+.lm-array__add {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-1, 4px);
+ padding: var(--lm-space-1, 4px) var(--lm-space-2, 8px);
+ font-family: var(--lm-font-sans);
+ font-size: var(--lm-size-body-sm, 12px);
+ font-weight: var(--lm-weight-medium, 500);
+ color: var(--lm-accent, #B85B33);
+ background: transparent;
+ border: 1px dashed var(--lm-accent-border, rgba(184, 91, 51, 0.20));
+ border-radius: var(--lm-radius-sm, 6px);
+ cursor: pointer;
+ width: 100%;
+ justify-content: center;
+ transition: background var(--lm-duration-fast, 120ms) var(--lm-ease),
+ border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ outline: none;
+}
+
+.lm-array__add:hover:not(:disabled) {
+ background: var(--lm-accent-light, rgba(184, 91, 51, 0.10));
+ border-color: var(--lm-accent, #B85B33);
+}
+
+.lm-array__add:focus-visible {
+ box-shadow: var(--lm-focus-ring);
+ border-color: var(--lm-accent, #B85B33);
+}
+
+.lm-array__add:disabled {
+ opacity: 0.45;
+ cursor: not-allowed;
+}
+
+/* ── Object control ──────────────────────────────────────────────────── */
+.lm-object {
+ display: flex;
+ flex-direction: column;
+ gap: var(--lm-space-2, 8px);
+ padding: var(--lm-space-2, 8px);
+ background: var(--lm-bg-secondary, #F2EEE6);
+ border: 1px solid var(--lm-border, #DDD7CA);
+ border-radius: var(--lm-radius-sm, 6px);
+}
+
+/* ── Icon button (for array reorder / remove) ────────────────────────── */
+.lm-icon-btn {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ width: 22px;
+ height: 22px;
+ padding: 0;
+ background: transparent;
+ border: 1px solid transparent;
+ border-radius: var(--lm-radius-xs, 4px);
+ cursor: pointer;
+ color: var(--lm-text-tertiary, #6E6960);
+ font-size: 14px;
+ line-height: 1;
+ transition: background var(--lm-duration-fast, 120ms) var(--lm-ease),
+ color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ outline: none;
+}
+
+.lm-icon-btn:hover:not(:disabled) {
+ background: var(--lm-bg-tertiary, #E8E2D4);
+ color: var(--lm-text-primary, #1A1714);
+}
+
+.lm-icon-btn:focus-visible {
+ box-shadow: var(--lm-focus-ring);
+ border-color: var(--lm-accent, #B85B33);
+}
+
+.lm-icon-btn:disabled {
+ opacity: 0.35;
+ cursor: not-allowed;
+}
+
+.lm-icon-btn--danger:hover:not(:disabled) {
+ background: var(--lm-error-light, rgba(168, 65, 43, 0.10));
+ color: var(--lm-error, #A8412B);
+ border-color: var(--lm-error-border, rgba(168, 65, 43, 0.20));
+}

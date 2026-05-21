@@ -1,0 +1,35 @@
+LerretFixtureMono — provenance and license
+==========================================
+
+LerretFixtureMono.woff2 was authored from scratch for the Lerret project by
+the Lerret authors. It copies no existing typeface and carries no third-party
+copyright. Every glyph is a solid full-em rectangle — a deliberately simple
+shape that proves, by eye, that a font dropped into `.lerret/_fonts/` is
+auto-registered and available to assets by family name with no manual
+`@font-face` declarations needed.
+
+Released under the SIL Open Font License, Version 1.1.
+
+-----------------------------------------------------------
+Copyright (c) 2026, the Lerret authors.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is available at https://openfontlicense.org and is reproduced in
+summary below.
+
+PERMISSION & CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of the Font Software, to use, study, copy, merge, embed, modify, redistribute,
+and sell modified and unmodified copies of the Font Software, subject to the
+conditions of the SIL Open Font License, Version 1.1.
+
+The Font Software may be bundled, embedded, redistributed and/or sold with any
+software provided that the reserved names are not used by derivative works.
+The Font Software, modified or unmodified, in part or in whole, must be
+distributed entirely under this license, and must not be distributed under any
+other license. The requirement for fonts to remain under this license does not
+apply to any document created using the Font Software.
+
+NOTE: The Lerret loader scans `_fonts/` for WOFF/WOFF2/TTF/OTF files only.
+This NOTICE file is ignored by the loader — non-font files in `_fonts/` are
+skipped without breaking the registered fonts.

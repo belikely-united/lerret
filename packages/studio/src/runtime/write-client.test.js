@@ -1,0 +1,279 @@
+// Tests for the studio→CLI write client.
+//
+// The client is the single browser-side wrapper around the CLI plugin's
+// `POST /__lerret/write` endpoint. These tests verify the contract: the
+// request shape, the response handling, and the standalone-mode no-op path.
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+ DELETE_ENDPOINT,
+ DUPLICATE_ENDPOINT,
+ RENAME_ENDPOINT,
+ REVEAL_ENDPOINT,
+ WRITE_ENDPOINT,
+ deleteProjectFile,
+ duplicateProjectFile,
+ inCliMode,
+ renameProjectFile,
+ revealProjectFile,
+ writeProjectFile,
+} from './write-client.js';
+
+describe('writeProjectFile — contract', () => {
+ beforeEach(() => {
+ // Default: pretend we're in CLI mode so the helper actually fetches.
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts the right JSON body to the WRITE_ENDPOINT', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true }),
+ });
+
+ const result = await writeProjectFile('/abs/.lerret/foo.data.json', '{"a":1}', {
+ fetch: fetchMock,
+ });
+
+ expect(result).toEqual({ ok: true });
+ expect(fetchMock).toHaveBeenCalledOnce();
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(WRITE_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(init.headers['Content-Type']).toBe('application/json');
+ expect(JSON.parse(init.body)).toEqual({
+ path: '/abs/.lerret/foo.data.json',
+ content: '{"a":1}',
+ });
+ });
+
+ it('returns ok:false with the server-supplied error on a server rejection', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false,
+ status: 400,
+ json: async () => ({ ok: false, error: 'path is outside the project .lerret/ tree' }),
+ });
+
+ const result = await writeProjectFile('/etc/passwd', 'hax', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('outside the project');
+ });
+
+ it('returns ok:false with a network-error message on fetch throw', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new Error('connection refused'));
+ const result = await writeProjectFile('/x/.lerret/y.json', '{}', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('connection refused');
+ });
+
+ it('returns ok:false when the server returns a non-JSON body', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => { throw new SyntaxError('Unexpected token <'); },
+ });
+ const result = await writeProjectFile('/x/.lerret/y.json', '{}', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('non-JSON');
+ });
+
+ it('validates input — empty path is rejected before any fetch', async () => {
+ const fetchMock = vi.fn();
+ const result = await writeProjectFile('', '{}', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('validates input — non-string content is rejected before any fetch', async () => {
+ const fetchMock = vi.fn();
+ // @ts-expect-error testing runtime validation
+ const result = await writeProjectFile('/x/.lerret/y.json', { obj: true }, { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('writeProjectFile — standalone (no CLI) mode', () => {
+ beforeEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ });
+
+ it('returns a calm "writes disabled" error without calling fetch', async () => {
+ const fetchMock = vi.fn();
+ const result = await writeProjectFile('/x/.lerret/y.json', '{}', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('standalone');
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+// ── — lifecycle helper tests ───────────────────────────────────────
+
+describe('renameProjectFile', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { from, to } to the rename endpoint', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200, json: async () => ({ ok: true }),
+ });
+ const result = await renameProjectFile('/x/.lerret/A.jsx', '/x/.lerret/B.jsx', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(RENAME_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(JSON.parse(init.body)).toEqual({ from: '/x/.lerret/A.jsx', to: '/x/.lerret/B.jsx' });
+ });
+
+ it('returns ok:false on a server rejection', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 400,
+ json: async () => ({ ok: false, error: 'to: path is outside the project .lerret/ tree' }),
+ });
+ const result = await renameProjectFile('/x/.lerret/A.jsx', '/etc/passwd', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('outside the project');
+ });
+
+ it('validates inputs before fetching', async () => {
+ const fetchMock = vi.fn();
+ expect((await renameProjectFile('', '/y/.lerret/A.jsx', { fetch: fetchMock })).ok).toBe(false);
+ expect((await renameProjectFile('/x/.lerret/A.jsx', '', { fetch: fetchMock })).ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('returns an error in standalone mode without fetching', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const fetchMock = vi.fn();
+ const result = await renameProjectFile('/x/.lerret/A.jsx', '/x/.lerret/B.jsx', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('standalone');
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('duplicateProjectFile', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to the duplicate endpoint and returns the new path', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, path: '/x/.lerret/A (copy).jsx' }),
+ });
+ const result = await duplicateProjectFile('/x/.lerret/A.jsx', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true, path: '/x/.lerret/A (copy).jsx' });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(DUPLICATE_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/x/.lerret/A.jsx' });
+ });
+
+ it('returns ok:false on a server rejection', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 500,
+ json: async () => ({ ok: false, error: 'duplicate failed' }),
+ });
+ const result = await duplicateProjectFile('/x/.lerret/A.jsx', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('duplicate failed');
+ });
+});
+
+describe('deleteProjectFile', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to the delete endpoint', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200, json: async () => ({ ok: true }),
+ });
+ const result = await deleteProjectFile('/x/.lerret/A.jsx', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(DELETE_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/x/.lerret/A.jsx' });
+ });
+
+ it('rejects empty path before fetching', async () => {
+ const fetchMock = vi.fn();
+ const result = await deleteProjectFile('', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('revealProjectFile', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path, target } to the reveal endpoint', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200, json: async () => ({ ok: true }),
+ });
+ const result = await revealProjectFile('/x/.lerret/A.jsx', 'editor', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(REVEAL_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/x/.lerret/A.jsx', target: 'editor' });
+ });
+
+ it('rejects an unknown target', async () => {
+ const fetchMock = vi.fn();
+ const result = await revealProjectFile('/x/.lerret/A.jsx', 'browser', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('editor');
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('returns standalone-mode error when CLI mode is off', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const fetchMock = vi.fn();
+ const result = await revealProjectFile('/x/.lerret/A.jsx', 'finder', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('standalone');
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('inCliMode', () => {
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ });
+
+ it('reports true when the CLI mode flag is set', () => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ expect(inCliMode()).toBe(true);
+ });
+
+ it('reports false when the CLI mode flag is absent', () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ expect(inCliMode()).toBe(false);
+ });
+});

@@ -1,0 +1,21 @@
+# Lerret CODEOWNERS — defines reviewers for each part of the codebase.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Add additional handles or a team alias as the maintainer group grows.
+
+# Default owner for everything
+*                       @0xsg
+
+# Documentation
+/docs/                  @0xsg
+README.md               @0xsg
+CONTRIBUTING.md         @0xsg
+CODE_OF_CONDUCT.md      @0xsg
+SECURITY.md             @0xsg
+
+# Repo governance / CI
+/.github/               @0xsg
+LICENSE                 @0xsg
+
+# Studio — template content forkable by users
+/packages/studio/       @0xsg

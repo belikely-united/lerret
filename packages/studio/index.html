@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+ <head>
+ <meta charset="utf-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1" />
+ <title>Lerret — Studio</title>
+ <!--
+ Hosted-mode import map placeholder (FR13).
+ ───────────────────────────────────────────────────
+ In hosted mode user assets are transformed in-browser by Sucrase and
+ served as ES modules by the studio's service worker
+ (`src/runtime/module-sw.js`). Sucrase's automatic JSX runtime emits
+ `import { jsx } from "react/jsx-runtime"`, and user assets are free to
+ write `import { useState } from "react"`. Those are BARE specifiers,
+ not URLs — the browser needs an import map to resolve them.
+
+ The bundled studio's React module URLs are only known after Vite has
+ built the studio (Rolldown produces hashed chunk paths). So the import
+ map is INJECTED AT RUNTIME by `src/runtime/sucrase-runtime.js`'s
+ `injectReactImportMap()` helper, called by the hosted entry layer
+ once it knows the right URLs. The placeholder here is left
+ empty so that:
+ - in CLI mode (`lerret dev`) it doesn't shadow Vite's own
+ dependency-pre-bundle resolution (which handles bare specifiers
+ via the bundler, not via the import map);
+ - the hosted entry layer's injected import map takes effect first,
+ before any asset module is dynamically imported.
+
+ Chrome 89+ propagates a page's import map into SW-served modules, so
+ the same map covers Sucrase-output asset modules.
+ -->
+ <script type="importmap" id="lerret-import-map">
+ { "imports": {} }
+ </script>
+ <style>
+ body {
+ background: #f1f5f9;
+ }
+ </style>
+ </head>
+ <body>
+ <div id="root"></div>
+ <script type="module" src="/src/main.jsx"></script>
+ </body>
+</html>

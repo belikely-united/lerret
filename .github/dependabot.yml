@@ -1,0 +1,35 @@
+# Dependabot configuration for Lerret.
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Ecosystem entries will activate once a corresponding manifest exists.
+# Add `npm`/`pnpm`/etc. blocks once the app's package.json lands.
+
+version: 2
+updates:
+  # GitHub Actions (covers any workflows we add later)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 5
+
+  # Uncomment once package.json exists at the repo root
+  # - package-ecosystem: "npm"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #     day: "monday"
+  #   commit-message:
+  #     prefix: "chore(deps)"
+  #   labels:
+  #     - "dependencies"
+  #   open-pull-requests-limit: 10
+  #   groups:
+  #     dev-dependencies:
+  #       dependency-type: "development"

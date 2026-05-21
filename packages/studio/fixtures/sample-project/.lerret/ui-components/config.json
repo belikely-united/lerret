@@ -1,0 +1,12 @@
+{
+  "presentation": {
+    "background": "rgba(241, 237, 229, 0.85)"
+  },
+  "vars": {
+    "brandColor": "#B85B33",
+    "maxWidth": "1200px"
+  },
+  "liveRefresh": {
+    "Clock": 1000
+  }
+}

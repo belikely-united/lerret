@@ -1,0 +1,132 @@
+name: Zero-install smoke
+
+# Verifies that `create-lerret` and `lerret` run zero-install via
+# all four runners (npm, pnpm, yarn, bun) on both Ubuntu and macOS.
+# Also runs the cold-run first-canvas benchmark (NFR1: <60 s local, <90 s CI).
+#
+# Strategy:
+#   - pnpm pack produces local tarballs (no registry publish required).
+#   - scripts/zero-install-smoke.sh runs the full matrix; the script skips any
+#     runner not found on PATH and fails non-zero if any present runner fails.
+#   - scripts/cold-run-benchmark.sh times scaffold + dev-server startup for
+#     each runner and fails if any runner exceeds the configured threshold.
+#   - Both ubuntu-latest and macos-latest are tested so platform-specific
+#     shebang or path issues are caught before a release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/cli/**'
+      - 'packages/create-lerret/**'
+      - 'scripts/zero-install-smoke.sh'
+      - 'scripts/cold-run-benchmark.sh'
+      - '.github/workflows/zero-install.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/cli/**'
+      - 'packages/create-lerret/**'
+      - 'scripts/zero-install-smoke.sh'
+      - 'scripts/cold-run-benchmark.sh'
+      - '.github/workflows/zero-install.yml'
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    name: Smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Install all four runners ─────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node (includes npm + npx)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Yarn
+        run: npm install -g yarn@1
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # ── Workspace deps (needed by pnpm pack for workspace:* resolution) ──
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Smoke matrix ─────────────────────────────────────────────────────
+      - name: Run zero-install smoke matrix
+        run: bash scripts/zero-install-smoke.sh
+
+  # ── Cold-run first-canvas benchmark (NFR1) ────────────────────────────────
+  #
+  # Measures the time from create-lerret scaffold to Vite server ready.
+  # CI threshold: 90 s (generous CI-runner allowance; local target is 60 s).
+  #
+  # continue-on-error: true — a single unusually slow CI host should not block
+  # a merge. The artifact preserves the timings for regression tracking.
+  # If results consistently breach 60 s the packaging budget must be revisited.
+  cold-run-benchmark:
+    name: Cold-run benchmark (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Install runners ───────────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node (includes npm + npx)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # bun is available on ubuntu-latest and macos-latest GitHub-hosted runners
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # ── Workspace deps ────────────────────────────────────────────────────
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Run benchmark ─────────────────────────────────────────────────────
+      # CI env var is set automatically by GitHub Actions; the benchmark script
+      # reads it and applies the 90 s CI threshold (vs 60 s local target).
+      - name: Run cold-run benchmark
+        run: bash scripts/cold-run-benchmark.sh
+
+      # ── Upload timing artifact ────────────────────────────────────────────
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cold-run-results-${{ matrix.os }}
+          path: scripts/cold-run-results.json
+          retention-days: 30

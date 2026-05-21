@@ -1,0 +1,25 @@
+{
+  "name": "create-lerret",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scaffolder for new Lerret projects.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bin": {
+    "create-lerret": "./src/create-lerret.js"
+  },
+  "files": [
+    "src",
+    "template"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vitest": "^4.1.6"
+  }
+}

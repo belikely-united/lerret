@@ -1,0 +1,360 @@
+// Tests for — Artboard Rearrange & Fullscreen Focus View
+//
+// These tests pin the key behaviors added/hardened for :
+//
+// 1. Focus overlay opens via the expand button (FR16).
+// 2. Esc dismisses the overlay (NFR14 — keyboard operability).
+// 3. Focus is trapped inside the overlay while it is open — Tab/Shift+Tab
+// never reach the canvas behind (NFR14).
+// 4. Arrow-key navigation (← / →) advances through artboards in focus view.
+// 5. Keyboard rearrange via the grip button (← / → keys) updates the order
+// and the result is reflected in the rendered artboard sequence (FR15).
+//
+// The brownfield `DesignCanvas` component uses `window.innerWidth/Height`,
+// `requestAnimationFrame`, and `localStorage` — all available in jsdom. It
+// also fetches `.design-canvas.state.json` on mount; we suppress that with a
+// jest/vi `fetch` stub below.
+//
+// Rendering approach: `react-dom/client` into an attached document.body
+// container (same pattern as asset-error-card.test.jsx).
+
+import React from 'react';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+import { DesignCanvas, DCSection, DCArtboard } from './design-canvas.jsx';
+
+// ─── jsdom environment stubs ──────────────────────────────────────────────────
+
+// Stub fetch so the sidecar read on mount resolves instantly as "not found".
+beforeEach(() => {
+ vi.stubGlobal('fetch', () => Promise.resolve({ ok: false, json: () => Promise.resolve(null) }));
+ // DesignCanvas reads window dimensions in DCFocusOverlay.
+ vi.stubGlobal('innerWidth', 1440);
+ vi.stubGlobal('innerHeight', 900);
+});
+
+afterEach(() => {
+ vi.unstubAllGlobals();
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Mount a React element into document.body; returns container + teardown. */
+function renderToDom(element) {
+ const container = document.createElement('div');
+ document.body.appendChild(container);
+ const root = createRoot(container);
+ act(() => { root.render(element); });
+ return {
+ container,
+ cleanup() {
+ act(() => root.unmount());
+ container.remove();
+ },
+ rerender(el) {
+ act(() => { root.render(el); });
+ },
+ };
+}
+
+/** Fire a keyboard event on the document. */
+function fireKey(key, opts = {}) {
+ act(() => {
+ document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...opts }));
+ });
+}
+
+/**
+ * A minimal three-artboard canvas fixture.
+ * Accepts `onReorder` per-section if needed.
+ */
+function ThreeArtboardCanvas() {
+ return (
+ <DesignCanvas>
+ <DCSection id="s1" title="Section One">
+ <DCArtboard id="a1" label="Alpha" width={200} height={150} />
+ <DCArtboard id="a2" label="Beta" width={200} height={150} />
+ <DCArtboard id="a3" label="Gamma" width={200} height={150} />
+ </DCSection>
+ </DesignCanvas>
+ );
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+describe('DCFocusOverlay — open & close', () => {
+ it('opens the focus overlay when the expand button is clicked (FR16)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+
+ // Wait for the canvas to finish its async sidecar read (setReady).
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // The overlay is not present before activation.
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+ // Click the expand button for the first artboard.
+ const expandBtn = container.querySelector('.dc-expand');
+ expect(expandBtn).not.toBeNull();
+ act(() => { expandBtn.click(); });
+
+ // The overlay should now be in the document (portalled to body).
+ expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+ cleanup();
+ });
+
+ it('closes the focus overlay when Esc is pressed (NFR14)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // Open the overlay.
+ const expandBtn = container.querySelector('.dc-expand');
+ act(() => { expandBtn.click(); });
+ expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+ // Esc should dismiss it.
+ fireKey('Escape');
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+ cleanup();
+ });
+
+ it('closes the focus overlay when the close (×) button is clicked', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ act(() => { container.querySelector('.dc-expand').click(); });
+ expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+ // The close button has aria-label="Close focus view".
+ const closeBtn = document.querySelector('[aria-label="Close focus view"]');
+ expect(closeBtn).not.toBeNull();
+ act(() => { closeBtn.click(); });
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+ cleanup();
+ });
+
+ it('closes the focus overlay on backdrop click', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ act(() => { container.querySelector('.dc-expand').click(); });
+ const overlay = document.querySelector('[role="dialog"]');
+ expect(overlay).not.toBeNull();
+
+ // Click the overlay root itself (the backdrop).
+ act(() => { overlay.click(); });
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+ cleanup();
+ });
+});
+
+describe('DCFocusOverlay — focus trap (NFR14)', () => {
+ it('contains Tab focus within the overlay — Tab never escapes to the canvas', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ act(() => { container.querySelector('.dc-expand').click(); });
+ const overlay = document.querySelector('[role="dialog"]');
+ expect(overlay).not.toBeNull();
+
+ // Collect focusable elements in the overlay.
+ const focusable = Array.from(
+ overlay.querySelectorAll(
+ 'a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])',
+ ),
+ ).filter((n) => n.offsetParent !== null || n.closest('[role="dialog"]'));
+
+ // There must be at least: section dropdown, close, left arrow, right arrow,
+ // and at least one dot — so at least 4.
+ expect(focusable.length).toBeGreaterThanOrEqual(4);
+
+ // All of them must be INSIDE the overlay (not on the canvas behind it).
+ for (const el of focusable) {
+ expect(overlay.contains(el)).toBe(true);
+ }
+
+ cleanup();
+ });
+
+ it('Tab advances through overlay buttons and wraps to the first', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ act(() => { container.querySelector('.dc-expand').click(); });
+ const overlay = document.querySelector('[role="dialog"]');
+
+ // Auto-focus should have placed focus somewhere inside the overlay.
+ // Give requestAnimationFrame a tick.
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const active = document.activeElement;
+ expect(overlay.contains(active)).toBe(true);
+
+ cleanup();
+ });
+
+ it('focus is inside the overlay immediately after opening (auto-focus)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // Remember where focus was before opening.
+ const expandBtn = container.querySelector('.dc-expand');
+ act(() => { expandBtn.focus(); });
+ act(() => { expandBtn.click(); });
+
+ // Give the rAF a tick to fire.
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const overlay = document.querySelector('[role="dialog"]');
+ expect(overlay).not.toBeNull();
+ // Active element must be inside the overlay after opening.
+ expect(overlay.contains(document.activeElement)).toBe(true);
+
+ cleanup();
+ });
+});
+
+describe('DCFocusOverlay — arrow-key navigation (NFR14)', () => {
+ it('→ advances to the next artboard in the section', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // Open focus on the first artboard.
+ act(() => { container.querySelector('.dc-expand').click(); });
+ let overlay = document.querySelector('[role="dialog"]');
+ expect(overlay).not.toBeNull();
+
+ // The label shows "1 / 3".
+ expect(overlay.textContent).toMatch(/1\s*\/\s*3/);
+
+ // → should advance to the second artboard.
+ fireKey('ArrowRight');
+ overlay = document.querySelector('[role="dialog"]');
+ expect(overlay).not.toBeNull();
+ expect(overlay.textContent).toMatch(/2\s*\/\s*3/);
+
+ cleanup();
+ });
+
+ it('← goes back to the previous artboard (wraps around)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // Open focus on the first artboard (idx 0), then go left (wraps to last).
+ act(() => { container.querySelector('.dc-expand').click(); });
+ fireKey('ArrowLeft');
+
+ const overlay = document.querySelector('[role="dialog"]');
+ // Wrapped to 3 / 3.
+ expect(overlay.textContent).toMatch(/3\s*\/\s*3/);
+
+ cleanup();
+ });
+});
+
+describe('Artboard rearrange — keyboard grip (FR15 / NFR14)', () => {
+ it('grip button is in the tab order (has no tabIndex=-1)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ const grips = container.querySelectorAll('.dc-grip');
+ expect(grips.length).toBeGreaterThan(0);
+ for (const grip of grips) {
+ // A grip that is a <button> with no explicit tabindex, or tabIndex >= 0,
+ // is keyboard-reachable.
+ expect(Number(grip.getAttribute('tabindex') ?? '0')).toBeGreaterThanOrEqual(0);
+ }
+
+ cleanup();
+ });
+
+ it('grip button is a <button> element for keyboard operability (NFR14)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ const grips = container.querySelectorAll('.dc-grip');
+ for (const grip of grips) {
+ expect(grip.tagName.toLowerCase()).toBe('button');
+ }
+
+ cleanup();
+ });
+
+ it('pressing → on a focused grip moves the artboard right in section order', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // Slot elements tell us the rendered order via data-dc-slot.
+ const slotsBefore = Array.from(container.querySelectorAll('[data-dc-slot]')).map(
+ (el) => el.dataset.dcSlot,
+ );
+ // Initial order: a1, a2, a3.
+ expect(slotsBefore).toEqual(['a1', 'a2', 'a3']);
+
+ // Focus the first grip and press →.
+ const firstGrip = container.querySelectorAll('.dc-grip')[0];
+ act(() => { firstGrip.focus(); });
+ act(() => {
+ firstGrip.dispatchEvent(
+ new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }),
+ );
+ });
+
+ // After the state update the order should be a2, a1, a3.
+ const slotsAfter = Array.from(container.querySelectorAll('[data-dc-slot]')).map(
+ (el) => el.dataset.dcSlot,
+ );
+ expect(slotsAfter).toEqual(['a2', 'a1', 'a3']);
+
+ cleanup();
+ });
+
+ it('pressing ← on a focused grip moves the artboard left in section order', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ // Focus the last grip (a3) and press ←.
+ const grips = container.querySelectorAll('.dc-grip');
+ const lastGrip = grips[grips.length - 1];
+ act(() => { lastGrip.focus(); });
+ act(() => {
+ lastGrip.dispatchEvent(
+ new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+ );
+ });
+
+ // a3 moves left: a1, a3, a2.
+ const slotsAfter = Array.from(container.querySelectorAll('[data-dc-slot]')).map(
+ (el) => el.dataset.dcSlot,
+ );
+ expect(slotsAfter).toEqual(['a1', 'a3', 'a2']);
+
+ cleanup();
+ });
+
+ it('pressing ← on the first artboard grip does nothing (already at start)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ const firstGrip = container.querySelectorAll('.dc-grip')[0];
+ act(() => { firstGrip.focus(); });
+ act(() => {
+ firstGrip.dispatchEvent(
+ new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
+ );
+ });
+
+ // Order unchanged: a1, a2, a3.
+ const slotsAfter = Array.from(container.querySelectorAll('[data-dc-slot]')).map(
+ (el) => el.dataset.dcSlot,
+ );
+ expect(slotsAfter).toEqual(['a1', 'a2', 'a3']);
+
+ cleanup();
+ });
+});

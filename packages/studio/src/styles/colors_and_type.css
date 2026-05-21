@@ -1,0 +1,254 @@
+/* ============================================================
+ Lerret — Colors & Type
+ Source of truth for the studio's brand tokens.
+ Variable names are kept under the --lm- prefix to preserve
+ compatibility with the existing component CSS — only the
+ values change, swapping LeafMarker's blue/slate palette for
+ Lerret's sienna/linen/ink.
+
+ ACCESSIBILITY USAGE RULES (UX-DR16, NFR15, WCAG AA 4.5:1)
+ ─────────────────────────────────────────────────────────────
+ • Mist (--lm-text-muted, #B8B3A8) falls below WCAG AA for
+ normal text (≈3.0:1 on paper). RESTRICT to decorative,
+ placeholder, and disabled content only — never for
+ information the user must read.
+
+ • For accent-colored TEXT, use --lm-accent-hover (#92421E,
+ ≈5.5:1 on paper) which clears WCAG AA 4.5:1.
+ Use --lm-accent (#B85B33) only for decorative uses such as
+ borders, backgrounds, icon fills, and button backgrounds
+ where the text on top uses a contrasting color.
+
+ • Focus ring: all interactive elements must use --lm-focus-ring
+ (a visible, accent-border-based box-shadow) so the focus
+ indicator is consistent and meets NFR14 visibility.
+ ============================================================ */
+
+/* ---------- TYPOGRAPHY ----------
+ Lerret uses a serif display face (Instrument Serif), a
+ modern grotesk for UI/body (Geist), and a code mono (Geist
+ Mono). All loaded from Google Fonts.
+*/
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap");
+
+:root {
+ /* Font stacks */
+ --lm-font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+ --lm-font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+ --lm-font-system: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+ --lm-font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Monaco, Consolas, monospace;
+
+ /* Type scale — small-UI-first; >20px is marketing/docs territory. */
+ --lm-size-hint: 10px;
+ --lm-size-badge: 11px;
+ --lm-size-body-sm: 12px;
+ --lm-size-body: 13px;
+ --lm-size-body-lg: 14px;
+ --lm-size-header: 15px;
+ --lm-size-h3: 16px;
+ --lm-size-h2: 20px;
+ --lm-size-h1: 24px;
+ --lm-size-display: 36px;
+
+ --lm-weight-regular: 400;
+ --lm-weight-medium: 500;
+ --lm-weight-semibold: 600;
+ --lm-weight-bold: 700;
+
+ --lm-lh-tight: 1.2;
+ --lm-lh-body: 1.45;
+ --lm-lh-relaxed: 1.6;
+
+ --lm-tracking-caps: 0.5px;
+
+ /* ---------- LIGHT PALETTE — Lerret canvas/ink ---------- */
+ /* Backgrounds — three surface tiers (warm off-white range) */
+ --lm-bg-primary: #FAF8F2; /* paper */
+ --lm-bg-secondary: #F2EEE6; /* linen */
+ --lm-bg-tertiary: #E8E2D4; /* canvas (deeper warm tone) */
+
+ /* Borders */
+ --lm-border: #DDD7CA; /* edge */
+ --lm-border-light: #E8E2D4;
+
+ /* Text — four tiers (warm near-blacks, never #000) */
+ --lm-text-primary: #1A1714; /* ink */
+ --lm-text-secondary: #3A3530; /* graphite */
+ --lm-text-tertiary: #6E6960; /* stone */
+ --lm-text-muted: #B8B3A8; /* mist */
+
+ /* Accent — Lerret sienna (painter's burnt umber) */
+ --lm-accent: #B85B33;
+ --lm-accent-hover: #92421E;
+ --lm-accent-light: rgba(184, 91, 51, 0.10);
+ --lm-accent-border: rgba(184, 91, 51, 0.20);
+
+ /* Sienna gradient stops — used for hero emphasis (.lm-display em, etc.) */
+ --lm-grad-1: #92421E;
+ --lm-grad-2: #B85B33;
+ --lm-grad-3: #D08259;
+ --lm-grad-4: #E8C9B8;
+ --lm-grad-5: #F2D9C8;
+ --lm-gradient: linear-gradient(160deg, #92421E 0%, #B85B33 30%, #D08259 60%, #E8C9B8 100%);
+
+ /* Status (kept in a calm range) */
+ --lm-success: #4A6B3F;
+ --lm-success-light: rgba(74, 107, 63, 0.10);
+ --lm-success-border: rgba(74, 107, 63, 0.20);
+ --lm-error: #A8412B;
+ --lm-error-light: rgba(168, 65, 43, 0.10);
+ --lm-error-border: rgba(168, 65, 43, 0.20);
+ --lm-warning: #B07B1F;
+ --lm-warning-light: rgba(176, 123, 31, 0.10);
+ --lm-warning-border: rgba(176, 123, 31, 0.20);
+
+ /* Status dot accents — used as left-border stripes on cards */
+ --lm-task-todo: #B07B1F; /* warm amber */
+ --lm-task-doing: #5A6B72; /* screen blue-grey */
+ --lm-task-done: #4A6B3F; /* moss green */
+ --lm-task-fail: #A8412B; /* warm error */
+
+ /* Premium / upsell — sienna gradient */
+ --lm-premium-1: #E8C9B8;
+ --lm-premium-2: #B85B33;
+ --lm-premium-3: #92421E;
+ --lm-premium-gradient: linear-gradient(135deg, #E8C9B8 0%, #B85B33 55%, #92421E 100%);
+
+ /* Shadows — warm-ink-tinted, never neutral grey */
+ --lm-shadow-xs: 0 1px 2px rgba(26, 23, 20, 0.05);
+ --lm-shadow-sm: 0 1px 3px rgba(26, 23, 20, 0.10);
+ --lm-shadow-md: 0 4px 12px rgba(26, 23, 20, 0.10);
+ --lm-shadow-lg: 0 8px 24px rgba(26, 23, 20, 0.15);
+ --lm-shadow-popup: 0 18px 48px rgba(26, 23, 20, 0.22);
+
+ /* Radii */
+ --lm-radius-xs: 4px;
+ --lm-radius-sm: 6px;
+ --lm-radius-md: 8px;
+ --lm-radius-lg: 12px;
+ --lm-radius-xl: 14px;
+ --lm-radius-pill: 999px;
+
+ /* Spacing — 4px grid */
+ --lm-space-1: 4px;
+ --lm-space-2: 8px;
+ --lm-space-3: 12px;
+ --lm-space-4: 16px;
+ --lm-space-5: 20px;
+ --lm-space-6: 24px;
+ --lm-space-8: 32px;
+
+ /* Motion */
+ --lm-duration-fast: 120ms;
+ --lm-duration-base: 220ms;
+ --lm-duration-slow: 480ms;
+ --lm-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+ /* Focus ring — used by every interactive element.
+ Matches the accent-border value so the ring is visually consistent
+ with the sienna palette. Use var(--lm-focus-ring) as a box-shadow
+ on :focus-visible to satisfy NFR14 (keyboard operability, WCAG 2.1 2.4.7).
+ --lm-focus-ring-inset is the inset variant for elements where an outer
+ ring would overflow a clipping ancestor. */
+ --lm-focus-ring: 0 0 0 2px var(--lm-accent-border);
+ --lm-focus-ring-inset: inset 0 0 0 2px var(--lm-accent-border);
+
+ /* Accent-colored text token — WCAG AA (≈5.5:1 on paper, ).
+ Use for any foreground text rendered in the sienna accent.
+ Decorative uses (borders, fills, icon color, button background)
+ continue to use --lm-accent (#B85B33). */
+ --lm-accent-text: #92421E;
+
+ /* Popover surface tokens — used by the menu popover (, 3.11).
+ Kept here so no inline rgba survives outside the token file. */
+ --lm-popover-bg: rgba(255, 255, 255, 0.97);
+ --lm-popover-border: rgba(26, 23, 20, 0.10);
+
+ /* Warning hover state — Mist-warning hover (, 3.11). */
+ --lm-warning-hover: rgba(176, 123, 31, 0.16);
+}
+
+/* ---------- DARK PALETTE — Lerret gallery ---------- */
+[data-leafmarker-theme="dark"] {
+ --lm-bg-primary: #1F1D1A; /* gallery */
+ --lm-bg-secondary: #2A2723; /* gallery-soft */
+ --lm-bg-tertiary: #3A3530;
+
+ --lm-border: #3A3530;
+ --lm-border-light: #4A4540;
+
+ --lm-text-primary: #ECE7DC;
+ --lm-text-secondary: #C4BFB4;
+ --lm-text-tertiary: #A39E94;
+ --lm-text-muted: #6E6960;
+
+ --lm-accent: #D08259;
+ --lm-accent-hover: #B85B33;
+ --lm-accent-light: rgba(208, 130, 89, 0.14);
+ --lm-accent-border: rgba(208, 130, 89, 0.24);
+
+ --lm-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+ --lm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.40);
+ --lm-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.40);
+ --lm-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.50);
+ --lm-shadow-popup: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- SEMANTIC TYPE ROLES ---------- */
+.lm-h1 {
+ font: var(--lm-weight-semibold) var(--lm-size-h1)/var(--lm-lh-tight) var(--lm-font-sans);
+ color: var(--lm-text-primary);
+ letter-spacing: -0.01em;
+}
+.lm-h2 {
+ font: var(--lm-weight-semibold) var(--lm-size-h2)/var(--lm-lh-tight) var(--lm-font-sans);
+ color: var(--lm-text-primary);
+}
+.lm-h3 {
+ font: var(--lm-weight-semibold) var(--lm-size-h3)/var(--lm-lh-tight) var(--lm-font-sans);
+ color: var(--lm-text-primary);
+ letter-spacing: var(--lm-tracking-caps);
+}
+.lm-header {
+ font: var(--lm-weight-semibold) var(--lm-size-header)/var(--lm-lh-tight) var(--lm-font-sans);
+ color: var(--lm-text-primary);
+}
+.lm-body {
+ font: var(--lm-weight-regular) var(--lm-size-body)/var(--lm-lh-body) var(--lm-font-sans);
+ color: var(--lm-text-secondary);
+}
+.lm-body-sm {
+ font: var(--lm-weight-regular) var(--lm-size-body-sm)/var(--lm-lh-body) var(--lm-font-sans);
+ color: var(--lm-text-secondary);
+}
+.lm-hint {
+ font: var(--lm-weight-medium) var(--lm-size-hint)/var(--lm-lh-tight) var(--lm-font-sans);
+ color: var(--lm-text-muted);
+ text-transform: uppercase;
+ letter-spacing: var(--lm-tracking-caps);
+}
+.lm-label {
+ font: var(--lm-weight-semibold) var(--lm-size-hint)/var(--lm-lh-tight) var(--lm-font-sans);
+ color: var(--lm-text-tertiary);
+ text-transform: uppercase;
+ letter-spacing: var(--lm-tracking-caps);
+}
+.lm-code {
+ font: var(--lm-weight-regular) var(--lm-size-body-sm)/var(--lm-lh-body) var(--lm-font-mono);
+ background: var(--lm-bg-tertiary);
+ color: var(--lm-text-primary);
+ padding: 2px 6px;
+ border-radius: var(--lm-radius-xs);
+}
+.lm-kbd {
+ font: var(--lm-weight-semibold) var(--lm-size-hint)/1 var(--lm-font-mono);
+ background: var(--lm-bg-tertiary);
+ color: var(--lm-text-secondary);
+ border: 1px solid var(--lm-border);
+ border-bottom-width: 2px;
+ border-radius: var(--lm-radius-xs);
+ padding: 2px 5px;
+ display: inline-block;
+ min-width: 14px;
+ text-align: center;
+}

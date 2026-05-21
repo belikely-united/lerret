@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<!--
+ SPIKE — throwaway prototype. Excluded from vite build.
+ Superseded by the real hosted runtime. Do not import from production code.
+
+ spike-canvas.html — entry point for the hosted-mode live-edit spike.
+
+ HOW TO RUN THIS SPIKE:
+ ─────────────────────
+ 1. From the repo root, run:
+ pnpm --filter @lerret/studio dev
+ (or simply: pnpm dev inside packages/studio/)
+
+ 2. Navigate to:
+ http://localhost:5173/spike/hosted-runtime/spike-canvas.html
+
+ 3. Click "Open Fixture Folder" and pick:
+ packages/studio/spike/hosted-runtime/fixture/
+
+ 4. The spike will load SpikeCard.jsx, transform it with Sucrase,
+ serve it via the service worker, and render it in the artboard below.
+
+ 5. Edit packages/studio/spike/hosted-runtime/fixture/SpikeCard.jsx
+ (change the text, colour, etc.), save, and watch the re-render.
+ Latency is shown in the table below.
+
+ IMPORT MAP:
+ ───────────
+ The import map below redirects `react` and `react/jsx-runtime` to the
+ Vite dev server's bundled copies. When the spike runs against the Vite
+ dev server these resolve automatically (Vite serves them at the URLs
+ below). If you run the spike standalone you may need to update these
+ URLs to point at a CDN (e.g. esm.sh/react@19 / esm.sh/react@19/jsx-runtime).
+-->
+<html lang="en">
+<head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ <title>Lerret Spike — Hosted-mode Live-Edit Loop</title>
+
+ <!--
+ Import map — redirects bare specifiers used by Sucrase-transformed output.
+ `react/jsx-runtime` is emitted by Sucrase's automatic JSX runtime.
+ These point at esm.sh (CDN) so the spike can run without the Vite dev
+ server also serving React. When running under Vite dev, Vite intercepts
+ these and serves from node_modules instead.
+ -->
+ <script type="importmap">
+ {
+ "imports": {
+ "react": "https://esm.sh/react@19.2.0?dev",
+ "react/jsx-runtime": "https://esm.sh/react@19.2.0/jsx-runtime?dev",
+ "react/jsx-dev-runtime": "https://esm.sh/react@19.2.0/jsx-dev-runtime?dev",
+ "react-dom/client": "https://esm.sh/react-dom@19.2.0/client?dev",
+ "sucrase": "https://esm.sh/sucrase@3.35.0?bundle&dev"
+ }
+ }
+ </script>
+
+ <style>
+ * { box-sizing: border-box; margin: 0; padding: 0; }
+ body {
+ font-family: system-ui, sans-serif;
+ background: #0f172a;
+ color: #f8fafc;
+ min-height: 100vh;
+ padding: 24px;
+ display: grid;
+ grid-template-columns: 1fr 380px;
+ grid-template-rows: auto 1fr auto;
+ gap: 20px;
+ }
+ header {
+ grid-column: 1 / -1;
+ display: flex;
+ align-items: center;
+ gap: 16px;
+ }
+ h1 { font-size: 16px; font-weight: 700; color: #6366f1; }
+ .badge {
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 0.1em;
+ text-transform: uppercase;
+ background: #dc2626;
+ color: #fff;
+ padding: 2px 8px;
+ border-radius: 4px;
+ }
+ #status {
+ font-size: 11px;
+ color: #94a3b8;
+ margin-left: auto;
+ }
+
+ /* Artboard area */
+ #artboard-wrap {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ background: #1e293b;
+ border-radius: 12px;
+ min-height: 300px;
+ }
+ #artboard {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ }
+
+ /* Sidebar */
+ aside {
+ display: flex;
+ flex-direction: column;
+ gap: 16px;
+ }
+ button#pick-btn {
+ background: #6366f1;
+ color: #fff;
+ border: none;
+ padding: 10px 20px;
+ border-radius: 8px;
+ font-size: 14px;
+ font-weight: 600;
+ cursor: pointer;
+ width: 100%;
+ }
+ button#pick-btn:hover { background: #4f46e5; }
+
+ #latency-table table { width: 100%; color: #e2e8f0; }
+ #latency-table th, #latency-table td {
+ padding: 4px 6px;
+ text-align: right;
+ border-color: #334155;
+ }
+ #latency-table th { color: #94a3b8; }
+ #latency-table p { margin-top: 8px; font-size: 12px; }
+
+ #spike-log {
+ font-family: monospace;
+ font-size: 10px;
+ color: #64748b;
+ background: #0f172a;
+ border: 1px solid #1e293b;
+ border-radius: 6px;
+ padding: 8px;
+ height: 200px;
+ overflow-y: auto;
+ white-space: pre;
+ grid-column: 1 / -1;
+ }
+ </style>
+</head>
+<body>
+ <header>
+ <h1>Lerret · Spike · Hosted-mode Live-Edit Loop</h1>
+ <span class="badge">Throwaway</span>
+ <span id="status">Not started</span>
+ </header>
+
+ <div id="artboard-wrap">
+ <div id="artboard"></div>
+ </div>
+
+ <aside>
+ <button id="pick-btn">Open Fixture Folder</button>
+ <div>
+ <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">
+ Pick: <code>spike/hosted-runtime/fixture/</code><br />
+ Edit <code>SpikeCard.jsx</code> in your editor, save, and watch the re-render.<br />
+ Latency measured from file change detection to visible DOM update.
+ </p>
+ </div>
+ <div id="latency-table">
+ <p style="font-size:11px;color:#94a3b8;">Latency trials appear here after edits.</p>
+ </div>
+ </aside>
+
+ <pre id="spike-log">Spike log initialising...</pre>
+
+ <script type="module" src="./spike-canvas.js"></script>
+</body>
+</html>
