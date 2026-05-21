@@ -1,0 +1,16 @@
+# Tests live next to source under src/ — `files: ["src", "template"]` would pull them in.
+# Exclude them so the published tarball ships only runtime code.
+*.test.js
+*.test.jsx
+__tests__/
+__mocks__/
+
+# Test-runner config
+vitest.config.js
+
+# Dotfiles that don't belong in the tarball
+.npmignore
+.gitignore
+.eslintrc*
+.prettier*
+.editorconfig

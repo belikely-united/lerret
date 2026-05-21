@@ -12,7 +12,9 @@
   },
   "files": [
     "src",
-    "dist-studio"
+    "dist-studio",
+    "!src/**/*.test.js",
+    "!src/**/*.test.jsx"
   ],
   "repository": {
     "type": "git",

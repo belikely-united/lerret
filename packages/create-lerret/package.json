@@ -12,7 +12,9 @@
   },
   "files": [
     "src",
-    "template"
+    "template",
+    "!src/**/*.test.js",
+    "!src/**/*.test.jsx"
   ],
   "repository": {
     "type": "git",
