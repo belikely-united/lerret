@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "lerret"
+  },
+  "targets": {
+    "lerret": {
+      "hosting": {
+        "docs": [
+          "lerret-docs"
+        ]
+      }
+    }
+  }
+}
