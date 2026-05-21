@@ -1,7 +1,6 @@
 {
   "name": "create-lerret",
   "version": "0.1.0",
-  "private": true,
   "description": "Scaffolder for new Lerret projects.",
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -14,6 +13,22 @@
   "files": [
     "src",
     "template"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/belikely-united/lerret.git",
+    "directory": "packages/create-lerret"
+  },
+  "homepage": "https://lerret.belikely.com",
+  "bugs": {
+    "url": "https://github.com/belikely-united/lerret/issues"
+  },
+  "keywords": [
+    "lerret",
+    "design-canvas",
+    "design-tool",
+    "scaffolder",
+    "create-app"
   ],
   "scripts": {
     "test": "vitest run"

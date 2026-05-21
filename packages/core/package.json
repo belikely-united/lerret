@@ -1,8 +1,7 @@
 {
   "name": "@lerret/core",
   "version": "0.1.0",
-  "private": true,
-  "description": "Environment-agnostic shared logic for Lerret — no DOM, no Node built-ins.",
+  "description": "Environment-agnostic core for Lerret — the design canvas where a folder of React components renders as a visual canvas. Shared loader, watcher, config cascade, and filesystem contract.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "main": "./src/index.js",
@@ -11,6 +10,24 @@
   },
   "files": [
     "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/belikely-united/lerret.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://lerret.belikely.com",
+  "bugs": {
+    "url": "https://github.com/belikely-united/lerret/issues"
+  },
+  "keywords": [
+    "lerret",
+    "design-canvas",
+    "design-tool",
+    "react",
+    "jsx",
+    "loader",
+    "local-first"
   ],
   "scripts": {
     "test": "vitest run"

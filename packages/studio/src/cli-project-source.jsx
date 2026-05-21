@@ -1,7 +1,7 @@
 // cli-project-source.jsx — the CLI-mode project provider.
 //
 // When the studio is loaded by `lerret dev`, the project model is computed
-// server-side by `@lerret/cli`'s Vite plugin and handed to us as a virtual
+// server-side by `lerret`'s Vite plugin and handed to us as a virtual
 // module (`virtual:lerret-project`). This file owns the studio-side of that
 // contract:
 //
@@ -31,7 +31,7 @@
 //
 // Only the *source* of the project differs:
 // - dev-harness → `import.meta.glob` over the bundled fixture.
-// - this file → `virtual:lerret-project` injected by `@lerret/cli`.
+// - this file → `virtual:lerret-project` injected by `lerret`.
 
 import React from 'react';
 

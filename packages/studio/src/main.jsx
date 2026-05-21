@@ -11,7 +11,7 @@
 // mount. Two sources today:
 //
 // • CLI mode (`lerret dev`):
-// The CLI's Vite plugin (`@lerret/cli`'s `vite-plugin-lerret-project`)
+// The CLI's Vite plugin (`lerret`'s `vite-plugin-lerret-project`)
 // injects an inline `<script>window.__LERRET_CLI_MODE__ = true</script>`
 // into the served `index.html` AND provides a virtual module
 // `virtual:lerret-project` carrying the server-scanned project + the

@@ -11,7 +11,7 @@
 // known/consistent behavior on macOS, Linux, and Windows. We translate that
 // straight into the model's normalized `{ type, path }` shape.
 //
-// THIS file is the only place in `@lerret/cli` allowed to import `chokidar`.
+// THIS file is the only place in `lerret` allowed to import `chokidar`.
 // `core` stays environment-agnostic (no Node built-ins); the loader's pure
 // `applyWatchEvent` patches the project model off the events this file emits.
 //

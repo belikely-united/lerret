@@ -1,8 +1,7 @@
 {
-  "name": "@lerret/cli",
+  "name": "lerret",
   "version": "0.1.0",
-  "private": true,
-  "description": "The `lerret` binary — Node-side Vite dev server + bundled studio.",
+  "description": "The `lerret` design canvas — a folder of plain React component files renders as a visual canvas. Includes the Vite dev server, headless export, and the bundled studio.",
   "type": "module",
   "license": "AGPL-3.0-only",
   "engines": {
@@ -15,6 +14,24 @@
     "src",
     "dist-studio"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/belikely-united/lerret.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://lerret.belikely.com",
+  "bugs": {
+    "url": "https://github.com/belikely-united/lerret/issues"
+  },
+  "keywords": [
+    "lerret",
+    "design-canvas",
+    "design-tool",
+    "react",
+    "vite",
+    "cli",
+    "local-first"
+  ],
   "scripts": {
     "test": "vitest run",
     "build": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js",
@@ -22,13 +39,13 @@
   },
   "dependencies": {
     "@lerret/core": "workspace:*",
-    "@lerret/studio": "workspace:*",
     "@vitejs/plugin-react": "^6.0.2",
     "chokidar": "^5.0.0",
     "playwright-core": "^1.60.0",
     "vite": "^8.0.0"
   },
   "devDependencies": {
+    "@lerret/studio": "workspace:*",
     "vitest": "^4.1.6"
   }
 }

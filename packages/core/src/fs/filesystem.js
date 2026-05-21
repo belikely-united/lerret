@@ -3,7 +3,7 @@
 // Lerret reads and writes a user's project through ONE interface, defined here
 // in `core` as pure, environment-agnostic code. Two backends implement it:
 //
-//   - the Node `fs` backend  (`@lerret/cli` — CLI / self-host mode)
+//   - the Node `fs` backend  (`lerret` — CLI / self-host mode)
 //   - the File System Access API backend  (`@lerret/studio` — hosted mode)
 //
 // Every filesystem-touching subsystem — the project loader, the watcher, the
