@@ -1,6 +1,6 @@
 {
   "name": "create-lerret",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Scaffolder for new Lerret projects.",
   "type": "module",
   "license": "AGPL-3.0-only",

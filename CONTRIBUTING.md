@@ -34,19 +34,19 @@ You do not need to clone this repo to use Lerret. Pick the package runner you al
 ```sh
 # npm
 npx create-lerret my-project
-cd my-project && npx lerret dev
+cd my-project && npx @lerret/cli dev
 
 # pnpm
 pnpm dlx create-lerret my-project
-cd my-project && pnpm dlx lerret dev
+cd my-project && pnpm dlx @lerret/cli dev
 
 # yarn
 yarn dlx create-lerret my-project
-cd my-project && yarn dlx lerret dev
+cd my-project && yarn dlx @lerret/cli dev
 
 # bun
 bunx create-lerret my-project
-cd my-project && bunx lerret dev
+cd my-project && bunx @lerret/cli dev
 ```
 
 Flags work identically across all four runners:
@@ -56,10 +56,10 @@ Flags work identically across all four runners:
 npx create-lerret my-project --no-samples
 
 # Export to a specific directory
-npx lerret export --out ./dist --format png
+npx @lerret/cli export --out ./dist --format png
 
 # Custom dev-server port
-npx lerret dev --port 4321
+npx @lerret/cli dev --port 4321
 ```
 
 ## Local setup (contributors)
@@ -135,7 +135,7 @@ Lerret's first-run experience must be fast. **NFR1** requires that a brand-new u
 | Phase | What happens |
 |---|---|
 | `npx create-lerret my-project` | Runner downloads `create-lerret` from the registry, extracts it, and scaffolds the project tree. |
-| `npx lerret dev` | Runner downloads `lerret` (+ Vite + React), starts the Vite dev server. |
+| `npx @lerret/cli dev` | Runner downloads `@lerret/cli` (+ Vite + React), starts the Vite dev server. |
 | Canvas ready | Browser receives an HTTP 200 response with the studio HTML. |
 
 The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped on first install). The `create-lerret` package itself has **zero runtime dependencies** and the `lerret` CLI keeps its own dependency surface minimal.

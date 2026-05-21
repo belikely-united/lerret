@@ -424,7 +424,7 @@ export async function main(argv = process.argv.slice(2)) {
         '',
         'Next:',
         `  cd ${name}`,
-        '  npx lerret dev',
+        '  npx @lerret/cli dev',
         '',
       ].join('\n'),
     );
@@ -462,7 +462,7 @@ export async function main(argv = process.argv.slice(2)) {
       '',
       'Next:',
       `  cd ${name}`,
-      '  npx lerret dev',
+      '  npx @lerret/cli dev',
       '',
     ].join('\n'),
   );

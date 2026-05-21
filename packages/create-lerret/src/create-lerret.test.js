@@ -147,7 +147,7 @@ describe('successful scaffold', () => {
 
     expect(stdout).toMatch(/cool-brand\/.lerret\//);
     expect(stdout).toMatch(/cd cool-brand/);
-    expect(stdout).toMatch(/npx lerret dev/);
+    expect(stdout).toMatch(/npx @lerret\/cli dev/);
   });
 
   it('success message contains the checkmark prefix', async () => {
@@ -276,7 +276,7 @@ describe('--no-samples flag', () => {
   it('success message includes next-step commands', async () => {
     const { stdout } = await runMain(['my-project', '--no-samples'], { cwd: tmpDir });
     expect(stdout).toMatch(/cd my-project/);
-    expect(stdout).toMatch(/npx lerret dev/);
+    expect(stdout).toMatch(/npx @lerret\/cli dev/);
   });
 
   it('flag works after the name argument: create-lerret my-project --no-samples', async () => {
