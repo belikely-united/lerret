@@ -1,0 +1,36 @@
+---
+title: CLI Reference
+description: lerret dev and lerret export — flags, semantics, exit codes.
+---
+
+# CLI Reference
+
+This page is a stub. Each command will get a full reference card.
+
+## `lerret dev`
+
+Runs the studio against a `.lerret/` project folder.
+
+```bash
+lerret dev [path-to-project] [--port <port>] [--no-open]
+```
+
+## `lerret export`
+
+Headlessly renders a project (or page/group) to image files.
+
+```bash
+lerret export [path-to-project] --out ./out --format png
+lerret export [path-to-project] --out ./out --flat
+lerret export [path-to-project] --out ./out --page social
+```
+
+Full flag list lands in a follow-up commit.
+
+## `create-lerret`
+
+Scaffolds a new Lerret project.
+
+```bash
+npx create-lerret <project-name> [--no-samples]
+```

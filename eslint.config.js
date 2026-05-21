@@ -23,6 +23,10 @@ export default [
       '**/dist-cli/**',
       '**/build/**',
       '**/coverage/**',
+      // The docs site is an isolated Next.js + Nextra project under apps/.
+      // It carries its own lint surface via Next; the workspace's flat
+      // config does not apply React / browser globals to it.
+      'apps/docs/**',
     ],
   },
 

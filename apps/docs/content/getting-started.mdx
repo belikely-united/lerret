@@ -1,0 +1,39 @@
+---
+title: Getting Started
+description: Scaffold a Lerret project and render your first canvas in under a minute.
+---
+
+# Getting Started
+
+This page is a stub. Full content lands in a follow-up commit.
+
+## Install
+
+```bash
+npx create-lerret my-canvas
+cd my-canvas
+npx @lerret/cli dev
+```
+
+## Requirements
+
+- Node.js ≥ 20.19
+- A modern Chromium browser (Chrome / Edge / Brave / Arc) for hosted mode. The CLI works in any environment Node runs in.
+
+## What `create-lerret` produces
+
+```
+my-canvas/
+└── .lerret/
+    ├── config.json
+    ├── _fonts/
+    │   └── LerretFixtureMono.woff2
+    └── social/
+        ├── twitter-banner.jsx
+        ├── instagram-square.jsx
+        └── youtube-thumbnail.jsx
+```
+
+Each `.jsx` file under `.lerret/` is an asset that renders as an artboard. Save a file → the canvas re-renders.
+
+## Next: [Concepts](/concepts/) — how the folder maps to the canvas.

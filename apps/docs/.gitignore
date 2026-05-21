@@ -1,0 +1,16 @@
+# Next.js build output
+.next/
+out/
+
+# Node
+node_modules/
+
+# Logs
+*.log
+
+# Env
+.env*.local
+
+# Misc
+.DS_Store
+.vercel

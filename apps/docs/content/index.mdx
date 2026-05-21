@@ -1,0 +1,34 @@
+---
+title: Lerret
+description: An open-source design canvas where a folder of plain React component files renders as a visual canvas.
+---
+
+# Lerret
+
+**A design canvas where a folder of plain React component files renders as a visual canvas.**
+
+Lerret turns a project folder of `.jsx`/`.tsx` components into a live, navigable canvas — pan-and-zoom artboards, hot-reload on save, headless export. No proprietary file format, no vendor lock-in, no account required. The components stay portable; Lerret only *renders* them.
+
+## Try it now
+
+```bash
+npx create-lerret my-canvas
+cd my-canvas
+npx @lerret/cli dev
+```
+
+The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the canvas re-renders in under a second.
+
+## What's in the box
+
+- **Studio** — pan-and-zoom canvas, per-artboard error boundaries, in-place editors for component data + config.
+- **CLI** — `lerret dev` serves a folder as a canvas; `lerret export` headlessly renders to image files (PNG, JPG, structured ZIP).
+- **No backend** — files read and written locally; no upload, no sync, no account.
+- **Three deploy modes** — local CLI, hosted (browser File System Access API), or self-hosted static studio.
+
+## What's next
+
+- [Getting Started](/getting-started/) — install and render your first canvas.
+- [Concepts](/concepts/) — the folder-canvas model, page groups, variants, the four-tier prop cascade.
+- [Authoring Assets](/authoring/) — JSX components, props schemas, data files, fonts, Markdown.
+- [CLI Reference](/cli/) — `dev` and `export` commands.
