@@ -13,6 +13,7 @@ const ROUTES = [
   '/getting-started',
   '/concepts',
   '/authoring',
+  '/examples',
   '/studio',
   '/cli',
   '/deploy',

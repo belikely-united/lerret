@@ -1,0 +1,775 @@
+---
+title: Examples
+description: Eight complete Lerret assets you can drop into .lerret/ — from social cards to component showcases.
+---
+
+# Examples
+
+Each example below is a **complete, runnable Lerret asset**. Drop the file into your project's `.lerret/` directory at the indicated path and the artboard appears on the canvas. Save the file and it re-renders in under a second.
+
+Every example uses only features documented in [Concepts](/concepts/) and [Authoring Assets](/authoring/): plain React, the `meta` export, optional `propsSchema`, co-located `.data.json` files, named-export variants, and CSS-variable theming from `config.json`.
+
+> **Where to put the files.** Inside your project's `.lerret/` folder, put each `.jsx` under a page (e.g. `.lerret/social/twitter.jsx`). Co-located data files live alongside (`.lerret/social/twitter.data.json`). Pages are top-level non-underscore folders — see [Concepts → folder-canvas model](/concepts/#the-folder-canvas-model).
+
+## 1. Open Graph card
+
+**Use case.** Every blog post needs a 1200×630 social-share image. This pattern uses a `.data.json` per post so you can render dozens of OG cards from one component without code changes.
+
+**Path.** `.lerret/og/blog-post.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 630 },
+  label: 'OG blog card',
+  tags: ['og', 'blog', 'social'],
+  propsSchema: {
+    title: {
+      type: 'string',
+      default: 'Your post title',
+      description: 'Main headline rendered at large size.',
+      required: true,
+    },
+    author: {
+      type: 'string',
+      default: 'Author name',
+      description: 'Byline shown above the title.',
+    },
+    accent: {
+      type: 'string',
+      default: '#B85B33',
+      description: 'Accent bar color — pick from your brand palette.',
+    },
+  },
+};
+
+export default function BlogPostCard({
+  title = 'Your post title',
+  author = 'Author name',
+  accent = '#B85B33',
+}) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      padding: '80px',
+      background: '#0E1116',
+      color: '#F4F4F0',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      position: 'relative',
+    }}>
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 12,
+        background: accent,
+      }} />
+      <div style={{
+        fontSize: 22,
+        letterSpacing: '0.18em',
+        textTransform: 'uppercase',
+        opacity: 0.65,
+      }}>
+        {author}
+      </div>
+      <div style={{
+        fontSize: 80,
+        fontWeight: 800,
+        lineHeight: 1.05,
+        letterSpacing: '-0.025em',
+        textWrap: 'balance',
+      }}>
+        {title}
+      </div>
+      <div style={{
+        fontSize: 22,
+        opacity: 0.55,
+      }}>
+        belikely.com
+      </div>
+    </div>
+  );
+}
+```
+
+**Drive it from data.** Co-locate `.lerret/og/blog-post.data.json`:
+
+```json
+{
+  "title": "What if a folder could be a canvas?",
+  "author": "Sooryagangaraj",
+  "accent": "#3D5A80"
+}
+```
+
+To render multiple OG cards from the same component, use the **variants pattern** in the next example.
+
+---
+
+## 2. YouTube thumbnail
+
+**Use case.** Episode artwork at 1280×720. Bold headline, episode number, an accent bar. Designed to read at thumbnail size on a YouTube grid.
+
+**Path.** `.lerret/youtube/thumbnail.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1280, height: 720 },
+  label: 'YouTube thumbnail',
+  tags: ['youtube', 'video', 'thumbnail'],
+  propsSchema: {
+    title: {
+      type: 'string',
+      default: 'Episode title',
+      required: true,
+    },
+    episodeNumber: {
+      type: 'string',
+      default: 'EP 01',
+      description: 'Short label rendered in the corner (e.g. EP 01, Ep 12, S2E04).',
+    },
+    showAccent: {
+      type: 'boolean',
+      default: true,
+      description: 'Show the diagonal accent stripe behind the title.',
+    },
+  },
+};
+
+export default function YouTubeThumbnail({
+  title = 'Episode title',
+  episodeNumber = 'EP 01',
+  showAccent = true,
+}) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      background: '#101218',
+      color: '#FAFAF6',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      position: 'relative',
+      overflow: 'hidden',
+      padding: '64px',
+    }}>
+      {showAccent && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(135deg, transparent 35%, rgba(184,91,51,0.85) 35%, rgba(184,91,51,0.85) 38%, transparent 38%)',
+          pointerEvents: 'none',
+        }} />
+      )}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        height: '100%',
+      }}>
+        <div style={{
+          fontSize: 28,
+          letterSpacing: '0.22em',
+          fontWeight: 700,
+          color: '#E8C8B6',
+        }}>
+          {episodeNumber}
+        </div>
+        <div style={{
+          fontSize: 96,
+          fontWeight: 900,
+          lineHeight: 0.98,
+          letterSpacing: '-0.03em',
+          textWrap: 'balance',
+          maxWidth: '85%',
+        }}>
+          {title}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+**Notes.** The accent stripe is one diagonal gradient — no extra DOM. `textWrap: 'balance'` keeps multi-line titles visually even.
+
+---
+
+## 3. Instagram square — with variants
+
+**Use case.** One file, three theme variants, one canvas. The component is exported four times: a default plus three named variants. Lerret renders four artboards from this single file.
+
+**Path.** `.lerret/social/instagram.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1080, height: 1080 },
+  label: 'Instagram square',
+  tags: ['instagram', 'square', 'social'],
+  propsSchema: {
+    title: {
+      type: 'string',
+      default: 'The title of your post',
+      required: true,
+    },
+    subtitle: {
+      type: 'string',
+      default: 'A supporting line of context.',
+    },
+  },
+};
+
+const THEMES = {
+  ocean: { bg: '#1B2A3B', title: '#E0FBFC', sub: '#8BAEC8', tag: '#3D5A80', tagText: '#E0FBFC' },
+  sand:  { bg: '#F5EFE0', title: '#2C1C0E', sub: '#7A6148', tag: '#C4975B', tagText: '#FFFFFF' },
+  slate: { bg: '#1E2530', title: '#F0F4F8', sub: '#90A4BC', tag: '#4A5568', tagText: '#F0F4F8' },
+};
+
+function Card({ title, subtitle, theme }) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      background: theme.bg,
+      color: theme.title,
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      padding: '80px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}>
+      <div style={{ fontSize: 32, opacity: 0.6, letterSpacing: '0.1em' }}>YOUR BRAND</div>
+      <div>
+        <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.025em' }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 32, marginTop: 24, color: theme.sub, lineHeight: 1.4 }}>
+          {subtitle}
+        </div>
+      </div>
+      <div style={{
+        alignSelf: 'flex-start',
+        background: theme.tag,
+        color: theme.tagText,
+        fontSize: 22,
+        fontWeight: 600,
+        padding: '12px 28px',
+        borderRadius: 100,
+      }}>
+        #lerret
+      </div>
+    </div>
+  );
+}
+
+export default function Ocean(props) {
+  return <Card {...props} theme={THEMES.ocean} />;
+}
+
+export function Sand(props) {
+  return <Card {...props} theme={THEMES.sand} />;
+}
+
+export function Slate(props) {
+  return <Card {...props} theme={THEMES.slate} />;
+}
+```
+
+**Notes.** `Card` is a regular helper component — Lerret only treats *exported* functions as variants. The default export becomes the primary variant, `Sand` and `Slate` become extra variants. All three share the same `meta` (so all three are 1080×1080) and the same `propsSchema` form. See [Concepts → variants](/concepts/#variants-via-named-exports).
+
+**Per-variant data with `.data.json`.** Save `.lerret/social/instagram.data.json`:
+
+```json
+{
+  "default": { "title": "Ocean theme",  "subtitle": "Deep blues, calm whites." },
+  "Sand":    { "title": "Sand theme",   "subtitle": "Warm earth tones, soft contrast." },
+  "Slate":   { "title": "Slate theme",  "subtitle": "Dark, neutral, professional." }
+}
+```
+
+Top-level keys match variant export names, so each variant gets its own data. Stray keys (no matching export) would be ignored with a warning. See [Concepts → per-variant data keying](/concepts/#per-variant-data-keying).
+
+---
+
+## 4. GitHub repo card
+
+**Use case.** A shareable card showing stars, forks, primary language. Useful as an Open Graph image for a project's GitHub repository, or a stat-card for a release blog post.
+
+**Path.** `.lerret/social/repo-card.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 600 },
+  label: 'GitHub repo card',
+  tags: ['github', 'og', 'stats'],
+  propsSchema: {
+    owner: { type: 'string', default: 'belikely-united', required: true },
+    name: { type: 'string', default: 'lerret', required: true },
+    tagline: { type: 'string', default: 'A folder is a canvas.' },
+    stars: { type: 'string', default: '0' },
+    forks: { type: 'string', default: '0' },
+    language: { type: 'string', default: 'JavaScript' },
+  },
+};
+
+function Stat({ label, value }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 56, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      <div style={{ fontSize: 18, opacity: 0.6, letterSpacing: '0.12em', textTransform: 'uppercase' }}>{label}</div>
+    </div>
+  );
+}
+
+export default function RepoCard({
+  owner = 'belikely-united',
+  name = 'lerret',
+  tagline = 'A folder is a canvas.',
+  stars = '0',
+  forks = '0',
+  language = 'JavaScript',
+}) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      padding: '64px 80px',
+      background: '#0E1116',
+      color: '#F4F4F0',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}>
+      <div>
+        <div style={{ fontSize: 24, opacity: 0.5, fontFamily: 'ui-monospace, Menlo, monospace' }}>
+          {owner}/
+        </div>
+        <div style={{ fontSize: 84, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1, marginTop: 8 }}>
+          {name}
+        </div>
+        <div style={{ fontSize: 28, marginTop: 24, opacity: 0.7, lineHeight: 1.4 }}>
+          {tagline}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 80, alignItems: 'flex-end' }}>
+        <Stat label="Stars" value={`★ ${stars}`} />
+        <Stat label="Forks" value={`⑃ ${forks}`} />
+        <Stat label="Language" value={language} />
+      </div>
+    </div>
+  );
+}
+```
+
+**Data file (`.lerret/social/repo-card.data.json`).** Drop in counts you read from the GitHub API or update by hand:
+
+```json
+{
+  "owner": "belikely-united",
+  "name": "lerret",
+  "tagline": "A folder is a canvas.",
+  "stars": "127",
+  "forks": "9",
+  "language": "JavaScript"
+}
+```
+
+Numbers stay strings here so the component does no formatting — keeps presentation in the JSX and data trivially editable.
+
+---
+
+## 5. Release graphic
+
+**Use case.** When you ship a version, render a card with the version number and 3–5 highlights. Save the data, render the image, post it.
+
+**Path.** `.lerret/releases/release-card.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 630 },
+  label: 'Release graphic',
+  tags: ['release', 'changelog'],
+  propsSchema: {
+    version: { type: 'string', default: 'v0.1.0', required: true },
+    title:   { type: 'string', default: 'Release title' },
+    bullets: { type: 'string', default: 'First highlight\\nSecond highlight\\nThird highlight',
+               description: 'One highlight per line. Up to five render cleanly.' },
+  },
+};
+
+export default function ReleaseCard({
+  version = 'v0.1.0',
+  title = 'Release title',
+  bullets = 'First highlight\nSecond highlight\nThird highlight',
+}) {
+  const lines = bullets.split('\n').filter(Boolean).slice(0, 5);
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      padding: '64px 80px',
+      background: 'linear-gradient(135deg, #1B2A3B 0%, #3D5A80 100%)',
+      color: '#F4F7FA',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}>
+      <div>
+        <div style={{
+          fontSize: 22,
+          letterSpacing: '0.2em',
+          textTransform: 'uppercase',
+          color: '#8BAEC8',
+        }}>
+          Release · {version}
+        </div>
+        <div style={{
+          fontSize: 64,
+          fontWeight: 800,
+          lineHeight: 1.05,
+          marginTop: 16,
+          letterSpacing: '-0.025em',
+          textWrap: 'balance',
+        }}>
+          {title}
+        </div>
+      </div>
+      <ul style={{
+        listStyle: 'none',
+        padding: 0,
+        margin: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}>
+        {lines.map((line, i) => (
+          <li key={i} style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 20,
+            fontSize: 28,
+          }}>
+            <span style={{ color: '#8BAEC8', fontVariantNumeric: 'tabular-nums', minWidth: 28 }}>
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <span style={{ lineHeight: 1.35 }}>{line}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+**Notes.** The `bullets` prop is a single string with newline separators rather than an array — `propsSchema` types like `array<string>` are not in the documented descriptor set, so we use a string and split inside the component. If you need arrays as data, prefer a `.data.js` file (which can export real arrays without quoting tricks).
+
+---
+
+## 6. Component-library showcase
+
+**Use case.** Render one of your app's real React components on the canvas to show off API states. The component lives in your app's source; the Lerret asset is a thin wrapper that imports it.
+
+**Path.** `.lerret/components/button-showcase.jsx`
+
+```jsx
+// `MyButton` is a component from your real app — relative import.
+// The path is whatever works from inside .lerret/components/.
+// Lerret loads this file like any Vite ESM module, so relative imports
+// to siblings, parents, or external paths all work.
+//
+// import MyButton from '../../../src/components/Button.jsx';
+//
+// For this example we declare a small inline component so the asset
+// is self-contained.
+
+function DemoButton({ label = 'Click me', variant = 'primary', size = 'md' }) {
+  const styles = {
+    primary:   { bg: '#B85B33', fg: '#FFFFFF' },
+    secondary: { bg: 'transparent', fg: '#1A1714', border: '1px solid #1A1714' },
+    ghost:     { bg: 'transparent', fg: '#1A1714' },
+  };
+  const sizes = {
+    sm: { padding: '8px 16px',  fontSize: 14 },
+    md: { padding: '12px 24px', fontSize: 16 },
+    lg: { padding: '16px 32px', fontSize: 18 },
+  };
+  const v = styles[variant];
+  const s = sizes[size];
+  return (
+    <button style={{
+      background: v.bg,
+      color: v.fg,
+      border: v.border || 'none',
+      borderRadius: 8,
+      fontWeight: 600,
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      cursor: 'pointer',
+      ...s,
+    }}>
+      {label}
+    </button>
+  );
+}
+
+export const meta = {
+  dimensions: { width: 1600, height: 900 },
+  label: 'Button — all states',
+  tags: ['showcase', 'components', 'button'],
+};
+
+export default function ButtonShowcase() {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      padding: 80,
+      background: '#F2EEE6',
+      color: '#1A1714',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gridTemplateRows: 'auto repeat(3, 1fr)',
+      rowGap: 32,
+      columnGap: 48,
+      alignItems: 'center',
+    }}>
+      <div style={{ fontSize: 18, opacity: 0.6 }}>SMALL</div>
+      <div style={{ fontSize: 18, opacity: 0.6 }}>MEDIUM</div>
+      <div style={{ fontSize: 18, opacity: 0.6 }}>LARGE</div>
+      {['primary', 'secondary', 'ghost'].map((variant) => (
+        ['sm', 'md', 'lg'].map((size) => (
+          <DemoButton key={`${variant}-${size}`} label={variant} variant={variant} size={size} />
+        ))
+      )).flat()}
+    </div>
+  );
+}
+```
+
+**Notes.** This pattern works equally well for your real app components — replace `DemoButton` with a relative import (`import MyButton from '../../src/Button'`). When the app's component changes, the showcase updates the next time you save anywhere in the import graph.
+
+---
+
+## 7. "Now playing" banner — with computed `.data.js`
+
+**Use case.** A status banner showing the current track or release. The data is computed at load time using a `.data.js` file rather than static JSON.
+
+**Path.** `.lerret/social/now-playing.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1200, height: 400 },
+  label: 'Now playing',
+  tags: ['status', 'banner'],
+  propsSchema: {
+    track: { type: 'string', default: 'Track title', required: true },
+    artist: { type: 'string', default: 'Artist name' },
+    elapsed: { type: 'string', default: '00:00' },
+    duration: { type: 'string', default: '03:00' },
+  },
+};
+
+export default function NowPlaying({
+  track = 'Track title',
+  artist = 'Artist name',
+  elapsed = '00:00',
+  duration = '03:00',
+}) {
+  const elapsedSec = toSeconds(elapsed);
+  const durationSec = toSeconds(duration);
+  const progress = durationSec === 0 ? 0 : Math.min(elapsedSec / durationSec, 1);
+
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      padding: '48px 64px',
+      background: 'linear-gradient(135deg, #0A0E14 0%, #1B2A3B 100%)',
+      color: '#F4F7FA',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+        <div style={{ fontSize: 14, letterSpacing: '0.25em', textTransform: 'uppercase', color: '#8BAEC8' }}>
+          Now playing
+        </div>
+        <div style={{ flex: 1, height: 1, background: 'rgba(139,174,200,0.25)' }} />
+      </div>
+
+      <div>
+        <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.02em' }}>
+          {track}
+        </div>
+        <div style={{ fontSize: 26, opacity: 0.7, marginTop: 8 }}>
+          {artist}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ height: 4, background: 'rgba(139,174,200,0.2)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{
+            width: `${progress * 100}%`,
+            height: '100%',
+            background: '#E8C8B6',
+          }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 16, color: '#8BAEC8', fontVariantNumeric: 'tabular-nums' }}>
+          <span>{elapsed}</span>
+          <span>{duration}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function toSeconds(stamp) {
+  const parts = String(stamp).split(':').map(Number);
+  if (parts.some(Number.isNaN)) return 0;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return 0;
+}
+```
+
+**Computed data.** Save `.lerret/social/now-playing.data.js` to compute the progress dynamically on each load:
+
+```js
+// .data.js — re-evaluated at load, so dates / durations stay current.
+const start = new Date('2026-01-15T10:00:00Z');
+const now = new Date();
+const elapsed = Math.max(0, Math.floor((now - start) / 1000));
+
+function fmt(seconds) {
+  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+export default {
+  track: 'Ship Lerret 1.0',
+  artist: 'Belikely United',
+  elapsed: fmt(Math.min(elapsed, 60 * 60 * 24 * 30)),  // cap at 30 days
+  duration: '30:00',
+};
+```
+
+When both `.data.json` and `.data.js` co-locate with the same asset, **`.data.js` wins** with a warning logged. See [Authoring → data files precedence](/authoring/#precedence-when-both-exist).
+
+---
+
+## 8. Doc hero with custom font
+
+**Use case.** A hero card for the front of a documentation site or a release blog post. Uses a custom font registered in `.lerret/_fonts/`.
+
+**Setup.** Drop your font file into `.lerret/_fonts/MyBrand.woff2`. Lerret auto-registers it as a CSS `@font-face` rule under the family name **`MyBrand`** (derived from the file name without the extension). See [Concepts → custom fonts](/concepts/#custom-fonts).
+
+**Path.** `.lerret/marketing/doc-hero.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1600, height: 800 },
+  label: 'Doc hero',
+  tags: ['hero', 'marketing'],
+  propsSchema: {
+    eyebrow: { type: 'string', default: 'Documentation' },
+    headline: { type: 'string', default: 'Make the docs you wish you had.', required: true },
+    cta: { type: 'string', default: 'Read the guide' },
+  },
+};
+
+export default function DocHero({
+  eyebrow = 'Documentation',
+  headline = 'Make the docs you wish you had.',
+  cta = 'Read the guide',
+}) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      boxSizing: 'border-box',
+      padding: '96px',
+      background: 'var(--heroBg, #F2EEE6)',
+      color: 'var(--heroFg, #1A1714)',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+    }}>
+      <div style={{
+        fontFamily: "'MyBrand', 'system-ui', sans-serif",
+        fontSize: 28,
+        letterSpacing: '0.2em',
+        textTransform: 'uppercase',
+        opacity: 0.7,
+      }}>
+        {eyebrow}
+      </div>
+      <div style={{
+        fontSize: 112,
+        fontWeight: 800,
+        lineHeight: 1,
+        letterSpacing: '-0.04em',
+        textWrap: 'balance',
+        maxWidth: '90%',
+      }}>
+        {headline}
+      </div>
+      <div style={{
+        display: 'inline-flex',
+        alignSelf: 'flex-start',
+        alignItems: 'center',
+        gap: 16,
+        background: 'var(--ctaBg, #1A1714)',
+        color: 'var(--ctaFg, #F2EEE6)',
+        padding: '20px 36px',
+        borderRadius: 12,
+        fontSize: 22,
+        fontWeight: 600,
+      }}>
+        {cta}
+        <span aria-hidden="true">→</span>
+      </div>
+    </div>
+  );
+}
+```
+
+**Themed by `config.json`.** Put a `config.json` next to the asset (or at any ancestor folder up to the project root). The `vars` block is exposed as CSS custom properties on every artboard within scope:
+
+```json
+{
+  "vars": {
+    "heroBg": "#0E1116",
+    "heroFg": "#F2EEE6",
+    "ctaBg": "#B85B33",
+    "ctaFg": "#FFFFFF"
+  }
+}
+```
+
+Edit any `vars` value, save the file, and every artboard inheriting that variable re-renders with the new value — no JSX edit needed. The config cascade is documented at [Concepts → the config cascade](/concepts/#the-config-cascade).
+
+---
+
+## What's next
+
+- **[Authoring Assets](/authoring/)** — the full guide to writing components, schemas, data files, and fonts.
+- **[Concepts](/concepts/)** — how pages, groups, variants, and the four-tier prop cascade fit together.
+- **[CLI Reference](/cli/)** — `lerret dev` to render the canvas, `lerret export` to capture every artboard headlessly.
+
+Have an example pattern that helped you? Open a [Discussion](https://github.com/belikely-united/lerret/discussions) — community-contributed examples may land in a future expanded gallery.

@@ -13,6 +13,7 @@ export default {
   },
   concepts: 'Concepts',
   authoring: 'Authoring Assets',
+  examples: 'Examples',
   studio: 'The Studio',
   cli: 'CLI Reference',
   deploy: 'Deployment',
