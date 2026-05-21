@@ -20,6 +20,12 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ### Fixed
 - `docsRepositoryBase` in the Nextra layout pointed at the wrong path (missing the `public/` workspace prefix), which 404'd every "Edit this page on GitHub" link.
 
+## @lerret/cli 0.1.8 — 2026-05-22
+
+### Fixed
+- `lerret export` against the bundled `dist-studio/` no longer fails on every artboard with `Failed to fetch dynamically imported module: /src/export/capture.js`. The page-side capture call now uses a `window.__lerret_capture` hook published by the studio's CLI-mode entry, which survives production bundling. The earlier `import('/src/export/capture.js')` only worked when Vite served the studio from source — against the production bundle (hashed chunks) the source path 404'd and the studio chrome cascaded into the downstream `useState` null error.
+- `lerret export` now sets the same `react` / `react-dom` / `react/jsx-(dev-)runtime` resolve aliases `lerret dev` already had, so user `.jsx`/`.tsx` assets transform correctly when the CLI is serving the pre-built bundle.
+
 ## @lerret/cli 0.1.5 — 2026-05-22
 
 ### Changed

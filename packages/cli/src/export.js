@@ -70,6 +70,7 @@
 import { parseArgs } from 'node:util';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 import { scan, collectArtboards } from '@lerret/core';
 
@@ -935,10 +936,26 @@ export async function bootViteServer({ projectRoot, lerretDir, dataOverride, con
     plugins.unshift(reactPlugin());
   }
 
+  // The user's `.jsx`/`.tsx` assets get transformed by Vite/esbuild into
+  // imports of `react/jsx-dev-runtime`. The user's project has no
+  // `node_modules`, so those imports must resolve against the CLI's own
+  // React. Without these aliases the user's assets fail to load in
+  // `dist-studio/` mode and the studio renders empty slots — `lerret dev`
+  // has the same shape; we keep them in lock-step.
+  const cliRequire = createRequire(import.meta.url);
+  const reactAliases = [
+    { find: 'react/jsx-dev-runtime', replacement: cliRequire.resolve('react/jsx-dev-runtime') },
+    { find: 'react/jsx-runtime', replacement: cliRequire.resolve('react/jsx-runtime') },
+    { find: 'react-dom/client', replacement: cliRequire.resolve('react-dom/client') },
+    { find: /^react-dom$/, replacement: cliRequire.resolve('react-dom') },
+    { find: /^react$/, replacement: cliRequire.resolve('react') },
+  ];
+
   const server = await createServer({
     configFile: false,
     root: studioRoot,
     plugins,
+    resolve: { alias: reactAliases },
     server: {
       open: false, // headless — never open a real browser
       fs: {
@@ -989,13 +1006,16 @@ export async function bootViteServer({ projectRoot, lerretDir, dataOverride, con
  * @returns {Promise<{ ok: boolean, bytesB64?: string, unembeddedFonts?: string[], error?: string }>}
  */
 export async function evaluateCaptureInPage(page, domId, format) {
-  // The capture import path inside the studio's served bundle. Vite serves
-  // the studio source so we can `import()` the same module the studio uses.
-  //
   // The arrow below executes INSIDE the Chromium page — `document`, `btoa`,
-  // and dynamic `import()` of a `/src/…` URL are browser-side and the lint
+  // and `window.__lerret_capture` are browser-side and the lint
   // (which sees this file as Node-only) cannot tell. The targeted disable
   // covers only that callback.
+  //
+  // `window.__lerret_capture` is published by the studio's CLI-mode entry
+  // (`cli-project-source.jsx`) — a stable hook that survives production
+  // bundling. The old dynamic `import('/src/export/capture.js')` only worked
+  // when Vite served the studio from source; against the pre-built
+  // `dist-studio/` (hashed chunks) the source path 404s.
   return await page.evaluate(
     /* eslint-disable no-undef */
     async ({ domId, format, slotSelector, innerCardSelector }) => {
@@ -1005,11 +1025,26 @@ export async function evaluateCaptureInPage(page, domId, format) {
         const card = slot.querySelector(innerCardSelector);
         if (!card) return { ok: false, error: `inner card not found inside slot "${domId}"` };
 
-        // Dynamic import of the studio's capture module — served by Vite.
-        // The studio's main bundle loads it eagerly for the per-artboard
-        // PNG button; importing it here is essentially a cache hit.
-        const mod = await import('/src/export/capture.js');
-        const { blob, unembeddedFonts } = await mod.captureArtboard(card, { format });
+        // Wait for the studio's CLI-mode entry to publish `__lerret_capture`.
+        // The studio loads `cli-project-source.jsx` asynchronously from
+        // `main.jsx`, so on a fast-navigating page the global may not be
+        // present yet when this callback first fires. Poll briefly with a
+        // generous ceiling — in practice it appears within the first frame
+        // after the studio root mounts.
+        const deadline = Date.now() + 10000;
+        while (typeof window.__lerret_capture !== 'function') {
+          if (Date.now() > deadline) {
+            return {
+              ok: false,
+              error:
+                '`window.__lerret_capture` was not published by the studio ' +
+                '— the bundled studio may be out of date with this CLI',
+            };
+          }
+          await new Promise((r) => setTimeout(r, 50));
+        }
+
+        const { blob, unembeddedFonts } = await window.__lerret_capture(card, { format });
 
         // Transfer the blob as base64 — Playwright `evaluate` serializes
         // primitives but cannot pass Blobs across the bridge.

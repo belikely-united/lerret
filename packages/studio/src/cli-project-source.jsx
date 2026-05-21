@@ -53,6 +53,19 @@ import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx'
 // the real open-folder empty state replaces the old placeholder.
 import { OpenFolder } from './components/entry/open-folder.jsx';
 
+// `lerret export` drives a headless Chromium and invokes captureArtboard via
+// `page.evaluate`. The CLI cannot dynamic-`import('/src/export/capture.js')`
+// from the page because that source path does not exist in the production
+// `dist-studio/` bundle (Vite emits hashed chunk names). Exposing the
+// statically-imported `captureArtboard` on `window` gives the CLI a stable
+// hook that survives bundling — the function is already in the main chunk
+// because `single.js` / `zip.js` import it for the per-artboard PNG button.
+import { captureArtboard } from './export/capture.js';
+
+if (typeof window !== 'undefined') {
+ window.__lerret_capture = captureArtboard;
+}
+
 /**
  * The custom HMR event name the CLI plugin sends. Kept in lock-step with the
  * `HMR_CHANGE_EVENT` constant in `packages/cli/src/vite-plugin-lerret-
