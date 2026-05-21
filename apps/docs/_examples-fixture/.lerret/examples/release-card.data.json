@@ -1,0 +1,5 @@
+{
+  "version": "v0.1.7",
+  "title": "Lerret 0.1 — first public release",
+  "bullets": "Folder-canvas model with sub-second hot reload\nHeadless export to PNG / JPG / ZIP\nHosted, self-host, and local CLI deploy modes\nZero-install across npm, pnpm, yarn, bun\nOpen-source under MIT — built openly by Belikely United"
+}

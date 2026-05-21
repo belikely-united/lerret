@@ -9,11 +9,15 @@ Each example below is a **complete, runnable Lerret asset**. Drop the file into 
 
 Every example uses only features documented in [Concepts](/concepts/) and [Authoring Assets](/authoring/): plain React, the `meta` export, optional `propsSchema`, co-located `.data.json` files, named-export variants, and CSS-variable theming from `config.json`.
 
+> **The previews on this page were rendered with Lerret.** Every image below is the actual output of `lerret export` run against the source code shown next to it — no Photoshop, no mockups. The docs site uses the product to make its own marketing.
+
 > **Where to put the files.** Inside your project's `.lerret/` folder, put each `.jsx` under a page (e.g. `.lerret/social/twitter.jsx`). Co-located data files live alongside (`.lerret/social/twitter.data.json`). Pages are top-level non-underscore folders — see [Concepts → folder-canvas model](/concepts/#the-folder-canvas-model).
 
 ## 1. Open Graph card
 
 **Use case.** Every blog post needs a 1200×630 social-share image. This pattern uses a `.data.json` per post so you can render dozens of OG cards from one component without code changes.
+
+![OG blog card preview rendered by Lerret — 1200×630, dark background with sienna accent bar, headline "What if a folder could be a canvas?"](/examples/blog-post.png)
 
 **Path.** `.lerret/og/blog-post.jsx`
 
@@ -115,6 +119,8 @@ To render multiple OG cards from the same component, use the **variants pattern*
 
 **Use case.** Episode artwork at 1280×720. Bold headline, episode number, an accent bar. Designed to read at thumbnail size on a YouTube grid.
 
+![YouTube thumbnail preview — 1280×720, near-black background, diagonal sienna accent stripe, "Lerret in 90 seconds" headline](/examples/thumbnail.png)
+
 **Path.** `.lerret/youtube/thumbnail.jsx`
 
 ```jsx
@@ -203,7 +209,11 @@ export default function YouTubeThumbnail({
 
 ## 3. Instagram square — with variants
 
-**Use case.** One file, three theme variants, one canvas. The component is exported four times: a default plus three named variants. Lerret renders four artboards from this single file.
+**Use case.** One file, three theme variants, one canvas. The component is exported three times: a default (Ocean) plus two named variants (Sand, Slate). Lerret renders three artboards from this single file.
+
+![Instagram square preview — 1080×1080, Ocean theme: dark blue background, white headline "Ocean theme", supporting line "Deep blues, calm whites." and a #lerret tag pill](/examples/instagram.png)
+
+The preview shows the **Ocean** (default) variant. The Sand and Slate variants render alongside it on your canvas with the same data structure but distinct palettes — see the `.data.json` below.
 
 **Path.** `.lerret/social/instagram.jsx`
 
@@ -302,6 +312,8 @@ Top-level keys match variant export names, so each variant gets its own data. St
 
 **Use case.** A shareable card showing stars, forks, primary language. Useful as an Open Graph image for a project's GitHub repository, or a stat-card for a release blog post.
 
+![GitHub repo card preview — 1200×600, dark background, "belikely-united/lerret" with tagline "A folder is a canvas.", stat row showing 127 stars, 9 forks, JavaScript language](/examples/repo-card.png)
+
 **Path.** `.lerret/social/repo-card.jsx`
 
 ```jsx
@@ -390,6 +402,8 @@ Numbers stay strings here so the component does no formatting — keeps presenta
 ## 5. Release graphic
 
 **Use case.** When you ship a version, render a card with the version number and 3–5 highlights. Save the data, render the image, post it.
+
+![Release graphic preview — 1200×630, blue gradient background, "RELEASE · v0.1.7" eyebrow, "Lerret 0.1 — first public release" headline, numbered list of five highlights](/examples/release-card.png)
 
 **Path.** `.lerret/releases/release-card.jsx`
 
@@ -480,6 +494,8 @@ export default function ReleaseCard({
 
 **Use case.** Render one of your app's real React components on the canvas to show off API states. The component lives in your app's source; the Lerret asset is a thin wrapper that imports it.
 
+![Button showcase preview — 1600×900, linen background, 3×3 matrix of button variants (primary / secondary / ghost) at small / medium / large sizes, column labels above](/examples/button-showcase.png)
+
 **Path.** `.lerret/components/button-showcase.jsx`
 
 ```jsx
@@ -565,6 +581,8 @@ export default function ButtonShowcase() {
 ## 7. "Now playing" banner — with computed `.data.js`
 
 **Use case.** A status banner showing the current track or release. The data is computed at load time using a `.data.js` file rather than static JSON.
+
+![Now playing preview — 1200×400, deep blue gradient background, NOW PLAYING eyebrow, "Ship Lerret 1.0" track with "Belikely United" artist, progress bar near full, "30:00 / 30:00" timestamps](/examples/now-playing.png)
 
 **Path.** `.lerret/social/now-playing.jsx`
 
@@ -675,6 +693,8 @@ When both `.data.json` and `.data.js` co-locate with the same asset, **`.data.js
 ## 8. Doc hero with custom font
 
 **Use case.** A hero card for the front of a documentation site or a release blog post. Uses a custom font registered in `.lerret/_fonts/`.
+
+![Doc hero preview — 1600×800, near-black background, "DOCUMENTATION" eyebrow in custom mono font, huge "Make the docs you wish you had." headline, sienna "Read the guide →" button](/examples/doc-hero.png)
 
 **Setup.** Drop your font file into `.lerret/_fonts/MyBrand.woff2`. Lerret auto-registers it as a CSS `@font-face` rule under the family name **`MyBrand`** (derived from the file name without the extension). See [Concepts → custom fonts](/concepts/#custom-fonts).
 
