@@ -303,7 +303,7 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
  <p style={errorBodyStyle}>
  The folder you picked doesn&apos;t contain a <code>.lerret/</code>{' '}
  directory. Open a folder that has one, or create a new project with{' '}
- <code>npx lerret init</code>.
+ <code>npx create-lerret my-canvas</code>.
  </p>
  <button
  type="button"

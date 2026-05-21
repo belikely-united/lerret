@@ -1,11 +1,25 @@
 ---
 title: CLI Reference
-description: lerret dev and lerret export — flags, semantics, exit codes.
+description: dev and export — flags, semantics, exit codes.
 ---
 
 # CLI Reference
 
 This page is a stub. Each command will get a full reference card.
+
+## Running the CLI
+
+The CLI is published as **`@lerret/cli`** on npm. The binary it installs is named `lerret`.
+
+| Context | Command |
+|---|---|
+| Zero-install (`npx`) | `npx @lerret/cli dev` |
+| Installed as a project dep | `lerret dev` (via `package.json` scripts, `pnpm exec`, `npx`, etc.) |
+| Installed globally | `lerret dev` |
+
+> Don't run `npx lerret …` — that bare name belongs to a different (unrelated, deprecated) npm package. Always include the `@lerret/cli` scope when invoking via `npx`.
+
+The command syntax shown below uses the post-install form (`lerret …`). Prefix with `npx @lerret/cli ` if you haven't installed it.
 
 ## `lerret dev`
 

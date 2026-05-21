@@ -24,7 +24,7 @@
 // chokidar-driven `lerret:change` HMR event.
 //
 // In dev mode the studio is loaded *from source*. The production path
-// uses a pre-built static bundle shipped inside the `lerret` npm package;
+// uses a pre-built static bundle shipped inside the `@lerret/cli` npm package;
 // the plugin contract here is the same, only the bit of code that figures
 // out where the studio's HTML + JS live differs.
 
@@ -162,8 +162,8 @@ export function parseDevArgs(argv) {
  *
  * Resolution order:
  *   1. `<cli-package>/dist-studio/` — the pre-built static assets bundled
- *      into the published `lerret` package. Present after `pnpm --filter
- *      @lerret/cli build` (or after `npm install lerret`).
+ *      into the published `@lerret/cli` package. Present after `pnpm --filter
+ *      @lerret/cli build` (or after `npm install @lerret/cli`).
  *   2. `<monorepo>/packages/studio/` source — the workspace fallback for
  *      fresh checkouts or contributors who haven't run the build yet. Vite
  *      will serve from source in this path, so HMR works but the bundle is

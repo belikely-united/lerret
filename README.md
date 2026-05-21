@@ -17,7 +17,7 @@
 
 <!--
   TODO(visuals): drop a 10–15 s animated demo here showing
-  (1) running `lerret dev` against a folder,
+  (1) running `npx @lerret/cli dev` against a folder,
   (2) saving a .jsx file,
   (3) the canvas re-rendering with the live cue.
 
@@ -92,7 +92,7 @@ Drop that file into `.lerret/social/`. It appears on the canvas as an artboard s
 ## What's in the box
 
 - **Studio** — pan-and-zoom canvas, per-artboard error boundaries, in-place editors for component props, data, and config.
-- **CLI** — `lerret dev` serves a folder as a canvas; `lerret export` headlessly renders to PNG/JPG (single asset, page group, or whole project as structured ZIP).
+- **CLI** — `npx @lerret/cli dev` opens a folder as a live canvas; `npx @lerret/cli export` headlessly renders to PNG/JPG (single asset, page group, or whole project as structured ZIP).
 - **Live edit loop** — Vite's React Fast Refresh under the hood; saves land on the canvas in under a second.
 - **Variants via named exports** — `export const Dark = ...` gives the same asset a second variant on the same canvas.
 - **Per-folder config cascade** — a small `config.json` per folder propagates background colors, CSS variables, shared data down the tree.
@@ -104,7 +104,7 @@ Drop that file into `.lerret/social/`. It appears on the canvas as an artboard s
 
 | Mode | What it is | When to use |
 |---|---|---|
-| **CLI** | `lerret dev` against a local folder. Native Vite HMR. | Your daily dev loop. |
+| **CLI** | `npx @lerret/cli dev` against a local folder. Native Vite HMR. | Your daily dev loop. |
 | **Hosted** | The studio as a static site; open any local folder via the browser's File System Access API. Chromium-only. | One-tap "try it" link. No install. |
 | **Self-host** | The same static studio, packaged for self-deployment. | Your own infra; private/team contexts. |
 

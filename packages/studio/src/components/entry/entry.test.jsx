@@ -323,12 +323,12 @@ describe('<UnsupportedBrowser>', () => {
  cleanup();
  });
 
- it('includes the npx lerret dev CLI command', () => {
+ it('includes the npx @lerret/cli dev CLI command', () => {
  const { container, cleanup } = renderToDom(<UnsupportedBrowser />);
 
  const cmd = container.querySelector('[data-testid="npx-command"]');
  expect(cmd).toBeTruthy();
- expect(cmd.textContent).toContain('npx lerret dev');
+ expect(cmd.textContent).toContain('npx @lerret/cli dev');
 
  cleanup();
  });

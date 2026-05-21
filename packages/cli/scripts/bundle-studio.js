@@ -1,5 +1,5 @@
 // bundle-studio.js — copy the pre-built studio static assets into the CLI
-// package so they ship inside the published `lerret` npm tarball.
+// package so they ship inside the published `@lerret/cli` npm tarball.
 //
 // Run via: node packages/cli/scripts/bundle-studio.js
 // Or implicitly via: pnpm --filter @lerret/cli build

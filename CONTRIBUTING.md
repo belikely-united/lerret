@@ -138,7 +138,7 @@ Lerret's first-run experience must be fast. **NFR1** requires that a brand-new u
 | `npx @lerret/cli dev` | Runner downloads `@lerret/cli` (+ Vite + React), starts the Vite dev server. |
 | Canvas ready | Browser receives an HTTP 200 response with the studio HTML. |
 
-The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped on first install). The `create-lerret` package itself has **zero runtime dependencies** and the `lerret` CLI keeps its own dependency surface minimal.
+The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped on first install). The `create-lerret` package itself has **zero runtime dependencies** and the `@lerret/cli` CLI keeps its own dependency surface minimal.
 
 ### Running the benchmark locally
 
@@ -163,15 +163,15 @@ The `cold-run-benchmark` job in `.github/workflows/zero-install.yml` runs on `ub
 ### Keeping the budget
 
 - Do not add runtime dependencies to `create-lerret` (it has zero). Any new helper must be implemented in Node built-ins or plain JS.
-- Keep the `lerret` CLI's dependency surface minimal. Adding a new runtime dependency requires a budget review — check that the total install size (gzipped) does not meaningfully increase.
-- The studio bundle (`dist-studio/`) is pre-built and shipped inside the `lerret` package. Its size is bounded by the React + Vite runtime (~200 KB gzipped). Adding studio dependencies requires updating the bundle size estimate in this section.
+- Keep the `@lerret/cli` CLI's dependency surface minimal. Adding a new runtime dependency requires a budget review — check that the total install size (gzipped) does not meaningfully increase.
+- The studio bundle (`dist-studio/`) is pre-built and shipped inside the `@lerret/cli` package. Its size is bounded by the React + Vite runtime (~200 KB gzipped). Adding studio dependencies requires updating the bundle size estimate in this section.
 
 ### No-network behavior
 
-`create-lerret` and `lerret` are designed to **fail fast** when no network is available rather than hanging indefinitely:
+`create-lerret` and `@lerret/cli` are designed to **fail fast** when no network is available rather than hanging indefinitely:
 
 - **`npx create-lerret` (no network):** `npx` itself detects the registry is unreachable and exits with a clear error within the runner's configured timeout (typically 30 s). No Lerret code runs until the package is downloaded.
-- **`lerret dev` (no network):** Once `lerret` is installed, `lerret dev` never makes outbound network requests. It starts a local Vite server using only already-installed packages. Offline `lerret dev` works without any network.
+- **`lerret dev` (no network):** Once `@lerret/cli` is installed, `lerret dev` never makes outbound network requests. It starts a local Vite server using only already-installed packages. Offline `lerret dev` works without any network.
 - **Vite's module pre-bundling** is purely local (esbuild transforms files from `node_modules`). No CDN or registry calls during `lerret dev`.
 
 If you reproduce a hang on no-network, please open an issue — it indicates the runner's timeout is misconfigured, not a Lerret bug.

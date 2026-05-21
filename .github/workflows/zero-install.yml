@@ -1,6 +1,6 @@
 name: Zero-install smoke
 
-# Verifies that `create-lerret` and `lerret` run zero-install via
+# Verifies that `create-lerret` and `@lerret/cli` run zero-install via
 # all four runners (npm, pnpm, yarn, bun) on both Ubuntu and macOS.
 # Also runs the cold-run first-canvas benchmark (NFR1: <60 s local, <90 s CI).
 #

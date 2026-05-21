@@ -145,7 +145,7 @@ function lerretSelfHostPlugin({ studioDir }) {
 
 // ── CLI-build mode ──────────────────────────────────────────────────────────
 //
-// When the studio is built for bundling inside the `lerret` npm package
+// When the studio is built for bundling inside the `@lerret/cli` npm package
 // (`LERRET_CLI_BUILD=1`), `virtual:lerret-project` must NOT be resolved by the
 // standalone shim — it must remain an external ESM reference in the compiled
 // chunk so that Vite's dev server (which runs the `lerretProjectPlugin`) can

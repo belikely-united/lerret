@@ -39,7 +39,7 @@
 // presence is unambiguous. All paths mount through the same `<ProjectStudio>`
 // underneath; only the project SOURCE differs.
 //
-// The CLI-bundled mode embeds the pre-built studio into the `lerret` npm
+// The CLI-bundled mode embeds the pre-built studio into the `@lerret/cli` npm
 // package. THIS file does not change for that — the CLI's plugin contract
 // is the same in either packaging.
 
