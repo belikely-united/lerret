@@ -386,7 +386,7 @@ export const meta = {
 
 **Use case.** Conference-talk announcement borrowing tour-poster vocabulary, but with the **talk title as the headliner** — that's what makes someone want to attend. Speaker name plays the supporting "performer" role below a marquee divider, topics line up like opening acts, ticket strip at the bottom carries date / time / venue. Deep midnight purple with a sunset radial glow anchored bottom-center. Portrait 1200×1500.
 
-![Talk promo poster — deep midnight purple background with an amber sunset glow rising from the bottom, hairline cream frame, "— REACT CONF 26 —" centered monospace masthead, "✦ LIVE · ONE NIGHT ONLY" amber eyebrow, giant italic-serif talk title in quotes "How we shipped multiplayer in three weeks.", a horizontal amber marquee gradient line acting as the stage, "A TALK BY" eyebrow + italic-serif speaker name "Sooryagangaraj", "FOUNDER · LERRET" amber mono caps, topics row "CRDT INTERNALS ✦ CURSOR PRESENCE ✦ CONFLICT RESOLUTION", three-column ticket strip with DATE / TIME / VENUE](/examples/talk-promo.jpg)
+![Talk promo poster — deep midnight purple background with an amber sunset glow rising from the bottom, hairline cream frame, "— REACT CONF 26 —" centered monospace masthead, "✦ LIVE · ONE NIGHT ONLY" amber eyebrow, giant italic-serif talk title in quotes "From Figma to a folder: rebuilding our brand kit in plain React.", a horizontal amber marquee gradient line acting as the stage, "A TALK BY" eyebrow + italic-serif speaker name "Sooryagangaraj", "FOUNDER · LERRET" amber mono caps, topics row "CRDT INTERNALS ✦ CURSOR PRESENCE ✦ CONFLICT RESOLUTION", three-column ticket strip with DATE / TIME / VENUE](/examples/talk-promo.jpg)
 
 **Path.** `.lerret/marketing/talk-promo.jsx`
 
@@ -397,7 +397,7 @@ export const meta = {
   tags: ['poster', 'talk', 'conference'],
   propsSchema: {
     conference: { type: 'string', default: 'React Conf 26' },
-    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks.', required: true },
+    talkTitle: { type: 'string', default: 'From Figma to a folder: rebuilding our brand kit in plain React.', required: true },
     speaker: { type: 'string', default: 'Sooryagangaraj' },
     role: { type: 'string', default: 'Founder · Lerret' },
     date: { type: 'string', default: 'Oct 17' },

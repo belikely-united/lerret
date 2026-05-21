@@ -4,7 +4,7 @@ export const meta = {
   tags: ['poster', 'talk', 'conference'],
   propsSchema: {
     conference: { type: 'string', default: 'React Conf 26' },
-    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks.', required: true },
+    talkTitle: { type: 'string', default: 'From Figma to a folder: rebuilding our brand kit in plain React.', required: true },
     speaker: { type: 'string', default: 'Sooryagangaraj' },
     role: { type: 'string', default: 'Founder · Lerret' },
     date: { type: 'string', default: 'Oct 17' },
@@ -18,7 +18,7 @@ export const meta = {
 
 export default function TalkPoster({
   conference = 'React Conf 26',
-  talkTitle = 'How we shipped multiplayer in three weeks.',
+  talkTitle = 'From Figma to a folder: rebuilding our brand kit in plain React.',
   speaker = 'Sooryagangaraj',
   role = 'Founder · Lerret',
   date = 'Oct 17',
