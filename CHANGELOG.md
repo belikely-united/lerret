@@ -20,6 +20,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ### Fixed
 - `docsRepositoryBase` in the Nextra layout pointed at the wrong path (missing the `public/` workspace prefix), which 404'd every "Edit this page on GitHub" link.
 
+## @lerret/cli 0.1.10 — 2026-05-22
+
+### Fixed
+- `@lerret/cli export` (structured / default layout) now includes the page name in each artboard's output path, matching the PRD shape `<out>/<page>[/<group>[/…]]/<asset.name>[-<variant>].<ext>`. Previously the page level was silently dropped, so a project with `landing/heroes/Card1.jsx` and `social/Banner.jsx` wrote both into a shared top level (`out/heroes/Card1.png`, `out/Banner.png`) — losing the page and risking same-named-folder collisions across pages. The fix is CLI-only: `buildOutputPath` derives the page name from `artboard.pagePath` and prepends it in structured mode. `--flat` is unaffected. The studio's in-browser ZIP exporter is unchanged (its ZIP is rooted at the export scope, so the omission is intentional there).
+
 ## @lerret/cli 0.1.9 — 2026-05-22
 
 ### Changed

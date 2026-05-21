@@ -663,8 +663,15 @@ export function buildBaseFilename(artboard, extension) {
 /**
  * Compute the on-disk output path for one artboard.
  *
- * Structured (default): `<outDir>/<locationSegments>/<filename>`
- * Flat: `<outDir>/[<segments-joined-by---if-collision>]<filename>`
+ * Structured (default): `<outDir>/<page>[/<group>[/…]]/<filename>` per the PRD —
+ * the page name (derived from `artboard.pagePath`) is always present, so that
+ * a project with `landing/heroes/Card1.jsx` and `social/Banner.jsx` writes to
+ * `out/landing/heroes/Card1.png` and `out/social/Banner.png` (and assets named
+ * the same in different pages cannot collide).
+ *
+ * Flat: `<outDir>/[<segments-joined-by---if-collision>]<filename>` — flat mode
+ * never used the page prefix; we leave it as-is so existing `--flat` users see
+ * no path change.
  *
  * For flat layout, collision disambiguation needs to know whether OTHER items
  * in the same run would produce the same base filename. The caller supplies
@@ -676,7 +683,14 @@ export function buildBaseFilename(artboard, extension) {
  *   Output root, absolute and using forward slashes.
  * @param {object} args.artboard
  * @param {string[]} args.artboard.locationSegments
- *   Page/group chain — `[]` for an asset directly in a page.
+ *   Group chain — `[]` for an asset directly in a page. The page level is
+ *   derived separately from `artboard.pagePath`, not carried here (the studio's
+ *   ZIP exporter shares this field and intentionally omits the page prefix —
+ *   see packages/studio/src/export/zip.js).
+ * @param {string} [args.artboard.pagePath]
+ *   Full LerretPath of the containing page. The basename becomes the top-level
+ *   folder in structured mode. When absent (older callers / hand-crafted
+ *   artboards in tests), the page level is omitted gracefully.
  * @param {string} args.filename
  *   The base filename, already extension-suffixed.
  * @param {boolean} args.flat
@@ -699,12 +713,32 @@ export function buildOutputPath({ outDir, artboard, filename, flat, nameCount = 
     return joinForward(outDir, filename);
   }
 
-  if (segments.length === 0) {
+  const pageName = pageNameFromPagePath(artboard.pagePath);
+  const structuredSegs = pageName ? [pageName, ...segments] : segments;
+
+  if (structuredSegs.length === 0) {
     return joinForward(outDir, filename);
   }
 
-  const safeSegs = segments.map(safeName);
+  const safeSegs = structuredSegs.map(safeName);
   return joinForward(outDir, ...safeSegs, filename);
+}
+
+/**
+ * Extract the page-folder name from an Artboard's `pagePath`. The path is a
+ * forward-slash LerretPath like `/proj/.lerret/landing`; the basename is the
+ * page-folder name (`landing`). Returns `null` when the input is missing or
+ * unusable so callers can fall back gracefully.
+ *
+ * @param {unknown} pagePath
+ * @returns {string | null}
+ */
+function pageNameFromPagePath(pagePath) {
+  if (typeof pagePath !== 'string' || pagePath.length === 0) return null;
+  const trimmed = pagePath.replace(/\/+$/, '');
+  const lastSlash = trimmed.lastIndexOf('/');
+  const name = lastSlash === -1 ? trimmed : trimmed.slice(lastSlash + 1);
+  return name.length > 0 ? name : null;
 }
 
 /**

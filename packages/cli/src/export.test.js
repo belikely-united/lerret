@@ -305,34 +305,76 @@ describe('buildBaseFilename', () => {
 describe('buildOutputPath', () => {
   const outDir = '/tmp/export';
 
-  it('writes top-level assets directly under outDir (structured)', () => {
-    const artboard = { locationSegments: [] };
+  it('writes top-level page assets under <out>/<page>/ (structured)', () => {
+    const artboard = { locationSegments: [], pagePath: '/proj/.lerret/landing' };
     expect(buildOutputPath({ outDir, artboard, filename: 'A.png', flat: false }))
-      .toBe('/tmp/export/A.png');
+      .toBe('/tmp/export/landing/A.png');
   });
 
-  it('mirrors location segments as nested folders (structured)', () => {
+  it('prepends the page name above the group chain (structured)', () => {
+    const artboard = {
+      locationSegments: ['heroes'],
+      pagePath: '/proj/.lerret/landing',
+    };
+    expect(buildOutputPath({ outDir, artboard, filename: 'Card1.png', flat: false }))
+      .toBe('/tmp/export/landing/heroes/Card1.png');
+  });
+
+  it('disambiguates same-named folders across pages (structured)', () => {
+    // Both pages have a `heroes` group; the page prefix keeps them apart.
+    const landingHero = {
+      locationSegments: ['heroes'],
+      pagePath: '/proj/.lerret/landing',
+    };
+    const socialHero = {
+      locationSegments: ['heroes'],
+      pagePath: '/proj/.lerret/social',
+    };
+    expect(buildOutputPath({ outDir, artboard: landingHero, filename: 'Card.png', flat: false }))
+      .toBe('/tmp/export/landing/heroes/Card.png');
+    expect(buildOutputPath({ outDir, artboard: socialHero, filename: 'Card.png', flat: false }))
+      .toBe('/tmp/export/social/heroes/Card.png');
+  });
+
+  it('mirrors deeper group chains under the page (structured)', () => {
+    const artboard = {
+      locationSegments: ['ui', 'buttons'],
+      pagePath: '/proj/.lerret/library',
+    };
+    expect(buildOutputPath({ outDir, artboard, filename: 'Primary.png', flat: false }))
+      .toBe('/tmp/export/library/ui/buttons/Primary.png');
+  });
+
+  it('falls back to no page level when pagePath is absent (structured)', () => {
+    // Hand-crafted artboards in tests / older callers can omit pagePath. The
+    // fix degrades gracefully — no crash, just no page folder.
     const artboard = { locationSegments: ['ui', 'buttons'] };
     expect(buildOutputPath({ outDir, artboard, filename: 'Primary.png', flat: false }))
       .toBe('/tmp/export/ui/buttons/Primary.png');
   });
 
-  it('writes everything to outDir when flat=true (no collision)', () => {
-    const artboard = { locationSegments: ['ui', 'buttons'] };
+  it('writes everything to outDir when flat=true (no collision, no page prefix)', () => {
+    const artboard = {
+      locationSegments: ['ui', 'buttons'],
+      pagePath: '/proj/.lerret/library',
+    };
     expect(buildOutputPath({
       outDir, artboard, filename: 'Primary.png', flat: true, nameCount: 1,
     })).toBe('/tmp/export/Primary.png');
   });
 
-  it('prefixes location segments with `-` on flat-mode name collisions', () => {
-    const artboard = { locationSegments: ['ui', 'buttons'] };
+  it('prefixes location segments with `-` on flat-mode name collisions (still no page prefix)', () => {
+    const artboard = {
+      locationSegments: ['ui', 'buttons'],
+      pagePath: '/proj/.lerret/library',
+    };
     expect(buildOutputPath({
       outDir, artboard, filename: 'Primary.png', flat: true, nameCount: 2,
     })).toBe('/tmp/export/ui-buttons-Primary.png');
   });
 
   it('flat-mode top-level asset uses bare filename even on collisions', () => {
-    const artboard = { locationSegments: [] };
+    const artboard = { locationSegments: [], pagePath: '/proj/.lerret/library' };
     expect(buildOutputPath({
       outDir, artboard, filename: 'Primary.png', flat: true, nameCount: 5,
     })).toBe('/tmp/export/Primary.png');
@@ -660,11 +702,59 @@ describe('runExport — orchestration', () => {
 
     expect(code).toBe(0);
     expect(written).toHaveLength(2);
-    // Structured layout: nested folders. The two assets live in `ui/buttons/`
-    // and `ui/cards/` respectively.
+    // Structured layout: <out>/<page>/<group>/<asset>.png — the `ui` page
+    // wraps both groups, then `buttons/Primary.png` and `cards/Card.png`.
     const paths = written.map((w) => w.path).sort();
-    expect(paths[0]).toMatch(/\/out\/buttons\/Primary\.png$/);
-    expect(paths[1]).toMatch(/\/out\/cards\/Card\.png$/);
+    expect(paths[0]).toMatch(/\/out\/ui\/buttons\/Primary\.png$/);
+    expect(paths[1]).toMatch(/\/out\/ui\/cards\/Card\.png$/);
+  });
+
+  it('places assets under their own page folder in a multi-page project', async () => {
+    // Repro from the PRD bug report: a project with `landing/heroes/Card1.jsx`
+    // and `social/Banner.jsx` must write `out/landing/heroes/Card1.png` and
+    // `out/social/Banner.png` — never collapsing them into a shared root.
+    const multiWorkDir = await fsp.mkdtemp(join(tmpdir(), 'lerret-export-multipage-'));
+    try {
+      const multiLerret = join(multiWorkDir, LERRET_DIR_NAME);
+      const landingHeroes = join(multiLerret, 'landing', 'heroes');
+      const social = join(multiLerret, 'social');
+      await fsp.mkdir(landingHeroes, { recursive: true });
+      await fsp.mkdir(social, { recursive: true });
+      await fsp.writeFile(
+        join(landingHeroes, 'Card1.jsx'),
+        "export default function Card1() { return null; }\n",
+        'utf-8',
+      );
+      await fsp.writeFile(
+        join(social, 'Banner.jsx'),
+        "export default function Banner() { return null; }\n",
+        'utf-8',
+      );
+
+      const multiOut = join(multiWorkDir, 'out');
+      const { deps, written } = makeDeps();
+      // Point cwd at the multi-page project so resolveScope picks it up.
+      deps.getCwd = () => multiWorkDir;
+
+      const outSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      let code;
+      try {
+        code = await runExport(['--out', multiOut], deps);
+      } finally {
+        outSpy.mockRestore();
+        errSpy.mockRestore();
+      }
+
+      expect(code).toBe(0);
+      expect(written).toHaveLength(2);
+      const paths = written.map((w) => w.path).sort();
+      expect(paths[0]).toMatch(/\/out\/landing\/heroes\/Card1\.png$/);
+      expect(paths[1]).toMatch(/\/out\/social\/Banner\.png$/);
+    } finally {
+      await fsp.rm(multiWorkDir, { recursive: true, force: true });
+    }
   });
 
   it('writes a flat layout when --flat is passed', async () => {
