@@ -343,7 +343,14 @@ describe('ProjectCanvas — live-edit loop', () => {
  () => container.querySelector('[data-card]')?.getAttribute('data-v') === '2',
  { label: 'reload landed' },
  );
- // The cue is present somewhere on the canvas right after the reload.
+ // The cue is produced by a post-render `useEffect` in `RerenderCue`,
+ // so it appears one render after `data-v="2"` lands — wait for it
+ // explicitly rather than racing the assertion against the effect
+ // commit cycle.
+ await waitFor(
+ () => container.querySelector('[data-lm-rerender-cue]') !== null,
+ { label: 'rerender cue rendered' },
+ );
  expect(container.querySelector('[data-lm-rerender-cue]')).not.toBeNull();
  });
 
