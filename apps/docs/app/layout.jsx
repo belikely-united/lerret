@@ -22,6 +22,11 @@ export const metadata = {
   description:
     'An open-source design canvas where a folder of plain React component files renders as a visual canvas.',
   metadataBase: new URL('https://docs.lerret.belikely.com'),
+  icons: {
+    icon: [{ url: '/favicon.png', type: 'image/png', sizes: '32x32' }],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  themeColor: '#F2EEE6',
 };
 
 const footerLinkStyle = {
@@ -34,7 +39,16 @@ export default async function RootLayout({ children }) {
   const navbar = (
     <Navbar
       logo={
-        <span style={{ fontWeight: 600, fontSize: '1.05rem' }}>Lerret</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <img
+            src="/lerret-logo.png"
+            alt=""
+            width="24"
+            height="24"
+            style={{ display: 'block', borderRadius: '4px' }}
+          />
+          <span style={{ fontWeight: 600, fontSize: '1.05rem' }}>Lerret</span>
+        </span>
       }
       projectLink={REPO_URL}
       chatLink={DISCUSSIONS_URL}
