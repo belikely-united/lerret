@@ -151,7 +151,7 @@ function buildConfigContentMap() {
  * A minimal in-memory `FilesystemAccess` over the fixture tree — DEV-HARNESS
  * ONLY. Implements the two methods `scan()` actually calls (`readDir`,
  * `readFile`) plus stubs for the rest so it structurally satisfies the
- * contract. The real CLI uses `lerret`'s Node `fs` backend.
+ * contract. The real CLI uses `@lerret/cli`'s Node `fs` backend.
  *
  * `readFile` also serves the raw content of `config.json` files
  * so `computeCascadedConfig` can read them for the cascade computation. All

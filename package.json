@@ -1,9 +1,9 @@
 {
-  "name": "lerret-workspace",
-  "version": "0.0.0",
+  "name": "lerret",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Lerret monorepo workspace root (private, not published). The user-facing CLI is the `lerret` package under packages/cli.",
+  "description": "An open-source design canvas where a folder of plain React component files renders as a visual canvas.",
   "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=20.19.0"

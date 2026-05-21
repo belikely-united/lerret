@@ -162,7 +162,7 @@ export function parseDevArgs(argv) {
  * Resolution order:
  *   1. `<cli-package>/dist-studio/` — the pre-built static assets bundled
  *      into the published `lerret` package. Present after `pnpm --filter
- *      lerret build` (or after `npm install lerret`).
+ *      @lerret/cli build` (or after `npm install lerret`).
  *   2. `<monorepo>/packages/studio/` source — the workspace fallback for
  *      fresh checkouts or contributors who haven't run the build yet. Vite
  *      will serve from source in this path, so HMR works but the bundle is
@@ -191,7 +191,7 @@ export function resolveStudioRoot() {
   const studioSource = resolve(cliDir, '..', 'studio');
   process.stderr.write(
     'lerret: dist-studio/ not found — serving studio from source.\n' +
-    '        Run `pnpm --filter lerret build` for production performance.\n',
+    '        Run `pnpm --filter @lerret/cli build` for production performance.\n',
   );
   return studioSource;
 }

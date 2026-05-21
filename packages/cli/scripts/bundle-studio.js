@@ -2,7 +2,7 @@
 // package so they ship inside the published `lerret` npm tarball.
 //
 // Run via: node packages/cli/scripts/bundle-studio.js
-// Or implicitly via: pnpm --filter lerret build
+// Or implicitly via: pnpm --filter @lerret/cli build
 //
 // Steps:
 //   1. Locate the studio's `dist/` directory (sibling workspace package).

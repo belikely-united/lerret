@@ -1,4 +1,4 @@
-// Vitest project config for lerret.
+// Vitest project config for @lerret/cli.
 // The CLI is Node-only, so tests run in the Node environment.
 
 import { defineConfig } from 'vitest/config';

@@ -27,7 +27,7 @@ export const CORE_PACKAGE = '@lerret/core';
 //
 // The `FilesystemAccess` interface contract — the single boundary every
 // filesystem-touching subsystem (loader, watcher, editors, export,
-// persistence) goes through. Backends (`lerret`'s Node `fs` backend, the
+// persistence) goes through. Backends (`@lerret/cli`'s Node `fs` backend, the
 // studio's File System Access backend) implement it; this `core` export is the
 // contract, the canonical shapes, and the conformance validator. The types
 // (`FilesystemAccess`, `DirEntry`, `FilesystemCapabilities`, …) are JSDoc

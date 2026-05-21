@@ -112,7 +112,7 @@ describe('resolveStudioRoot', () => {
   // The resolver prefers `dist-studio/` (the pre-built CLI bundle) and falls
   // back to `packages/studio/` source when the bundle hasn't been built yet.
   // In this workspace the dist-studio/ may or may not exist depending on
-  // whether `pnpm --filter lerret build` has been run. We test both
+  // whether `pnpm --filter @lerret/cli build` has been run. We test both
   // scenarios by temporarily creating / removing the stamp file.
 
   it('returns a path that contains index.html (either dist-studio or source)', async () => {
@@ -169,7 +169,7 @@ describe('resolveStudioRoot', () => {
 });
 
 describe('resolveStudioRoot — bundle presence check (packaging regression)', () => {
-  // When `pnpm --filter lerret build` has been run, dist-studio/ must
+  // When `pnpm --filter @lerret/cli build` has been run, dist-studio/ must
   // contain both index.html and .bundle-stamp (written by bundle-studio.js).
   // This test asserts the packaging regression check — if it fails, the build
   // step was skipped or the copy was incomplete.

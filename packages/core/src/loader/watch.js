@@ -3,7 +3,7 @@
 //
 // The architecture (AR5 / "Internal data shapes") fixes one canonical
 // change-event shape — `{ type: 'add' | 'change' | 'remove', path }` — emitted
-// identically by both filesystem backends. The CLI watcher (`lerret`'s
+// identically by both filesystem backends. The CLI watcher (`@lerret/cli`'s
 // `chokidar` wrapper) and the future hosted polling watcher each turn their
 // raw signal into one of these and hand it to the loader. The loader patches
 // the in-memory model incrementally so the canvas reflects an add / remove /
