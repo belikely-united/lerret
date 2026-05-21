@@ -31,6 +31,7 @@
 import { parseArgs } from 'node:util';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 import { realpathOrSelf, pathExists } from './fs/node-backend.js';
 import { resolveProject } from './resolve-project.js';
@@ -293,12 +294,26 @@ export async function runDev(argv) {
 
   const workspaceRoot = searchForWorkspaceRoot(studioRoot);
 
+  // The user's `.jsx` assets get transformed by Vite/esbuild into imports
+  // of `react/jsx-dev-runtime`. The user's project has no `node_modules`,
+  // so those imports must resolve against the CLI's own React. Alias the
+  // bare specifiers to the CLI-bundled copy.
+  const cliRequire = createRequire(import.meta.url);
+  const reactAliases = [
+    { find: 'react/jsx-dev-runtime', replacement: cliRequire.resolve('react/jsx-dev-runtime') },
+    { find: 'react/jsx-runtime', replacement: cliRequire.resolve('react/jsx-runtime') },
+    { find: 'react-dom/client', replacement: cliRequire.resolve('react-dom/client') },
+    { find: /^react-dom$/, replacement: cliRequire.resolve('react-dom') },
+    { find: /^react$/, replacement: cliRequire.resolve('react') },
+  ];
+
   const server = await createServer({
     // Don't pick up the studio's own `vite.config.js` (it has a fixture
     // alias the CLI doesn't want); we hand Vite a clean inline config.
     configFile: false,
     root: studioRoot,
     plugins,
+    resolve: { alias: reactAliases },
     server: {
       port: flags.port,
       open: flags.open,
