@@ -1,131 +1,159 @@
 export const meta = {
-  dimensions: { width: 1200, height: 630 },
-  label: 'GitHub stars milestone',
-  tags: ['github', 'milestone', 'celebration'],
+  dimensions: { width: 1080, height: 1080 },
+  label: 'Stars milestone — constellation poster',
+  tags: ['poster', 'milestone', 'github'],
   propsSchema: {
     count: { type: 'string', default: '10,000' },
-    label: { type: 'string', default: 'stars on GitHub' },
-    repo: { type: 'string', default: 'belikely-united/lerret' },
-    thanks: { type: 'string', default: 'Thank you, everyone.' },
+    label: { type: 'string', default: 'STARS' },
+    handle: { type: 'string', default: '@belikely-united/lerret' },
+    note: { type: 'string', default: 'with thanks, everyone' },
   },
 };
 
-const STAR_POSITIONS = [
-  [12, 15, 3], [88, 8, 2], [20, 82, 4], [95, 72, 3], [45, 28, 2],
-  [72, 88, 3], [55, 62, 2], [34, 78, 4], [8, 52, 3], [80, 42, 2],
-  [60, 12, 3], [18, 68, 2], [92, 90, 4], [3, 88, 2], [68, 22, 3],
-  [40, 90, 2], [85, 30, 3], [10, 30, 2],
+const STARS = [
+  [8, 12, 4], [22, 22, 2], [40, 8, 3], [60, 18, 5], [78, 12, 3], [92, 22, 4],
+  [12, 35, 2], [88, 38, 2], [4, 52, 3], [96, 56, 2],
+  [10, 75, 5], [25, 88, 3], [42, 92, 2], [58, 82, 4], [75, 90, 3], [90, 78, 5],
+  [50, 60, 2], [30, 50, 3], [70, 48, 2],
 ];
 
-export default function StarsMilestone({
+export default function StarsPoster({
   count = '10,000',
-  label = 'stars on GitHub',
-  repo = 'belikely-united/lerret',
-  thanks = 'Thank you, everyone.',
+  label = 'STARS',
+  handle = '@belikely-united/lerret',
+  note = 'with thanks, everyone',
 }) {
   return (
     <div style={{
       width: '100%',
       height: '100%',
       boxSizing: 'border-box',
-      padding: '72px 80px',
-      background: 'linear-gradient(160deg, #050818 0%, #0F1438 40%, #2A1147 100%)',
-      color: '#FFF',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      background: '#0B1426',
+      color: '#F5EBD8',
+      fontFamily: 'Georgia, "Times New Roman", serif',
       position: 'relative',
       overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
+      padding: '72px',
     }}>
-      {STAR_POSITIONS.map(([x, y, size], i) => (
+      {/* Star field */}
+      {STARS.map(([x, y, size], i) => (
         <div key={i} style={{
           position: 'absolute',
           left: `${x}%`,
           top: `${y}%`,
           width: size,
           height: size,
-          background: '#FFF',
+          background: '#F5EBD8',
           borderRadius: '50%',
-          opacity: 0.45 + (i % 5) * 0.08,
-          boxShadow: '0 0 8px rgba(255,255,255,0.6)',
-          pointerEvents: 'none',
+          boxShadow: `0 0 ${size * 3}px rgba(245,235,216,0.8)`,
+          opacity: 0.5 + (i % 5) * 0.1,
         }} />
       ))}
 
+      {/* Hairline frame */}
       <div style={{
         position: 'absolute',
-        left: '50%',
-        top: '52%',
-        transform: 'translate(-50%, -50%)',
-        width: 900,
-        height: 900,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,215,100,0.18), transparent 55%)',
+        inset: '40px',
+        border: '1px solid rgba(245,235,216,0.18)',
         pointerEvents: 'none',
-        filter: 'blur(20px)',
       }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
-        <span style={{ fontSize: 26, color: '#FFD56B' }}>★</span>
-        <div style={{
-          fontSize: 13,
-          letterSpacing: '0.3em',
-          opacity: 0.65,
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          fontWeight: 700,
-        }}>
-          MILESTONE
-        </div>
+      {/* Top header */}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 13,
+        letterSpacing: '0.35em',
+        textTransform: 'uppercase',
+        color: 'rgba(245,235,216,0.65)',
+      }}>
+        <span>★ Milestone Unlocked</span>
+        <span>MMXXVI</span>
       </div>
 
-      <div style={{ position: 'relative', textAlign: 'center' }}>
+      {/* Outlined STARS vertical text */}
+      <div style={{
+        position: 'absolute',
+        left: 56,
+        top: '50%',
+        transform: 'translateY(-50%) rotate(-90deg)',
+        transformOrigin: 'left center',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: 22,
+        fontWeight: 800,
+        letterSpacing: '0.5em',
+        color: 'transparent',
+        WebkitTextStroke: '1px rgba(245,235,216,0.55)',
+      }}>
+        {label} · {label} · {label}
+      </div>
+
+      {/* Center: big number */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+      }}>
         <div style={{
-          fontSize: 200,
-          fontWeight: 900,
-          lineHeight: 0.88,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 12,
+          letterSpacing: '0.6em',
+          color: 'rgba(245,235,216,0.5)',
+          marginBottom: 18,
+          textTransform: 'uppercase',
+          fontWeight: 600,
+        }}>
+          We just crossed
+        </div>
+        <div style={{
+          fontSize: 280,
+          fontWeight: 400,
           letterSpacing: '-0.05em',
+          lineHeight: 0.85,
+          fontStyle: 'italic',
+          color: '#F5EBD8',
           fontVariantNumeric: 'tabular-nums',
-          background: 'linear-gradient(180deg, #FFF3D0 0%, #FFD56B 70%, #FFA02C 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
         }}>
           {count}
         </div>
         <div style={{
-          fontSize: 32,
-          marginTop: 18,
-          opacity: 0.85,
-          fontWeight: 500,
-          letterSpacing: '-0.01em',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 18,
+          letterSpacing: '0.5em',
+          color: '#F5EBD8',
+          marginTop: 24,
+          textTransform: 'uppercase',
+          fontWeight: 800,
         }}>
-          {label}
+          {label} on GitHub
         </div>
       </div>
 
+      {/* Bottom strip */}
       <div style={{
+        position: 'absolute',
+        left: 72,
+        right: 72,
+        bottom: 64,
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        position: 'relative',
+        alignItems: 'baseline',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 13,
+        letterSpacing: '0.2em',
+        color: 'rgba(245,235,216,0.6)',
       }}>
-        <div style={{
-          fontSize: 15,
-          opacity: 0.5,
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          letterSpacing: '0.05em',
-        }}>
-          github.com/{repo}
-        </div>
-        <div style={{
-          fontSize: 18,
-          opacity: 0.7,
-          fontStyle: 'italic',
-          fontWeight: 500,
-        }}>
-          {thanks}
-        </div>
+        <span>{handle}</span>
+        <span style={{ fontStyle: 'italic', letterSpacing: '0.05em', fontFamily: 'Georgia, serif' }}>
+          {note}
+        </span>
       </div>
     </div>
   );

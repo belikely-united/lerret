@@ -1,161 +1,221 @@
 export const meta = {
-  dimensions: { width: 1200, height: 675 },
-  label: 'Conference talk promo',
-  tags: ['event', 'talk', 'conference'],
+  dimensions: { width: 1200, height: 1800 },
+  label: 'Talk promo — tour poster',
+  tags: ['poster', 'talk', 'conference'],
   propsSchema: {
-    conference: { type: 'string', default: 'React Conf 2026', required: true },
-    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks', required: true },
-    speaker: { type: 'string', default: 'Sooryagangaraj' },
-    role: { type: 'string', default: 'Founder, Lerret' },
-    date: { type: 'string', default: 'Thu, Oct 17' },
-    time: { type: 'string', default: '2:30 PM PST' },
+    speaker: { type: 'string', default: 'Sooryagangaraj', required: true },
+    conference: { type: 'string', default: 'React Conf 26' },
+    venue: { type: 'string', default: 'Henderson, NV' },
+    date: { type: 'string', default: 'Oct 17' },
+    time: { type: 'string', default: '14:30 PST' },
+    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks.' },
+    topic1: { type: 'string', default: 'CRDT internals' },
+    topic2: { type: 'string', default: 'Cursor presence' },
+    topic3: { type: 'string', default: 'Conflict resolution' },
   },
 };
 
-export default function TalkPromo({
-  conference = 'React Conf 2026',
-  talkTitle = 'How we shipped multiplayer in three weeks',
+export default function TalkPoster({
   speaker = 'Sooryagangaraj',
-  role = 'Founder, Lerret',
-  date = 'Thu, Oct 17',
-  time = '2:30 PM PST',
+  conference = 'React Conf 26',
+  venue = 'Henderson, NV',
+  date = 'Oct 17',
+  time = '14:30 PST',
+  talkTitle = 'How we shipped multiplayer in three weeks.',
+  topic1 = 'CRDT internals',
+  topic2 = 'Cursor presence',
+  topic3 = 'Conflict resolution',
 }) {
+  const topics = [topic1, topic2, topic3].filter(Boolean);
   return (
     <div style={{
       width: '100%',
       height: '100%',
       boxSizing: 'border-box',
-      padding: '72px 80px',
-      background: '#070A1A',
-      color: '#FFF',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      background: '#1A0F2E',
+      color: '#F2E6C9',
+      fontFamily: 'Georgia, "Times New Roman", serif',
       position: 'relative',
       overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
+      padding: '72px 80px',
     }}>
+      {/* Sunset color band */}
       <div style={{
         position: 'absolute',
-        top: '38%',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 1100,
-        height: 700,
-        borderRadius: '50%',
-        background: 'radial-gradient(ellipse, rgba(34,211,238,0.2), transparent 60%)',
-        pointerEvents: 'none',
-        filter: 'blur(40px)',
-      }} />
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundImage: 'linear-gradient(rgba(34,211,238,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.04) 1px, transparent 1px)',
-        backgroundSize: '80px 80px',
-        pointerEvents: 'none',
-        maskImage: 'linear-gradient(180deg, transparent 0%, black 30%, black 70%, transparent 100%)',
+        left: 0,
+        right: 0,
+        top: '40%',
+        height: '8%',
+        background: 'linear-gradient(180deg, #F2E6C9 0%, #E8A53F 100%)',
       }} />
 
+      {/* Hairline frame */}
+      <div style={{
+        position: 'absolute',
+        inset: '36px 44px',
+        border: '1px solid rgba(242,230,201,0.25)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Top: conference + venue */}
       <div style={{
         position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
+        textAlign: 'center',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 14,
+        letterSpacing: '0.35em',
+        textTransform: 'uppercase',
+        color: 'rgba(242,230,201,0.7)',
+      }}>
+        — {conference} —
+      </div>
+
+      {/* Speaker name — massive headliner */}
+      <div style={{
+        position: 'relative',
+        textAlign: 'center',
+        marginTop: 60,
       }}>
         <div style={{
-          width: 10,
-          height: 10,
-          background: '#22D3EE',
-          transform: 'rotate(45deg)',
-          boxShadow: '0 0 16px #22D3EE',
-        }} />
-        <div style={{
-          fontSize: 13,
-          letterSpacing: '0.32em',
-          color: '#22D3EE',
-          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 22,
+          letterSpacing: '0.5em',
           fontWeight: 700,
+          textTransform: 'uppercase',
+          color: '#E8A53F',
+          marginBottom: 24,
         }}>
-          {conference.toUpperCase()}
+          Live · One Night Only
+        </div>
+        <div style={{
+          fontSize: 160,
+          fontWeight: 400,
+          fontStyle: 'italic',
+          letterSpacing: '-0.05em',
+          lineHeight: 0.9,
+          color: '#F2E6C9',
+        }}>
+          {speaker}
         </div>
       </div>
 
-      <div style={{ position: 'relative' }}>
+      {/* Talk title — middle */}
+      <div style={{
+        position: 'absolute',
+        left: 80,
+        right: 80,
+        top: '52%',
+        textAlign: 'center',
+      }}>
         <div style={{
           fontSize: 13,
-          letterSpacing: '0.35em',
-          color: 'rgba(34,211,238,0.85)',
-          marginBottom: 24,
           fontFamily: 'ui-monospace, Menlo, monospace',
-          fontWeight: 700,
+          letterSpacing: '0.45em',
+          textTransform: 'uppercase',
+          color: 'rgba(242,230,201,0.55)',
+          marginBottom: 24,
         }}>
-          UPCOMING TALK
+          performing
         </div>
         <div style={{
-          fontSize: 60,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 56,
           fontWeight: 800,
           lineHeight: 1.05,
-          letterSpacing: '-0.03em',
-          maxWidth: '92%',
-          textWrap: 'balance',
-          background: 'linear-gradient(135deg, #FFF 0%, #B8D8E0 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
+          letterSpacing: '-0.025em',
+          color: '#F2E6C9',
+          maxWidth: '90%',
+          margin: '0 auto',
         }}>
-          {talkTitle}
+          “{talkTitle}”
         </div>
       </div>
 
+      {/* Topics: support acts */}
       <div style={{
-        position: 'relative',
+        position: 'absolute',
+        left: 80,
+        right: 80,
+        bottom: 220,
+        textAlign: 'center',
+      }}>
+        <div style={{
+          fontSize: 12,
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          letterSpacing: '0.45em',
+          textTransform: 'uppercase',
+          color: 'rgba(242,230,201,0.5)',
+          marginBottom: 18,
+        }}>
+          with topics
+        </div>
+        <div style={{
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 18,
+          letterSpacing: '0.2em',
+          color: '#E8A53F',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+        }}>
+          {topics.join('   ✦   ')}
+        </div>
+      </div>
+
+      {/* Bottom ticket strip */}
+      <div style={{
+        position: 'absolute',
+        left: 80,
+        right: 80,
+        bottom: 80,
+        borderTop: '1px solid rgba(242,230,201,0.4)',
+        paddingTop: 32,
         display: 'flex',
-        alignItems: 'flex-end',
         justifyContent: 'space-between',
-        gap: 32,
+        alignItems: 'flex-end',
       }}>
         <div>
           <div style={{
-            fontSize: 30,
-            fontWeight: 800,
-            letterSpacing: '-0.015em',
-          }}>
-            {speaker}
-          </div>
-          <div style={{
-            fontSize: 18,
-            opacity: 0.55,
-            marginTop: 4,
-            fontWeight: 500,
-          }}>
-            {role}
-          </div>
-        </div>
-        <div style={{
-          textAlign: 'right',
-          padding: '20px 28px',
-          background: 'rgba(34,211,238,0.08)',
-          border: '1px solid rgba(34,211,238,0.3)',
-          borderRadius: 14,
-          backdropFilter: 'blur(8px)',
-        }}>
-          <div style={{
-            fontSize: 22,
-            fontWeight: 800,
-            color: '#22D3EE',
             fontFamily: 'ui-monospace, Menlo, monospace',
-            letterSpacing: '0.02em',
+            fontSize: 13,
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            color: 'rgba(242,230,201,0.55)',
+            marginBottom: 6,
           }}>
+            Date
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 400, letterSpacing: '-0.015em', fontStyle: 'italic' }}>
             {date}
           </div>
+        </div>
+        <div style={{ textAlign: 'center' }}>
           <div style={{
-            fontSize: 14,
-            opacity: 0.7,
-            marginTop: 4,
-            fontWeight: 500,
             fontFamily: 'ui-monospace, Menlo, monospace',
+            fontSize: 13,
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            color: 'rgba(242,230,201,0.55)',
+            marginBottom: 6,
           }}>
+            Time
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 400, letterSpacing: '-0.015em', fontStyle: 'italic' }}>
             {time}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{
+            fontFamily: 'ui-monospace, Menlo, monospace',
+            fontSize: 13,
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            color: 'rgba(242,230,201,0.55)',
+            marginBottom: 6,
+          }}>
+            Venue
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 400, letterSpacing: '-0.015em', fontStyle: 'italic' }}>
+            {venue}
           </div>
         </div>
       </div>

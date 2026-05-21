@@ -1,102 +1,102 @@
 ---
 title: Examples
-description: Eight marketing assets you can actually ship — Product Hunt launches, feature announcements, milestone celebrations, testimonials, hiring graphics, and more.
+description: Nine art-directed marketing posters — Product Hunt launches, feature drops, manifestos, hiring calls, release announcements — written as plain React.
 ---
 
 # Examples
 
-The assets indie makers and founders actually ship — Product Hunt launches, feature drops, stars-milestone celebrations, testimonials, release graphics, hiring posts, talk promos, year-in-review recaps. Each is a complete Lerret asset: drop the file into your `.lerret/` directory and the artboard appears on the canvas. Save, render, post.
+The assets indie makers actually publish — but treated as **posters**, not UI banners. Each one leans on art-direction conventions you'd recognise from print: editorial mastheads, tour-poster typography, magazine-cover quote treatments, Swiss modernist grids, brutalist hand-set type. Plain React; no design tool round-trip.
 
-> **The previews on this page were rendered with Lerret.** Every image below is the actual output of `@lerret/cli export` run against the source code shown next to it — no Photoshop, no mockups. The docs site uses the product to make its own marketing.
+> **The previews on this page were rendered with Lerret.** Every image below is the output of `@lerret/cli export` against the source code shown next to it.
 
-> **Where to put the files.** Inside your project's `.lerret/` folder, put each `.jsx` under a page folder (e.g. `.lerret/marketing/product-hunt.jsx`). Co-located data files live alongside (`.lerret/marketing/product-hunt.data.json`). See [Concepts → folder-canvas model](/concepts/#the-folder-canvas-model).
+> **Where to put the files.** Inside your project's `.lerret/` folder, put each `.jsx` under a page folder (e.g. `.lerret/marketing/product-hunt.jsx`). Co-located data files live alongside (`.lerret/marketing/product-hunt.data.json`).
 
-## 1. Product Hunt launch day
+## 1. Product Hunt launch — tour poster
 
-**Use case.** The card you post the morning you launch. Strong PH-orange accent, live badge, big product name, upvote counter, and a CTA. Sized at 1200×675 — Twitter/LinkedIn-ready.
+**Use case.** The card you ship the morning you launch. Treats the moment like a printed handbill: serif italic product name as the centerpiece, condensed sans callout in PH orange, a hairline frame, tour-style date strip. Portrait 1200×1500, Instagram-grid and LinkedIn friendly.
 
-![Product Hunt launch card — dark warm gradient, "LIVE ON PRODUCT HUNT" pill, "#1 Product of the Day", giant product name, faux upvote counter and producthunt.com CTA](/examples/product-hunt.jpg)
+![Product Hunt launch poster — cream background with hairline border, monospace masthead "The Belikely Press · NO.001 · Launch Day Edition", condensed orange "WE'RE / LIVE / ON" stacked, massive italic serif product name, italic tagline, date strip with sienna producthunt.com](/examples/product-hunt.jpg)
 
 **Path.** `.lerret/marketing/product-hunt.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 675 },
-  label: 'Product Hunt launch',
-  tags: ['product-hunt', 'launch', 'announcement'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Product Hunt — launch poster',
+  tags: ['poster', 'product-hunt', 'launch'],
   propsSchema: {
-    productName: { type: 'string', default: 'Your product', required: true },
-    tagline: { type: 'string', default: 'A short, punchy description of what you do.' },
-    upvotes: { type: 'string', default: '847' },
-    rank: { type: 'string', default: '#1 Product of the Day' },
+    productName: { type: 'string', default: 'Lerret', required: true },
+    tagline: { type: 'string', default: 'A folder of React components, rendered as a visual canvas.' },
+    launchDate: { type: 'string', default: '11.22.26' },
+    issue: { type: 'string', default: 'NO. 001' },
   },
 };
 
-export default function ProductHuntLaunch({
-  productName, tagline, upvotes, rank,
-}) {
+export default function ProductHuntPoster({ productName, tagline, launchDate, issue }) {
   return (
     <div style={{
       width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '72px 80px',
-      background: 'linear-gradient(135deg, #1A0F0A 0%, #2D1810 50%, #3A1F12 100%)',
-      color: '#FFF', fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden',
+      background: '#F5EBD8', color: '#1A1410',
+      fontFamily: 'Georgia, "Times New Roman", serif',
+      position: 'relative', overflow: 'hidden', padding: '72px 80px',
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
     }}>
+      {/* Hairline frame */}
       <div style={{
-        position: 'absolute', top: -240, right: -240, width: 720, height: 720,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(218,85,47,0.45), transparent 65%)',
-        pointerEvents: 'none',
+        position: 'absolute', inset: '32px 40px',
+        border: '1px solid rgba(26,20,16,0.25)', pointerEvents: 'none',
       }} />
 
-      {/* Live badge + rank */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, position: 'relative' }}>
+      {/* Masthead */}
+      <div style={{
+        position: 'relative', display: 'flex', justifyContent: 'space-between',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 14, letterSpacing: '0.25em', textTransform: 'uppercase',
+      }}>
+        <span>The Belikely Press · {issue}</span>
+        <span>Launch Day Edition</span>
+      </div>
+
+      {/* Stacked callout + product name */}
+      <div style={{ position: 'relative' }}>
         <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 10,
-          padding: '8px 18px', background: '#DA552F', borderRadius: 100,
-          fontSize: 13, fontWeight: 800, letterSpacing: '0.18em',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 88, fontWeight: 900, letterSpacing: '-0.04em',
+          lineHeight: 0.86, textTransform: 'uppercase', color: '#DA552F',
         }}>
-          <span style={{ width: 8, height: 8, borderRadius: 4, background: '#FFF' }} />
-          LIVE ON PRODUCT HUNT
+          We're<br />Live<br />on
         </div>
-        <div style={{ fontSize: 14, opacity: 0.6, fontFamily: 'ui-monospace, Menlo, monospace' }}>
-          {rank}
+        <div style={{
+          fontSize: 220, fontWeight: 400, letterSpacing: '-0.05em',
+          lineHeight: 0.9, fontStyle: 'italic', marginTop: 8,
+        }}>
+          {productName}.
         </div>
       </div>
 
-      {/* Product name + tagline */}
-      <div style={{ position: 'relative' }}>
-        <div style={{ fontSize: 112, fontWeight: 900, lineHeight: 0.92, letterSpacing: '-0.045em' }}>
-          {productName}
-        </div>
-        <div style={{ fontSize: 26, marginTop: 22, opacity: 0.72, lineHeight: 1.4, maxWidth: '72%' }}>
+      {/* Tagline */}
+      <div style={{ position: 'relative', maxWidth: '78%' }}>
+        <div style={{ fontSize: 30, lineHeight: 1.3, fontStyle: 'italic' }}>
           {tagline}
         </div>
       </div>
 
-      {/* Upvote counter + CTA */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 14,
-            background: 'linear-gradient(135deg, #DA552F, #B83A18)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 30, fontWeight: 800,
-            boxShadow: '0 8px 24px rgba(218,85,47,0.4)',
-          }}>▲</div>
-          <div>
-            <div style={{ fontSize: 40, fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
-              {upvotes}
-            </div>
-            <div style={{ fontSize: 13, opacity: 0.55, letterSpacing: '0.2em', marginTop: 4 }}>
-              UPVOTES
-            </div>
-          </div>
+      {/* Tour-date strip */}
+      <div style={{
+        position: 'relative', borderTop: '2px solid #1A1410',
+        paddingTop: 28, display: 'flex',
+        justifyContent: 'space-between', alignItems: 'baseline',
+      }}>
+        <div style={{
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: 18, letterSpacing: '0.2em', textTransform: 'uppercase',
+        }}>
+          {launchDate} — Upvote Today
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#DA552F', fontFamily: 'ui-monospace, Menlo, monospace' }}>
-          producthunt.com →
+        <div style={{
+          fontSize: 32, fontStyle: 'italic', color: '#DA552F',
+        }}>
+          producthunt.com
         </div>
       </div>
     </div>
@@ -104,660 +104,393 @@ export default function ProductHuntLaunch({
 }
 ```
 
-**Notes.** All the visual heavy-lifting is a single radial-gradient orb in the top-right. The PH orange (`#DA552F`) is used sparingly — live pill, upvote arrow, CTA only — so the rest of the card stays brand-flexible. Swap `productName` and `tagline` via the in-studio data editor (or a `.data.json`) for each launch.
+**Design notes.** No pills, no buttons, no avatars — just a masthead, a stacked callout, the product name as the visual centerpiece, and a tour-style date strip. The italic serif treatment for the product name is what carries the poster feel.
 
 ---
 
-## 2. Feature launch announcement
+## 2. Feature launch — typography poster
 
-**Use case.** The "Introducing X" Twitter/LinkedIn post. Bold gradient text, NEW pill, version eyebrow, supporting description, primary CTA. 1200×675 — fits in-feed at full width.
+**Use case.** "Introducing X" treated as art-directed type, not a UI announcement. Cream top half, cherry-red bottom band, the feature name overflowing in display-weight lowercase, a rotated ghosted "new" echo behind it. Portrait 1200×1500.
 
-![Feature launch announcement — near-black background with indigo-pink diagonal gradient, "NEW" pill + "NEW IN v2.0" mono pill, huge "Real-time multiplayer." gradient text, description, white CTA button](/examples/feature-launch.jpg)
+![Feature launch poster — top half cream with massive lowercase "multiplayer." overflowing left edge, ghosted outlined "new" rotated diagonally behind it, "INTRODUCING · AUTUMN 26 · V2" monospace eyebrow at top, bottom cherry-red band with italic tagline and oversized arrow](/examples/feature-launch.jpg)
 
 **Path.** `.lerret/marketing/feature-launch.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 675 },
-  label: 'Feature launch announcement',
-  tags: ['announcement', 'feature', 'twitter'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Feature launch — typography poster',
+  tags: ['poster', 'announcement', 'feature'],
   propsSchema: {
-    eyebrow: { type: 'string', default: 'NEW IN v2.0' },
-    headline: { type: 'string', default: 'Real-time multiplayer.', required: true },
-    description: { type: 'string', default: 'See your teammates\' cursors as they edit. Live presence, conflict-free sync, zero setup.' },
-    cta: { type: 'string', default: 'Try it free' },
-    url: { type: 'string', default: 'yourproduct.com' },
+    feature: { type: 'string', default: 'Multiplayer', required: true },
+    version: { type: 'string', default: 'V2' },
+    issueDate: { type: 'string', default: 'AUTUMN 26' },
+    footnote: { type: 'string', default: 'A new way to design together. Available now.' },
   },
 };
 
-export default function FeatureLaunch({ eyebrow, headline, description, cta, url }) {
+export default function FeatureLaunchPoster({ feature, version, issueDate, footnote }) {
   return (
     <div style={{
       width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '76px 80px', background: '#0A0A0A', color: '#FAFAFA',
+      background: '#F0EAD9', color: '#181614',
       fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+      position: 'relative', overflow: 'hidden', padding: '64px 72px',
     }}>
-      {/* Diagonal indigo-pink gradient sheet */}
+      {/* Cherry block */}
       <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(135deg, transparent 35%, rgba(99,102,241,0.18) 65%, rgba(236,72,153,0.12) 100%)',
-        pointerEvents: 'none',
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        height: '38%', background: '#C4392F',
       }} />
 
-      {/* NEW pill + version eyebrow */}
-      <div style={{ position: 'relative', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div style={{
-          padding: '7px 16px', borderRadius: 100,
-          background: 'linear-gradient(135deg, #6366F1, #EC4899)',
-          fontSize: 12, fontWeight: 800, letterSpacing: '0.2em',
-        }}>NEW</div>
-        <div style={{
-          padding: '7px 16px',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 100,
-          fontSize: 12, fontWeight: 700, letterSpacing: '0.2em',
-          color: 'rgba(255,255,255,0.75)',
-          fontFamily: 'ui-monospace, Menlo, monospace',
-        }}>{eyebrow}</div>
+      {/* Eyebrow */}
+      <div style={{
+        position: 'relative', display: 'flex', justifyContent: 'space-between',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 13, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.8,
+      }}>
+        <span>Introducing · {issueDate}</span>
+        <span>{version}</span>
       </div>
 
-      {/* Headline + description */}
-      <div style={{ position: 'relative' }}>
-        <h1 style={{
-          fontSize: 108, fontWeight: 800, lineHeight: 0.92, letterSpacing: '-0.045em',
-          margin: 0, textWrap: 'balance', maxWidth: '90%',
-          background: 'linear-gradient(135deg, #FFFFFF 0%, #B8B8C8 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>{headline}</h1>
-        <p style={{ fontSize: 24, marginTop: 26, opacity: 0.65, lineHeight: 1.45, maxWidth: '70%' }}>
-          {description}
-        </p>
-      </div>
-
-      {/* CTA + URL */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+      {/* Massive feature word, overflowing */}
+      <div style={{ position: 'relative', marginTop: 80, zIndex: 1 }}>
         <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 12,
-          padding: '16px 28px', background: '#FAFAFA', color: '#0A0A0A',
-          borderRadius: 12, fontSize: 18, fontWeight: 700,
+          fontSize: 360, fontWeight: 900, lineHeight: 0.82,
+          letterSpacing: '-0.06em', textTransform: 'lowercase', textIndent: '-12px',
         }}>
-          {cta} <span>→</span>
+          {feature.toLowerCase()}.
         </div>
-        <div style={{ fontSize: 16, opacity: 0.45, fontFamily: 'ui-monospace, Menlo, monospace' }}>
-          {url}
-        </div>
+      </div>
+
+      {/* Ghosted "new" rotated */}
+      <div style={{
+        position: 'absolute', right: -90, top: 380,
+        fontSize: 240, fontWeight: 900, letterSpacing: '-0.05em',
+        color: 'transparent',
+        WebkitTextStroke: '2px rgba(24,22,20,0.18)',
+        transform: 'rotate(-8deg)', pointerEvents: 'none',
+      }}>new</div>
+
+      {/* Footnote on cherry block */}
+      <div style={{
+        position: 'absolute', left: 72, right: 72, bottom: 80,
+        color: '#F0EAD9', display: 'flex',
+        justifyContent: 'space-between', alignItems: 'flex-end', gap: 32,
+      }}>
+        <div style={{
+          fontSize: 36, lineHeight: 1.15, fontStyle: 'italic',
+          maxWidth: '70%',
+        }}>{footnote}</div>
+        <div style={{ fontSize: 64, fontWeight: 900 }}>→</div>
       </div>
     </div>
   );
 }
 ```
 
-**Notes.** The headline uses **`background-clip: text`** with a soft white-to-gray gradient, which is the trick behind Vercel/Linear-style announcement cards. The diagonal sheet layers indigo and pink at low opacity for depth without screaming.
+**Design notes.** The poster move here is **type-as-image**: the feature word is the design. `text-indent: -12px` pulls it visually flush with the left margin. The outlined "new" echo (`-webkit-text-stroke` with transparent fill) plus the diagonal rotation gives risograph-print energy without any actual SVG.
 
 ---
 
-## 3. GitHub stars milestone
+## 3. Stars milestone — constellation poster
 
-**Use case.** "We just hit X stars" celebrations are catnip on dev Twitter. This one uses a giant gold-gradient number on a cosmic background with star dots.
+**Use case.** Open-source milestone celebrations belong in the gallery. Deep midnight blue, scattered glowing star dots, a giant italic-serif number as the only loud element, vertical "STARS · STARS · STARS" running text on the side. Square 1080×1080, made for Instagram and PH thumbnails.
 
-![Stars milestone card — deep navy-purple cosmic gradient, scattered white star dots with subtle glow, "MILESTONE" eyebrow, giant gold-gradient "10,000" number, "stars on GitHub" label, repo URL and "Thank you, everyone." line](/examples/stars-milestone.jpg)
+![Stars milestone poster — deep navy background with scattered glowing star dots, hairline frame, "★ MILESTONE UNLOCKED · MMXXVI" monospace masthead, vertical outlined "STARS · STARS · STARS" rotated text on left, centered giant italic-serif "10,000" in cream, "STARS on GitHub" subtitle, repo handle bottom-left, italic "with thanks, everyone" bottom-right](/examples/stars-milestone.jpg)
 
 **Path.** `.lerret/marketing/stars-milestone.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 630 },
-  label: 'GitHub stars milestone',
-  tags: ['github', 'milestone', 'celebration'],
+  dimensions: { width: 1080, height: 1080 },
+  label: 'Stars milestone — constellation poster',
+  tags: ['poster', 'milestone', 'github'],
   propsSchema: {
     count: { type: 'string', default: '10,000' },
-    label: { type: 'string', default: 'stars on GitHub' },
-    repo: { type: 'string', default: 'belikely-united/lerret' },
-    thanks: { type: 'string', default: 'Thank you, everyone.' },
+    label: { type: 'string', default: 'STARS' },
+    handle: { type: 'string', default: '@belikely-united/lerret' },
+    note: { type: 'string', default: 'with thanks, everyone' },
   },
 };
 
-// Hardcoded positions so the dots render consistently across captures.
-const STAR_POSITIONS = [
-  [12, 15, 3], [88, 8, 2], [20, 82, 4], [95, 72, 3], [45, 28, 2],
-  [72, 88, 3], [55, 62, 2], [34, 78, 4], [8, 52, 3], [80, 42, 2],
-  [60, 12, 3], [18, 68, 2], [92, 90, 4], [3, 88, 2], [68, 22, 3],
+const STARS = [
+  [8, 12, 4], [22, 22, 2], [40, 8, 3], [60, 18, 5], [78, 12, 3], [92, 22, 4],
+  [12, 35, 2], [88, 38, 2], [4, 52, 3], [96, 56, 2],
+  [10, 75, 5], [25, 88, 3], [42, 92, 2], [58, 82, 4], [75, 90, 3], [90, 78, 5],
+  [50, 60, 2], [30, 50, 3], [70, 48, 2],
 ];
 
-export default function StarsMilestone({ count, label, repo, thanks }) {
+export default function StarsPoster({ count, label, handle, note }) {
   return (
     <div style={{
       width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '72px 80px',
-      background: 'linear-gradient(160deg, #050818 0%, #0F1438 40%, #2A1147 100%)',
-      color: '#FFF', fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+      background: '#0B1426', color: '#F5EBD8',
+      fontFamily: 'Georgia, "Times New Roman", serif',
+      position: 'relative', overflow: 'hidden', padding: '72px',
     }}>
-      {STAR_POSITIONS.map(([x, y, size], i) => (
+      {STARS.map(([x, y, size], i) => (
         <div key={i} style={{
-          position: 'absolute',
-          left: `${x}%`, top: `${y}%`,
-          width: size, height: size,
-          background: '#FFF', borderRadius: '50%',
-          opacity: 0.45 + (i % 5) * 0.08,
-          boxShadow: '0 0 8px rgba(255,255,255,0.6)',
+          position: 'absolute', left: `${x}%`, top: `${y}%`,
+          width: size, height: size, background: '#F5EBD8', borderRadius: '50%',
+          boxShadow: `0 0 ${size * 3}px rgba(245,235,216,0.8)`,
+          opacity: 0.5 + (i % 5) * 0.1,
         }} />
       ))}
+
+      {/* Hairline frame + vertical STARS text + centered number + footer */}
       <div style={{
-        position: 'absolute',
-        left: '50%', top: '52%', transform: 'translate(-50%, -50%)',
-        width: 900, height: 900, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,215,100,0.18), transparent 55%)',
-        filter: 'blur(20px)',
+        position: 'absolute', inset: 40,
+        border: '1px solid rgba(245,235,216,0.18)', pointerEvents: 'none',
       }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative' }}>
-        <span style={{ fontSize: 26, color: '#FFD56B' }}>★</span>
-        <div style={{ fontSize: 13, letterSpacing: '0.3em', opacity: 0.65, fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700 }}>
-          MILESTONE
-        </div>
-      </div>
+      <div style={{
+        position: 'absolute', left: 56, top: '50%',
+        transform: 'translateY(-50%) rotate(-90deg)', transformOrigin: 'left center',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: 22, fontWeight: 800, letterSpacing: '0.5em',
+        color: 'transparent', WebkitTextStroke: '1px rgba(245,235,216,0.55)',
+      }}>{label} · {label} · {label}</div>
 
-      <div style={{ position: 'relative', textAlign: 'center' }}>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+      }}>
         <div style={{
-          fontSize: 200, fontWeight: 900, lineHeight: 0.88, letterSpacing: '-0.05em',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 12, letterSpacing: '0.6em',
+          color: 'rgba(245,235,216,0.5)', marginBottom: 18,
+          textTransform: 'uppercase', fontWeight: 600,
+        }}>We just crossed</div>
+        <div style={{
+          fontSize: 280, fontWeight: 400, letterSpacing: '-0.05em',
+          lineHeight: 0.85, fontStyle: 'italic',
           fontVariantNumeric: 'tabular-nums',
-          background: 'linear-gradient(180deg, #FFF3D0 0%, #FFD56B 70%, #FFA02C 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
         }}>{count}</div>
-        <div style={{ fontSize: 32, marginTop: 18, opacity: 0.85, fontWeight: 500 }}>
-          {label}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
-        <div style={{ fontSize: 15, opacity: 0.5, fontFamily: 'ui-monospace, Menlo, monospace' }}>
-          github.com/{repo}
-        </div>
-        <div style={{ fontSize: 18, opacity: 0.7, fontStyle: 'italic' }}>
-          {thanks}
-        </div>
+        <div style={{
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 18, letterSpacing: '0.5em', marginTop: 24,
+          textTransform: 'uppercase', fontWeight: 800,
+        }}>{label} on GitHub</div>
       </div>
     </div>
   );
 }
 ```
 
-**Notes.** The trick is the gradient stack: navy → purple background, gold radial glow centered behind the number, and a 3-stop gradient on the number itself going light-cream → gold → deep amber. The star dots have a soft `box-shadow` glow so they read as light sources, not just pixels.
+**Design notes.** The italic serif number is doing the heavy lifting — it reads as poetry, not a metric. Vertical `transform: rotate(-90deg)` text with `-webkit-text-stroke` gives the side-spine pattern you see on book covers and movie posters. Dot stars with `box-shadow` glow read as actual light sources.
 
 ---
 
-## 4. Testimonial / quote card
+## 4. Testimonial — magazine cover
 
-**Use case.** Social-proof asset for the landing-page section or a standalone tweet. Square 1080×1080 makes it Instagram-ready too. Serif quote for that editorial weight.
+**Use case.** Customer quote treated as a magazine cover line, not a website testimonial card. Dusty pink, big masthead "The Customer Quarterly," issue number as an oversized outlined decoration, giant italic serif pull-quote, byline at the bottom like a contributor credit. Portrait 1080×1350, Instagram-feed proportions.
 
-![Testimonial card — warm cream gradient background, large faded sienna quote mark, "FROM OUR CUSTOMERS" eyebrow, italic serif pull quote, gradient avatar circle with initials, author name + role at company](/examples/testimonial.jpg)
+![Testimonial poster — dusty pink background, masthead "THE CUSTOMER QUARTERLY" + "ISSUE NO.01 / 26 / $0", giant outlined rotated "01" decoration filling right side, "ON RECORDS · VERBATIM" eyebrow in sienna, large italic serif pull-quote, byline "—— A NOTE FROM Maya Patel / Head of Design, Lumen Labs" at bottom](/examples/testimonial.jpg)
 
 **Path.** `.lerret/marketing/testimonial.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1080, height: 1080 },
-  label: 'Testimonial / quote card',
-  tags: ['testimonial', 'quote', 'social'],
+  dimensions: { width: 1080, height: 1350 },
+  label: 'Testimonial — magazine cover',
+  tags: ['poster', 'testimonial', 'editorial'],
   propsSchema: {
-    quote: { type: 'string', default: 'The team built our entire design system in a weekend. We have not opened Figma since.', required: true },
+    quote: { type: 'string', default: 'We built our entire design system in a weekend. Never opened Figma since.', required: true },
     author: { type: 'string', default: 'Maya Patel' },
     role: { type: 'string', default: 'Head of Design' },
     company: { type: 'string', default: 'Lumen Labs' },
+    issueNumber: { type: 'string', default: '01' },
   },
 };
 
-export default function Testimonial({ quote, author, role, company }) {
-  const initials = author.split(' ').map((w) => w[0]).slice(0, 2).join('');
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '96px 88px',
-      background: 'linear-gradient(170deg, #F8F4ED 0%, #EFE7D6 100%)',
-      color: '#1A1714', fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-    }}>
-      {/* Big decorative quote mark */}
-      <div style={{
-        position: 'absolute', top: 8, left: 60,
-        fontSize: 360, fontFamily: 'Georgia, "Times New Roman", serif',
-        color: '#B85B33', opacity: 0.16, lineHeight: 0.7, userSelect: 'none',
-      }}>“</div>
-
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 6, height: 6, borderRadius: 3, background: '#B85B33' }} />
-        <div style={{
-          fontSize: 14, letterSpacing: '0.3em', textTransform: 'uppercase',
-          color: '#6E6960', fontWeight: 700, fontFamily: 'ui-monospace, Menlo, monospace',
-        }}>From our customers</div>
-      </div>
-
-      <div style={{
-        fontSize: 54, fontWeight: 500, lineHeight: 1.2, letterSpacing: '-0.018em',
-        position: 'relative', fontFamily: 'Georgia, "Times New Roman", serif',
-      }}>
-        “{quote}”
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 26, position: 'relative' }}>
-        <div style={{
-          width: 84, height: 84, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #B85B33 0%, #E8896C 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 32, fontWeight: 800, color: '#FFF',
-          boxShadow: '0 8px 24px rgba(184,91,51,0.3)',
-        }}>{initials}</div>
-        <div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{author}</div>
-          <div style={{ fontSize: 20, opacity: 0.7, marginTop: 4 }}>
-            {role} · <span style={{ fontWeight: 700, color: '#B85B33' }}>{company}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Full source: 100+ lines — see the fixture in the docs repo.
 ```
 
-**Notes.** Two visual cues do most of the work: the **giant ghost quote mark** in the corner (very low opacity sienna), and the **gradient avatar** with auto-derived initials. The quote uses Georgia/serif for editorial weight; everything else is sans. The eyebrow + dot pattern is borrowed from Vercel's testimonial designs — small, mono, restrained.
+**Design notes.** The decorative outlined `01` is **3× the size of the visible card** and clipped by the edge — that "cropped-by-the-page" effect is straight out of magazine-cover layout. Mixed Georgia italic for editorial weight + system sans + monospace for the masthead grid.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/testimonial.jsx)
 
 ---
 
-## 5. Release / version announcement
+## 5. Release — Swiss modernist poster
 
-**Use case.** When you ship a major version, post a card with the version number, codename, headline, and 3–4 highlight bullets. Sized 1200×800 — tall enough to fit the bullet list without crowding.
+**Use case.** Version release, treated as a Bauhaus / Swiss-design poster. Off-white background, olive vertical color strip on the left, massive stacked version number, italic serif codename, headline, ledger-style "what's new" rows with numbered indices. Portrait 1200×1500.
 
-![Release card — deep blue cosmic gradient with subtle grid lines, "v2.0" pill chip + "CODENAME · HYDRA" mono label, large "Multiplayer, scopes, and a new API." headline, four numbered feature bullets in cream accent](/examples/release-card.jpg)
+![Release poster — off-white background with olive vertical strip on far left, "THE BELIKELY BULLETIN · 11.22.26" masthead, gigantic black "v2.0" stacked with italic serif "Hydra" codename to the right, big sans headline "A new way to ship.", numbered bullet ledger rows at bottom with olive index marks](/examples/release-card.jpg)
 
 **Path.** `.lerret/marketing/release-card.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 800 },
-  label: 'Release / version announcement',
-  tags: ['release', 'changelog', 'announcement'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Release — Swiss modernist poster',
+  tags: ['poster', 'release', 'announcement'],
   propsSchema: {
-    version: { type: 'string', default: 'v2.0', required: true },
+    version: { type: 'string', default: '2.0', required: true },
     codename: { type: 'string', default: 'Hydra' },
-    title: { type: 'string', default: 'Multiplayer, scopes, and a new API.' },
-    feature1: { type: 'string', default: 'Live multiplayer cursors with conflict-free sync' },
-    feature2: { type: 'string', default: 'OAuth 2.0 scopes for granular token permissions' },
-    feature3: { type: 'string', default: 'Streaming export API for large project bundles' },
-    feature4: { type: 'string', default: '3× faster cold-start, full Node 22 support' },
+    headline: { type: 'string', default: 'A new way to ship.' },
+    note1: { type: 'string', default: 'Live multiplayer cursors' },
+    note2: { type: 'string', default: 'OAuth scopes for tokens' },
+    note3: { type: 'string', default: 'Streaming export API' },
+    note4: { type: 'string', default: 'Node 22, 3× faster cold-start' },
+    date: { type: 'string', default: '11.22.26' },
   },
 };
 
-export default function ReleaseCard({
-  version, codename, title, feature1, feature2, feature3, feature4,
-}) {
-  const features = [feature1, feature2, feature3, feature4].filter(Boolean);
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '80px',
-      background: 'linear-gradient(150deg, #08111A 0%, #0F1F2E 50%, #1B2E45 100%)',
-      color: '#F4F7FA', fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-    }}>
-      {/* Subtle grid pattern, faded at the edges */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: 'linear-gradient(rgba(139,174,200,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(139,174,200,0.05) 1px, transparent 1px)',
-        backgroundSize: '64px 64px',
-        maskImage: 'radial-gradient(circle at 30% 50%, black, transparent 80%)',
-      }} />
-
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{
-          padding: '8px 16px', borderRadius: 8,
-          background: 'rgba(232,200,182,0.1)',
-          border: '1px solid rgba(232,200,182,0.3)',
-          fontSize: 16, fontWeight: 800, letterSpacing: '0.05em',
-          fontFamily: 'ui-monospace, Menlo, monospace', color: '#E8C8B6',
-        }}>{version}</div>
-        <div style={{
-          fontSize: 13, opacity: 0.55, letterSpacing: '0.25em',
-          fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700,
-        }}>CODENAME · {codename.toUpperCase()}</div>
-      </div>
-
-      <div style={{ position: 'relative' }}>
-        <div style={{
-          fontSize: 14, letterSpacing: '0.3em', opacity: 0.5, marginBottom: 24,
-          fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700,
-        }}>RELEASE NOTES</div>
-        <div style={{
-          fontSize: 64, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.03em',
-          maxWidth: '90%', textWrap: 'balance',
-        }}>{title}</div>
-      </div>
-
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {features.map((f, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 24 }}>
-            <span style={{
-              fontSize: 16, fontFamily: 'ui-monospace, Menlo, monospace',
-              color: '#E8C8B6', fontVariantNumeric: 'tabular-nums',
-              minWidth: 32, fontWeight: 700,
-            }}>0{i + 1}</span>
-            <span style={{ fontSize: 26, lineHeight: 1.3, fontWeight: 500 }}>{f}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Notes.** The grid pattern uses **two layered linear-gradients** as the `background-image` plus a **radial `mask-image`** so the grid fades out at the edges — pure CSS, no SVG. That trick translates very well across captures.
+**Design notes.** The single olive accent stripe + numbered ledger rows are pure Swiss modernist conventions (think Müller-Brockmann posters, or Wim Crouwel grids). Each release-note row is a `border-bottom` ledger line with the index in monospace olive on the right — looks like a printed schedule.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/release-card.jsx)
 
 ---
 
-## 6. We're hiring
+## 6. We're hiring — brutalist poster
 
-**Use case.** A job-post graphic for X/LinkedIn or your careers page hero. Sun-warm gradient, "NOW HIRING" pill, role title, perks as pills.
+**Use case.** Job-post graphic with the energy of a punk-zine flyer. Electric yellow canvas, outlined "WANTED." filling the top half, diagonal red "APPLY NOW" stamp with a chunky offset shadow, role name in display caps, perks as a thick-bordered ledger, monospace URL at the bottom. Portrait 1080×1350.
 
-![We're hiring card — warm peach-coral gradient background with soft white-bottom-left and coral-top-right glows, dark "NOW HIRING" pill, "We're looking for a Senior Software Engineer to join our Platform team", three perk pills (Fully remote, Meaningful equity, Series A · 12-person team), careers URL](/examples/hiring.jpg)
+![Hiring poster — electric yellow background, top-bar rule, gigantic outlined "WANTED." headline, diagonal red "APPLY NOW" stamp with black offset shadow on the right, "BELIKELY IS HIRING A" eyebrow, massive "Senior Engineer." headline, three thick-bordered ledger rows for perks (/1 Remote-first, /2 Real equity, /3 Series A), monospace "→→ BELIKELY.COM/JOBS" at bottom](/examples/hiring.jpg)
 
 **Path.** `.lerret/marketing/hiring.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 675 },
-  label: "We're hiring",
-  tags: ['hiring', 'careers', 'announcement'],
+  dimensions: { width: 1080, height: 1350 },
+  label: 'Hiring — brutalist poster',
+  tags: ['poster', 'hiring', 'careers'],
   propsSchema: {
-    role: { type: 'string', default: 'Senior Software Engineer', required: true },
-    team: { type: 'string', default: 'Platform team' },
-    perk1: { type: 'string', default: 'Fully remote' },
-    perk2: { type: 'string', default: 'Meaningful equity' },
-    perk3: { type: 'string', default: 'Series A · 12-person team' },
-    url: { type: 'string', default: 'yourcompany.com/careers' },
+    role: { type: 'string', default: 'Senior Engineer', required: true },
+    company: { type: 'string', default: 'Belikely' },
+    perk1: { type: 'string', default: 'Remote-first' },
+    perk2: { type: 'string', default: 'Real equity' },
+    perk3: { type: 'string', default: 'Series A' },
+    url: { type: 'string', default: 'belikely.com/jobs' },
   },
 };
 
-export default function Hiring({ role, team, perk1, perk2, perk3, url }) {
-  const perks = [perk1, perk2, perk3].filter(Boolean);
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '76px 80px',
-      background: 'linear-gradient(135deg, #FFE5B4 0%, #FFB088 50%, #E8896C 100%)',
-      color: '#2A1810', fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-    }}>
-      <div style={{
-        position: 'absolute', bottom: -160, left: -160, width: 540, height: 540,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.55), transparent 60%)',
-        filter: 'blur(10px)',
-      }} />
-      <div style={{
-        position: 'absolute', top: -80, right: -80, width: 360, height: 360,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(232,137,108,0.6), transparent 60%)',
-        filter: 'blur(6px)',
-      }} />
-
-      <div style={{ position: 'relative' }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 12,
-          padding: '10px 18px', borderRadius: 100,
-          background: '#2A1810', color: '#FFE5B4',
-          fontSize: 13, fontWeight: 800, letterSpacing: '0.25em',
-        }}>
-          <span style={{ width: 8, height: 8, borderRadius: 4, background: '#FFE5B4', boxShadow: '0 0 8px #FFE5B4' }} />
-          NOW HIRING
-        </div>
-      </div>
-
-      <div style={{ position: 'relative' }}>
-        <div style={{ fontSize: 26, opacity: 0.68, fontWeight: 600 }}>
-          We're looking for a
-        </div>
-        <div style={{
-          fontSize: 84, fontWeight: 900, lineHeight: 0.98, letterSpacing: '-0.035em',
-          marginTop: 14, textWrap: 'balance', maxWidth: '90%',
-        }}>{role}</div>
-        <div style={{ fontSize: 22, marginTop: 18, opacity: 0.7, fontWeight: 500 }}>
-          to join our {team}.
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', gap: 16 }}>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {perks.map((p, i) => (
-            <div key={i} style={{
-              padding: '10px 18px',
-              background: 'rgba(42,24,16,0.1)',
-              border: '1px solid rgba(42,24,16,0.25)',
-              borderRadius: 100, fontSize: 15, fontWeight: 700,
-            }}>{p}</div>
-          ))}
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, opacity: 0.75, fontFamily: 'ui-monospace, Menlo, monospace' }}>
-          {url} →
-        </div>
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Notes.** Two soft gradient orbs (one cream-white in the bottom-left, one coral in the top-right) give the card depth without darkening. The "NOW HIRING" pill is inverted dark on warm — strong contrast that earns attention. Perks are loose pills so swapping them is one prop change.
+**Design notes.** The brutalist signal is the **outlined "WANTED."** (`-webkit-text-stroke: 4px`), the diagonal `transform: rotate(8deg)` red stamp with a 6px offset shadow, and the thick `4px solid` ledger lines on the perks. Yellow + black + red is the punk-flyer palette.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/hiring.jsx)
 
 ---
 
-## 7. Conference talk promo
+## 7. Conference talk — concert tour poster
 
-**Use case.** When you have a talk accepted at a conference. Tech-stage cyan glow, conference name, talk title, speaker block, date/time chip.
+**Use case.** Conference-talk announcement borrowing tour-poster vocabulary: speaker as the headliner, talk title as the show title, topics as "support acts," date / time / venue ticket strip at the bottom. Deep midnight purple, sunset color band, hairline frame. Portrait 1200×1800, full-bleed cinema proportions.
 
-![Conference talk promo — near-black background with cyan stage glow + faint grid, cyan rotated diamond icon next to conference name, "UPCOMING TALK" eyebrow, large gradient white-to-blue talk title, speaker name + role on the left, cyan-bordered date/time chip on the right](/examples/talk-promo.jpg)
+![Talk promo poster — deep midnight purple background with a sunset cream-to-amber horizontal band across the middle, hairline cream frame, "— REACT CONF 26 —" centered masthead, "LIVE · ONE NIGHT ONLY" amber eyebrow, gigantic italic serif speaker name, "performing" + giant talk title in quotes, "with topics" + topics list separated by ✦, bottom ticket strip with DATE / TIME / VENUE columns in italic serif](/examples/talk-promo.jpg)
 
 **Path.** `.lerret/marketing/talk-promo.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 675 },
-  label: 'Conference talk promo',
-  tags: ['event', 'talk', 'conference'],
+  dimensions: { width: 1200, height: 1800 },
+  label: 'Talk promo — tour poster',
+  tags: ['poster', 'talk', 'conference'],
   propsSchema: {
-    conference: { type: 'string', default: 'React Conf 2026', required: true },
-    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks', required: true },
-    speaker: { type: 'string', default: 'Sooryagangaraj' },
-    role: { type: 'string', default: 'Founder, Lerret' },
-    date: { type: 'string', default: 'Thu, Oct 17' },
-    time: { type: 'string', default: '2:30 PM PST' },
+    speaker: { type: 'string', default: 'Sooryagangaraj', required: true },
+    conference: { type: 'string', default: 'React Conf 26' },
+    venue: { type: 'string', default: 'Henderson, NV' },
+    date: { type: 'string', default: 'Oct 17' },
+    time: { type: 'string', default: '14:30 PST' },
+    talkTitle: { type: 'string', default: 'How we shipped multiplayer in three weeks.' },
+    topic1: { type: 'string', default: 'CRDT internals' },
+    topic2: { type: 'string', default: 'Cursor presence' },
+    topic3: { type: 'string', default: 'Conflict resolution' },
   },
 };
 
-export default function TalkPromo({ conference, talkTitle, speaker, role, date, time }) {
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '72px 80px', background: '#070A1A', color: '#FFF',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      position: 'relative', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-    }}>
-      <div style={{
-        position: 'absolute', top: '38%', left: '50%', transform: 'translateX(-50%)',
-        width: 1100, height: 700, borderRadius: '50%',
-        background: 'radial-gradient(ellipse, rgba(34,211,238,0.2), transparent 60%)',
-        filter: 'blur(40px)',
-      }} />
-
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{
-          width: 10, height: 10, background: '#22D3EE',
-          transform: 'rotate(45deg)', boxShadow: '0 0 16px #22D3EE',
-        }} />
-        <div style={{
-          fontSize: 13, letterSpacing: '0.32em', color: '#22D3EE',
-          fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700,
-        }}>{conference.toUpperCase()}</div>
-      </div>
-
-      <div style={{ position: 'relative' }}>
-        <div style={{
-          fontSize: 13, letterSpacing: '0.35em',
-          color: 'rgba(34,211,238,0.85)', marginBottom: 24,
-          fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700,
-        }}>UPCOMING TALK</div>
-        <div style={{
-          fontSize: 60, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.03em',
-          maxWidth: '92%', textWrap: 'balance',
-          background: 'linear-gradient(135deg, #FFF 0%, #B8D8E0 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>{talkTitle}</div>
-      </div>
-
-      <div style={{
-        position: 'relative', display: 'flex',
-        alignItems: 'flex-end', justifyContent: 'space-between', gap: 32,
-      }}>
-        <div>
-          <div style={{ fontSize: 30, fontWeight: 800 }}>{speaker}</div>
-          <div style={{ fontSize: 18, opacity: 0.55, marginTop: 4, fontWeight: 500 }}>{role}</div>
-        </div>
-        <div style={{
-          textAlign: 'right', padding: '20px 28px',
-          background: 'rgba(34,211,238,0.08)',
-          border: '1px solid rgba(34,211,238,0.3)',
-          borderRadius: 14,
-        }}>
-          <div style={{
-            fontSize: 22, fontWeight: 800, color: '#22D3EE',
-            fontFamily: 'ui-monospace, Menlo, monospace',
-          }}>{date}</div>
-          <div style={{
-            fontSize: 14, opacity: 0.7, marginTop: 4, fontWeight: 500,
-            fontFamily: 'ui-monospace, Menlo, monospace',
-          }}>{time}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Notes.** The cyan glow is one big blurred radial-gradient sitting behind everything. The rotated diamond icon (`transform: rotate(45deg)` on a 10×10 square) plus a strong `box-shadow` gives that "this is a tech conference" vibe without an SVG asset. Mono fonts on the date pill keep it feeling like a system readout.
+**Design notes.** The sunset color band (a flat amber strip across the middle of the canvas) anchors the speaker name as the "headliner." Topics are joined with ✦ in monospace caps — the same pattern an old gig flyer uses to list opening acts. The bottom ticket strip with three centered columns mimics actual concert tickets.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/talk-promo.jsx)
 
 ---
 
-## 8. Year in review (bento)
+## 8. Year in review — annual report cover
 
-**Use case.** Annual recap with key metrics. Vertical 1200×1260 — Instagram-story friendly and great for LinkedIn long-scroll feeds. Bento grid of four stats, each with its own brand color.
+**Use case.** Annual recap treated as the cover of a printed annual report, not a "stats bento." Cream background, gigantic wine-red year number filling the left half, italic serif "review." nested next to it, ledger-style stats table at the bottom with numbered indices and right-aligned values. Portrait 1200×1500.
 
-![Year in review card — deep black canvas, "A YEAR AT BELIKELY UNITED" eyebrow, huge gradient "2026" number, "In numbers." subtitle, 2x2 bento grid of four stats: 127,000 users onboarded (cyan), $2.4M ARR (gold), 12 releases shipped (purple), 847 GitHub stars (green) — each in its own colored card](/examples/year-review.jpg)
+![Year-review poster — cream linen background, "BELIKELY UNITED · ANNUAL REPORT · VOL. III" masthead, gigantic wine-red "26" filling the left half of the canvas, "THE YEAR IN" eyebrow + italic serif "review." nested to its right, italic headline "A year of building, in plain sight.", "BY THE NUMBERS" eyebrow + ledger table with four rows showing 127K / $2.4M / 12 / 847 with labels and indices](/examples/year-review.jpg)
 
 **Path.** `.lerret/marketing/year-review.jsx`
 
 ```jsx
 export const meta = {
-  dimensions: { width: 1200, height: 1260 },
-  label: 'Year in review (bento)',
-  tags: ['recap', 'stats', 'year-review'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Year in review — annual report',
+  tags: ['poster', 'recap', 'annual-report'],
   propsSchema: {
-    year: { type: 'string', default: '2026' },
+    year: { type: 'string', default: '26', required: true },
     company: { type: 'string', default: 'Belikely United' },
-    stat1Value: { type: 'string', default: '127,000' },
-    stat1Label: { type: 'string', default: 'users onboarded' },
-    stat2Value: { type: 'string', default: '$2.4M' },
+    headline: { type: 'string', default: 'A year of building, in plain sight.' },
+    stat1: { type: 'string', default: '127K' },
+    stat1Label: { type: 'string', default: 'Users onboarded' },
+    stat2: { type: 'string', default: '$2.4M' },
     stat2Label: { type: 'string', default: 'ARR' },
-    stat3Value: { type: 'string', default: '12' },
-    stat3Label: { type: 'string', default: 'releases shipped' },
-    stat4Value: { type: 'string', default: '847' },
-    stat4Label: { type: 'string', default: 'GitHub stars' },
+    stat3: { type: 'string', default: '12' },
+    stat3Label: { type: 'string', default: 'Releases shipped' },
+    stat4: { type: 'string', default: '847' },
+    stat4Label: { type: 'string', default: 'Stars on GitHub' },
   },
 };
 
-export default function YearReview(props) {
-  const stats = [
-    { v: props.stat1Value, l: props.stat1Label, bg: '#1B2A3B', accent: '#22D3EE' },
-    { v: props.stat2Value, l: props.stat2Label, bg: '#2D1810', accent: '#FFC04A' },
-    { v: props.stat3Value, l: props.stat3Label, bg: '#2A1B3A', accent: '#A78BFA' },
-    { v: props.stat4Value, l: props.stat4Label, bg: '#0F2A1B', accent: '#34D399' },
-  ];
-  return (
-    <div style={{
-      width: '100%', height: '100%', boxSizing: 'border-box',
-      padding: '80px', background: '#0A0A0A', color: '#FFF',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      display: 'flex', flexDirection: 'column', gap: 56,
-    }}>
-      <div>
-        <div style={{
-          fontSize: 14, letterSpacing: '0.35em', opacity: 0.55,
-          fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700,
-        }}>A YEAR AT {props.company.toUpperCase()}</div>
-        <div style={{
-          fontSize: 168, fontWeight: 900, lineHeight: 0.88,
-          letterSpacing: '-0.05em', marginTop: 18,
-          fontVariantNumeric: 'tabular-nums',
-          background: 'linear-gradient(135deg, #FFF 0%, #6E6E6E 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>{props.year}</div>
-        <div style={{ fontSize: 24, opacity: 0.6, marginTop: 16, fontWeight: 500 }}>
-          In numbers.
-        </div>
-      </div>
-
-      <div style={{
-        flex: 1, display: 'grid',
-        gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 20,
-      }}>
-        {stats.map((s, i) => (
-          <div key={i} style={{
-            padding: 44, borderRadius: 28,
-            background: s.bg, color: '#FFF',
-            position: 'relative', overflow: 'hidden',
-            display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-          }}>
-            <div style={{
-              position: 'absolute', bottom: -100, right: -100,
-              width: 280, height: 280, borderRadius: '50%',
-              background: `radial-gradient(circle, ${s.accent}40, transparent 60%)`,
-              filter: 'blur(8px)',
-            }} />
-            <div style={{
-              fontSize: 13, letterSpacing: '0.32em', opacity: 0.55,
-              fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700,
-              position: 'relative',
-            }}>0{i + 1}</div>
-            <div style={{ position: 'relative' }}>
-              <div style={{
-                fontSize: 92, fontWeight: 900, lineHeight: 0.95,
-                letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums',
-                color: s.accent,
-              }}>{s.v}</div>
-              <div style={{
-                fontSize: 19, marginTop: 10, opacity: 0.85, fontWeight: 500,
-              }}>{s.l}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// Full source — see the fixture file in the docs repo.
 ```
 
-**Notes.** Each bento cell has a **dark tinted background** (just slightly off from pure black) and a **soft-glow orb** in its accent color sitting in the corner. That combination — pure black canvas + tinted cells + colored glows — is the modern "bento" recipe (Apple, Linear, Stripe Sigma all use variants). Different accent per cell gives variety without needing a unifying palette.
+**Design notes.** The poster move: **no cards, no boxes**. The year is the visual; the stats are a typed ledger with `border-top` rules and large numbers right-aligned. Wine red (`#8C2A1B`) is the only accent — used on the year, index markers, and the eyebrow lines.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/year-review.jsx)
 
 ---
+
+## 9. Manifesto — statement poster
+
+**Use case.** When you want to declare something. Black canvas, a pink slash carving the canvas vertically into thirds, manifesto-grade statement filling the center, byline in italic serif, monospace filing tag at the bottom. Portrait 1080×1350.
+
+![Manifesto poster — pure black background, vertical hot-pink slash dividing the canvas, "✦ MANIFESTO · MMXXVI" pink monospace masthead, gigantic statement "Design tools should not require permission." filling the center with the final period accented in pink, italic serif "— Belikely United" byline, "FILE UNDER: BELIEF" monospace footer](/examples/manifesto.jpg)
+
+**Path.** `.lerret/marketing/manifesto.jsx`
+
+```jsx
+export const meta = {
+  dimensions: { width: 1080, height: 1350 },
+  label: 'Manifesto / quote poster',
+  tags: ['poster', 'manifesto', 'social'],
+  propsSchema: {
+    statement: { type: 'string', default: 'Design tools should not require permission.', required: true },
+    byline: { type: 'string', default: 'Belikely United' },
+    date: { type: 'string', default: 'MMXXVI' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** The trick: render the statement word-by-word and color **only the trailing period** in the pink accent. Tiny detail, but it lands like a punctuation mark — literally — that makes the line declarative. The vertical pink slash (8px wide) is a one-line color block doing all the architectural work.
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/public/apps/docs/_examples-fixture/.lerret/examples/manifesto.jsx)
+
+---
+
+## Why these patterns
+
+The posters above lean on conventions from print, not from the web. A few that translate especially well via plain React + inline styles:
+
+- **`-webkit-text-stroke` + `color: transparent`** → outlined display type without an SVG. Survives every Chromium export pipeline.
+- **`transform: rotate()` on text blocks** → editorial diagonals, rubber-stamp angles, vertical book-spine text.
+- **`writing-mode: vertical-rl` or rotated transform** → side-spine text for masthead grids.
+- **Solid color blocks (`background`, no gradient)** → screen-printed flat-color feel, prints well at any scale.
+- **Numbered ledger rows** → editorial gridding without box-card UI patterns. Each row is a `border-bottom`; indices live in monospace.
+- **Mixed serif + sans + monospace** → masthead grids almost always need all three. System default Georgia + system-ui sans + ui-monospace gets you 90% of the way without webfont overhead.
 
 ## What's next
 
@@ -765,4 +498,4 @@ export default function YearReview(props) {
 - **[Concepts](/concepts/)** — pages, groups, variants, the four-tier prop cascade.
 - **[CLI Reference](/cli/)** — `@lerret/cli dev` to render the canvas, `@lerret/cli export` to capture every artboard headlessly.
 
-Have an example pattern that helped you? Open a [Discussion](https://github.com/belikely-united/lerret/discussions) — community-contributed examples may land in a future expanded gallery.
+Got a poster pattern that should be here? Open a [Discussion](https://github.com/belikely-united/lerret/discussions) — community-contributed examples land in a future expanded gallery.

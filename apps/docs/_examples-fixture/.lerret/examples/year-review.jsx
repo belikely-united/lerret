@@ -1,148 +1,207 @@
 export const meta = {
-  dimensions: { width: 1200, height: 1260 },
-  label: 'Year in review (bento)',
-  tags: ['recap', 'stats', 'year-review'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Year in review — annual report',
+  tags: ['poster', 'recap', 'annual-report'],
   propsSchema: {
-    year: { type: 'string', default: '2026' },
+    year: { type: 'string', default: '26', required: true },
     company: { type: 'string', default: 'Belikely United' },
-    stat1Value: { type: 'string', default: '127,000' },
-    stat1Label: { type: 'string', default: 'users onboarded' },
-    stat2Value: { type: 'string', default: '$2.4M' },
+    headline: { type: 'string', default: 'A year of building, in plain sight.' },
+    stat1: { type: 'string', default: '127K' },
+    stat1Label: { type: 'string', default: 'Users onboarded' },
+    stat2: { type: 'string', default: '$2.4M' },
     stat2Label: { type: 'string', default: 'ARR' },
-    stat3Value: { type: 'string', default: '12' },
-    stat3Label: { type: 'string', default: 'releases shipped' },
-    stat4Value: { type: 'string', default: '847' },
-    stat4Label: { type: 'string', default: 'GitHub stars' },
+    stat3: { type: 'string', default: '12' },
+    stat3Label: { type: 'string', default: 'Releases shipped' },
+    stat4: { type: 'string', default: '847' },
+    stat4Label: { type: 'string', default: 'Stars on GitHub' },
   },
 };
 
-export default function YearReview({
-  year = '2026',
+export default function YearReviewPoster({
+  year = '26',
   company = 'Belikely United',
-  stat1Value = '127,000',
-  stat1Label = 'users onboarded',
-  stat2Value = '$2.4M',
+  headline = 'A year of building, in plain sight.',
+  stat1 = '127K',
+  stat1Label = 'Users onboarded',
+  stat2 = '$2.4M',
   stat2Label = 'ARR',
-  stat3Value = '12',
-  stat3Label = 'releases shipped',
-  stat4Value = '847',
-  stat4Label = 'GitHub stars',
+  stat3 = '12',
+  stat3Label = 'Releases shipped',
+  stat4 = '847',
+  stat4Label = 'Stars on GitHub',
 }) {
   const stats = [
-    { v: stat1Value, l: stat1Label, bg: '#1B2A3B', accent: '#22D3EE' },
-    { v: stat2Value, l: stat2Label, bg: '#2D1810', accent: '#FFC04A' },
-    { v: stat3Value, l: stat3Label, bg: '#2A1B3A', accent: '#A78BFA' },
-    { v: stat4Value, l: stat4Label, bg: '#0F2A1B', accent: '#34D399' },
+    [stat1, stat1Label],
+    [stat2, stat2Label],
+    [stat3, stat3Label],
+    [stat4, stat4Label],
   ];
   return (
     <div style={{
       width: '100%',
       height: '100%',
       boxSizing: 'border-box',
-      padding: '80px',
-      background: '#0A0A0A',
-      color: '#FFF',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 56,
+      background: '#EAE0CD',
+      color: '#1F0F08',
+      fontFamily: 'Georgia, "Times New Roman", serif',
+      position: 'relative',
+      overflow: 'hidden',
+      padding: '64px 72px',
     }}>
-      <div>
+      {/* Top masthead */}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        borderBottom: '2px solid #1F0F08',
+        paddingBottom: 16,
+      }}>
         <div style={{
-          fontSize: 14,
-          letterSpacing: '0.35em',
-          opacity: 0.55,
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          fontWeight: 700,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 13,
+          letterSpacing: '0.3em',
+          textTransform: 'uppercase',
+          fontWeight: 800,
         }}>
-          A YEAR AT {company.toUpperCase()}
+          {company} · Annual Report
         </div>
         <div style={{
-          fontSize: 168,
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: 13,
+          letterSpacing: '0.3em',
+          textTransform: 'uppercase',
+        }}>
+          Vol. III
+        </div>
+      </div>
+
+      {/* Giant year */}
+      <div style={{
+        position: 'absolute',
+        left: 56,
+        right: 56,
+        top: 140,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 56,
+      }}>
+        <div style={{
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 520,
           fontWeight: 900,
-          lineHeight: 0.88,
-          letterSpacing: '-0.05em',
-          marginTop: 18,
-          background: 'linear-gradient(135deg, #FFF 0%, #6E6E6E 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
+          lineHeight: 0.8,
+          letterSpacing: '-0.08em',
+          color: '#8C2A1B',
           fontVariantNumeric: 'tabular-nums',
         }}>
           {year}
         </div>
-        <div style={{
-          fontSize: 24,
-          opacity: 0.6,
-          marginTop: 16,
-          fontWeight: 500,
-        }}>
-          In numbers.
+        <div style={{ paddingTop: 80 }}>
+          <div style={{
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontSize: 12,
+            letterSpacing: '0.45em',
+            textTransform: 'uppercase',
+            fontWeight: 700,
+            color: '#8C2A1B',
+            marginBottom: 14,
+          }}>
+            The year in
+          </div>
+          <div style={{
+            fontSize: 56,
+            fontWeight: 400,
+            fontStyle: 'italic',
+            letterSpacing: '-0.025em',
+            lineHeight: 1,
+          }}>
+            review.
+          </div>
         </div>
       </div>
 
+      {/* Headline / sub */}
       <div style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gridTemplateRows: '1fr 1fr',
-        gap: 20,
+        position: 'absolute',
+        left: 56,
+        right: 56,
+        top: 670,
       }}>
-        {stats.map((s, i) => (
+        <div style={{
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 38,
+          fontWeight: 500,
+          letterSpacing: '-0.02em',
+          lineHeight: 1.15,
+          maxWidth: '78%',
+        }}>
+          {headline}
+        </div>
+      </div>
+
+      {/* Stats ledger */}
+      <div style={{
+        position: 'absolute',
+        left: 56,
+        right: 56,
+        bottom: 80,
+      }}>
+        <div style={{
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 12,
+          letterSpacing: '0.45em',
+          textTransform: 'uppercase',
+          fontWeight: 700,
+          color: '#8C2A1B',
+          marginBottom: 24,
+        }}>
+          By the numbers
+        </div>
+        {stats.map(([v, l], i) => (
           <div key={i} style={{
-            padding: 44,
-            borderRadius: 28,
-            background: s.bg,
-            color: '#FFF',
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'baseline',
             justifyContent: 'space-between',
-            position: 'relative',
-            overflow: 'hidden',
+            borderTop: '1.5px solid #1F0F08',
+            padding: '20px 0',
+            gap: 32,
           }}>
             <div style={{
-              position: 'absolute',
-              bottom: -100,
-              right: -100,
-              width: 280,
-              height: 280,
-              borderRadius: '50%',
-              background: `radial-gradient(circle, ${s.accent}40, transparent 60%)`,
-              pointerEvents: 'none',
-              filter: 'blur(8px)',
-            }} />
-            <div style={{
-              fontSize: 13,
-              letterSpacing: '0.32em',
-              opacity: 0.55,
               fontFamily: 'ui-monospace, Menlo, monospace',
+              fontSize: 14,
+              letterSpacing: '0.2em',
+              color: '#8C2A1B',
               fontWeight: 700,
-              position: 'relative',
+              minWidth: 64,
             }}>
-              0{i + 1}
+              0{i + 1} /
             </div>
-            <div style={{ position: 'relative' }}>
-              <div style={{
-                fontSize: 92,
-                fontWeight: 900,
-                lineHeight: 0.95,
-                letterSpacing: '-0.04em',
-                fontVariantNumeric: 'tabular-nums',
-                color: s.accent,
-              }}>
-                {s.v}
-              </div>
-              <div style={{
-                fontSize: 19,
-                marginTop: 10,
-                opacity: 0.85,
-                fontWeight: 500,
-              }}>
-                {s.l}
-              </div>
+            <div style={{
+              fontSize: 19,
+              fontStyle: 'italic',
+              letterSpacing: '-0.005em',
+              flex: 1,
+            }}>
+              {l}
+            </div>
+            <div style={{
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              fontSize: 56,
+              fontWeight: 900,
+              letterSpacing: '-0.04em',
+              lineHeight: 1,
+              fontVariantNumeric: 'tabular-nums',
+              minWidth: 200,
+              textAlign: 'right',
+            }}>
+              {v}
             </div>
           </div>
         ))}
+        <div style={{
+          borderTop: '1.5px solid #1F0F08',
+        }} />
       </div>
     </div>
   );

@@ -1,149 +1,123 @@
 export const meta = {
-  dimensions: { width: 1200, height: 675 },
-  label: 'Product Hunt launch',
-  tags: ['product-hunt', 'launch', 'announcement'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Product Hunt — launch poster',
+  tags: ['poster', 'product-hunt', 'launch'],
   propsSchema: {
-    productName: { type: 'string', default: 'Your product', required: true },
-    tagline: { type: 'string', default: 'A short, punchy description of what you do.' },
-    upvotes: { type: 'string', default: '847' },
-    rank: { type: 'string', default: '#1 Product of the Day' },
+    productName: { type: 'string', default: 'Lerret', required: true },
+    tagline: { type: 'string', default: 'A folder of React components, rendered as a visual canvas.' },
+    launchDate: { type: 'string', default: '11.22.26' },
+    issue: { type: 'string', default: 'NO. 001' },
   },
 };
 
-export default function ProductHuntLaunch({
-  productName = 'Your product',
-  tagline = 'A short, punchy description of what you do.',
-  upvotes = '847',
-  rank = '#1 Product of the Day',
+export default function ProductHuntPoster({
+  productName = 'Lerret',
+  tagline = 'A folder of React components, rendered as a visual canvas.',
+  launchDate = '11.22.26',
+  issue = 'NO. 001',
 }) {
   return (
     <div style={{
       width: '100%',
       height: '100%',
       boxSizing: 'border-box',
-      padding: '72px 80px',
-      background: 'linear-gradient(135deg, #1A0F0A 0%, #2D1810 50%, #3A1F12 100%)',
-      color: '#FFF',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      background: '#F5EBD8',
+      color: '#1A1410',
+      fontFamily: 'Georgia, "Times New Roman", serif',
       position: 'relative',
       overflow: 'hidden',
+      padding: '72px 80px',
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
     }}>
+      {/* Hairline border just inside the bleed */}
       <div style={{
         position: 'absolute',
-        top: -240,
-        right: -240,
-        width: 720,
-        height: 720,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(218,85,47,0.45), transparent 65%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: -140,
-        left: -140,
-        width: 480,
-        height: 480,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(218,85,47,0.15), transparent 65%)',
+        inset: '32px 40px',
+        border: '1px solid rgba(26,20,16,0.25)',
         pointerEvents: 'none',
       }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, position: 'relative' }}>
+      {/* TOP: issue mark + launch ledger */}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 14,
+        letterSpacing: '0.25em',
+        textTransform: 'uppercase',
+      }}>
+        <span>The Belikely Press · {issue}</span>
+        <span>Launch Day Edition</span>
+      </div>
+
+      {/* The headline stack */}
+      <div style={{ position: 'relative' }}>
         <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '8px 18px',
-          background: '#DA552F',
-          borderRadius: 100,
-          fontSize: 13,
-          fontWeight: 800,
-          letterSpacing: '0.18em',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 88,
+          fontWeight: 900,
+          letterSpacing: '-0.04em',
+          lineHeight: 0.86,
+          textTransform: 'uppercase',
+          color: '#DA552F',
         }}>
-          <span style={{ width: 8, height: 8, borderRadius: 4, background: '#FFF' }} />
-          LIVE ON PRODUCT HUNT
+          We're<br />Live<br />on
         </div>
         <div style={{
-          fontSize: 14,
-          opacity: 0.6,
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          letterSpacing: '0.05em',
+          fontSize: 220,
+          fontWeight: 400,
+          letterSpacing: '-0.05em',
+          lineHeight: 0.9,
+          fontStyle: 'italic',
+          marginTop: 8,
+          color: '#1A1410',
         }}>
-          {rank}
+          {productName}.
         </div>
       </div>
 
-      <div style={{ position: 'relative' }}>
+      {/* Tagline */}
+      <div style={{ position: 'relative', maxWidth: '78%' }}>
         <div style={{
-          fontSize: 112,
-          fontWeight: 900,
-          lineHeight: 0.92,
-          letterSpacing: '-0.045em',
-          textWrap: 'balance',
-        }}>
-          {productName}
-        </div>
-        <div style={{
-          fontSize: 26,
-          marginTop: 22,
-          opacity: 0.72,
-          lineHeight: 1.4,
-          maxWidth: '72%',
-          fontWeight: 500,
+          fontSize: 30,
+          lineHeight: 1.3,
+          fontWeight: 400,
+          fontStyle: 'italic',
+          color: '#1A1410',
         }}>
           {tagline}
         </div>
       </div>
 
+      {/* Tour-date strip */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
         position: 'relative',
+        borderTop: '2px solid #1A1410',
+        paddingTop: 28,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{
-            width: 64,
-            height: 64,
-            borderRadius: 14,
-            background: 'linear-gradient(135deg, #DA552F 0%, #B83A18 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 30,
-            fontWeight: 800,
-            boxShadow: '0 8px 24px rgba(218,85,47,0.4)',
-          }}>▲</div>
-          <div>
-            <div style={{
-              fontSize: 40,
-              fontWeight: 900,
-              fontVariantNumeric: 'tabular-nums',
-              letterSpacing: '-0.02em',
-              lineHeight: 1,
-            }}>
-              {upvotes}
-            </div>
-            <div style={{
-              fontSize: 13,
-              opacity: 0.55,
-              letterSpacing: '0.2em',
-              marginTop: 4,
-              fontWeight: 600,
-            }}>UPVOTES</div>
-          </div>
+        <div style={{
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: 18,
+          letterSpacing: '0.2em',
+          textTransform: 'uppercase',
+        }}>
+          {launchDate} — Upvote Today
         </div>
         <div style={{
-          fontSize: 18,
-          fontWeight: 700,
+          fontSize: 32,
+          fontStyle: 'italic',
+          fontWeight: 400,
+          letterSpacing: '-0.01em',
           color: '#DA552F',
-          fontFamily: 'ui-monospace, Menlo, monospace',
         }}>
-          producthunt.com →
+          producthunt.com
         </div>
       </div>
     </div>

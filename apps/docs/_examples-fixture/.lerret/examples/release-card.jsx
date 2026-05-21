@@ -1,134 +1,169 @@
 export const meta = {
-  dimensions: { width: 1200, height: 800 },
-  label: 'Release / version announcement',
-  tags: ['release', 'changelog', 'announcement'],
+  dimensions: { width: 1200, height: 1500 },
+  label: 'Release — Swiss modernist poster',
+  tags: ['poster', 'release', 'announcement'],
   propsSchema: {
-    version: { type: 'string', default: 'v2.0', required: true },
+    version: { type: 'string', default: '2.0', required: true },
     codename: { type: 'string', default: 'Hydra' },
-    title: { type: 'string', default: 'Multiplayer, scopes, and a new API.' },
-    feature1: { type: 'string', default: 'Live multiplayer cursors with conflict-free sync' },
-    feature2: { type: 'string', default: 'OAuth 2.0 scopes for granular token permissions' },
-    feature3: { type: 'string', default: 'Streaming export API for large project bundles' },
-    feature4: { type: 'string', default: '3× faster cold-start, full Node 22 support' },
+    headline: { type: 'string', default: 'A new way to ship.' },
+    note1: { type: 'string', default: 'Live multiplayer cursors' },
+    note2: { type: 'string', default: 'OAuth scopes for tokens' },
+    note3: { type: 'string', default: 'Streaming export API' },
+    note4: { type: 'string', default: 'Node 22, 3× faster cold-start' },
+    date: { type: 'string', default: '11.22.26' },
   },
 };
 
-export default function ReleaseCard({
-  version = 'v2.0',
+export default function ReleasePoster({
+  version = '2.0',
   codename = 'Hydra',
-  title = 'Multiplayer, scopes, and a new API.',
-  feature1 = 'Live multiplayer cursors with conflict-free sync',
-  feature2 = 'OAuth 2.0 scopes for granular token permissions',
-  feature3 = 'Streaming export API for large project bundles',
-  feature4 = '3× faster cold-start, full Node 22 support',
+  headline = 'A new way to ship.',
+  note1 = 'Live multiplayer cursors',
+  note2 = 'OAuth scopes for tokens',
+  note3 = 'Streaming export API',
+  note4 = 'Node 22, 3× faster cold-start',
+  date = '11.22.26',
 }) {
-  const features = [feature1, feature2, feature3, feature4].filter(Boolean);
+  const notes = [note1, note2, note3, note4].filter(Boolean);
   return (
     <div style={{
       width: '100%',
       height: '100%',
       boxSizing: 'border-box',
-      padding: '80px',
-      background: 'linear-gradient(150deg, #08111A 0%, #0F1F2E 50%, #1B2E45 100%)',
-      color: '#F4F7FA',
+      background: '#F1EEE7',
+      color: '#0C0C0C',
       fontFamily: 'system-ui, -apple-system, sans-serif',
       position: 'relative',
       overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
+      padding: '64px 72px',
     }}>
+      {/* Olive accent block — left vertical column */}
       <div style={{
         position: 'absolute',
-        inset: 0,
-        backgroundImage: 'linear-gradient(rgba(139,174,200,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(139,174,200,0.05) 1px, transparent 1px)',
-        backgroundSize: '64px 64px',
-        pointerEvents: 'none',
-        maskImage: 'radial-gradient(circle at 30% 50%, black, transparent 80%)',
-      }} />
-      <div style={{
-        position: 'absolute',
-        top: -150,
-        right: -150,
-        width: 500,
-        height: 500,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(232,200,182,0.18), transparent 60%)',
-        pointerEvents: 'none',
-        filter: 'blur(20px)',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 16,
+        background: '#5C6B33',
       }} />
 
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16 }}>
+      {/* Top metadata strip */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: 13,
+        letterSpacing: '0.25em',
+        textTransform: 'uppercase',
+        borderBottom: '1px solid #0C0C0C',
+        paddingBottom: 14,
+      }}>
+        <span>The Belikely Bulletin</span>
+        <span>{date}</span>
+      </div>
+
+      {/* Version section — huge stacked */}
+      <div style={{
+        position: 'relative',
+        marginTop: 56,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 40,
+      }}>
         <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '8px 16px',
-          background: 'rgba(232,200,182,0.1)',
-          border: '1px solid rgba(232,200,182,0.3)',
-          borderRadius: 8,
-          fontSize: 16,
-          fontWeight: 800,
-          letterSpacing: '0.05em',
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          color: '#E8C8B6',
+          fontSize: 360,
+          fontWeight: 900,
+          lineHeight: 0.78,
+          letterSpacing: '-0.07em',
+          color: '#0C0C0C',
+          fontVariantNumeric: 'tabular-nums',
         }}>
-          {version}
+          v{version}
         </div>
         <div style={{
-          fontSize: 13,
-          opacity: 0.55,
-          letterSpacing: '0.25em',
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          fontWeight: 700,
+          paddingTop: 24,
+          flex: 1,
         }}>
-          CODENAME · {codename.toUpperCase()}
+          <div style={{
+            fontFamily: 'ui-monospace, Menlo, monospace',
+            fontSize: 13,
+            letterSpacing: '0.35em',
+            textTransform: 'uppercase',
+            color: '#5C6B33',
+            marginBottom: 8,
+            fontWeight: 700,
+          }}>
+            Codename
+          </div>
+          <div style={{
+            fontSize: 44,
+            fontWeight: 400,
+            letterSpacing: '-0.02em',
+            fontStyle: 'italic',
+            fontFamily: 'Georgia, "Times New Roman", serif',
+          }}>
+            {codename}
+          </div>
         </div>
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <div style={{
-          fontSize: 14,
-          letterSpacing: '0.3em',
-          opacity: 0.5,
-          marginBottom: 24,
-          fontFamily: 'ui-monospace, Menlo, monospace',
-          fontWeight: 700,
-        }}>
-          RELEASE NOTES
-        </div>
-        <div style={{
-          fontSize: 64,
-          fontWeight: 800,
-          lineHeight: 1.05,
-          letterSpacing: '-0.03em',
-          maxWidth: '90%',
-          textWrap: 'balance',
-        }}>
-          {title}
-        </div>
+      {/* Big headline */}
+      <div style={{
+        marginTop: 72,
+        fontSize: 88,
+        fontWeight: 800,
+        letterSpacing: '-0.035em',
+        lineHeight: 0.95,
+        maxWidth: '92%',
+      }}>
+        {headline}
       </div>
 
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {features.map((f, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 24 }}>
+      {/* Bottom: ledger lines */}
+      <div style={{
+        position: 'absolute',
+        left: 72,
+        right: 72,
+        bottom: 80,
+      }}>
+        <div style={{
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: 12,
+          letterSpacing: '0.35em',
+          textTransform: 'uppercase',
+          marginBottom: 28,
+          color: '#5C6B33',
+          fontWeight: 700,
+        }}>
+          ── what's new
+        </div>
+        {notes.map((n, i) => (
+          <div key={i} style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid rgba(12,12,12,0.25)',
+            padding: '14px 0',
+            gap: 24,
+          }}>
             <span style={{
-              fontSize: 16,
-              fontFamily: 'ui-monospace, Menlo, monospace',
-              color: '#E8C8B6',
-              fontVariantNumeric: 'tabular-nums',
-              minWidth: 32,
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-            }}>
-              0{i + 1}
-            </span>
-            <span style={{
-              fontSize: 26,
-              lineHeight: 1.3,
+              fontSize: 24,
               fontWeight: 500,
+              letterSpacing: '-0.01em',
               flex: 1,
             }}>
-              {f}
+              {n}
+            </span>
+            <span style={{
+              fontFamily: 'ui-monospace, Menlo, monospace',
+              fontSize: 14,
+              letterSpacing: '0.15em',
+              color: '#5C6B33',
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 700,
+            }}>
+              0{i + 1}
             </span>
           </div>
         ))}
