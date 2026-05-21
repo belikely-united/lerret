@@ -50,3 +50,6 @@ coverage/
 # Misc
 *.tsbuildinfo
 .npmrc
+
+# Firebase CLI deploy cache
+.firebase/
