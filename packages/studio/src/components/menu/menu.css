@@ -1,0 +1,124 @@
+/* ================================================================
+ Menu primitive — popover action list (, UX-DR4/16/18, NFR14)
+
+ All visual values come from the --lm-* design tokens defined in
+ colors_and_type.css. No ad-hoc hex or rgba values here.
+ ================================================================ */
+
+/* ---------- Popover wrapper ---------- */
+.lm-menu-popover {
+ position: fixed;
+ list-style: none;
+ margin: 0;
+ padding: var(--lm-space-1);
+ min-width: 200px;
+ max-width: 320px;
+ max-height: 320px;
+ overflow-y: auto;
+ background: var(--lm-popover-bg);
+ backdrop-filter: blur(16px) saturate(120%);
+ -webkit-backdrop-filter: blur(16px) saturate(120%);
+ border: 1px solid var(--lm-popover-border);
+ border-radius: var(--lm-radius-lg);
+ box-shadow: var(--lm-shadow-popup);
+ outline: none;
+ z-index: 80;
+ font-family: var(--lm-font-sans);
+ color: var(--lm-text-primary);
+ /* open animation */
+ animation: lm-menu-open var(--lm-duration-fast) var(--lm-ease) both;
+}
+
+@keyframes lm-menu-open {
+ from { opacity: 0; transform: scale(0.96) translateY(4px); }
+ to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Reduced-motion: skip the animation, show instantly */
+@media (prefers-reduced-motion: reduce) {
+ .lm-menu-popover {
+ animation: none;
+ }
+}
+
+/* ---------- Menu item ---------- */
+.lm-menu-item {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-2);
+ width: 100%;
+ padding: var(--lm-space-2) var(--lm-space-3);
+ border: none;
+ border-radius: var(--lm-radius-md);
+ background: transparent;
+ color: var(--lm-text-primary);
+ font-family: var(--lm-font-sans);
+ font-size: var(--lm-size-body);
+ font-weight: var(--lm-weight-medium);
+ line-height: var(--lm-lh-body);
+ text-align: left;
+ cursor: pointer;
+ outline: none;
+ transition: background var(--lm-duration-fast), box-shadow var(--lm-duration-fast);
+ /* Reset <li> list semantics so the element can be a real <li> */
+ list-style: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+ .lm-menu-item {
+ transition: none;
+ }
+}
+
+/* Keyboard / pointer focus — the row highlights; visible focus ring inside
+ the item (not the default outline). */
+.lm-menu-item[data-active="true"] {
+ background: var(--lm-accent-light);
+ box-shadow: inset 0 0 0 1.5px var(--lm-accent);
+}
+
+.lm-menu-item:hover:not([aria-disabled="true"]) {
+ background: var(--lm-bg-tertiary);
+}
+
+/* Disabled state */
+.lm-menu-item[aria-disabled="true"] {
+ color: var(--lm-text-muted);
+ cursor: not-allowed;
+ /* No hover highlight — overridden by specificity above */
+}
+
+/* Icon slot */
+.lm-menu-item-icon {
+ display: inline-flex;
+ flex: none;
+ opacity: 0.7;
+ font-size: var(--lm-size-body-sm);
+}
+
+/* Label */
+.lm-menu-item-label {
+ flex: 1;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+
+/* Reason tooltip (disabled items only) */
+.lm-menu-item-reason {
+ font-size: var(--lm-size-body-sm);
+ color: var(--lm-text-tertiary);
+ white-space: nowrap;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ max-width: 160px;
+ flex: none;
+}
+
+/* ---------- Separator ---------- */
+.lm-menu-separator {
+ height: 1px;
+ margin: var(--lm-space-1) var(--lm-space-3);
+ background: var(--lm-border-light);
+ list-style: none;
+}

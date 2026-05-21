@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or general discussion
+    url: https://github.com/belikely-united/lerret/discussions
+    about: For open-ended questions, ideas, and show-and-tell, please use Discussions.
+  - name: Documentation
+    url: https://github.com/belikely-united/lerret/tree/main/docs
+    about: Check the docs first — your question may already be answered.
+  - name: Security vulnerability
+    url: https://github.com/belikely-united/lerret/security/advisories/new
+    about: For security issues, use a private advisory — do not file a public issue.

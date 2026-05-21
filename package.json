@@ -1,0 +1,30 @@
+{
+  "name": "lerret",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An open-source design canvas where a folder of plain React component files renders as a visual canvas.",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @lerret/studio dev",
+    "build": "pnpm --filter @lerret/studio build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,json,css,md}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "vitest": "^4.1.6"
+  }
+}

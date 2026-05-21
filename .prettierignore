@@ -1,0 +1,13 @@
+# Dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+pnpm-lock.yaml
+
+# Brownfield studio chrome + launch-asset fixtures — preserved as-is to keep
+# diffs focused on module/build-wiring. Later passes may reformat
+# file-by-file as they are revisited.
+packages/studio/src/studio-shell.jsx
+packages/studio/src/design-canvas.jsx
+packages/studio/src/fixtures/
