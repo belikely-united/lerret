@@ -125,7 +125,7 @@ jobs:
       # ── Upload timing artifact ────────────────────────────────────────────
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cold-run-results-${{ matrix.os }}
           path: scripts/cold-run-results.json
