@@ -20,7 +20,7 @@ This package contains the engine that powers the Lerret design canvas. **Most us
 ## Source & docs
 
 - Source: [github.com/belikely-united/lerret](https://github.com/belikely-united/lerret) (`packages/core/`)
-- Documentation: [lerret-docs.web.app](https://lerret-docs.web.app)
+- Documentation: [docs.lerret.belikely.com](https://docs.lerret.belikely.com)
 
 ## License
 

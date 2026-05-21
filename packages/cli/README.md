@@ -33,12 +33,12 @@ After installing globally (`npm install -g @lerret/cli`), the command is just `l
 
 ## Documentation
 
-Full docs: **https://lerret-docs.web.app** *(custom domain `docs.lerret.belikely.com` coming soon)*
+Full docs: **https://docs.lerret.belikely.com**
 
-- [Getting Started](https://lerret-docs.web.app/getting-started/)
-- [Concepts — the folder-canvas model](https://lerret-docs.web.app/concepts/)
-- [Authoring Assets](https://lerret-docs.web.app/authoring/)
-- [CLI Reference](https://lerret-docs.web.app/cli/)
+- [Getting Started](https://docs.lerret.belikely.com/getting-started/)
+- [Concepts — the folder-canvas model](https://docs.lerret.belikely.com/concepts/)
+- [Authoring Assets](https://docs.lerret.belikely.com/authoring/)
+- [CLI Reference](https://docs.lerret.belikely.com/cli/)
 
 ## Source
 

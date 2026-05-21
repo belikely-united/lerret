@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@lerret/cli"><img src="https://img.shields.io/npm/v/%40lerret%2Fcli?label=lerret&color=B85B33" alt="npm version" /></a>
   <a href="https://github.com/belikely-united/lerret/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-B85B33" alt="MIT license" /></a>
-  <a href="https://lerret-docs.web.app"><img src="https://img.shields.io/badge/docs-lerret--docs.web.app-B85B33" alt="Documentation" /></a>
+  <a href="https://docs.lerret.belikely.com"><img src="https://img.shields.io/badge/docs-lerret.belikely.com-B85B33" alt="Documentation" /></a>
   <a href="https://github.com/belikely-united/lerret/discussions"><img src="https://img.shields.io/github/discussions/belikely-united/lerret?color=B85B33" alt="GitHub Discussions" /></a>
 </p>
 
@@ -120,14 +120,14 @@ Lerret is honest about its scope so you can decide quickly:
 
 ## Documentation
 
-**[lerret-docs.web.app](https://lerret-docs.web.app)** — full docs site (custom domain `docs.lerret.belikely.com` coming soon).
+**[docs.lerret.belikely.com](https://docs.lerret.belikely.com)** — full docs site.
 
-- [Getting Started](https://lerret-docs.web.app/getting-started/)
-- [Concepts — the folder-canvas model](https://lerret-docs.web.app/concepts/)
-- [Authoring Assets](https://lerret-docs.web.app/authoring/)
-- [The Studio](https://lerret-docs.web.app/studio/)
-- [CLI Reference](https://lerret-docs.web.app/cli/)
-- [Deployment](https://lerret-docs.web.app/deploy/)
+- [Getting Started](https://docs.lerret.belikely.com/getting-started/)
+- [Concepts — the folder-canvas model](https://docs.lerret.belikely.com/concepts/)
+- [Authoring Assets](https://docs.lerret.belikely.com/authoring/)
+- [The Studio](https://docs.lerret.belikely.com/studio/)
+- [CLI Reference](https://docs.lerret.belikely.com/cli/)
+- [Deployment](https://docs.lerret.belikely.com/deploy/)
 
 ## Architecture at a glance
 

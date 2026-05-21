@@ -47,7 +47,7 @@ Each `.jsx` under `.lerret/` is an asset that renders as an artboard in the stud
 ## Source & docs
 
 - Source: [github.com/belikely-united/lerret](https://github.com/belikely-united/lerret) (`packages/create-lerret/`)
-- Documentation: [lerret-docs.web.app](https://lerret-docs.web.app)
+- Documentation: [docs.lerret.belikely.com](https://docs.lerret.belikely.com)
 
 ## License
 
