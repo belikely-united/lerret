@@ -102,7 +102,7 @@ export async function writeProjectFile(path, content, opts = {}) {
  if (!isCliMode()) {
  return {
  ok: false,
- error: 'writes are disabled in standalone mode (run `lerret dev` to enable)',
+ error: 'writes are disabled in standalone mode (run `@lerret/cli dev` to enable)',
  };
  }
 
@@ -174,7 +174,7 @@ async function callLifecycleEndpoint(endpoint, body, opts = {}) {
  if (!isCliMode()) {
  return {
  ok: false,
- error: 'lifecycle actions are disabled in standalone mode (run `lerret dev` to enable)',
+ error: 'lifecycle actions are disabled in standalone mode (run `@lerret/cli dev` to enable)',
  };
  }
 

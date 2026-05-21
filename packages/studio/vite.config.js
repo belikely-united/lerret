@@ -20,7 +20,7 @@ const fixtureLerretDir = resolve(studioDir, 'fixtures/sample-project/.lerret');
  * A stand-in `virtual:lerret-project` for the standalone-studio Vite build
  * path (`vite build` for the studio package alone, no CLI).
  *
- * The CLI's `lerret dev` plugin owns this virtual module in CLI mode —
+ * The CLI's `@lerret/cli dev` plugin owns this virtual module in CLI mode —
  * see `packages/cli/src/vite-plugin-lerret-project.js`. The studio's
  * `cli-project-source.jsx` imports it *statically*, so without a resolver
  * Rolldown can't build the standalone studio bundle.
@@ -32,7 +32,7 @@ const fixtureLerretDir = resolve(studioDir, 'fixtures/sample-project/.lerret');
  * `main.jsx` takes the fixture branch), but the bundler still needs the
  * import to resolve to *something*.
  *
- * In `lerret dev` the CLI plugin's `resolveId` is registered first and
+ * In `@lerret/cli dev` the CLI plugin's `resolveId` is registered first and
  * wins, so this shim is a fallback the CLI path never reaches.
  */
 function virtualLerretProjectShim() {
@@ -153,7 +153,7 @@ function lerretSelfHostPlugin({ studioDir }) {
 //
 // Without this, the shim's null values are inlined at build time and the
 // compiled `cli-project-source` chunk always sees `project = null`, even when
-// served through `lerret dev`'s programmatic Vite server.
+// served through `@lerret/cli dev`'s programmatic Vite server.
 //
 // The `module-sw.js` copy and `__LERRET_HOSTED_MODE__` injection
 // are SKIPPED in CLI-build mode — those are for the hosted static deployment
@@ -216,7 +216,7 @@ export default defineConfig({
  // transforms (incl. `.tsx`) and serves them with relative imports
  // (`./mark-glyph.png`) resolving normally.
  //
- // The `lerret dev` CLI REPLACES this: the real CLI points a Vite
+ // The `@lerret/cli dev` CLI REPLACES this: the real CLI points a Vite
  // dev server at the *user's* `.lerret/` folder and the runtime's base
  // URL becomes that server's URL. The `vite-runtime` itself does not
  // change — only this fixture alias goes away.

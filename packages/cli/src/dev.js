@@ -1,4 +1,4 @@
-// `lerret dev` — run the studio against a project folder.
+// `@lerret/cli dev` — run the studio against a project folder.
 //
 // Boots a Node-side Vite dev server that serves the bundled studio plus the
 // user's `.lerret/` folder, opens the studio in the browser (per `--open`),
@@ -42,7 +42,7 @@ import {
 } from './vite-plugin-lerret-project.js';
 
 /**
- * The argv shape `parseArgs` produces for `lerret dev`.
+ * The argv shape `parseArgs` produces for `@lerret/cli dev`.
  *
  * @typedef {object} DevFlags
  * @property {number | undefined} port
@@ -58,9 +58,9 @@ import {
  */
 function printUsage() {
   const lines = [
-    'lerret dev — run the studio against a project folder.',
+    '@lerret/cli dev — run the studio against a project folder.',
     '',
-    'Usage: lerret dev [options]',
+    'Usage: @lerret/cli dev [options]',
     '',
     'Options:',
     '  --port <n>       Dev-server port (default: Vite default)',
@@ -73,7 +73,7 @@ function printUsage() {
 }
 
 /**
- * Parse `lerret dev`'s argv. A separate function so tests can verify flag
+ * Parse `@lerret/cli dev`'s argv. A separate function so tests can verify flag
  * handling without spinning up a server.
  *
  * @param {string[]} argv
@@ -171,7 +171,7 @@ export function parseDevArgs(argv) {
  *
  * In the published npm tarball only `dist-studio/` exists (the source is not
  * shipped), so path 1 is the only option for end users. Path 2 is a dev
- * convenience — it keeps `lerret dev` usable in the monorepo even without
+ * convenience — it keeps `@lerret/cli dev` usable in the monorepo even without
  * a preceding build step.
  *
  * @returns {string}  An absolute path to the studio root (static or source).
@@ -198,7 +198,7 @@ export function resolveStudioRoot() {
 }
 
 /**
- * Run `lerret dev`. Resolves the project, starts the Vite server, waits for
+ * Run `@lerret/cli dev`. Resolves the project, starts the Vite server, waits for
  * Ctrl-C, and returns an exit code.
  *
  * @param {string[]} argv  Argv slice after the `dev` subcommand.
@@ -208,7 +208,7 @@ export function resolveStudioRoot() {
 export async function runDev(argv) {
   const { flags, error } = parseDevArgs(argv);
   if (error) {
-    process.stderr.write(`lerret dev: ${error}\n\n`);
+    process.stderr.write(`@lerret/cli dev: ${error}\n\n`);
     printUsage();
     return 1;
   }
@@ -227,7 +227,7 @@ export async function runDev(argv) {
   //
   // A NOT-FOUND result is NOT a crash (FR43). We still start
   // the dev server, but the plugin exposes `project: null` and the studio
-  // mounts its no-folder placeholder. This makes `lerret dev` always
+  // mounts its no-folder placeholder. This makes `@lerret/cli dev` always
   // reachable — even invoked from the wrong directory, the user sees the
   // studio and is guided to open a folder.
   const startDir = flags.folder
@@ -250,10 +250,10 @@ export async function runDev(argv) {
     : null;
 
   if (projectResolution.found) {
-    process.stdout.write(`lerret dev: project ${projectRoot}\n`);
+    process.stdout.write(`@lerret/cli dev: project ${projectRoot}\n`);
   } else {
     process.stdout.write(
-      `lerret dev: no \`.lerret/\` project found from ${startDir} — starting in no-folder mode.\n`,
+      `@lerret/cli dev: no \`.lerret/\` project found from ${startDir} — starting in no-folder mode.\n`,
     );
   }
 
@@ -325,7 +325,7 @@ export async function runDev(argv) {
       },
       // `host` left undefined so Vite uses its default (localhost). Users
       // who need network access can re-run with --port and Vite's own
-      // --host knob in a future change; for `lerret dev` against a local
+      // --host knob in a future change; for `@lerret/cli dev` against a local
       // user folder the default localhost behavior is right.
     },
   });
@@ -336,7 +336,7 @@ export async function runDev(argv) {
   // The asset base URL the studio expects — log so a curious user can see
   // it (and to help debugging if a future change touches the contract).
   if (projectRoot) {
-    process.stdout.write(`lerret dev: serving project at ${PROJECT_ASSET_BASE_URL}/\n`);
+    process.stdout.write(`@lerret/cli dev: serving project at ${PROJECT_ASSET_BASE_URL}/\n`);
   }
 
   // 4. Hold the process open until SIGINT/SIGTERM, then close cleanly.
@@ -362,7 +362,7 @@ function waitForShutdown(server) {
     const onSignal = async (signal) => {
       if (shuttingDown) return;
       shuttingDown = true;
-      process.stdout.write(`\nlerret dev: ${signal} received, shutting down…\n`);
+      process.stdout.write(`\n@lerret/cli dev: ${signal} received, shutting down…\n`);
       try {
         await server.close();
       } catch {

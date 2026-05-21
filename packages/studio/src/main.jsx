@@ -10,7 +10,7 @@
 // The entry is the place we decide which **project source** to
 // mount. Two sources today:
 //
-// • CLI mode (`lerret dev`):
+// • CLI mode (`@lerret/cli dev`):
 // The CLI's Vite plugin (`@lerret/cli`'s `vite-plugin-lerret-project`)
 // injects an inline `<script>window.__LERRET_CLI_MODE__ = true</script>`
 // into the served `index.html` AND provides a virtual module

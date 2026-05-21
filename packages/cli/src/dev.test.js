@@ -1,4 +1,4 @@
-// Tests for `lerret dev`'s flag parsing + project resolution paths.
+// Tests for `@lerret/cli dev`'s flag parsing + project resolution paths.
 //
 // We focus on what we own: argv → flags, the studio-root resolver, the
 // project-resolution fallback. The Vite server boot itself is exercised

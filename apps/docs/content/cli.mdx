@@ -12,8 +12,8 @@ The Lerret CLI ships as the npm package **`@lerret/cli`**. It installs one binar
 | Context | Command |
 |---|---|
 | Zero-install (`npx`) | `npx @lerret/cli dev` |
-| Installed as a project dep | `lerret dev` (via `package.json` scripts, `pnpm exec`, `npx`, etc.) |
-| Installed globally | `lerret dev` |
+| Installed as a project dep | `@lerret/cli dev` (via `package.json` scripts, `pnpm exec`, `npx`, etc.) |
+| Installed globally | `@lerret/cli dev` |
 
 > Don't run `npx lerret …` — the bare `lerret` name belongs to a different (unrelated, deprecated) npm package. Always include the `@lerret/cli` scope when invoking via `npx`.
 
@@ -30,12 +30,12 @@ Every subcommand uses the same convention:
 
 `lerret <command> --help` (or `-h`) prints command-specific help and exits with code `0`.
 
-## `lerret dev`
+## `@lerret/cli dev`
 
 Runs the studio against a `.lerret/` project folder. Starts a local Vite dev server, bundles the studio, and opens it in your browser. The server is long-running — it stays up until you `Ctrl+C` (SIGINT) or send SIGTERM.
 
 ```bash
-lerret dev [options]
+@lerret/cli dev [options]
 ```
 
 ### Options
@@ -52,7 +52,7 @@ Unknown flags are a usage error (exit `1`).
 
 ### Project resolution
 
-`lerret dev` resolves the project in this order:
+`@lerret/cli dev` resolves the project in this order:
 
 1. **`--folder <path>`** if supplied. The path is used directly; the CLI checks that it (or a parent) contains a `.lerret/` directory.
 2. Otherwise the CLI **walks up** from the current working directory looking for the nearest `.lerret/` — the way `git` walks up looking for `.git/`.
@@ -62,18 +62,18 @@ If neither path finds a project, the command exits with code `1` and a clear mes
 ### Examples
 
 ```bash
-lerret dev                          # walk up from cwd, default port, auto-open
-lerret dev --port 4000              # custom port
-lerret dev --no-open                # headless: useful in CI / SSH
-lerret dev --folder ./design-tokens # explicit folder, skip walk-up
+@lerret/cli dev                          # walk up from cwd, default port, auto-open
+@lerret/cli dev --port 4000              # custom port
+@lerret/cli dev --no-open                # headless: useful in CI / SSH
+@lerret/cli dev --folder ./design-tokens # explicit folder, skip walk-up
 ```
 
-## `lerret export`
+## `@lerret/cli export`
 
 Headlessly renders every artboard in scope to image files. The CLI boots a Vite server, launches a headless Chromium through Playwright, navigates the studio against your project, and captures each artboard. Uses the **same rendering path** as the studio's per-artboard PNG button, so the output is pixel-faithful to the studio.
 
 ```bash
-lerret export [path] [options]
+@lerret/cli export [path] [options]
 ```
 
 ### Argument
@@ -144,25 +144,25 @@ The run exits `1` (fatal) only for these conditions:
 
 ### Chromium resolution
 
-`lerret export` tries a system Chromium **channel** first (`chrome`, then `msedge`) so a zero-install `npx @lerret/cli export` stays light. It falls back to a bundled Playwright browser if one has been installed (`npx playwright install chromium`). If neither is available, the command exits with code `1` and a clear, actionable message about how to install one.
+`@lerret/cli export` tries a system Chromium **channel** first (`chrome`, then `msedge`) so a zero-install `npx @lerret/cli export` stays light. It falls back to a bundled Playwright browser if one has been installed (`npx playwright install chromium`). If neither is available, the command exits with code `1` and a clear, actionable message about how to install one.
 
 ### Examples
 
 ```bash
 # Whole project, default output
-lerret export
+@lerret/cli export
 
 # JPG output to a custom directory
-lerret export --format jpg --out ./assets
+@lerret/cli export --format jpg --out ./assets
 
 # Only the `social` page, flat output
-lerret export .lerret/social --flat
+@lerret/cli export .lerret/social --flat
 
 # Re-render with a dark-theme override
-lerret export --config ./theme-dark.json --out ./dark
+@lerret/cli export --config ./theme-dark.json --out ./dark
 
 # Re-render with both data and config overrides (no source edit)
-lerret export \
+@lerret/cli export \
   --data ./fixtures/release-1.0.json \
   --config ./theme-corporate.json \
   --out ./marketing/release-1.0

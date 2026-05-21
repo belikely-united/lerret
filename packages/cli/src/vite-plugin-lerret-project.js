@@ -1,8 +1,8 @@
 // vite-plugin-lerret-project.js — the Vite plugin that exposes the user's
-// `.lerret/` project to the studio in `lerret dev` mode.
+// `.lerret/` project to the studio in `@lerret/cli dev` mode.
 //
 // ── Why a Vite plugin ──────────────────────────────────────────────────────
-// `lerret dev` boots a Node-side Vite dev server pointed at the studio source
+// `@lerret/cli dev` boots a Node-side Vite dev server pointed at the studio source
 // (`packages/studio/`). The studio is a normal Vite-served SPA. To swap from
 // the studio's standalone fixture project to a real user folder we need four
 // things, and a Vite plugin owns all of them in one place:
@@ -71,7 +71,7 @@ import { startWatcher } from './watcher.js';
 
 // ── Cascade-override helpers ─────────────────────────────────────────────────
 //
-// When `--config` is supplied to `lerret export`, its value is deep-merged
+// When `--config` is supplied to `@lerret/cli export`, its value is deep-merged
 // into every entry of the cascade (the `cascadeEntries` the plugin exposes
 // via the virtual module). We replicate the same deep-merge semantics that
 // `computeCascadedConfig`'s internal `deepMerge` uses:
@@ -314,12 +314,12 @@ export function checkWritePath(requestPath, lerretDir) {
 }
 
 /**
- * Create the `lerret dev` / `lerret export` Vite plugin.
+ * Create the `@lerret/cli dev` / `@lerret/cli export` Vite plugin.
  *
  * @param {object} opts
  * @param {string | null} opts.projectRoot
  *   The user's project root — the folder that directly contains `.lerret/`,
- *   or `null` if `lerret dev` was invoked outside any project (no-folder
+ *   or `null` if `@lerret/cli dev` was invoked outside any project (no-folder
  *   fallback).
  * @param {string | null} opts.lerretDir
  *   The user's `.lerret/` directory path, or `null` matching `projectRoot`.
@@ -433,7 +433,7 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
     /**
      * Inject a tiny inline script into the served `index.html` so the
      * studio's `main.jsx` can synchronously detect that it is running
-     * under `lerret dev`. Without this signal the studio would have to
+     * under `@lerret/cli dev`. Without this signal the studio would have to
      * try a dynamic import of `virtual:lerret-project` — which the
      * browser refuses with a CORS error (the bare specifier isn't a URL).
      *

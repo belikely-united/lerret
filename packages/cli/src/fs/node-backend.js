@@ -325,7 +325,7 @@ export { NODE_CAPABILITIES };
 // realpath helper — CLI-internal, NOT part of the FilesystemAccess contract
 // ---------------------------------------------------------------------------
 //
-// `lerret dev` configures Vite's `server.fs.allow`, which Vite enforces by
+// `@lerret/cli dev` configures Vite's `server.fs.allow`, which Vite enforces by
 // comparing against the *real* (symlink-resolved) path of each request. On
 // macOS `/tmp` is a symlink to `/private/tmp`, so an `--folder /tmp/foo`
 // argument must be resolved to `/private/tmp/foo` before being added to
@@ -378,7 +378,7 @@ export function pathExists(path) {
 /**
  * Recursively create a directory (no-op if it already exists). Used by
  * subsystems that need to materialize an output tree on disk — the bulk
- * `lerret export` writer lands captured images under a user-
+ * `@lerret/cli export` writer lands captured images under a user-
  * specified `--out` directory and needs to mkdir intermediate folders for the
  * structured layout. Kept in this file so the `fs` ban for the rest of the
  * codebase is preserved (this is the sanctioned escape).
@@ -393,7 +393,7 @@ export async function ensureDir(lerretPath) {
 
 /**
  * Canonicalize the deepest existing prefix of a path, then re-attach the
- * still-virtual trailing components. Used by `lerret export` to compare a
+ * still-virtual trailing components. Used by `@lerret/cli export` to compare a
  * user-supplied `--out` directory against the project's `.lerret/` path even
  * when `--out` does not yet exist on disk.
  *

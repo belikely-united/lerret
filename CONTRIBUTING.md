@@ -177,7 +177,7 @@ The script:
 1. Clears each runner's download cache (npm, pnpm, yarn, bun) — safely, only the tool-specific subdirectories.
 2. Packs `create-lerret` into a local tarball (simulates zero-install without a registry publish).
 3. Times the scaffold step per runner.
-4. Times `lerret dev --no-open` startup until Vite prints its listening URL.
+4. Times `@lerret/cli dev --no-open` startup until Vite prints its listening URL.
 5. Writes per-runner timings to `scripts/cold-run-results.json`.
 6. Exits non-zero if any runner's total exceeds the threshold (60 s locally, 90 s in CI).
 
@@ -198,8 +198,8 @@ The `cold-run-benchmark` job in `.github/workflows/zero-install.yml` runs on `ub
 `create-lerret` and `@lerret/cli` are designed to **fail fast** when no network is available rather than hanging indefinitely:
 
 - **`npx create-lerret` (no network):** `npx` itself detects the registry is unreachable and exits with a clear error within the runner's configured timeout (typically 30 s). No Lerret code runs until the package is downloaded.
-- **`lerret dev` (no network):** Once `@lerret/cli` is installed, `lerret dev` never makes outbound network requests. It starts a local Vite server using only already-installed packages. Offline `lerret dev` works without any network.
-- **Vite's module pre-bundling** is purely local (esbuild transforms files from `node_modules`). No CDN or registry calls during `lerret dev`.
+- **`@lerret/cli dev` (no network):** Once `@lerret/cli` is installed, `@lerret/cli dev` never makes outbound network requests. It starts a local Vite server using only already-installed packages. Offline `@lerret/cli dev` works without any network.
+- **Vite's module pre-bundling** is purely local (esbuild transforms files from `node_modules`). No CDN or registry calls during `@lerret/cli dev`.
 
 If you reproduce a hang on no-network, please open an issue — it indicates the runner's timeout is misconfigured, not a Lerret bug.
 

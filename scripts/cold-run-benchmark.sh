@@ -7,7 +7,7 @@
 #   1. Clears that runner's dlx / exec cache to simulate a cold run.
 #   2. Packs create-lerret into a local tarball (packages are not yet published).
 #   3. Times `create-lerret` (scaffolder).
-#   4. Times `lerret dev --no-open` startup until the Vite server reports
+#   4. Times `@lerret/cli dev --no-open` startup until the Vite server reports
 #      listening on a port (surrogate for "first-canvas ready").
 #   5. Records elapsed seconds per phase in scripts/cold-run-results.json.
 #   6. Exits non-zero if ANY runner's total exceeds the THRESHOLD_SECONDS.
@@ -34,7 +34,7 @@
 #   When the network is absent:
 #   • npx / pnpm dlx / bunx fail within their own timeout (~30 s) with a
 #     clear registry-connection error. The user sees the runner's error message.
-#   • `lerret dev` never touches the network: it starts a local Vite server
+#   • `@lerret/cli dev` never touches the network: it starts a local Vite server
 #     using only already-installed dependencies. No network = no hang.
 #   Both tools fail fast rather than hanging indefinitely. The CI runner
 #   has network; local offline testing is documented in CONTRIBUTING.md.
@@ -54,7 +54,7 @@
 #   timed (no real registry round-trip). The scaffolder step therefore measures
 #   extraction + execution only.
 #
-#   `lerret dev` is started from the scaffolded project directory. In the
+#   `@lerret/cli dev` is started from the scaffolded project directory. In the
 #   workspace the CLI imports Vite from the workspace node_modules, so the
 #   Vite startup time is representative once Vite itself is installed. On a
 #   genuine cold machine Vite would also need to be downloaded — which is the
@@ -279,7 +279,7 @@ scaffold_timed() {
 }
 
 # ── Dev-server startup timing ────────────────────────────────────────────────
-# Starts lerret dev --no-open --port <port> from the project dir, waits for
+# Starts @lerret/cli dev --no-open --port <port> from the project dir, waits for
 # Vite's listening message, kills the server, and echoes the elapsed ms.
 # Exits non-zero on timeout.
 
@@ -292,7 +292,7 @@ wait_for_vite() {
   local T_START
   T_START="$(now_ms)"
 
-  # Start lerret dev in the background, capturing stdout+stderr.
+  # Start @lerret/cli dev in the background, capturing stdout+stderr.
   (
     cd "${PROJ_DIR}"
     node "${REPO_ROOT}/packages/cli/src/lerret.js" dev --no-open --port "${PORT}" \
@@ -407,11 +407,11 @@ run_benchmark() {
   set_runner_result "${RUNNER}" "scaffold_s" "${SCAFFOLD_S}"
 
   # ── 3. Dev-server startup timing ───────────────────────────────────────────
-  info "${RUNNER}: starting lerret dev (measuring)..."
+  info "${RUNNER}: starting @lerret/cli dev (measuring)..."
 
   local SERVER_MS
   if ! SERVER_MS="$(wait_for_vite "${PROJ_DIR}" "${PORT}")"; then
-    fail "${RUNNER}: lerret dev did not start within timeout on port ${PORT}."
+    fail "${RUNNER}: @lerret/cli dev did not start within timeout on port ${PORT}."
     FAIL_RUNNERS="${FAIL_RUNNERS} ${RUNNER}"
     set_runner_result "${RUNNER}" "status" "fail"
     rm -rf "${PROJ_DIR}" 2>/dev/null || true

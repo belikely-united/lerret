@@ -16,7 +16,7 @@
 // ── Where the project comes from ───────────────────────────────────────────
 // `ProjectStudio` does NOT scan a folder — it is handed an already-scanned
 // model. Today the `DevHarness` scans the bundled fixture and hands the model
-// here; (`lerret dev`) swaps that one scan for the real user folder.
+// here; (`@lerret/cli dev`) swaps that one scan for the real user folder.
 // Everything in THIS file is real studio code and is NOT replaced by 1.13.
 //
 // ── Routing: one shared hash ───────────────────────────────────────────────
@@ -61,7 +61,7 @@ const PROJECT_ROUTE = 'project';
  * Base URL the project's files are served under by the Vite dev server — the
  * same base URL the asset runtime is given. Used to resolve the `src` of each
  * custom font's `@font-face` rule. The dev harness passes the
- * fixture alias; 's `lerret dev` passes the real server URL.
+ * fixture alias; 's `@lerret/cli dev` passes the real server URL.
  * @returns {React.ReactElement}
  */
 export function ProjectStudio({ project, runtime, assetBaseUrl }) {

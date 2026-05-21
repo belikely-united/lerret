@@ -24,7 +24,7 @@
  `injectReactImportMap()` helper, called by the hosted entry layer
  once it knows the right URLs. The placeholder here is left
  empty so that:
- - in CLI mode (`lerret dev`) it doesn't shadow Vite's own
+ - in CLI mode (`@lerret/cli dev`) it doesn't shadow Vite's own
  dependency-pre-bundle resolution (which handles bare specifiers
  via the bundler, not via the import map);
  - the hosted entry layer's injected import map takes effect first,

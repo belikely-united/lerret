@@ -135,7 +135,7 @@ A small workspace of focused packages:
 
 | Package | Role |
 |---|---|
-| [`@lerret/cli`](https://www.npmjs.com/package/@lerret/cli) | The user-facing CLI (`lerret dev`, `lerret export`). Bundles the studio. |
+| [`@lerret/cli`](https://www.npmjs.com/package/@lerret/cli) | The user-facing CLI (`@lerret/cli dev`, `@lerret/cli export`). Bundles the studio. |
 | [`@lerret/core`](https://www.npmjs.com/package/@lerret/core) | Environment-agnostic engine — loader, watcher, config cascade, filesystem contract. |
 | [`create-lerret`](https://www.npmjs.com/package/create-lerret) | The project scaffolder. `npx create-lerret my-canvas`. |
 | `@lerret/studio` *(workspace-only)* | The React studio app. Built and bundled into the CLI tarball. |

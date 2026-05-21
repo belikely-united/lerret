@@ -1,7 +1,7 @@
 // vite-runtime.js — the CLI / self-host implementation of the asset-runtime
 // interface (`asset-runtime.js`, AR4).
 //
-// In CLI mode `lerret dev` runs a Vite dev server pointed at the user's
+// In CLI mode `@lerret/cli dev` runs a Vite dev server pointed at the user's
 // project folder. Vite is a real bundler: it natively transforms `.jsx`/`.tsx`,
 // resolves relative imports (including `import logo from './logo.png'`), and
 // serves each file as an ES module. So this runtime does not transform or
@@ -29,7 +29,7 @@
 // containment, the `LerretPath → module URL` mapping through a base URL.
 //
 // TEMPORARY (the CLI swaps it): only the *base URL* a caller passes in.
-// The fixture path has no real `lerret dev` server over the user's folder, so
+// The fixture path has no real `@lerret/cli dev` server over the user's folder, so
 // the dev harness serves a fixture project via a Vite alias and passes that
 // alias as the base URL. The CLI stands up the real server over the real user
 // folder and passes its URL instead — this file does not change.
@@ -258,7 +258,7 @@ async function loadMarkdownAsset(asset, project, ctx) {
  * @param {object} [options]
  * @param {string} [options.assetBaseUrl]
  * Base URL the project's files are served under by the Vite dev server (no
- * trailing slash). In the CLI this is the real `lerret dev` server URL
+ * trailing slash). In the CLI this is the real `@lerret/cli dev` server URL
  * over the user's folder; in the dev harness it is a Vite alias to the
  * fixture project. Omit if asset paths are already absolute server URLs.
  * @param {(url: string) => Promise<any>} [options.importModule]

@@ -9,7 +9,7 @@ Lerret runs in **three modes** — all rendering the same studio against the sam
 
 | Mode | What it is | When to use |
 |---|---|---|
-| **Local CLI** | A Node process running `lerret dev` against a folder on disk. Native Vite HMR. | Your daily dev loop. |
+| **Local CLI** | A Node process running `@lerret/cli dev` against a folder on disk. Native Vite HMR. | Your daily dev loop. |
 | **Hosted** | The studio served as a static site. Open any local folder via the browser's File System Access API. | One-tap "try it" link. No install. |
 | **Self-host** | The same static studio, packaged for self-deployment on your own infrastructure. | Private / team contexts, internal-only access. |
 
@@ -30,7 +30,7 @@ What happens:
 3. The studio opens in your default browser (skip with `--no-open`). Vite's React Fast Refresh handles HMR.
 4. A chokidar watcher emits normalized `{ type, path }` events that incrementally patch the in-memory project model — sub-second canvas updates without a full directory rescan.
 
-**Works in any browser** — the CLI mode does not depend on the File System Access API. Safari and Firefox users can run `lerret dev` even though the hosted studio is Chromium-only.
+**Works in any browser** — the CLI mode does not depend on the File System Access API. Safari and Firefox users can run `@lerret/cli dev` even though the hosted studio is Chromium-only.
 
 **Requirements:**
 - Node.js ≥ 20.19
@@ -160,6 +160,6 @@ Cache hint: configure your host to send `Cache-Control: max-age=0, must-revalida
 | Hand someone a link they can open in a browser, no install | **Hosted** |
 | Keep the studio inside your company perimeter, with your access controls | **Self-host** |
 | Use Safari or Firefox | **CLI** (hosted/self-host are Chromium-only) |
-| Run a CI export pipeline (no GUI) | **CLI**, via `lerret export` |
+| Run a CI export pipeline (no GUI) | **CLI**, via `@lerret/cli export` |
 
 All three modes render the **same** folder. There is no "hosted format" vs "local format"; nothing in `.lerret/` is mode-specific. You can edit a project locally with the CLI, share it on a Chromebook via hosted, and self-host it for your team — same files, same canvas, same renderer.

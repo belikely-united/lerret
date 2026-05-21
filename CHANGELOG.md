@@ -20,6 +20,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ### Fixed
 - `docsRepositoryBase` in the Nextra layout pointed at the wrong path (missing the `public/` workspace prefix), which 404'd every "Edit this page on GitHub" link.
 
+## @lerret/cli 0.1.9 — 2026-05-22
+
+### Changed
+- Canonical naming sweep: every user-visible reference to the bare `lerret dev` / `lerret export` invocation is now `@lerret/cli dev` / `@lerret/cli export` — including the CLI's own `printUsage()` banners, log-line prefixes (`@lerret/cli dev: project …`), error messages (`@lerret/cli: unknown command …`), all `apps/docs/content/*.mdx`, public READMEs, `CONTRIBUTING.md`, source/JSDoc comments, and BMad planning artifacts. The `bin` field still ships `lerret` on PATH after install, but `npx`-context invocations use the scoped form (the bare `lerret` package name on npm belongs to an unrelated deprecated project). Rationale recorded in `_bmad-output/planning-artifacts/adr-002-cli-package-naming.md`.
+
 ## @lerret/cli 0.1.8 — 2026-05-22
 
 ### Fixed

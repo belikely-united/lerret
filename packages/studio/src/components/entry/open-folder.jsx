@@ -25,7 +25,7 @@
 // "Open a Lerret folder" button behaviour changes slightly: instead of
 // running the full FSA-picker → onFolderPicked flow it shows a calm secondary
 // message explaining that in CLI mode the folder is determined by the
-// `lerret dev <path>` command. A "Pick a folder (browser preview)" action is
+// `@lerret/cli dev <path>` command. A "Pick a folder (browser preview)" action is
 // still offered so the user can do a temporary hosted-style mount if they
 // happen to be on a capable browser.
 //
@@ -222,7 +222,7 @@ function FolderIcon() {
  * Omit this prop when `cliMode` is true (the CLI no-folder path).
  * @property {boolean} [cliMode]
  * When true, the component is in CLI no-folder mode: the primary action
- * shows guidance toward `lerret dev <path>` rather than routing through
+ * shows guidance toward `@lerret/cli dev <path>` rather than routing through
  * `onFolderPicked`. The browser FSA picker is still offered as a secondary
  * "Preview in browser" option for convenience on capable browsers. Defaults
  * to false.
@@ -233,7 +233,7 @@ function FolderIcon() {
  *
  * - In hosted mode: single primary button → FSA picker → validation →
  * `onFolderPicked(handle)`.
- * - In CLI no-folder mode (`cliMode`): calm guidance toward `lerret dev <path>`.
+ * - In CLI no-folder mode (`cliMode`): calm guidance toward `@lerret/cli dev <path>`.
  *
  * Does NOT import trust-dialog.jsx or persistence.js (files).
  *
@@ -330,7 +330,7 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
  <h2 style={errorHeadingStyle}>Open in your terminal</h2>
  <p style={errorBodyStyle}>
  In CLI mode the folder is set by the{' '}
- <code>lerret dev</code> command.{' '}
+ <code>@lerret/cli dev</code> command.{' '}
  Run the following from inside your project:
  </p>
  <pre
@@ -348,10 +348,10 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
  boxSizing: 'border-box',
  }}
  >
- lerret dev
+ @lerret/cli dev
  </pre>
  <p style={{ ...errorBodyStyle, fontSize: 'var(--lm-size-body-sm, 12px)', color: 'var(--lm-text-tertiary, #6E6960)' }}>
- Or pass a path: <code>lerret dev --folder ./my-project</code>
+ Or pass a path: <code>@lerret/cli dev --folder ./my-project</code>
  </p>
  <button
  type="button"

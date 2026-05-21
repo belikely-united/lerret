@@ -31,7 +31,7 @@ You can also [self-host](/deploy/#self-host) the studio on your own infrastructu
 
 ## Which browsers are supported?
 
-| Browser | CLI mode (`lerret dev`) | Hosted / self-host studio |
+| Browser | CLI mode (`@lerret/cli dev`) | Hosted / self-host studio |
 |---|---|---|
 | Chrome | ✅ | ✅ |
 | Edge | ✅ | ✅ |
@@ -74,10 +74,10 @@ Expect occasional sharp edges in the 0.1.x series; the public API stabilises for
 | Context | What to type |
 |---|---|
 | Zero-install via `npx` / `pnpm dlx` | `npx @lerret/cli dev` |
-| After installing the CLI as a dep, then via `package.json` scripts or `pnpm exec` | `lerret dev` |
-| After installing the CLI globally | `lerret dev` |
+| After installing the CLI as a dep, then via `package.json` scripts or `pnpm exec` | `@lerret/cli dev` |
+| After installing the CLI globally | `@lerret/cli dev` |
 
-The bare `lerret` package name on npm belongs to a different, unrelated, deprecated project — so the scoped form `@lerret/cli` is required when invoking via `npx`. Once installed (the binary is on your PATH), `lerret dev` works directly.
+The bare `lerret` package name on npm belongs to a different, unrelated, deprecated project — so the scoped form `@lerret/cli` is required when invoking via `npx`. Once installed (the binary is on your PATH), `@lerret/cli dev` works directly.
 
 ## Can I use TypeScript?
 
@@ -89,7 +89,7 @@ In CLI mode, Vite handles `.tsx` natively. In hosted mode, the in-browser Sucras
 
 No. A fresh `npx create-lerret` project has no `package.json` — just `.lerret/`. The CLI bundles its own React, Vite, and dependencies, so users never `npm install react` themselves.
 
-If you want to use Lerret inside an **existing** project (e.g., a Next.js app), drop a `.lerret/` directory anywhere in that project and `lerret dev` from there. The existing `package.json` is unaffected — Lerret never reads or writes outside `.lerret/`.
+If you want to use Lerret inside an **existing** project (e.g., a Next.js app), drop a `.lerret/` directory anywhere in that project and `@lerret/cli dev` from there. The existing `package.json` is unaffected — Lerret never reads or writes outside `.lerret/`.
 
 ## Where does data get saved when I edit in the studio?
 
@@ -110,7 +110,7 @@ Everything is on your disk, as plain JSON or JSX. No proprietary format, no opaq
 
 A `.lerret/.state/` directory exists for transient studio state (cursor position, last-opened variant). It is **gitignored automatically** so it does not pollute your commits.
 
-## Can I run `lerret export` in CI?
+## Can I run `@lerret/cli export` in CI?
 
 Yes — that is exactly what it is for. The export pipeline boots a headless Chromium through Playwright and never opens a window. Useful patterns:
 
@@ -128,9 +128,9 @@ The project's published NFR is **under 60 seconds** from `npx create-lerret` to 
 
 The CI benchmark for this target runs on every push to `main` against Ubuntu and macOS runners.
 
-## Does `lerret dev` require network?
+## Does `@lerret/cli dev` require network?
 
-Only the first time, to download `@lerret/cli` (plus Vite and React). After that, `lerret dev` makes no outbound network requests at runtime — it serves a local Vite dev server from already-installed packages. Offline development is fully supported.
+Only the first time, to download `@lerret/cli` (plus Vite and React). After that, `@lerret/cli dev` makes no outbound network requests at runtime — it serves a local Vite dev server from already-installed packages. Offline development is fully supported.
 
 If you hit a hang in no-network mode, that indicates a runner timeout is misconfigured rather than a Lerret bug. Open an issue.
 

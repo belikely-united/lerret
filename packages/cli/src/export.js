@@ -1,8 +1,8 @@
-// `lerret export` — headless capture of a project's artboards to image files
+// `@lerret/cli export` — headless capture of a project's artboards to image files
 // (FR37, FR38).
 //
 // Renders every artboard in scope through the EXACT same `captureArtboard`
-// path the studio uses, so a `lerret export` run produces a
+// path the studio uses, so a `@lerret/cli export` run produces a
 // pixel-faithful match to what the same project produces from a click in the
 // in-studio export buttons. The mechanism is:
 //
@@ -15,7 +15,7 @@
 //      backend), then call `collectArtboards(model, scope)` to
 //      pick which artboards to capture.
 //   3. Boot a Vite dev server programmatically against the studio source plus
-//      the same `vite-plugin-lerret-project` `lerret dev` uses — exactly the
+//      the same `vite-plugin-lerret-project` `@lerret/cli dev` uses — exactly the
 //      runtime that serves the studio so the project is mounted there.
 //   4. Launch a headless Chromium through Playwright. Prefer the system
 //      `chrome`/`msedge` channel so `npx`-style invocations stay light; fall
@@ -91,7 +91,7 @@ import { lerretProjectPlugin } from './vite-plugin-lerret-project.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The argv shape `parseArgs` produces for `lerret export`.
+ * The argv shape `parseArgs` produces for `@lerret/cli export`.
  *
  * @typedef {object} ExportFlags
  * @property {string | undefined} pathArg
@@ -188,15 +188,15 @@ export const ARTBOARD_SELECTORS = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Print `lerret export`'s usage banner.
+ * Print `@lerret/cli export`'s usage banner.
  *
  * @returns {void}
  */
 function printUsage() {
   const lines = [
-    'lerret export — render a project (or page/group) headlessly to image files.',
+    '@lerret/cli export — render a project (or page/group) headlessly to image files.',
     '',
-    'Usage: lerret export [path] [options]',
+    'Usage: @lerret/cli export [path] [options]',
     '',
     'Arguments:',
     '  path             Project root, or a page/group folder inside `.lerret/`.',
@@ -219,7 +219,7 @@ function printUsage() {
 }
 
 /**
- * Parse `lerret export`'s argv. A separate function so tests can verify flag
+ * Parse `@lerret/cli export`'s argv. A separate function so tests can verify flag
  * handling without booting Vite or Playwright.
  *
  * @param {string[]} argv  Argv slice after the `export` subcommand.
@@ -401,7 +401,7 @@ export async function resolveScope({ pathArg, cwd, fs = createNodeBackend() }) {
 
   // Canonicalize both ends so the path-arg comparisons below work even when
   // the user supplied a symlinked path (the classic macOS `/tmp` →
-  // `/private/tmp` gotcha that `lerret dev` also has to handle).
+  // `/private/tmp` gotcha that `@lerret/cli dev` also has to handle).
   const projectRoot = toLerretPath(realpathOrSelf(projectResolution.projectRoot));
   const lerretDir = toLerretPath(realpathOrSelf(projectResolution.lerretDir));
 
@@ -814,7 +814,7 @@ function readAssetVariants(asset) {
  *   1. Try `playwright-core`'s `chromium.launch({ channel: 'chrome' })`. If
  *      the user has Google Chrome / Chromium / Edge installed in a standard
  *      location, this succeeds without downloading anything — keeping `npx
- *      lerret export` light, per the architecture decision.
+ *      @lerret/cli export` light, per the architecture decision.
  *   2. If the channel launch fails, try `playwright` (the full package,
  *      which ships its bundled browser when installed). Only present when
  *      the user opts in by installing the full `playwright` package.
@@ -896,7 +896,7 @@ export async function launchHeadlessBrowser() {
 
 /**
  * Boot a Vite dev server programmatically — same plugin / fs.allow shape as
- * `lerret dev`, but with `server.open = false` and an undefined port (Vite
+ * `@lerret/cli dev`, but with `server.open = false` and an undefined port (Vite
  * picks a free one). The returned `address` is the URL to navigate to.
  *
  * @param {object} opts
@@ -940,7 +940,7 @@ export async function bootViteServer({ projectRoot, lerretDir, dataOverride, con
   // imports of `react/jsx-dev-runtime`. The user's project has no
   // `node_modules`, so those imports must resolve against the CLI's own
   // React. Without these aliases the user's assets fail to load in
-  // `dist-studio/` mode and the studio renders empty slots — `lerret dev`
+  // `dist-studio/` mode and the studio renders empty slots — `@lerret/cli dev`
   // has the same shape; we keep them in lock-step.
   const cliRequire = createRequire(import.meta.url);
   const reactAliases = [
@@ -1092,7 +1092,7 @@ function formatLocation(segments) {
 }
 
 /**
- * Run `lerret export`. Resolves the scope, boots Vite + Chromium, captures
+ * Run `@lerret/cli export`. Resolves the scope, boots Vite + Chromium, captures
  * each artboard, writes the result to disk, and returns an exit code.
  *
  * @param {string[]} argv  Argv slice after the `export` subcommand.
@@ -1110,7 +1110,7 @@ function formatLocation(segments) {
 export async function runExport(argv, deps = {}) {
   const { flags, error } = parseExportArgs(argv);
   if (error) {
-    process.stderr.write(`lerret export: ${error}\n\n`);
+    process.stderr.write(`@lerret/cli export: ${error}\n\n`);
     printUsage();
     return 1;
   }
@@ -1134,7 +1134,7 @@ export async function runExport(argv, deps = {}) {
     cwd,
   });
   if (!overrideResult.ok) {
-    process.stderr.write(`lerret export: ${overrideResult.error}\n`);
+    process.stderr.write(`@lerret/cli export: ${overrideResult.error}\n`);
     return 1;
   }
   const { dataOverride, configOverride } = overrideResult.overrides;
@@ -1142,7 +1142,7 @@ export async function runExport(argv, deps = {}) {
   // 1. Resolve project + scope.
   const scope = await resolveScope({ pathArg: flags.pathArg, cwd });
   if (!scope.found) {
-    process.stderr.write(`lerret export: ${scope.error}\n`);
+    process.stderr.write(`@lerret/cli export: ${scope.error}\n`);
     return 1;
   }
 
@@ -1151,14 +1151,14 @@ export async function runExport(argv, deps = {}) {
   try {
     baseArtboards = collectArtboards(scope.model, scope.scopePath);
   } catch (err) {
-    process.stderr.write(`lerret export: ${err && err.message ? err.message : String(err)}\n`);
+    process.stderr.write(`@lerret/cli export: ${err && err.message ? err.message : String(err)}\n`);
     return 1;
   }
 
   const expanded = expandArtboardVariants(baseArtboards);
   if (expanded.length === 0) {
     process.stderr.write(
-      `lerret export: no artboards found in scope (${scope.scopeKind}). Nothing to export.\n`,
+      `@lerret/cli export: no artboards found in scope (${scope.scopeKind}). Nothing to export.\n`,
     );
     return 1;
   }
@@ -1178,7 +1178,7 @@ export async function runExport(argv, deps = {}) {
     outDirAbs.startsWith(scope.lerretDir + '/')
   ) {
     process.stderr.write(
-      `lerret export: refusing to write into the project's \`.lerret/\` directory ` +
+      `@lerret/cli export: refusing to write into the project's \`.lerret/\` directory ` +
         `(${scope.lerretDir}). Pick an --out directory outside the project's .lerret/ tree.\n`,
     );
     return 1;
@@ -1189,7 +1189,7 @@ export async function runExport(argv, deps = {}) {
     await ensureDirFn(outDirAbs);
   } catch (err) {
     process.stderr.write(
-      `lerret export: could not create output directory ${outDirAbs}: ` +
+      `@lerret/cli export: could not create output directory ${outDirAbs}: ` +
         `${err && err.message ? err.message : String(err)}\n`,
     );
     return 1;
@@ -1206,10 +1206,10 @@ export async function runExport(argv, deps = {}) {
           ? ' [--config override active]'
           : '';
   process.stdout.write(
-    `lerret export: project ${scope.projectRoot}\n` +
-      `lerret export: scope ${scope.scopeKind}${scope.scopePath ? ` (${scope.scopePath})` : ''}\n` +
-      `lerret export: ${expanded.length} artboard${expanded.length === 1 ? '' : 's'} to capture (${flags.format})${overrideNote}\n` +
-      `lerret export: writing to ${outDirAbs}${flags.flat ? ' (flat layout)' : ''}\n`,
+    `@lerret/cli export: project ${scope.projectRoot}\n` +
+      `@lerret/cli export: scope ${scope.scopeKind}${scope.scopePath ? ` (${scope.scopePath})` : ''}\n` +
+      `@lerret/cli export: ${expanded.length} artboard${expanded.length === 1 ? '' : 's'} to capture (${flags.format})${overrideNote}\n` +
+      `@lerret/cli export: writing to ${outDirAbs}${flags.flat ? ' (flat layout)' : ''}\n`,
   );
 
   const bootServer = deps.bootServer || bootViteServer;
@@ -1235,7 +1235,7 @@ export async function runExport(argv, deps = {}) {
       url = booted.url;
     } catch (err) {
       process.stderr.write(
-        `lerret export: Vite dev server failed to start: ` +
+        `@lerret/cli export: Vite dev server failed to start: ` +
           `${err && err.message ? err.message : String(err)}\n`,
       );
       return 1;
@@ -1244,10 +1244,10 @@ export async function runExport(argv, deps = {}) {
     try {
       const launched = await launchBrowser();
       browser = launched.browser;
-      process.stdout.write(`lerret export: ${launched.launchedVia}\n`);
+      process.stdout.write(`@lerret/cli export: ${launched.launchedVia}\n`);
     } catch (err) {
       process.stderr.write(
-        `lerret export: ${err && err.message ? err.message : String(err)}\n`,
+        `@lerret/cli export: ${err && err.message ? err.message : String(err)}\n`,
       );
       return 1;
     }
@@ -1270,7 +1270,7 @@ export async function runExport(argv, deps = {}) {
       await page.waitForSelector(firstSelector, { state: 'attached', timeout: 30000 });
     } catch (err) {
       process.stderr.write(
-        `lerret export: studio did not render any artboards within 30s ` +
+        `@lerret/cli export: studio did not render any artboards within 30s ` +
           `(${err && err.message ? err.message : String(err)}). The project may be empty or failed to load.\n`,
       );
       return 1;
@@ -1359,16 +1359,16 @@ export async function runExport(argv, deps = {}) {
     // 7. Summary.
     const summaryLines = [
       '',
-      `lerret export: wrote ${writtenCount} of ${expanded.length} image${expanded.length === 1 ? '' : 's'} to ${outDirAbs}`,
+      `@lerret/cli export: wrote ${writtenCount} of ${expanded.length} image${expanded.length === 1 ? '' : 's'} to ${outDirAbs}`,
     ];
     if (failures.length > 0) {
       summaryLines.push(
-        `lerret export: ${failures.length} artboard${failures.length === 1 ? '' : 's'} failed (see messages above)`,
+        `@lerret/cli export: ${failures.length} artboard${failures.length === 1 ? '' : 's'} failed (see messages above)`,
       );
     }
     if (allUnembeddedFonts.size > 0) {
       summaryLines.push(
-        `lerret export: fonts not embedded: ${[...allUnembeddedFonts].sort().join(', ')}`,
+        `@lerret/cli export: fonts not embedded: ${[...allUnembeddedFonts].sort().join(', ')}`,
       );
     }
     process.stdout.write(summaryLines.join('\n') + '\n');

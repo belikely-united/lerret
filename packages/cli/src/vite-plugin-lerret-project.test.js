@@ -1,4 +1,4 @@
-// Tests for the `lerret dev` Vite plugin — `vite-plugin-lerret-project.js`.
+// Tests for the `@lerret/cli dev` Vite plugin — `vite-plugin-lerret-project.js`.
 //
 // These tests verify the plugin's CONTRACT (the virtual module's shape, the
 // asset base URL, the HMR change event payload) without booting a full Vite

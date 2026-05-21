@@ -1,4 +1,4 @@
-// Tests for `lerret export`.
+// Tests for `@lerret/cli export`.
 //
 // Coverage breakdown:
 //   (a) Argument parsing — flag types, defaults, unknown flags, positional
@@ -819,7 +819,7 @@ describe('runExport — orchestration', () => {
     expect(code).toBe(0);
     expect(bootServer).not.toHaveBeenCalled();
     expect(launchBrowser).not.toHaveBeenCalled();
-    expect(outChunks.join('')).toMatch(/lerret export/);
+    expect(outChunks.join('')).toMatch(/@lerret\/cli export/);
     expect(outChunks.join('')).toMatch(/--format/);
     expect(outChunks.join('')).toMatch(/--out/);
     expect(outChunks.join('')).toMatch(/--flat/);
@@ -842,7 +842,7 @@ describe('runExport — orchestration', () => {
     }
 
     expect(code).toBe(1);
-    expect(errChunks.join('')).toMatch(/lerret export/);
+    expect(errChunks.join('')).toMatch(/@lerret\/cli export/);
   });
 
   // ── Override integration tests ─────────────────────────────────────────────

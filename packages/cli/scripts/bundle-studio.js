@@ -111,7 +111,7 @@ async function main() {
   // The CLI build (`LERRET_CLI_BUILD=1`) skips the `lerretSelfHostPlugin`
   // that normally copies `module-sw.js` to the dist root, because the SW is
   // only needed in hosted mode. However, the spec's verification step checks
-  // for `dist-studio/module-sw.js`, and having it available means `lerret dev`
+  // for `dist-studio/module-sw.js`, and having it available means `@lerret/cli dev`
   // can serve it to browsers that navigate to the SW URL — a no-op for CLI
   // mode (the studio never calls `navigator.serviceWorker.register` in CLI
   // mode), but harmless to include for completeness.

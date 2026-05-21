@@ -2,7 +2,7 @@
 //
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║ THIS WHOLE FILE IS DEV-HARNESS / FIXTURE WIRING. ║
-// ║ The `lerret dev` CLI replaces it: the real CLI stands up a Vite ║
+// ║ The `@lerret/cli dev` CLI replaces it: the real CLI stands up a Vite ║
 // ║ dev server over the *user's* `.lerret/` folder and scans that folder ║
 // ║ with the Node `fs` backend. Everything below — and ONLY this file — is ║
 // ║ the seam that swap touches. ║
@@ -21,7 +21,7 @@
 // which causes the canvas to re-load that asset's entries (so a
 // `meta` change re-runs `parseMeta` and re-sizes the artboard, and
 // a markdown edit re-renders the document card).
-// • In `lerret dev` this same `notifyChange` API is called by the
+// • In `@lerret/cli dev` this same `notifyChange` API is called by the
 // chokidar-driven CLI watcher — the runtime side of the contract is
 // already in place; the CLI swaps the dev-harness HMR source for the
 // real watcher source.
@@ -89,7 +89,7 @@ const FIXTURE_LERRET_ROOT = '/sample-project/.lerret';
 
 // The Vite alias the fixture's `.lerret/` is served under (see vite.config.js).
 // The asset runtime and the font registry both rebase project file
-// paths onto this base URL. The CLI swaps it for the real `lerret dev` URL.
+// paths onto this base URL. The CLI swaps it for the real `@lerret/cli dev` URL.
 const FIXTURE_ASSET_BASE_URL = '/@fixture-lerret';
 
 /**
@@ -259,7 +259,7 @@ function fixturePathFromHmrUpdate(updatePath) {
  * `{ project, runtime }` pair to the real `<ProjectStudio>`.
  *
  * The CLI replaces the body of the effect below — the fixture scan + the
- * fixture `assetBaseUrl` — with the real `lerret dev` user-folder wiring. The
+ * fixture `assetBaseUrl` — with the real `@lerret/cli dev` user-folder wiring. The
  * `<ProjectStudio>` render is unchanged: it is real studio code.
  */
 export function DevHarness() {
@@ -292,7 +292,7 @@ export function DevHarness() {
  }
  // 3. REAL CLI-mode runtime. `assetBaseUrl` is the Vite alias the
  // fixture's `.lerret/` is served under (see vite.config.js). The
- // CLI passes the real `lerret dev` server URL here instead.
+ // CLI passes the real `@lerret/cli dev` server URL here instead.
  runtime = createViteRuntime(project, { assetBaseUrl: FIXTURE_ASSET_BASE_URL });
 
  // 3. DEV-HARNESS HMR → notifyChange bridge (harness only; the CLI
@@ -356,7 +356,7 @@ export function DevHarness() {
  // Hand the model + runtime to the real studio. Everything from here down is
  // real studio code (page routing, dock, canvas) — NOT replaced by the CLI.
  // `assetBaseUrl` lets the studio resolve custom-font `src` URLs;
- // the CLI passes the real `lerret dev` server URL in its place.
+ // the CLI passes the real `@lerret/cli dev` server URL in its place.
  //
  // Wrap with `CascadedConfigProvider` so the canvas's sections
  // can read the effective config for each folder (e.g. bg color). The dev-

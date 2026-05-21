@@ -5,8 +5,8 @@
 // node's built-in `util.parseArgs` — the architecture's explicit choice, no
 // heavy CLI framework. Recognized subcommands:
 //
-//   lerret dev    [--port <n>] [--folder <path>] [--open | --no-open]
-//   lerret export [path] [--format png|jpg] [--out <dir>] [--flat]
+//   @lerret/cli dev    [--port <n>] [--folder <path>] [--open | --no-open]
+//   @lerret/cli export [path] [--format png|jpg] [--out <dir>] [--flat]
 //
 // Adding a new subcommand is the act of importing one more module and adding
 // an entry to the `SUBCOMMANDS` table below — the usage banner is derived
@@ -53,16 +53,16 @@ const SUBCOMMANDS = {
  */
 function printUsage() {
   const lines = [
-    'lerret — the design-canvas CLI',
+    '@lerret/cli — the design-canvas CLI',
     '',
-    'Usage: lerret <command> [options]',
+    'Usage: @lerret/cli <command> [options]',
     '',
     'Commands:',
     ...Object.entries(SUBCOMMANDS).map(
       ([name, { describe }]) => `  ${name.padEnd(8)} ${describe}`,
     ),
     '',
-    'Run `lerret <command> --help` for command-specific options.',
+    'Run `@lerret/cli <command> --help` for command-specific options.',
   ];
   process.stdout.write(lines.join('\n') + '\n');
 }
@@ -91,7 +91,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (!handler) {
     // An unknown subcommand is a usage error — print the banner so the user
     // can see what is valid, then exit non-zero.
-    process.stderr.write(`lerret: unknown command "${command}"\n\n`);
+    process.stderr.write(`@lerret/cli: unknown command "${command}"\n\n`);
     printUsage();
     return 1;
   }
@@ -102,7 +102,7 @@ export async function main(argv = process.argv.slice(2)) {
   } catch (err) {
     // A genuine runtime failure inside a subcommand — surface a short error and
     // exit non-zero. The subcommand owns its own error UX otherwise.
-    process.stderr.write(`lerret ${command}: ${err && err.message ? err.message : String(err)}\n`);
+    process.stderr.write(`@lerret/cli ${command}: ${err && err.message ? err.message : String(err)}\n`);
     return 1;
   }
 }

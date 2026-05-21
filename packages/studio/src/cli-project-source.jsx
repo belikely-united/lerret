@@ -1,6 +1,6 @@
 // cli-project-source.jsx — the CLI-mode project provider.
 //
-// When the studio is loaded by `lerret dev`, the project model is computed
+// When the studio is loaded by `@lerret/cli dev`, the project model is computed
 // server-side by `@lerret/cli`'s Vite plugin and handed to us as a virtual
 // module (`virtual:lerret-project`). This file owns the studio-side of that
 // contract:
@@ -21,7 +21,7 @@
 // 4. If `project` is `null` (the CLI couldn't resolve a `.lerret/`),
 // render a minimal "no folder" placeholder. The full open-folder
 // empty-state UI lives in the hosted-mode entry layer; this is just the
-// wiring seat so the studio reaches that path cleanly under `lerret dev`
+// wiring seat so the studio reaches that path cleanly under `@lerret/cli dev`
 // invoked from outside a project (FR43).
 //
 // ── What is REAL (and shared with the dev-harness path) ───────────────────
@@ -37,7 +37,7 @@ import React from 'react';
 
 // Pulled in for its side-effect: this is the contract module the CLI's
 // `vite-plugin-lerret-project` provides. The import succeeds only under
-// `lerret dev` (the plugin owns the resolution); in any other mode this
+// `@lerret/cli dev` (the plugin owns the resolution); in any other mode this
 // file is never loaded — `main.jsx`'s flag-gated dynamic-import branch
 // keeps the standalone build path away from it.
 import {
@@ -53,7 +53,7 @@ import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx'
 // the real open-folder empty state replaces the old placeholder.
 import { OpenFolder } from './components/entry/open-folder.jsx';
 
-// `lerret export` drives a headless Chromium and invokes captureArtboard via
+// `@lerret/cli export` drives a headless Chromium and invokes captureArtboard via
 // `page.evaluate`. The CLI cannot dynamic-`import('/src/export/capture.js')`
 // from the page because that source path does not exist in the production
 // `dist-studio/` bundle (Vite emits hashed chunk names). Exposing the
@@ -177,7 +177,7 @@ export function CliProjectSource() {
  // No-folder path: the CLI was invoked outside any `.lerret/` project.
  // render the real open-folder empty state in cliMode so the
  // entry surface is consistent across hosted and CLI modes (UX-DR13).
- // In CLI mode the picker action shows guidance toward `lerret dev <path>`
+ // In CLI mode the picker action shows guidance toward `@lerret/cli dev <path>`
  // rather than routing through the FSA picker flow — the simplest path per
  // the story's "pick the simpler one" guidance.
  if (!project) {

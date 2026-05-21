@@ -13,7 +13,7 @@ The first thing the studio shows depends on the mode:
 
 | Mode | First screen |
 |---|---|
-| **CLI** (`lerret dev`) | The canvas, with the resolved project loaded. |
+| **CLI** (`@lerret/cli dev`) | The canvas, with the resolved project loaded. |
 | **Hosted** (browser, no folder picked yet) | The **open-folder empty state** — one button, "Open a Lerret folder", that calls `showDirectoryPicker()`. |
 | **Hosted** (browser, unsupported) | The **unsupported-browser guidance** screen — Safari / Firefox / non-Chromium. |
 
@@ -59,7 +59,7 @@ Validation behaviour is **lenient by design** — Lerret always tries to render.
 
 Each artboard has a kebab menu with actions appropriate to its kind:
 
-- **Export to image** — captures this single artboard to PNG or JPG. Same rendering path as `lerret export`.
+- **Export to image** — captures this single artboard to PNG or JPG. Same rendering path as `@lerret/cli export`.
 - **Edit data** — opens the data editor.
 - **Edit meta** — opens the meta editor.
 - **Reveal in editor** (CLI mode) — opens the source file in your default editor via OS handlers.
@@ -82,7 +82,7 @@ The bulk-export panel lets you choose:
 - **Format** — PNG or JPG.
 - **Output style** — structured (folders mirror page/group hierarchy) or flat (all images at one level).
 
-Studio exports use the **exact same** `captureArtboard` function as `lerret export` (the CLI runs it inside a headless Chromium via Playwright). Output is pixel-faithful between the two; you can use either path interchangeably.
+Studio exports use the **exact same** `captureArtboard` function as `@lerret/cli export` (the CLI runs it inside a headless Chromium via Playwright). Output is pixel-faithful between the two; you can use either path interchangeably.
 
 ## Live refresh
 
@@ -108,5 +108,5 @@ The studio is a **desktop application** — mouse + keyboard. Mobile, touch surf
 ## What's next
 
 - **[Authoring Assets](/authoring/)** — how to write components, schemas, data files, and fonts.
-- **[CLI Reference](/cli/)** — `lerret dev` and `lerret export`.
+- **[CLI Reference](/cli/)** — `@lerret/cli dev` and `@lerret/cli export`.
 - **[Deployment](/deploy/)** — the three deploy modes in detail.

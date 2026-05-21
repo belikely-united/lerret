@@ -189,7 +189,7 @@ export function toAssetError(thrown, phase) {
  * caller responds by re-invoking `loadAsset` for that path.
  * In CLI mode the runtime emits in response to a `notifyChange(path)` call
  * driven by the watcher (from the dev harness in the fixture path; from the
- * real chokidar watcher under `lerret dev`).
+ * real chokidar watcher under `@lerret/cli dev`).
  * @property {(changedPath: LerretPath) => void} notifyChange
  * Tell the runtime an asset at `changedPath` has been written. The runtime
  * bumps the asset's cache-bust token so the next `loadAsset(asset)` for

@@ -21,8 +21,8 @@ The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the 
 
 This package ships the `lerret` binary:
 
-- `lerret dev` — run the studio against a `.lerret/` folder (Vite dev server + bundled studio).
-- `lerret export` — headlessly render a project (or page/group) to image files.
+- `@lerret/cli dev` — run the studio against a `.lerret/` folder (Vite dev server + bundled studio).
+- `@lerret/cli export` — headlessly render a project (or page/group) to image files.
 
 After installing globally (`npm install -g @lerret/cli`), the command is just `lerret`.
 

@@ -3,7 +3,7 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║ THIS FILE IS A SEAM. It mirrors the pattern of: ║
 // ║ - dev-harness.jsx (standalone-studio / fixture mode) ║
-// ║ - cli-project-source.jsx (`lerret dev` CLI mode) ║
+// ║ - cli-project-source.jsx (`@lerret/cli dev` CLI mode) ║
 // ║ fleshes out the full FSA → trust gate → loader → runtime ║
 // ║ → studio mount flow here. THIS story (5.3) establishes the seam and ║
 // ║ ensures the hosted runtime (and its service worker) ship in the bundle. ║

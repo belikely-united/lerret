@@ -28,7 +28,7 @@
 // ── How the font file is located ───────────────────────────────────────────
 // A `FontFile.path` is the font's full `.lerret/` path as the filesystem
 // backend reported it. The Vite dev server serves the project's files under a
-// base URL (the dev-harness fixture alias today, the real `lerret dev` server
+// base URL (the dev-harness fixture alias today, the real `@lerret/cli dev` server
 // ). `fontUrl` rebases the font path onto that base URL exactly
 // like the asset runtime's `assetModuleUrl` does for asset modules — so a font
 // in `_fonts/` resolves to a real, fetchable URL.

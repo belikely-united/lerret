@@ -328,7 +328,7 @@ describe('watch', () => {
   });
 });
 
-describe('realpathOrSelf — CLI-internal helper for `lerret dev` fs.allow', () => {
+describe('realpathOrSelf — CLI-internal helper for `@lerret/cli dev` fs.allow', () => {
   it('resolves a real on-disk path through any symlinks in its chain', async () => {
     // Create a target dir + a symlink to it; resolving the symlink path
     // must yield the target's real path. We compute the expected target
