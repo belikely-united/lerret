@@ -17,6 +17,7 @@ export default {
   studio: 'The Studio',
   cli: 'CLI Reference',
   deploy: 'Deployment',
+  'ai-editing': 'AI Editing',
   '-- meta': {
     type: 'separator',
     title: 'Meta',

@@ -1,0 +1,177 @@
+---
+title: AI Editing
+description: How to edit Lerret assets with any modern AI coding tool — Claude Code, Cursor, GitHub Copilot, and AGENTS.md-compatible agents — using the conventions bundled by `create-lerret`.
+---
+
+# AI Editing
+
+Lerret assets are plain React components, so any AI coding tool that edits files can edit them. To make the loop quick, every project scaffolded by `create-lerret` ships a small set of AI-tool integration files: one per major tool, each rendering the same Lerret authoring conventions in that tool's native format. This page covers what auto-installs, the flags that opt in or out, how to add the files to an existing project, the permission/disclosure model, an optional aesthetic upgrade for Claude Code, and a handful of example prompts grounded in the sample assets.
+
+## What auto-installs in scaffolded projects
+
+When you run `npx create-lerret@latest my-canvas`, the scaffolder writes the following files alongside `.lerret/`:
+
+| AI tool | File(s) installed | Convention |
+|---|---|---|
+| Claude Code | `.claude/skills/lerret-author/SKILL.md` + `.claude/commands/lerret-edit.md` | Project-scoped skills + slash commands |
+| Cursor | `.cursor/rules/lerret.mdc` | MDC rules (frontmatter + body) |
+| GitHub Copilot | `.github/copilot-instructions.md` | Custom instructions |
+| Codex / Antigravity / Aider / Cline / others | `AGENTS.md` (at project root) | Cross-tool standard ([agents.md](https://agents.md/)) |
+
+All four ship by default. The content is rendered from a single source of truth so each tool sees the same conventions — components, `meta`, `propsSchema`, data files, variants, fonts, the prop cascade, the component-prefixed image-naming rule, and the full `@lerret/cli` command surface — adjusted only for that tool's native format. Opt out per tool with `--ai-tools=...` or wholesale with `--no-ai-rules` (see below).
+
+The files load automatically the moment you open the project in their respective tools — there is no setup step, no command to run, no config to edit. The first time you describe an asset change ("make the headline tighter", "add a dark variant"), the tool engages with Lerret-aware context and produces a `.jsx` edit that follows the framework's conventions.
+
+## Choosing which AI tools
+
+Two mutually exclusive flags let you control which AI-tool surfaces ship.
+
+### `--no-ai-rules`
+
+Skip all AI-tool files entirely. The scaffolded project contains only `.lerret/`. Use this when you don't use AI coding tools or want a clean slate to add them manually later.
+
+```bash
+npx create-lerret@latest my-project --no-ai-rules
+```
+
+### `--ai-tools=<list>`
+
+Comma-separated list of AI tools to install. Default: all four. Valid values: `claude`, `cursor`, `copilot`, `agents`. Unknown values produce a clear error naming the offending value and listing the valid options.
+
+```bash
+# Just Claude + Cursor:
+npx create-lerret@latest my-project --ai-tools=claude,cursor
+
+# Just the cross-tool AGENTS.md (works for Codex, Antigravity, Aider, Cline):
+npx create-lerret@latest my-project --ai-tools=agents
+```
+
+`--no-ai-rules` and `--ai-tools=...` are mutually exclusive — passing both together exits with a clear error.
+
+## Permission and disclosure
+
+`create-lerret` writes nothing silently. After scaffolding completes, the success message prints an explicit `AI-tool integrations created:` section listing every AI-tool file written, one per line — or notes `no AI-tool files created (--no-ai-rules)` when applicable. You see exactly what landed in your workspace before you run anything against it. The same disclosure model will extend to future flows that touch existing workspaces (e.g. an `@lerret/cli init` command for adding Lerret to a folder you already own); those will require explicit confirmation before writing rather than printing a summary after the fact.
+
+## Manual install for existing projects
+
+If your Lerret project predates the bundled AI-tool files — or you're adding Lerret to a repo that was not scaffolded by `create-lerret` — render a fresh set with `create-lerret` and copy the files you want into your project.
+
+```bash
+# From the root of your existing project (the folder that contains `.lerret/`):
+npx create-lerret@latest /tmp/lerret-scratch --no-samples
+
+# Copy whichever AI-tool integrations you want into your project:
+cp -r /tmp/lerret-scratch/.claude .
+cp -r /tmp/lerret-scratch/.cursor .
+mkdir -p .github && cp /tmp/lerret-scratch/.github/copilot-instructions.md .github/
+cp /tmp/lerret-scratch/AGENTS.md .
+
+rm -rf /tmp/lerret-scratch
+```
+
+The `--no-samples` flag keeps the scratch project minimal — it skips the sample assets but still ships every AI-tool integration. If you only want a subset, pair it with `--ai-tools=...` so the scratch project itself only contains the files you intend to copy:
+
+```bash
+# Only Cursor + AGENTS.md:
+npx create-lerret@latest /tmp/lerret-scratch --no-samples --ai-tools=cursor,agents
+cp -r /tmp/lerret-scratch/.cursor .
+cp /tmp/lerret-scratch/AGENTS.md .
+rm -rf /tmp/lerret-scratch
+```
+
+This is the canonical path because the integration files are rendered fresh from a single content source inside `create-lerret` — there are no static copies to fetch directly. Commit the resulting files alongside `.lerret/` so every collaborator gets the same AI behavior in whichever tool they prefer.
+
+## Optional: the `frontend-design` plugin (Claude Code)
+
+Anthropic publishes an official Claude Code plugin called **`frontend-design`** that layers in distinctive typography, cohesive color palettes, motion conventions, and a set of anti-AI-slop guardrails — designed to keep the model from defaulting to generic-looking UI. The bundled Lerret integration files already embed the same aesthetic principles internally (Cursor and Copilot users get them too, via their respective files), but installing the dedicated Claude plugin reinforces them across every frontend task in Claude Code — not just Lerret edits — and gives you a second layer of aesthetic discipline.
+
+Install it from Claude Code:
+
+```
+/plugin marketplace add anthropics/claude-plugins-official
+/plugin install frontend-design@claude-plugins-official
+```
+
+The marketplace itself lives at [github.com/anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official). The bundled Lerret files work fine without the plugin — it's a pure aesthetic upgrade for Claude Code, complementary to the Cursor/Copilot/AGENTS.md content rather than a replacement.
+
+## Example `/lerret-edit` prompts
+
+These are grounded in the three sample assets that ship with `create-lerret` (`twitter-banner.jsx`, `instagram-square.jsx`, `youtube-thumbnail.jsx` under `.lerret/social/`). The `/lerret-edit` slash command is Claude Code-specific, but the underlying intents work for any tool — feed them directly to Cursor's chat, Copilot's prompt box, or any AGENTS.md-aware agent and you'll get the same Lerret-aware behavior because they're all reading the same conventions.
+
+**Add a brand avatar to the Twitter banner.**
+
+```
+/lerret-edit change the avatar in twitter-banner.jsx — drop a new Twitter-avatar.png in social/ and wire it in
+```
+
+The bundled conventions know the component-prefixed image-naming rule (`Twitter-avatar.png` co-located in `.lerret/social/`, not in a shared `assets/` folder), so the model places the file in the right spot and references it correctly.
+
+**Add a dark variant to the Instagram square.**
+
+```
+/lerret-edit add a dark variant to instagram-square.jsx using the same layout but inverted palette
+```
+
+The conventions know that variants are extra named exports in the same file (not new files) and that `meta` is shared across all variants. The model adds an `export const Dark = ...` next to the default export.
+
+**Re-theme every asset on the social page.**
+
+```
+/lerret-edit swap the brand accent color across all assets in social/ to oklch(0.7 0.2 30)
+```
+
+The conventions know the four-tier prop cascade and the `vars` block in `config.json`. Depending on whether the color is hard-coded per asset or sourced from a CSS variable, the model edits the per-asset literal or updates `config.json` once.
+
+**Add a 9:16 vertical variant of the YouTube thumbnail.**
+
+```
+/lerret-edit add a 9:16 vertical YouTube thumbnail variant to youtube-thumbnail.jsx
+```
+
+Variants share the file's `meta` — including `dimensions` — so the model will either split the variant into a new file with its own `meta`, or restructure the existing component to accept a `dimensions` override from `propsSchema`. It picks the path that fits the file's existing shape.
+
+**Refresh the typography using the bundled font.**
+
+```
+/lerret-edit refresh the typography in twitter-banner.jsx using the LerretFixtureMono font from _fonts/
+```
+
+The conventions know that fonts in `.lerret/_fonts/` are auto-registered as `@font-face` rules — no import, no manual CSS. The model uses the font family name (`'LerretFixtureMono'`) directly in inline styles.
+
+## Troubleshooting
+
+**Claude Code does not seem to pick up the skill.**
+
+- Confirm `.claude/skills/lerret-author/SKILL.md` exists at the project root (not nested under another folder).
+- Open the file and check the YAML frontmatter — the `name` and `description` fields must be present and well-formed. A missing or malformed frontmatter block will prevent auto-discovery.
+- Restart Claude Code with the project root as the working directory. Skills are discovered when the project is loaded, not mid-session.
+
+**`/lerret-edit` is not in the slash-command list.**
+
+- Confirm `.claude/commands/lerret-edit.md` exists. The slash-command list is built from `.claude/commands/*.md` at project load.
+- The command appears in the slash list as `/lerret-edit`. Type the slash to bring up the picker and verify it's listed.
+
+**Cursor isn't applying the Lerret rule.**
+
+- Confirm `.cursor/rules/lerret.mdc` exists at the project root. Cursor scans `.cursor/rules/*.mdc` when the project is opened.
+- Check the MDC frontmatter — Cursor uses the `description` and `globs` fields to decide when the rule fires. Make sure the file wasn't truncated or reformatted in transit.
+
+**Copilot doesn't seem aware of Lerret.**
+
+- Confirm `.github/copilot-instructions.md` exists. Copilot reads it from the repo root's `.github/` directory.
+- In VS Code, enable Copilot's "Use custom instructions" setting if it isn't already on. Reload the window after adding the file.
+
+**AGENTS.md isn't being picked up.**
+
+- Confirm `AGENTS.md` is at the repository root (not inside a subdirectory). Most agents look there only.
+- Different agents read the file at different times — some on session start, some lazily. Check your agent's docs for the exact discovery rule if a fresh session doesn't pick it up.
+
+**I use the hosted studio (`app.lerret.belikely.com`) and don't have local files.**
+
+The bundled AI-tool files are local-project-scoped — Claude Code reads `.claude/`, Cursor reads `.cursor/`, Copilot reads `.github/copilot-instructions.md`, and AGENTS.md is read by whichever agent you point at the checked-out repo. If you're working entirely in the hosted studio without a local checkout, none of those discovery paths apply. The files are all plain Markdown though: open the one matching your tool (Claude → `SKILL.md`, Cursor → `lerret.mdc`, Copilot → `copilot-instructions.md`, anything else → `AGENTS.md`) and paste its contents into your tool's system prompt or rules panel — you get the same conventions either way.
+
+## What's next
+
+- **[Authoring Assets](/authoring/)** — the same conventions the bundled files encode, in human-readable form. Useful when you want to read what the model is reading.
+- **[CLI Reference](/cli/)** — `@lerret/cli dev` and `@lerret/cli export` flags. The bundled files know these, but the reference is the source of truth.
+- **[Examples](/examples/)** — eight runnable assets to crib from. Many of them are excellent starting prompts for `/lerret-edit`.
