@@ -17,7 +17,7 @@ The Lerret CLI ships as the npm package **`@lerret/cli`**. It installs one binar
 
 > Don't run `npx lerret …` — the bare `lerret` name belongs to a different (unrelated, deprecated) npm package. Always include the `@lerret/cli` scope when invoking via `npx`.
 
-The command syntax shown below uses the post-install form (`lerret …`). Prefix with `npx @lerret/cli ` if you haven't installed it.
+The command syntax shown below uses the canonical `@lerret/cli` form — it works identically in every context above.
 
 ### Exit codes
 
@@ -28,7 +28,7 @@ Every subcommand uses the same convention:
 | `0` | Success — work completed, `--help` printed, or graceful shutdown. |
 | `1` | Failure — unknown subcommand, malformed flags, missing project, fatal runtime error. |
 
-`lerret <command> --help` (or `-h`) prints command-specific help and exits with code `0`.
+`@lerret/cli <command> --help` (or `-h`) prints command-specific help and exits with code `0`.
 
 ## `@lerret/cli dev`
 
