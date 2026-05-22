@@ -104,4 +104,25 @@ describe('main() — top-level dispatcher', () => {
     expect(code).toBe(1);
     expect(stderr).toMatch(/@lerret\/cli export/);
   });
+
+  it('lists `clear` in the top-level usage banner', async () => {
+    const { code, stdout } = await runMain([]);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/\bclear\b/);
+  });
+
+  it('dispatches `clear --help` without touching the filesystem (exits 0)', async () => {
+    const { code, stdout } = await runMain(['clear', '--help']);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/@lerret\/cli clear/);
+    expect(stdout).toMatch(/--all/);
+    expect(stdout).toMatch(/--yes/);
+    expect(stdout).toMatch(/--dry-run/);
+  });
+
+  it('exits non-zero when `clear` is passed an unknown flag', async () => {
+    const { code, stderr } = await runMain(['clear', '--bogus']);
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/@lerret\/cli clear/);
+  });
 });

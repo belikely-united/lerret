@@ -7,6 +7,7 @@
 //
 //   @lerret/cli dev    [--port <n>] [--folder <path>] [--open | --no-open]
 //   @lerret/cli export [path] [--format png|jpg] [--out <dir>] [--flat]
+//   @lerret/cli clear  [path...] [--all] [--yes] [--dry-run]
 //
 // Adding a new subcommand is the act of importing one more module and adding
 // an entry to the `SUBCOMMANDS` table below — the usage banner is derived
@@ -27,6 +28,7 @@ import { pathToFileURL } from 'node:url';
 
 import { runDev } from './dev.js';
 import { runExport } from './export.js';
+import { runClear } from './clear.js';
 
 /**
  * The set of recognized subcommands and their entry points. Centralized so the
@@ -42,6 +44,10 @@ const SUBCOMMANDS = {
   export: {
     describe: 'Headlessly render a project (or page/group) to image files',
     run: runExport,
+  },
+  clear: {
+    describe: 'Remove sample assets or subtrees from a project (preserves config.json and _fonts/)',
+    run: runClear,
   },
 };
 
