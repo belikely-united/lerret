@@ -128,39 +128,70 @@ function cssEscape(value) {
  return String(value).replace(/[^\w-]/g, '\\$&');
 }
 
-// ── Data-fetch helper (carried over 's EditableComponentArtboard)
+// ── Data-fetch helper ────────────────────────────────────────────────────────
 
 /**
- * Best-effort GET of the asset's co-located `.data.json` file. Used by the
+ * The default dynamic-import implementation used by {@link fetchDataValue}.
+ * Wrapped with `@vite-ignore` so Vite does not try to pre-bundle the runtime-
+ * computed URL. Exposed via the `importModule` injection seam below so tests
+ * can swap a deterministic fake in jsdom.
+ *
+ * @param {string} url
+ * @returns {Promise<unknown>}
+ */
+const defaultImportModule = (url) => import(/* @vite-ignore */ url);
+
+/**
+ * Best-effort load of the asset's co-located `.data.json` file. Used by the
  * component-artboard wrapper to drive prop resolution for the rendered
  * component.
  *
+ * Uses dynamic `import()` rather than `fetch()` so that the Vite alias
+ * `'/@lerret-project'` (and `'/@fixture-lerret'`) — declared by
+ * `vite-plugin-lerret-project.js` and the standalone fixture wiring — is
+ * honored. Vite's `resolve.alias` is applied to module-imports only;
+ * a raw `fetch()` against the same URL bypasses the alias and falls through
+ * to the studio's SPA `index.html` (200 text/html), silently masking the
+ * data file. Vite serves `.json` files as ES modules whose default export
+ * is the parsed value.
+ *
+ * A `?t=<timestamp>` query is appended to defeat the module-import cache,
+ * matching the `studio/runtime/data-loader.js` reload-token convention so
+ * each call re-evaluates the current file.
+ *
+ * Returns `{}` on every failure mode (file missing, parse error, alias not
+ * configured) — the caller treats `{}` as "no Tier-1 data" and the
+ * propsSchema defaults take over for that render.
+ *
  * @param {string} dataPath
- * @returns {Promise<unknown>}
+ *   The asset's `.data.json` file path on disk (absolute, with `.lerret/`
+ *   somewhere in the prefix). The substring after `/.lerret/` becomes the
+ *   URL leaf appended to each candidate base.
+ * @param {object} [deps]
+ *   Test-only injection seam.
+ * @param {(url: string) => Promise<unknown>} [deps.importModule]
+ *   Override the dynamic import — used by unit tests to assert URL shape
+ *   without booting a real Vite server.
+ * @returns {Promise<Record<string, unknown>>}
+ *   The parsed JSON value, or `{}` when the file could not be loaded.
  */
-async function fetchDataValue(dataPath) {
- if (typeof globalThis === 'undefined' || typeof globalThis.fetch !== 'function') {
- return {};
- }
+export async function fetchDataValue(dataPath, deps = {}) {
  const idx = dataPath.indexOf('/.lerret/');
  const rel = idx === -1 ? dataPath.replace(/^\/+/, '') : dataPath.slice(idx + '/.lerret/'.length);
  const bust = `?t=${Date.now()}`;
+ const importModule = deps.importModule || defaultImportModule;
  for (const base of ['/@lerret-project', '/@fixture-lerret']) {
  try {
- const response = await globalThis.fetch(`${base}/${rel}${bust}`, { cache: 'no-store' });
- if (response.status === 404) continue;
- if (!response.ok) continue;
- const ct = response.headers.get('content-type') || '';
- if (!ct.includes('json') && !ct.includes('text/plain')) continue;
- const text = await response.text();
- try {
- return JSON.parse(text);
- } catch (err) {
- console.warn('[lerret] failed to parse data file', dataPath, err);
+ const mod = await importModule(`${base}/${rel}${bust}`);
+ // Vite serves `.json` files as ES modules where the default export is
+ // the parsed value. Some bundlers expose the value at the top level
+ // instead — handle both shapes defensively.
+ const value = mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod;
+ if (value && typeof value === 'object') return value;
  return {};
- }
  } catch {
- // try the next candidate
+ // The import rejected — most commonly the file does not exist at this
+ // base (404), or the URL did not match either alias. Try the next base.
  }
  }
  return {};
