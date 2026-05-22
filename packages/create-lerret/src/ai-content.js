@@ -26,8 +26,10 @@ export const CLI = {
   pkg: '@lerret/cli',
   dev: '@lerret/cli dev',
   exportCmd: '@lerret/cli export',
+  clear: '@lerret/cli clear',
   npxDev: 'npx @lerret/cli@latest dev',
   npxExport: 'npx @lerret/cli@latest export',
+  npxClear: 'npx @lerret/cli@latest clear',
   pnpmDlxDev: 'pnpm dlx @lerret/cli@latest dev',
   yarnDlxDev: 'yarn dlx @lerret/cli@latest dev',
   bunxDev: 'bunx @lerret/cli@latest dev',
@@ -67,11 +69,14 @@ A Lerret project is a folder called \`.lerret/\`. Anything inside it is part of 
   config.json                    # Root config — vars, presentation, liveRefresh
   _fonts/                        # Drop .woff2/.woff/.ttf/.otf here — auto-registered
     LerretFixtureMono.woff2
-  social/                        # A folder = a section/page on the canvas
-    twitter-banner.jsx           # Asset (default-export React component)
-    twitter-banner.data.json     # Co-located data for that asset (optional)
-    youtube-thumbnail.jsx
-    instagram-square.jsx
+  samples/                       # A folder = a section/page on the canvas
+    landing-hero.jsx             # Asset (default-export React component)
+    landing-hero.data.json       # Co-located data for that asset (optional)
+    feature-grid.jsx             # Variants-using asset (see below)
+    feature-grid.data.json       # Per-variant data, keyed by export name
+    quote-card.jsx               # propsSchema with a select-enum
+    poster.jsx                   # Pure component — no data file
+    README.md                    # Markdown asset — renders as a document card
   brand/
     config.json                  # Per-folder config — inherits from parent
     Logo.jsx
@@ -148,7 +153,7 @@ Two filenames are recognised next to an asset:
 
 When **both** exist, \`.data.js\` wins. Most assets need only \`.data.json\`.
 
-The data file shares the asset's basename — \`twitter-banner.jsx\` pairs with \`twitter-banner.data.json\`. Co-location is strict: the data file must be in the same folder as the asset.`,
+The data file shares the asset's basename — \`landing-hero.jsx\` pairs with \`landing-hero.data.json\`. Co-location is strict: the data file must be in the same folder as the asset.`,
 
   propResolution: `## Four-tier prop resolution
 
@@ -206,7 +211,7 @@ Two rules — apply them by default.
 **Rule 1 — component-prefixed, co-located.** When an image is *for* one component, put it in the same folder as the component and prefix its filename with the component's name:
 
 \`\`\`
-social/
+samples/
   Twitter.jsx
   Twitter-logo.png         # used by Twitter.jsx
   Twitter-bg.jpg
@@ -234,7 +239,7 @@ assets/
   brand-logo.svg
   photo-placeholder.jpg
 .lerret/
-  social/
+  samples/
     Twitter.jsx          # uses ../../assets/brand-logo.svg
     Instagram.jsx        # also uses ../../assets/brand-logo.svg
 \`\`\`
@@ -243,7 +248,7 @@ If you're not sure whether something is shared, prefix it. Renaming later is che
 
   cliSurface: `## The \`${CLI.pkg}\` surface
 
-Three commands. All three are zero-install: \`npx ${CLI.pkg}@latest <cmd>\`, \`pnpm dlx ${CLI.pkg}@latest <cmd>\`, \`yarn dlx ${CLI.pkg}@latest <cmd>\`, \`bunx ${CLI.pkg}@latest <cmd>\`.
+Four commands. All four are zero-install: \`npx ${CLI.pkg}@latest <cmd>\`, \`pnpm dlx ${CLI.pkg}@latest <cmd>\`, \`yarn dlx ${CLI.pkg}@latest <cmd>\`, \`bunx ${CLI.pkg}@latest <cmd>\`.
 
 ### \`${CLI.scaffolder} <name> [--no-samples] [--no-ai-rules] [--ai-tools=...]\`
 
@@ -272,7 +277,18 @@ Headlessly renders artboards to image files. Output mirrors the folder tree by d
 - \`--data\` — substitute a data file for one asset/variant at export time. Useful for batch generation (one component, N data files).
 - \`--config\` — substitute a config file for the run. Useful for re-skinning the whole project (e.g. swap \`vars\` to render light + dark variants of every asset).
 
-Reach for it when: shipping the actual images. CI-friendly — exit code 0 on success.`,
+Reach for it when: shipping the actual images. CI-friendly — exit code 0 on success.
+
+### \`${CLI.clear} [path...] [--all] [--yes] [--dry-run]\`
+
+Removes sample assets or specific paths from \`.lerret/\`. Always preserves \`.lerret/config.json\` and \`.lerret/_fonts/\` — those are project state, not samples.
+
+- \`[path...]\` — one or more targets. A bare name (e.g. \`samples\`) resolves relative to \`.lerret/\`; an explicit \`./foo\` or absolute path is resolved the normal way.
+- \`--all\` — wipe every child of \`.lerret/\` except the protected ones. Mutually exclusive with positional paths.
+- \`--yes\` — skip the y/N confirmation. Required for non-interactive (no-TTY) runs.
+- \`--dry-run\` — print the plan, touch nothing.
+
+Reach for it when: the scaffolded samples are in the way of the user's real work. Suggest \`${CLI.clear} --all\` when the user says "start fresh", "wipe the samples", or similar; suggest \`${CLI.clear} <name>\` when they want to remove one specific section or asset.`,
 
   aestheticIntro: `## Aesthetic direction — required reading
 
@@ -329,16 +345,16 @@ Most Lerret assets are stills — motion is irrelevant. If you're authoring an a
 
 Pick one: **generous negative space** OR **controlled density**. Both work. The failure mode is the unintentional middle — content placed where nothing was thought through.
 
-Use asymmetry, overlap, diagonal flow, grid-breaking elements when the aesthetic invites it. The sample \`youtube-thumbnail.jsx\` uses an off-axis skewed panel split and a giant low-opacity glyph in the right pane — that's grid-breaking that earns its keep, not chaos.`,
+Use asymmetry, overlap, diagonal flow, grid-breaking elements when the aesthetic invites it. The sample \`feature-grid.jsx\` uses a 1-fr-by-fixed-pane split with a 320 px glyph as the right pane's only content — that's grid-breaking that earns its keep, not chaos. The sample \`poster.jsx\` uses three exploded headline lines with negative letter-spacing and right-aligned middle line for the same reason.`,
 
   aestheticBackground: `### Backgrounds and atmosphere
 
 Solid \`#fff\` or \`#000\` is rarely the answer. Add:
 
-- subtle radial gradient meshes (the sample \`twitter-banner.jsx\` has two layered radial-gradient ellipses for depth);
+- subtle radial gradient meshes (the sample \`landing-hero.jsx\` has a single large off-axis disc that sets the background atmosphere without competing for attention);
 - noise / grain overlays for tactile feel;
-- geometric repeating patterns at low opacity (the sample \`youtube-thumbnail.jsx\` uses a 40-px grid overlay at 4% opacity on the right panel);
-- decorative borders, dramatic shadows, layered transparencies.
+- geometric repeating patterns at low opacity (the sample \`landing-hero.jsx\` uses an 80-px vertical-line grid at 6% opacity; \`feature-grid.jsx\` uses a 40-px grid on its glyph pane at 8%);
+- decorative borders, dramatic shadows, layered transparencies (the sample \`poster.jsx\` uses a hairline inner frame inset by 40 px to set a typographic stage).
 
 Each detail should earn its place. Atmosphere over decoration-for-decoration's-sake.`,
 
@@ -356,50 +372,59 @@ If you cannot defend a choice, change it.`,
 
   examples: `## Grounded examples
 
-These examples reference the sample assets the scaffolder ships at \`.lerret/social/\`. Use them as the literal starting point — don't invent file paths.
+These examples reference the sample assets the scaffolder ships at \`.lerret/samples/\`. Use them as the literal starting point — don't invent file paths.
 
-### Change the headline on the Twitter banner
+### Change the headline on the landing hero
 
 The simplest edit. Two places to consider:
 
-- **Default in the component** — \`twitter-banner.jsx\`: the \`default\` field inside \`propsSchema.headline\`, and the component's default parameter on the function signature. Change both for consistency.
-- **Data file** — \`twitter-banner.data.json\`:
+- **Default in the component** — \`landing-hero.jsx\`: the \`default\` field inside \`propsSchema.headline\`, and the component's default parameter on the function signature. Change both for consistency.
+- **Data file** — \`landing-hero.data.json\`:
 
   \`\`\`json
-  { "headline": "Ship your design system", "showAccentBar": true, "tagline": "…" }
+  { "headline": "Ship your design system", "subhead": "…", "cta": "npx create-lerret@latest" }
   \`\`\`
 
   This is Tier 1 — it overrides any default. Prefer this when the change is content-only and you want the schema defaults to remain the safe fallback.
 
-### Add a variant to \`instagram-square.jsx\`
+### Add a variant to \`feature-grid.jsx\`
 
-\`instagram-square.jsx\` already supports three tones via a \`tone\` select prop. To add a fourth (\`dusk\`):
+\`feature-grid.jsx\` already exports three named variants (\`Fast\`, \`Open\`, \`Yours\`) plus the default. To add a fourth (\`Live\`):
 
-1. Add the palette to the \`TONES\` table in the component:
+1. Add the export at the bottom of the file, pointing at the same internal \`FeatureCard\` component:
 
    \`\`\`jsx
-   dusk: {
-     bg: 'linear-gradient(145deg, #2D1B3D 0%, #5C3B6E 100%)',
-     title: '#F4E4F7', subtitle: '#C19BCE',
-     tag: '#7D4F8C', tagText: '#F4E4F7', mono: '#A878B8',
-   },
+   export function Live(props) { return <FeatureCard {...props} />; }
    \`\`\`
 
-2. Extend the \`propsSchema.tone.options\` array to include \`'dusk'\`.
+2. Extend \`meta.variants\` to include \`'Live'\`:
 
-If you want \`dusk\` to render as its own artboard alongside \`ocean\`, add a named export at the bottom of the file:
+   \`\`\`jsx
+   variants: ['default', 'Fast', 'Open', 'Yours', 'Live'],
+   \`\`\`
+
+3. Add the per-variant slice to \`feature-grid.data.json\`:
+
+   \`\`\`json
+   "Live": {
+     "kicker": "04 / live",
+     "title": "Save and watch it re-render.",
+     "description": "HMR-grade re-renders so editing a .jsx feels like editing a Figma frame.",
+     "glyph": "◉"
+   }
+   \`\`\`
+
+### Add a tone to \`quote-card.jsx\`
+
+\`quote-card.jsx\` ships with three tones (\`dark\`, \`light\`, \`accent\`) via a \`tone\` select prop. To add a fourth (\`paper\`):
+
+1. Add the palette to the \`PALETTES\` table in the component (mirror the shape of the others — \`bg\`, \`quote\`, \`quoteMark\`, \`attribution\`, \`rule\`).
+2. Extend the \`propsSchema.tone.options\` array to include \`'paper'\`.
+
+If you want \`paper\` to render as its own artboard alongside the default, add a named export and add the name to \`meta.variants\`:
 
 \`\`\`jsx
-export const Dusk = (props) => <InstagramSquare {...props} tone="dusk" />;
-\`\`\`
-
-Then in \`instagram-square.data.json\` (create the file if missing), key per variant:
-
-\`\`\`json
-{
-  "default": { "title": "…", "subtitle": "…", "tone": "ocean" },
-  "Dusk":    { "title": "After hours",  "subtitle": "Late nights, deep colour." }
-}
+export const Paper = (props) => <QuoteCard {...props} tone="paper" />;
 \`\`\`
 
 ### Swap the brand palette project-wide
@@ -420,10 +445,10 @@ Edit \`.lerret/config.json\` \`vars\`. The sample sets ocean blues; to switch th
 
 Every asset that references those via \`var(--brandColor)\` etc., or whose \`propsSchema\` has a \`brandColor\` key, picks up the new values without further edits.
 
-### Add a font and use it on the YouTube thumbnail
+### Add a font and use it on the poster
 
 1. Drop the font file in \`_fonts/\`. Example: \`_fonts/Editorial-Display.woff2\`.
-2. Reference it by basename in the component. In \`youtube-thumbnail.jsx\`, change the \`fontFamily\` on the main-title block:
+2. Reference it by basename in the component. In \`poster.jsx\`, change the wrapper \`fontFamily\`:
 
    \`\`\`jsx
    fontFamily: "'Editorial-Display', Georgia, serif",
@@ -431,29 +456,30 @@ Every asset that references those via \`var(--brandColor)\` etc., or whose \`pro
 
 3. No \`@font-face\`, no import, no Vite config. The studio picks up the new font on next HMR tick.
 
-### Localise the YouTube thumbnail for an N-language batch
+### Localise the landing hero for an N-language batch
 
-1. Author one \`.data.js\` per locale, OR a single data file with computed entries:
-
-   \`\`\`js
-   // youtube-thumbnail.data.js
-   export default {
-     title: 'Comment Lerret a été construit',
-     episodeLabel: 'EP 01',
-     showBrand: true,
-   };
-   \`\`\`
-
+1. Author one \`.data.json\` per locale (or one \`.data.js\` with computed entries).
 2. Render each locale at export time without touching the component:
 
    \`\`\`sh
-   ${CLI.npxExport} social/youtube-thumbnail \\
+   ${CLI.npxExport} samples/landing-hero \\
      --data ./locales/fr.data.json --out ./exports/fr
-   ${CLI.npxExport} social/youtube-thumbnail \\
+   ${CLI.npxExport} samples/landing-hero \\
      --data ./locales/ja.data.json --out ./exports/ja
    \`\`\`
 
    \`--data\` overrides the co-located data file for the run only.
+
+### Clear the samples and start your own work
+
+When the bundled samples are in the way:
+
+\`\`\`sh
+${CLI.npxClear} --all     # wipe every sample, keep config.json + _fonts/
+${CLI.npxClear} samples/poster.jsx   # or remove just one
+\`\`\`
+
+The \`config.json\` (your \`vars\`) and \`_fonts/\` (your fonts) are always preserved — they are project state, not samples. Use \`--dry-run\` first if you want to see the plan.
 
 ### Live-update an asset every second
 
@@ -479,7 +505,7 @@ The key is the asset's exported component name (the basename of the file without
 
   voice: `## Voice
 
-When proposing changes, be specific. "I'll add a \`Dusk\` variant by extending the \`TONES\` table and adding a named export" beats "I'll improve the Instagram square." When you finish, name the files you touched and any non-obvious next step (e.g. "you'll want to add \`instagram-square.data.json\` to override the new variant's default subtitle").
+When proposing changes, be specific. "I'll add a \`Paper\` tone by extending the \`PALETTES\` table and adding a named export" beats "I'll improve the quote card." When you finish, name the files you touched and any non-obvious next step (e.g. "you'll want to add a \`Paper\` entry to \`quote-card.data.json\` if you want the new variant's quote to differ from the default").
 
 Lerret is for people who care about how things look. Care about how things look.`,
 };
