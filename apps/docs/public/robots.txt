@@ -1,0 +1,5 @@
+# Algolia-Crawler-Verif: 99A98AB24AB90DD1
+User-agent: *
+Allow: /
+
+Sitemap: https://docs.lerret.belikely.com/sitemap.xml

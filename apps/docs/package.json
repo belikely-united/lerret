@@ -6,18 +6,17 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build && pagefind --site out --output-path out/_pagefind",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
+    "@docsearch/css": "^4.6.3",
+    "@docsearch/react": "^4.6.3",
     "next": "^15.3.0",
     "nextra": "4.2.17",
     "nextra-theme-docs": "4.2.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "pagefind": "^1.1.0"
   }
 }

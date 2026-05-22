@@ -5,7 +5,10 @@ import { Footer, Layout, Navbar } from 'nextra-theme-docs';
 import { Head } from 'nextra/components';
 import { getPageMap } from 'nextra/page-map';
 
+import LerretDocSearch from './docsearch.jsx';
+
 import 'nextra-theme-docs/style.css';
+import './docsearch-theme.css';
 
 const REPO_URL = 'https://github.com/belikely-united/lerret';
 const DISCUSSIONS_URL = `${REPO_URL}/discussions`;
@@ -119,6 +122,7 @@ export default async function RootLayout({ children }) {
         <Layout
           navbar={navbar}
           footer={footer}
+          search={<LerretDocSearch />}
           pageMap={pageMap}
           docsRepositoryBase="https://github.com/belikely-united/lerret/tree/main/public/apps/docs/content"
           editLink="Edit this page on GitHub"

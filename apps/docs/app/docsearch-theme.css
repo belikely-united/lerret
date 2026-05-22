@@ -1,0 +1,8 @@
+/* Lerret palette overrides for Algolia DocSearch. Linen / sienna / ink. */
+:root {
+  --docsearch-primary-color: #b85b33;
+  --docsearch-text-color: #1a1714;
+  --docsearch-muted-color: #6b645a;
+  --docsearch-container-background: rgba(26, 23, 20, 0.7);
+  --docsearch-highlight-color: #b85b33;
+}
