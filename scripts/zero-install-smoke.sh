@@ -20,7 +20,7 @@
 #
 #   npm (via `npm exec`):
 #     npm exec --yes --package="<tgz>" -- create-lerret <name>
-#     Note: the published user-facing command is `npx create-lerret <name>`
+#     Note: the published user-facing command is `npx create-lerret@latest <name>`
 #     (npx without --package finds the package from the registry). For local
 #     tarballs, `npm exec --package` is the correct equivalent.
 #
@@ -35,14 +35,14 @@
 #     from the registry). For local smoke we invoke the entry point directly
 #     via `node`, which exercises the identical code path and verifies the
 #     shebang portability. On CI with a published package, use:
-#       yarn dlx create-lerret <name>
+#       yarn dlx create-lerret@latest <name>
 #
 #   bun (via `bunx`):
 #     bunx in bun v1.x does not support local tarball paths (it interprets path
 #     separators as scoped package prefixes). For local smoke we extract the
 #     tarball and invoke via `bun run`, which exercises the same code path.
 #     On CI with a published package, use:
-#       bunx create-lerret <name>
+#       bunx create-lerret@latest <name>
 #
 # ── Ports reserved for future dev-server smoke ────────────────────────────
 #   npm  → 7801   pnpm → 7802   yarn → 7803   bun → 7804
@@ -194,26 +194,26 @@ scaffold_full() {
   case "${RUNNER}" in
     npm)
       # npm exec --package accepts a local .tgz path.
-      # Published equivalent: npx create-lerret <name>
+      # Published equivalent: npx create-lerret@latest <name>
       npm exec --yes --package="${CREATE_TGZ}" -- create-lerret "${PROJ_NAME}" \
         2>&1 | sed "s/^/  [${RUNNER}] /"
       ;;
     pnpm)
       # pnpm dlx accepts a local absolute .tgz path.
-      # Published equivalent: pnpm dlx create-lerret <name>
+      # Published equivalent: pnpm dlx create-lerret@latest <name>
       pnpm dlx "${CREATE_TGZ}" "${PROJ_NAME}" \
         2>&1 | sed "s/^/  [${RUNNER}] /"
       ;;
     yarn)
       # yarn dlx does not accept local file paths (Berry limitation).
-      # Published equivalent: yarn dlx create-lerret <name>
+      # Published equivalent: yarn dlx create-lerret@latest <name>
       # Local equivalent: invoke the entry point via node (same code path).
       node "${REPO_ROOT}/packages/create-lerret/src/create-lerret.js" "${PROJ_NAME}" \
         2>&1 | sed "s/^/  [${RUNNER}] /"
       ;;
     bun)
       # bunx v1.x does not support local tarball paths.
-      # Published equivalent: bunx create-lerret <name>
+      # Published equivalent: bunx create-lerret@latest <name>
       # Local equivalent: extract tarball, invoke entry via bun run.
       bun run "${BUN_ENTRY}" "${PROJ_NAME}" \
         2>&1 | sed "s/^/  [${RUNNER}] /"

@@ -17,7 +17,7 @@ The first thing the studio shows depends on the mode:
 | **Hosted** (browser, no folder picked yet) | The **open-folder empty state** — one button, "Open a Lerret folder", that calls `showDirectoryPicker()`. |
 | **Hosted** (browser, unsupported) | The **unsupported-browser guidance** screen — Safari / Firefox / non-Chromium. |
 
-When you pick a folder that does **not** contain a `.lerret/` directory, the studio shows an in-place "Not a Lerret project" message with a "Pick another folder" action and a hint about `npx create-lerret`. You never get a blank or broken screen.
+When you pick a folder that does **not** contain a `.lerret/` directory, the studio shows an in-place "Not a Lerret project" message with a "Pick another folder" action and a hint about `npx create-lerret@latest`. You never get a blank or broken screen.
 
 The first time you open a given folder (hosted mode), the studio shows a one-time **trust acknowledgement** dialog before running any of your code. The acknowledgement is persisted in IndexedDB, never written into your project folder.
 

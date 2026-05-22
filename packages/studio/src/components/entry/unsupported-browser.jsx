@@ -185,7 +185,7 @@ function InfoIcon() {
  * Shown when `isFileSystemAccessSupported()` returns false — Safari, Firefox,
  * or any browser lacking `showDirectoryPicker`. Guides the user toward:
  * A) Switching to Chrome, Edge, or Opera.
- * B) Using `npx @lerret/cli dev` locally instead.
+ * B) Using `npx @lerret/cli@latest dev` locally instead.
  *
  * Never nags, never gates behind a paywall. Calm and informative.
  *
@@ -279,7 +279,7 @@ export function UnsupportedBrowser({ className } = {}) {
  browser, no File System Access API needed.
  </p>
  <pre style={codeBlockStyle} aria-label="CLI command">
- <code data-testid="npx-command">npx @lerret/cli dev</code>
+ <code data-testid="npx-command">npx @lerret/cli@latest dev</code>
  </pre>
  <p
  style={{

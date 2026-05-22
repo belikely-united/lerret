@@ -13,7 +13,7 @@ This guide walks you from zero to a rendered canvas, a first edit, and an export
 ## 1. Scaffold a project
 
 ```bash
-npx create-lerret my-canvas
+npx create-lerret@latest my-canvas
 ```
 
 The scaffolder downloads from npm and writes a new project at `./my-canvas/`. Total install — including Vite and React, downloaded once and cached — typically runs in under a minute on a warm broadband connection. No global install is required.
@@ -23,9 +23,9 @@ If `my-canvas` already exists, the scaffolder refuses to overwrite a non-empty d
 You can also use other runners:
 
 ```bash
-pnpm dlx create-lerret my-canvas
-yarn dlx create-lerret my-canvas
-bunx create-lerret my-canvas
+pnpm dlx create-lerret@latest my-canvas
+yarn dlx create-lerret@latest my-canvas
+bunx create-lerret@latest my-canvas
 ```
 
 ### What you got
@@ -58,14 +58,14 @@ The `.lerret/` folder is the only thing Lerret cares about. Everything else in t
 For an empty project — just `.lerret/config.json` with `{ "vars": {} }`, no sample assets:
 
 ```bash
-npx create-lerret my-canvas --no-samples
+npx create-lerret@latest my-canvas --no-samples
 ```
 
 ## 2. Start the studio
 
 ```bash
 cd my-canvas
-npx @lerret/cli dev
+npx @lerret/cli@latest dev
 ```
 
 The Vite dev server boots and your default browser opens to the studio. You should see three artboards on the canvas: a Twitter banner, an Instagram square, and a YouTube thumbnail — each rendered at its real pixel dimensions.
@@ -73,9 +73,9 @@ The Vite dev server boots and your default browser opens to the studio. You shou
 ### Common flags
 
 ```bash
-npx @lerret/cli dev --port 4000   # custom port (default: Vite's default, usually 5173)
-npx @lerret/cli dev --no-open     # don't auto-open the browser
-npx @lerret/cli dev --folder ./   # explicit project folder (bypasses walk-up)
+npx @lerret/cli@latest dev --port 4000   # custom port (default: Vite's default, usually 5173)
+npx @lerret/cli@latest dev --no-open     # don't auto-open the browser
+npx @lerret/cli@latest dev --folder ./   # explicit project folder (bypasses walk-up)
 ```
 
 If you do not pass `--folder`, the CLI walks up from the current working directory looking for the nearest `.lerret/` — like `git` walks up looking for `.git/`.
@@ -198,7 +198,7 @@ There is also a **`.data.js`** form when you need computed or conditional data �
 When you are happy with the canvas, render every artboard to image files from the command line:
 
 ```bash
-npx @lerret/cli export
+npx @lerret/cli@latest export
 ```
 
 By default, output goes to `./lerret-export/` (relative to your CWD, never inside `.lerret/`). Each artboard becomes a PNG, nested under folders that mirror the project's page/group structure:
@@ -216,10 +216,10 @@ lerret-export/
 Useful flags:
 
 ```bash
-npx @lerret/cli export --format jpg            # JPG instead of PNG (jpeg also accepted)
-npx @lerret/cli export --out ./assets          # custom output directory
-npx @lerret/cli export --flat                  # all images at one level, no nested folders
-npx @lerret/cli export .lerret/social          # scope: only this page
+npx @lerret/cli@latest export --format jpg            # JPG instead of PNG (jpeg also accepted)
+npx @lerret/cli@latest export --out ./assets          # custom output directory
+npx @lerret/cli@latest export --flat                  # all images at one level, no nested folders
+npx @lerret/cli@latest export .lerret/social          # scope: only this page
 ```
 
 The CLI boots a headless Chromium through Playwright and uses the same rendering path the in-studio export buttons use, so a `@lerret/cli export` run produces a pixel-faithful match to what the studio captures.

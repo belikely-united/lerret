@@ -33,33 +33,33 @@ You do not need to clone this repo to use Lerret. Pick the package runner you al
 
 ```sh
 # npm
-npx create-lerret my-project
-cd my-project && npx @lerret/cli dev
+npx create-lerret@latest my-project
+cd my-project && npx @lerret/cli@latest dev
 
 # pnpm
-pnpm dlx create-lerret my-project
-cd my-project && pnpm dlx @lerret/cli dev
+pnpm dlx create-lerret@latest my-project
+cd my-project && pnpm dlx @lerret/cli@latest dev
 
 # yarn
-yarn dlx create-lerret my-project
-cd my-project && yarn dlx @lerret/cli dev
+yarn dlx create-lerret@latest my-project
+cd my-project && yarn dlx @lerret/cli@latest dev
 
 # bun
-bunx create-lerret my-project
-cd my-project && bunx @lerret/cli dev
+bunx create-lerret@latest my-project
+cd my-project && bunx @lerret/cli@latest dev
 ```
 
 Flags work identically across all four runners:
 
 ```sh
 # Minimal project (no sample assets)
-npx create-lerret my-project --no-samples
+npx create-lerret@latest my-project --no-samples
 
 # Export to a specific directory
-npx @lerret/cli export --out ./dist --format png
+npx @lerret/cli@latest export --out ./dist --format png
 
 # Custom dev-server port
-npx @lerret/cli dev --port 4321
+npx @lerret/cli@latest dev --port 4321
 ```
 
 ## Local setup (contributors)
@@ -155,14 +155,14 @@ Lowercase, hyphens, descriptive — `feat/png-export-scale` not `feat/MyChange`.
 
 ## Performance budget (NFR1)
 
-Lerret's first-run experience must be fast. **NFR1** requires that a brand-new user reaches a rendered canvas within **60 seconds** of running `npx create-lerret` on a cold machine (no Lerret packages cached) over typical broadband.
+Lerret's first-run experience must be fast. **NFR1** requires that a brand-new user reaches a rendered canvas within **60 seconds** of running `npx create-lerret@latest` on a cold machine (no Lerret packages cached) over typical broadband.
 
 ### What the 60 seconds covers
 
 | Phase | What happens |
 |---|---|
-| `npx create-lerret my-project` | Runner downloads `create-lerret` from the registry, extracts it, and scaffolds the project tree. |
-| `npx @lerret/cli dev` | Runner downloads `@lerret/cli` (+ Vite + React), starts the Vite dev server. |
+| `npx create-lerret@latest my-project` | Runner downloads `create-lerret` from the registry, extracts it, and scaffolds the project tree. |
+| `npx @lerret/cli@latest dev` | Runner downloads `@lerret/cli` (+ Vite + React), starts the Vite dev server. |
 | Canvas ready | Browser receives an HTTP 200 response with the studio HTML. |
 
 The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped on first install). The `create-lerret` package itself has **zero runtime dependencies** and the `@lerret/cli` CLI keeps its own dependency surface minimal.
@@ -197,7 +197,7 @@ The `cold-run-benchmark` job in `.github/workflows/zero-install.yml` runs on `ub
 
 `create-lerret` and `@lerret/cli` are designed to **fail fast** when no network is available rather than hanging indefinitely:
 
-- **`npx create-lerret` (no network):** `npx` itself detects the registry is unreachable and exits with a clear error within the runner's configured timeout (typically 30 s). No Lerret code runs until the package is downloaded.
+- **`npx create-lerret@latest` (no network):** `npx` itself detects the registry is unreachable and exits with a clear error within the runner's configured timeout (typically 30 s). No Lerret code runs until the package is downloaded.
 - **`@lerret/cli dev` (no network):** Once `@lerret/cli` is installed, `@lerret/cli dev` never makes outbound network requests. It starts a local Vite server using only already-installed packages. Offline `@lerret/cli dev` works without any network.
 - **Vite's module pre-bundling** is purely local (esbuild transforms files from `node_modules`). No CDN or registry calls during `@lerret/cli dev`.
 

@@ -43,7 +43,7 @@ You can also [self-host](/deploy/#self-host) the studio on your own infrastructu
 
 The hosted and self-host studios require the **File System Access API**, which is Chromium-only today. The CLI mode works in every modern browser because the studio is served from the local Vite server — the FSA is not used.
 
-Safari and Firefox users get a calm guidance screen pointing them at either a Chromium browser or `npx @lerret/cli dev` locally.
+Safari and Firefox users get a calm guidance screen pointing them at either a Chromium browser or `npx @lerret/cli@latest dev` locally.
 
 ## Does Lerret upload my files?
 
@@ -73,7 +73,7 @@ Expect occasional sharp edges in the 0.1.x series; the public API stabilises for
 
 | Context | What to type |
 |---|---|
-| Zero-install via `npx` / `pnpm dlx` | `npx @lerret/cli dev` |
+| Zero-install via `npx` / `pnpm dlx` | `npx @lerret/cli@latest dev` |
 | After installing the CLI as a dep, then via `package.json` scripts or `pnpm exec` | `@lerret/cli dev` |
 | After installing the CLI globally | `@lerret/cli dev` |
 
@@ -87,7 +87,7 @@ In CLI mode, Vite handles `.tsx` natively. In hosted mode, the in-browser Sucras
 
 ## Do I need a `package.json` in my project?
 
-No. A fresh `npx create-lerret` project has no `package.json` — just `.lerret/`. The CLI bundles its own React, Vite, and dependencies, so users never `npm install react` themselves.
+No. A fresh `npx create-lerret@latest` project has no `package.json` — just `.lerret/`. The CLI bundles its own React, Vite, and dependencies, so users never `npm install react` themselves.
 
 If you want to use Lerret inside an **existing** project (e.g., a Next.js app), drop a `.lerret/` directory anywhere in that project and `@lerret/cli dev` from there. The existing `package.json` is unaffected — Lerret never reads or writes outside `.lerret/`.
 
@@ -124,7 +124,7 @@ The CLI tries a system Chrome / Edge channel first; failing that, it falls back 
 
 ## How fast is the cold start?
 
-The project's published NFR is **under 60 seconds** from `npx create-lerret` to a rendered canvas on a cold machine over typical broadband. The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped) the first time. On subsequent runs (warm cache), it is single-digit seconds.
+The project's published NFR is **under 60 seconds** from `npx create-lerret@latest` to a rendered canvas on a cold machine over typical broadband. The dominant cost is downloading Vite and its peer dependencies (~4 MB gzipped) the first time. On subsequent runs (warm cache), it is single-digit seconds.
 
 The CI benchmark for this target runs on every push to `main` against Ubuntu and macOS runners.
 

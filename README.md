@@ -17,7 +17,7 @@
 
 <!--
   TODO(visuals): drop a 10–15 s animated demo here showing
-  (1) running `npx @lerret/cli dev` against a folder,
+  (1) running `npx @lerret/cli@latest dev` against a folder,
   (2) saving a .jsx file,
   (3) the canvas re-rendering with the live cue.
 
@@ -32,9 +32,9 @@
 ---
 
 ```bash
-npx create-lerret my-canvas
+npx create-lerret@latest my-canvas
 cd my-canvas
-npx @lerret/cli dev
+npx @lerret/cli@latest dev
 ```
 
 That's it. The studio opens. Save any `.jsx` under `.lerret/`. The canvas re-renders in under a second.
@@ -92,7 +92,7 @@ Drop that file into `.lerret/social/`. It appears on the canvas as an artboard s
 ## What's in the box
 
 - **Studio** — pan-and-zoom canvas, per-artboard error boundaries, in-place editors for component props, data, and config.
-- **CLI** — `npx @lerret/cli dev` opens a folder as a live canvas; `npx @lerret/cli export` headlessly renders to PNG/JPG (single asset, page group, or whole project as structured ZIP).
+- **CLI** — `npx @lerret/cli@latest dev` opens a folder as a live canvas; `npx @lerret/cli@latest export` headlessly renders to PNG/JPG (single asset, page group, or whole project as structured ZIP).
 - **Live edit loop** — Vite's React Fast Refresh under the hood; saves land on the canvas in under a second.
 - **Variants via named exports** — `export const Dark = ...` gives the same asset a second variant on the same canvas.
 - **Per-folder config cascade** — a small `config.json` per folder propagates background colors, CSS variables, shared data down the tree.
@@ -104,7 +104,7 @@ Drop that file into `.lerret/social/`. It appears on the canvas as an artboard s
 
 | Mode | What it is | When to use |
 |---|---|---|
-| **CLI** | `npx @lerret/cli dev` against a local folder. Native Vite HMR. | Your daily dev loop. |
+| **CLI** | `npx @lerret/cli@latest dev` against a local folder. Native Vite HMR. | Your daily dev loop. |
 | **Hosted** | The studio as a static site; open any local folder via the browser's File System Access API. Chromium-only. | One-tap "try it" link. No install. |
 | **Self-host** | The same static studio, packaged for self-deployment. | Your own infra; private/team contexts. |
 
@@ -128,6 +128,7 @@ Lerret is honest about its scope so you can decide quickly:
 - [The Studio](https://docs.lerret.belikely.com/studio/)
 - [CLI Reference](https://docs.lerret.belikely.com/cli/)
 - [Deployment](https://docs.lerret.belikely.com/deploy/)
+- [AI Editing — bundled Claude skill + `/lerret-edit`](https://docs.lerret.belikely.com/ai-editing/)
 
 ## Architecture at a glance
 
@@ -137,7 +138,7 @@ A small workspace of focused packages:
 |---|---|
 | [`@lerret/cli`](https://www.npmjs.com/package/@lerret/cli) | The user-facing CLI (`@lerret/cli dev`, `@lerret/cli export`). Bundles the studio. |
 | [`@lerret/core`](https://www.npmjs.com/package/@lerret/core) | Environment-agnostic engine — loader, watcher, config cascade, filesystem contract. |
-| [`create-lerret`](https://www.npmjs.com/package/create-lerret) | The project scaffolder. `npx create-lerret my-canvas`. |
+| [`create-lerret`](https://www.npmjs.com/package/create-lerret) | The project scaffolder. `npx create-lerret@latest my-canvas`. |
 | `@lerret/studio` *(workspace-only)* | The React studio app. Built and bundled into the CLI tarball. |
 
 The studio talks to your filesystem through a single `FilesystemAccess` contract; the CLI provides the Node `fs` backend, the hosted mode provides the File System Access API backend. Same studio, same canvas, same renderer.

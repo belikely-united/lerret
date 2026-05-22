@@ -11,7 +11,7 @@ The Lerret CLI ships as the npm package **`@lerret/cli`**. It installs one binar
 
 | Context | Command |
 |---|---|
-| Zero-install (`npx`) | `npx @lerret/cli dev` |
+| Zero-install (`npx`) | `npx @lerret/cli@latest dev` |
 | Installed as a project dep | `@lerret/cli dev` (via `package.json` scripts, `pnpm exec`, `npx`, etc.) |
 | Installed globally | `@lerret/cli dev` |
 
@@ -144,7 +144,7 @@ The run exits `1` (fatal) only for these conditions:
 
 ### Chromium resolution
 
-`@lerret/cli export` tries a system Chromium **channel** first (`chrome`, then `msedge`) so a zero-install `npx @lerret/cli export` stays light. It falls back to a bundled Playwright browser if one has been installed (`npx playwright install chromium`). If neither is available, the command exits with code `1` and a clear, actionable message about how to install one.
+`@lerret/cli export` tries a system Chromium **channel** first (`chrome`, then `msedge`) so a zero-install `npx @lerret/cli@latest export` stays light. It falls back to a bundled Playwright browser if one has been installed (`npx playwright install chromium`). If neither is available, the command exits with code `1` and a clear, actionable message about how to install one.
 
 ### Examples
 
@@ -173,16 +173,16 @@ The run exits `1` (fatal) only for these conditions:
 Scaffolder for new Lerret projects. Always invoke via `npx` (or your runner's dlx) — `create-*` is the npm convention for scaffolders.
 
 ```bash
-npx create-lerret <project-name>             # full scaffold with sample assets (default)
-npx create-lerret <project-name> --no-samples # minimal empty project
+npx create-lerret@latest <project-name>             # full scaffold with sample assets (default)
+npx create-lerret@latest <project-name> --no-samples # minimal empty project
 ```
 
 | Runner | Command |
 |---|---|
-| npm | `npx create-lerret my-canvas` |
-| pnpm | `pnpm dlx create-lerret my-canvas` |
-| Yarn | `yarn dlx create-lerret my-canvas` |
-| Bun | `bunx create-lerret my-canvas` |
+| npm | `npx create-lerret@latest my-canvas` |
+| pnpm | `pnpm dlx create-lerret@latest my-canvas` |
+| Yarn | `yarn dlx create-lerret@latest my-canvas` |
+| Bun | `bunx create-lerret@latest my-canvas` |
 
 ### Arguments
 
@@ -226,4 +226,4 @@ npx create-lerret <project-name> --no-samples # minimal empty project
 
 `create-lerret` itself has **zero runtime dependencies** — the package contains the template and a single Node script. The npm runner (`npx` / `pnpm dlx` / etc.) needs to fetch the package the first time; once cached, scaffolding is offline-capable.
 
-The follow-up `npx @lerret/cli dev` does need network to fetch Vite, React, and `@lerret/cli` the first time, but **never** makes outbound requests at runtime. After the first run, dev startup is offline-capable.
+The follow-up `npx @lerret/cli@latest dev` does need network to fetch Vite, React, and `@lerret/cli` the first time, but **never** makes outbound requests at runtime. After the first run, dev startup is offline-capable.

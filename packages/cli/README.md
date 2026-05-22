@@ -10,9 +10,9 @@ Lerret turns a folder of `.jsx`/`.tsx` components into a live, navigable canvas 
 ## Quick start
 
 ```sh
-npx create-lerret my-canvas
+npx create-lerret@latest my-canvas
 cd my-canvas
-npx @lerret/cli dev
+npx @lerret/cli@latest dev
 ```
 
 The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the canvas re-renders.

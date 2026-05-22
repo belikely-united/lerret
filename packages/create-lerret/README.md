@@ -8,17 +8,17 @@
 ## Usage
 
 ```sh
-npx create-lerret my-canvas
+npx create-lerret@latest my-canvas
 cd my-canvas
-npx @lerret/cli dev
+npx @lerret/cli@latest dev
 ```
 
 Or with other runners:
 
 ```sh
-pnpm dlx create-lerret my-canvas
-yarn dlx create-lerret my-canvas
-bunx create-lerret my-canvas
+pnpm dlx create-lerret@latest my-canvas
+yarn dlx create-lerret@latest my-canvas
+bunx create-lerret@latest my-canvas
 ```
 
 ## Options
