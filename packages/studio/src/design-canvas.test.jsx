@@ -358,3 +358,96 @@ describe('Artboard rearrange — keyboard grip (FR15 / NFR14)', () => {
  cleanup();
  });
 });
+
+// Bug B regression — drag-pan's setPointerCapture must NOT fire when the
+// pointerdown originates inside a kebab trigger or open menu popover. Without
+// this guard, the viewport captures the pointer and the kebab button never
+// sees its own pointerup/click. Fix landed 2026-05-22 in design-canvas.jsx:599.
+describe('Drag-pan — kebab and popover targets are excluded (regression)', () => {
+ it('does not call setPointerCapture when pointerdown targets a .lm-kebab-trigger', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const vp = container.querySelector('.design-canvas');
+ expect(vp).toBeTruthy();
+ const capture = vi.fn();
+ vp.setPointerCapture = capture;
+
+ const kebab = document.createElement('button');
+ kebab.className = 'lm-kebab-trigger';
+ vp.appendChild(kebab);
+
+ act(() => {
+ kebab.dispatchEvent(new PointerEvent('pointerdown', {
+ bubbles: true, cancelable: true, button: 0, pointerId: 1,
+ }));
+ });
+
+ expect(capture).not.toHaveBeenCalled();
+ cleanup();
+ });
+
+ it('does not call setPointerCapture for middle-click on a kebab trigger', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const vp = container.querySelector('.design-canvas');
+ const capture = vi.fn();
+ vp.setPointerCapture = capture;
+
+ const kebab = document.createElement('button');
+ kebab.className = 'lm-kebab-trigger';
+ vp.appendChild(kebab);
+
+ act(() => {
+ kebab.dispatchEvent(new PointerEvent('pointerdown', {
+ bubbles: true, cancelable: true, button: 1, pointerId: 2,
+ }));
+ });
+
+ expect(capture).not.toHaveBeenCalled();
+ cleanup();
+ });
+
+ it('does not call setPointerCapture when pointerdown targets an open .lm-menu-popover', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const vp = container.querySelector('.design-canvas');
+ const capture = vi.fn();
+ vp.setPointerCapture = capture;
+
+ const popover = document.createElement('div');
+ popover.className = 'lm-menu-popover';
+ const item = document.createElement('button');
+ popover.appendChild(item);
+ vp.appendChild(popover);
+
+ act(() => {
+ item.dispatchEvent(new PointerEvent('pointerdown', {
+ bubbles: true, cancelable: true, button: 0, pointerId: 3,
+ }));
+ });
+
+ expect(capture).not.toHaveBeenCalled();
+ cleanup();
+ });
+
+ it('still captures pointer on plain background pointerdown (drag-pan unaffected)', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const vp = container.querySelector('.design-canvas');
+ const capture = vi.fn();
+ vp.setPointerCapture = capture;
+
+ act(() => {
+ vp.dispatchEvent(new PointerEvent('pointerdown', {
+ bubbles: true, cancelable: true, button: 0, pointerId: 4,
+ }));
+ });
+
+ expect(capture).toHaveBeenCalledWith(4);
+ cleanup();
+ });
+});
