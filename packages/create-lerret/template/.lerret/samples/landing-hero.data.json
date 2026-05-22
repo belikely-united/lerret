@@ -1,0 +1,6 @@
+{
+  "eyebrow": "this canvas",
+  "headline": "Designs are just files.",
+  "subhead": "Drop a .jsx into .lerret/ and it shows up on the canvas. Edit it in your editor, watch it re-render. Export when you're done.",
+  "cta": "npx create-lerret@latest"
+}

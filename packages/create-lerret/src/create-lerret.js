@@ -8,12 +8,12 @@
 //   create-lerret <name> --ai-tools=claude,...  Scope which AI-tool surfaces ship
 //
 // Default (no flag): copies the template's `.lerret/` tree verbatim — sample
-// assets in `social/`, brand fonts in `_fonts/`, and `config.json` with
+// assets in `samples/`, brand fonts in `_fonts/`, and `config.json` with
 // preset brand variables. Also emits all four AI-tool surfaces (Claude,
 // Cursor, Copilot, AGENTS.md) rendered from `ai-content.js`.
 //
 // --no-samples: creates only `.lerret/config.json` with a minimal root config
-// (`{ "vars": {} }`). No `_fonts/`, no `social/` pages, no sample artboards.
+// (`{ "vars": {} }`). No `_fonts/`, no `samples/` pages, no sample artboards.
 // The resulting project opens in the studio showing the calm empty-but-correct
 // canvas (zero pages, zero assets — valid state). AI-tool surfaces still ship
 // unless --no-ai-rules is set.
@@ -429,7 +429,7 @@ async function copyTemplate(templateLerretSrc, destDir, destExisted, selectedAiT
  * AI tools are selected, also render and emit their files.
  *
  * The config contains an empty `vars` map so the loader's schema is satisfied
- * without any pre-set values. No `_fonts/`, no `social/` pages, no sample
+ * without any pre-set values. No `_fonts/`, no `samples/` pages, no sample
  * artboards. When opened in the studio the canvas shows the calm empty state
  * (zero pages, zero assets).
  *

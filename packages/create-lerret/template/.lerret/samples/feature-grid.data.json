@@ -1,0 +1,26 @@
+{
+  "default": {
+    "kicker": "feature",
+    "title": "Three things, one canvas.",
+    "description": "Edit the keys in feature-grid.data.json to see per-variant data flow into each artboard.",
+    "glyph": "◆"
+  },
+  "Fast": {
+    "kicker": "01 / fast",
+    "title": "Live re-render under a second.",
+    "description": "Save a .jsx file and the artboard re-renders before you can flick to the browser. Vite HMR under the hood.",
+    "glyph": "→"
+  },
+  "Open": {
+    "kicker": "02 / open",
+    "title": "Designs you can git diff.",
+    "description": "Every asset is plain React. Your repo, your folder structure, your editor. No vendor format, no cloud.",
+    "glyph": "{ }"
+  },
+  "Yours": {
+    "kicker": "03 / yours",
+    "title": "Edit with the editor you love.",
+    "description": "VS Code, Cursor, vim — whatever you already use. Lerret stays out of the editing path. The canvas just renders.",
+    "glyph": "✱"
+  }
+}

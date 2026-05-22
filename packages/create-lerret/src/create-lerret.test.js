@@ -4,7 +4,7 @@
 //   - Successful scaffold to a temp directory (files match template exactly)
 //   - Missing <name> arg → usage message + non-zero exit
 //   - Invalid project names ('.', '..', 'foo/bar', empty) → clear error + non-zero exit
-//   - `--no-samples` flag: creates only .lerret/config.json (no _fonts/, no social/)
+//   - `--no-samples` flag: creates only .lerret/config.json (no _fonts/, no samples/)
 //   - `--no-samples` works in any position relative to the project name
 //   - Default (no flag) still copies the full sample template (regression)
 //   - Unknown flag triggers a usage message + non-zero exit
@@ -660,7 +660,7 @@ describe('post-scaffold disclosure summary', () => {
 // digits, letters, `_` — so `slerret`/`_lerret`/`5lerret` won't match), and
 // `-` (e.g. inside `--lerret` or `pkg-lerret`).
 
-const FORBIDDEN_CLI_FORM_RE = /(?<![/@\w-])lerret (dev|export|init|build|preview)\b/m;
+const FORBIDDEN_CLI_FORM_RE = /(?<![/@\w-])lerret (dev|export|clear|init|build|preview)\b/m;
 
 /**
  * Scan a directory recursively for files containing bare `lerret <cmd>`
@@ -938,7 +938,7 @@ describe('invalid project name', () => {
 // ---------------------------------------------------------------------------
 
 describe('--no-samples flag', () => {
-  it('exits 0 and creates only .lerret/config.json — no _fonts/, no social/', async () => {
+  it('exits 0 and creates only .lerret/config.json — no _fonts/, no samples/', async () => {
     const { code, stderr } = await runMain(['my-project', '--no-samples'], { cwd: tmpDir });
     expect(stderr).not.toMatch(/unknown option/i);
     expect(code).toBe(0);
@@ -972,11 +972,11 @@ describe('--no-samples flag', () => {
     expect(entries).not.toContain('_fonts');
   });
 
-  it('does not create social/ directory', async () => {
+  it('does not create samples/ directory', async () => {
     await runMain(['my-project', '--no-samples'], { cwd: tmpDir });
     const projectDir = join(tmpDir, 'my-project', '.lerret');
     const entries = await fsp.readdir(projectDir);
-    expect(entries).not.toContain('social');
+    expect(entries).not.toContain('samples');
   });
 
   it('success message mentions the empty-project nature', async () => {
@@ -1016,7 +1016,7 @@ describe('--no-samples flag', () => {
 // ---------------------------------------------------------------------------
 
 describe('default (no --no-samples flag) regression', () => {
-  it('copies the full template .lerret/ tree including social/ and _fonts/', async () => {
+  it('copies the full template .lerret/ tree including samples/ and _fonts/', async () => {
     const { code } = await runMain(['full-project'], { cwd: tmpDir });
     expect(code).toBe(0);
 
@@ -1388,9 +1388,11 @@ describe('pnpm pack — published tarball contains the right files', () => {
 
     // The .lerret/ template must ship.
     expect(relFiles).toContain('template/.lerret/config.json');
-    expect(relFiles).toContain('template/.lerret/social/twitter-banner.jsx');
-    expect(relFiles).toContain('template/.lerret/social/instagram-square.jsx');
-    expect(relFiles).toContain('template/.lerret/social/youtube-thumbnail.jsx');
+    expect(relFiles).toContain('template/.lerret/samples/landing-hero.jsx');
+    expect(relFiles).toContain('template/.lerret/samples/feature-grid.jsx');
+    expect(relFiles).toContain('template/.lerret/samples/quote-card.jsx');
+    expect(relFiles).toContain('template/.lerret/samples/poster.jsx');
+    expect(relFiles).toContain('template/.lerret/samples/README.md');
 
     // The .claude template must NOT ship (Story 6.11 moved this to runtime
     // rendering — no static AI-tool files in the template).
