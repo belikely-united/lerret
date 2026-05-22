@@ -108,10 +108,15 @@ export function KebabTrigger({
 }) {
  const triggerProps = getTriggerProps();
  const onPointerDown = (e) => {
- // The kebab is layered above the artboard / section header — both have
- // their own pointerdown handlers (drag-reorder, focus, etc.). Stop the
- // event so a click on the kebab never propagates to those handlers.
+ // Stop the React synthetic event from bubbling to parent React handlers
+ // (drag-reorder, focus). Also stop the native event from bubbling to
+ // ancestor native listeners attached via addEventListener (e.g. siblings
+ // of design-canvas's drag-pan handler). Note: this does NOT stop native
+ // capture-phase listeners or sibling handlers on this node — those need
+ // stopImmediatePropagation. The primary defense for design-canvas's
+ // drag-pan is the kebab-trigger exclusion in design-canvas.jsx itself.
  e.stopPropagation();
+ if (e.nativeEvent) e.nativeEvent.stopPropagation();
  };
  return (
  <button

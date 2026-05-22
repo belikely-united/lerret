@@ -589,6 +589,14 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  // background (anything that isn't an artboard or an inline editor).
  let drag = null;
  const onPointerDown = (e) => {
+ // Never initiate drag-pan (or any setPointerCapture) when the pointerdown
+ // targets a kebab trigger or an open menu popover — including middle-click,
+ // which bypasses the onBg check below. Without this early-return, the
+ // pointer is captured by `vp` and subsequent pointerup/click never reach
+ // the button (Bug B). Kept narrow to the kebab/popover surface to match
+ // the spec's "minimum surgical fix" boundary; broader `button` exclusion
+ // was considered but is over-broad for the actual root cause.
+ if (e.target.closest('.lm-kebab-trigger, .lm-menu-popover')) return;
  const onBg = !e.target.closest('[data-dc-slot], .dc-editable');
  if (!(e.button === 1 || (e.button === 0 && onBg))) return;
  e.preventDefault();

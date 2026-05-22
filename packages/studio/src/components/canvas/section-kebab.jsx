@@ -45,17 +45,6 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-section-keba
  top: 18px;
  left: 18px;
  z-index: 10;
- opacity: 0;
- transition: opacity var(--lm-duration-fast, 120ms) var(--lm-ease, ease-out);
-}
-.lm-section-kebab-host:hover .lm-section-kebab,
-.lm-section-kebab-host:focus-within .lm-section-kebab,
-.lm-section-kebab[data-open="true"],
-.lm-section-kebab:focus-visible {
- opacity: 1;
-}
-@media (prefers-reduced-motion: reduce) {
- .lm-section-kebab { transition: none !important; }
 }
  `.trim();
  document.head.appendChild(s);

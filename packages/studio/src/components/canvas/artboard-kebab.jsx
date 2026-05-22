@@ -30,6 +30,7 @@
 // content — never for component code itself.
 
 import React from 'react';
+import * as ReactDOM from 'react-dom';
 
 import { resolveProps, resolveVariantData, validateProps } from '@lerret/core';
 
@@ -50,11 +51,13 @@ import { bindOneShotRename } from './use-inline-rename.js';
 
 // ── CSS injection ────────────────────────────────────────────────────────────
 //
-// The wrapper provides a positioning root for the kebab (top-right of the
-// artboard's card) and matches the hover-reveal behavior of the existing
-// dc-expand / dc-dl PNG/JPG buttons in design-canvas.jsx — the kebab fades in
-// on hover, focus, and when its menu is open. Keyboard-focused users always
-// see it.
+// The host wraps the rendered component inside the dc-card. The kebab itself
+// is portaled OUT of the host into the artboard's brownfield `.dc-labelrow`
+// (rendered above the card by design-canvas.jsx), so it sits in the same row
+// as the drag-grip and the asset's title — alongside the asset's identity
+// controls rather than overlaying the asset's content. The kebab is always
+// visible (user choice, see spec change log 2026-05-22) so identical labels
+// stay readable next to it.
 
 if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-kebab-styles')) {
  const s = document.createElement('style');
@@ -66,23 +69,31 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
  height: 100%;
 }
 .lm-artboard-kebab {
- position: absolute;
- top: 6px;
- right: 6px;
+ /* Portaled into .dc-labelrow as an inline flex child. */
+ display: inline-flex;
+ align-items: center;
  z-index: 5;
- opacity: 0;
-}
-.lm-artboard-kebab-host:hover .lm-artboard-kebab,
-.lm-artboard-kebab-host:focus-within .lm-artboard-kebab,
-.lm-artboard-kebab[data-open="true"],
-.lm-artboard-kebab:focus-visible {
- opacity: 1;
-}
-@media (prefers-reduced-motion: reduce) {
- .lm-artboard-kebab { transition: none !important; }
 }
  `.trim();
  document.head.appendChild(s);
+}
+
+/**
+ * Find the brownfield `.dc-labelrow` element that pairs with the given host
+ * element. Walks up to the `[data-dc-slot]` wrapper, then queries for the
+ * label row inside it. Returns `null` if either is missing (e.g. during
+ * initial mount before the brownfield frame renders).
+ *
+ * @param {Element | null} hostEl
+ * @returns {Element | null}
+ */
+function findLabelRow(hostEl) {
+ let cur = hostEl;
+ while (cur && !(cur.hasAttribute && cur.hasAttribute('data-dc-slot'))) {
+ cur = cur.parentElement;
+ }
+ if (!cur) return null;
+ return cur.querySelector(':scope > .dc-labelrow') || cur.querySelector('.dc-labelrow');
 }
 
 // ── Per-artboard export — reuses the brownfield window.dcDownloadSlots ──────
@@ -333,8 +344,24 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 
  const ariaLabel = `Actions for ${entry?.label || entry?.asset?.name || 'this asset'}`;
 
+ // Locate the brownfield label row to portal the kebab into. Walks up from
+ // our host to the data-dc-slot wrapper, then finds the .dc-labelrow inside.
+ // useLayoutEffect runs synchronously after DOM mutations so the portal
+ // target is current before paint.
+ const hostRef = React.useRef(null);
+ const [labelRowEl, setLabelRowEl] = React.useState(null);
+ React.useLayoutEffect(() => {
+ setLabelRowEl(findLabelRow(hostRef.current));
+ }, [entry?.id]);
+
+ const kebab = (
+ <div className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
+ <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-start" />
+ </div>
+ );
+
  return (
- <div className="lm-artboard-kebab-host">
+ <div ref={hostRef} className="lm-artboard-kebab-host">
  {renderComponent(resolvedProps)}
  {children}
  <ValidationBadge
@@ -342,9 +369,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  propsSchema={propsSchema}
  onClick={handleBadgeClick}
  />
- <div className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
- <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-end" />
- </div>
+ {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}
  <ComponentEditorHost
  dataOpen={dataOpen}
  onCloseData={() => setDataOpen(false)}
@@ -441,12 +466,24 @@ export function MarkdownCardKebab({ entry, children }) {
 
  const ariaLabel = `Actions for ${entry?.label || entry?.asset?.name || 'this markdown asset'}`;
 
- return (
- <div className="lm-artboard-kebab-host">
- {children}
+ // Portal the kebab into the markdown card's brownfield label row (same
+ // pattern as ComponentArtboardKebab above).
+ const hostRef = React.useRef(null);
+ const [labelRowEl, setLabelRowEl] = React.useState(null);
+ React.useLayoutEffect(() => {
+ setLabelRowEl(findLabelRow(hostRef.current));
+ }, [entry?.id]);
+
+ const kebab = (
  <div className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
- <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-end" />
+ <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-start" />
  </div>
+ );
+
+ return (
+ <div ref={hostRef} className="lm-artboard-kebab-host">
+ {children}
+ {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}
  <MarkdownEditorHost open={open} onClose={() => setOpen(false)} entry={entry} />
  </div>
  );
