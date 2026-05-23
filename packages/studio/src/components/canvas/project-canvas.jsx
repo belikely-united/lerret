@@ -569,21 +569,33 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  }
  sectionStyle={sectionStyle}
  >
- {s.isEmpty ? (
- <EmptyGroupPlaceholder
+ {!s.isEmpty &&
+ s.entries.map((entry) =>
+ artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }),
+ )}
+ {/* In-canvas "add into THIS section" control — the spatially-explicit
+ way to create a group/asset inside a specific container. Renders
+ below the section frame; also serves as the empty-group affordance. */}
+ <SectionAddBar
+ isEmpty={s.isEmpty}
  cliMode={cliMode}
  onAddAsset={() =>
  setCreateState({
  kind: 'asset',
  parentPath: s.id,
  parentLabel: s.title,
- existingNames: [],
+ existingNames: sectionChildNames(project, s.id),
+ })
+ }
+ onAddGroup={() =>
+ setCreateState({
+ kind: 'group',
+ parentPath: s.id,
+ parentLabel: s.title,
+ existingNames: sectionChildNames(project, s.id),
  })
  }
  />
- ) : (
- s.entries.map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }))
- )}
  </DCSection>
  </SectionKebab>
  );
@@ -697,62 +709,88 @@ function NoticeButton({ label, onClick, primary }) {
 }
 
 /**
- * The body rendered inside an empty leaf-group section — a soft dashed frame
- * with an inline "Add asset" CTA (CLI mode) so a just-created group is an
- * inviting next step rather than a dead end. In standalone mode the CTA is
- * replaced by a calm hint (writes are CLI-only).
+ * Per-section in-canvas add control: "+ Asset" / "+ Group", which create INTO
+ * this section (page or group). Rendered below each section's frame so the
+ * creation target is wherever you click — the spatially-explicit way to add a
+ * group inside a particular group, no kebab-hunting. Doubles as the empty-group
+ * affordance.
+ *
+ * Marked `.dc-section-cta` so the canvas pan handler treats it as interactive
+ * content (not background) — otherwise drag-pan capture would swallow the click.
  *
  * @param {object} props
+ * @param {boolean} props.isEmpty   Whether the owning section has no assets.
+ * @param {boolean} props.cliMode   Creation writes to disk → CLI-only.
  * @param {() => void} props.onAddAsset
- * @param {boolean} props.cliMode
- * @returns {React.ReactElement}
+ * @param {() => void} props.onAddGroup
+ * @returns {React.ReactElement | null}
  */
-function EmptyGroupPlaceholder({ onAddAsset, cliMode }) {
- return (
+function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
+ // Creation writes to disk → CLI-only. In standalone mode show a calm hint for
+ // an empty group; otherwise render nothing.
+ if (!cliMode) {
+ return isEmpty ? (
  <div
  className="dc-section-cta"
- data-testid="lm-empty-group-placeholder"
- style={{
- display: 'flex',
- flexDirection: 'column',
- alignItems: 'center',
- justifyContent: 'center',
- gap: 10,
- minWidth: 320,
- minHeight: 150,
- padding: 32,
- border: '1.5px dashed var(--lm-border, rgba(26,23,20,0.22))',
- borderRadius: 12,
- background: 'rgba(0,0,0,0.015)',
- color: 'var(--lm-text-tertiary, #6e6960)',
- textAlign: 'center',
- }}
+ style={{ marginTop: 10, fontSize: 12, color: 'var(--lm-text-tertiary, #6e6960)' }}
  >
- <div style={{ fontSize: 13 }}>This group is empty.</div>
- {cliMode ? (
- <button
- type="button"
- onClick={onAddAsset}
- data-testid="lm-empty-group-add"
- style={{
- padding: '8px 14px',
+ Add a .jsx, .tsx, or .md file into this group.
+ </div>
+ ) : null;
+ }
+ const btnStyle = {
+ display: 'inline-flex',
+ alignItems: 'center',
+ gap: 5,
+ padding: '6px 12px',
  borderRadius: 8,
- border: 'none',
- background: 'var(--lm-accent, #B85B33)',
- color: '#fff',
+ border: '1px dashed var(--lm-border, rgba(26,23,20,0.28))',
+ background: 'transparent',
+ color: 'var(--lm-text-secondary, #6e6960)',
  fontFamily: 'inherit',
  fontSize: 12,
  fontWeight: 600,
  cursor: 'pointer',
- }}
+ };
+ return (
+ <div
+ className="dc-section-cta"
+ data-testid="section-add-bar"
+ style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
  >
- + Add asset
+ <button type="button" onClick={onAddAsset} data-testid="section-add-asset" style={btnStyle}>
+ + Asset
  </button>
- ) : (
- <div style={{ fontSize: 11 }}>Add a .jsx, .tsx, or .md file into it.</div>
- )}
+ <button type="button" onClick={onAddGroup} data-testid="section-add-group" style={btnStyle}>
+ + Group
+ </button>
  </div>
  );
+}
+
+/**
+ * Child names (sub-folder names + asset file names) of the section at `path`,
+ * for the create dialog's instant case-insensitive collision pre-check. The
+ * server remains authoritative.
+ *
+ * @param {object | null | undefined} project
+ * @param {string} path
+ * @returns {string[]}
+ */
+function sectionChildNames(project, path) {
+ if (!project || !path) return [];
+ const stack = [...(project.pages || [])];
+ while (stack.length) {
+ const node = stack.pop();
+ if (node && node.path === path) {
+ return [
+ ...(node.groups || []).map((g) => g.name),
+ ...(node.assets || []).map((a) => a.fileName),
+ ];
+ }
+ if (node && node.groups) for (const g of node.groups) stack.push(g);
+ }
+ return [];
 }
 
 export default ProjectCanvas;

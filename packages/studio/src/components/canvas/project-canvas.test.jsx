@@ -278,6 +278,32 @@ describe('ProjectCanvas — live-edit loop', () => {
  return container;
  }
 
+ it('shows a per-section "+ Asset / + Group" add bar (CLI mode) that targets that section', async () => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ try {
+ const { project, makeRuntime } = setup();
+ const importer = vi.fn(async () => ({
+ default: () => React.createElement('div', { 'data-card': true }),
+ }));
+ const container = await mount(<ProjectCanvas project={project} runtime={makeRuntime(importer)} />);
+ await waitFor(() => container.querySelector('[data-card]'), { label: 'initial render' });
+
+ // Every rendered section gets the in-canvas add bar.
+ expect(document.querySelector('[data-testid="section-add-asset"]')).not.toBeNull();
+ const addGroup = document.querySelector('[data-testid="section-add-group"]');
+ expect(addGroup).not.toBeNull();
+
+ // Clicking it opens the create dialog targeting THIS section ("home").
+ act(() => { addGroup.click(); });
+ const dialog = document.querySelector('[data-testid="lm-create-dialog"]');
+ expect(dialog).not.toBeNull();
+ expect(dialog.getAttribute('aria-label')).toBe('New group');
+ expect(dialog.textContent).toContain('home');
+ } finally {
+ delete globalThis.__LERRET_CLI_MODE__;
+ }
+ });
+
  it('reloads only the affected artboard on notifyChange, preserving siblings', async () => {
  const { project, asset, asset2, makeRuntime } = setup();
  // Track each asset's load — the runtime calls `importer(url)` per
