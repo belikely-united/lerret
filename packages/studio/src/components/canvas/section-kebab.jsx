@@ -21,15 +21,32 @@ import React from 'react';
 
 import {
  EntityKebab,
+ MovePicker,
  SectionEditorHost,
  applyDeleteConfirm,
  buildSectionItems,
  destroy,
  inCliMode,
+ move,
  reveal,
 } from '../menu/index.js';
 import { runBulkExport, triggerBulkDownload } from '../../export/bulk.js';
+import { useCascadedConfig } from './cascade-context.jsx';
 import { bindOneShotRename } from './use-inline-rename.js';
+
+/**
+ * Derive the parent folder LerretPath for a folder path. Strips the last
+ * path component. Returns `''` for a top-level folder.
+ *
+ * @param {string | undefined | null} folderPath
+ * @returns {string}
+ */
+function parentFolderOf(folderPath) {
+ if (typeof folderPath !== 'string') return '';
+ const trimmed = folderPath.replace(/\/+$/, '');
+ const slash = trimmed.lastIndexOf('/');
+ return slash === -1 ? '' : trimmed.slice(0, slash);
+}
 
 // ── CSS injection ────────────────────────────────────────────────────────────
 
@@ -214,6 +231,12 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  const [exportProgress, setExportProgress] = React.useState(null); // null = idle
  const [exportNotice, setExportNotice] = React.useState(null);
 
+ // ── Move state ────────────────────────────────────────────────
+ const [moveOpen, setMoveOpen] = React.useState(false);
+
+ // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
+ const getConfigFor = useCascadedConfig();
+
  const onRename = React.useCallback(() => {
  if (typeof document === 'undefined' || !sectionId) return;
  const root = document.querySelector(`[data-dc-section="${cssEscape(sectionId)}"]`);
@@ -228,6 +251,11 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  sel.removeAllRanges();
  sel.addRange(range);
  bindOneShotRename(editable, { fromPath: sectionId, kind: 'folder' });
+ }, [sectionId]);
+
+ const onMove = React.useCallback(() => {
+ if (!sectionId) return;
+ setMoveOpen(true);
  }, [sectionId]);
 
  const onDelete = React.useCallback(() => setConfirming(true), []);
@@ -257,6 +285,7 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  scope,
  format: exportFormat,
  flat: exportFlat,
+ getConfigFor,
  onProgress: (i, total) => {
  setExportProgress(i === total ? null : `${i}/${total}…`);
  },
@@ -265,7 +294,11 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  setExportProgress(null);
 
  if (!result.blob) {
- // Empty scope or all skipped.
+ // Empty scope, all skipped, or every artboard was excluded.
+ if (result.excludedFolders?.length) {
+ setExportNotice('Nothing to export — every page in this scope is excludeFromExport.');
+ return;
+ }
  const skippedMsg = result.skipped.length > 0
  ? ` (${result.skipped.length} skipped)`
  : '';
@@ -276,11 +309,18 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  // Trigger the download.
  triggerBulkDownload(result.blob, result.filename);
 
- // Build calm notice text for skipped artboards and unembedded fonts.
+ // Build calm notice text for skipped artboards, excluded folders, and unembedded fonts.
  const notices = [];
  if (result.skipped.length > 0) {
  const names = result.skipped.map((s) => s.artboard?.asset?.name || '?').join(', ');
  notices.push(`Skipped: ${names}`);
+ }
+ if (result.excludedFolders?.length > 0) {
+ notices.push(
+ `Excluded (excludeFromExport): ${result.excludedFolders
+ .map((p) => p.split('/').filter(Boolean).pop() || p)
+ .join(', ')}`,
+ );
  }
  if (result.unembeddedFonts.length > 0) {
  notices.push(`Fonts not embedded: ${result.unembeddedFonts.join(', ')}`);
@@ -292,7 +332,7 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  if (notices.length === 0) {
  setExportOpen(false);
  }
- }, [project, sectionId, sectionKind, exportFormat, exportFlat, exportProgress]);
+ }, [project, sectionId, sectionKind, exportFormat, exportFlat, exportProgress, getConfigFor]);
 
  const onRevealEditor = React.useCallback(() => {
  if (sectionId) reveal(sectionId, 'editor');
@@ -307,13 +347,14 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  () => buildSectionItems({
  onEditConfig: () => setConfigOpen(true),
  onRename,
+ onMove,
  onDelete,
  onExport,
  onRevealEditor,
  onRevealFinder,
  cliMode,
  }),
- [onRename, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = React.useMemo(
@@ -326,6 +367,29 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  );
 
  const ariaLabel = `Actions for ${sectionTitle || 'this section'}`;
+
+ // Compute destinations from the cascade map when the picker is open. The
+ // picker's internal isInsideSource() check disables the section itself and
+ // any descendant of it — server-side cycle prevention is a backstop.
+ const sectionParent = parentFolderOf(sectionId);
+ const destinations = React.useMemo(() => {
+ if (!moveOpen) return [];
+ const knownFolders =
+ typeof getConfigFor.knownFolders === 'function' ? getConfigFor.knownFolders() : [];
+ return knownFolders.map((p) => ({ path: p, label: p.split('/').filter(Boolean).pop() || p }));
+ }, [moveOpen, getConfigFor]);
+
+ const onConfirmMove = React.useCallback(
+ async ({ toFolderPath, carryLiveRefresh }) => {
+ if (!sectionId || !toFolderPath) return;
+ // `move()` resolves with `{ ok, error }` rather than throwing. Re-throw on
+ // `!ok` so MovePicker's catch surfaces the error inline (otherwise the
+ // picker would close silently on 400 cycle / 409 collision / 500 fs-fail).
+ const result = await move(sectionId, toFolderPath, { carryLiveRefresh });
+ if (!result?.ok) throw new Error(result?.error || 'Move failed');
+ },
+ [sectionId],
+ );
 
  return (
  <div className="lm-section-kebab-host">
@@ -351,6 +415,15 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  folderPath={sectionId}
  folderName={sectionTitle}
  />
+ {moveOpen && (
+ <MovePicker
+ onClose={() => setMoveOpen(false)}
+ onConfirm={onConfirmMove}
+ sourcePath={sectionId}
+ currentParentPath={sectionParent}
+ destinations={destinations}
+ />
+ )}
  </div>
  );
 }

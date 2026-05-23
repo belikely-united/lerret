@@ -54,6 +54,17 @@ import { LERRET_DIR_NAME } from './resolve-project.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('parseExportArgs', () => {
+  // Defaults for Epic 7 animated-export flags. Animated flags are present even
+  // when the format is static — the runner honors them only when isAnimated.
+  const ANIMATED_DEFAULTS = {
+    isAnimated: false,
+    durationMs: 3000,
+    fps: 24,
+    scale: 1,
+    loop: 'infinite',
+    captureMode: 'cycle',
+  };
+
   it('returns sensible defaults when no flags are passed', () => {
     const { flags, error } = parseExportArgs([]);
     expect(error).toBeNull();
@@ -62,7 +73,10 @@ describe('parseExportArgs', () => {
       format: DEFAULT_FORMAT,
       out: DEFAULT_OUT_DIR,
       flat: false,
+      data: undefined,
+      config: undefined,
       help: false,
+      ...ANIMATED_DEFAULTS,
     });
   });
 
@@ -83,11 +97,20 @@ describe('parseExportArgs', () => {
     expect(flags.format).toBe('jpg');
   });
 
+  it('accepts the animated formats — webp, gif, apng, mp4 (Story 7.8)', () => {
+    for (const fmt of ['webp', 'gif', 'apng', 'mp4']) {
+      const { flags, error } = parseExportArgs(['--format', fmt]);
+      expect(error).toBeNull();
+      expect(flags.format).toBe(fmt);
+      expect(flags.isAnimated).toBe(true);
+    }
+  });
+
   it('rejects an unsupported --format value', () => {
-    const { flags, error } = parseExportArgs(['--format', 'webp']);
+    const { flags, error } = parseExportArgs(['--format', 'tiff']);
     expect(flags).toBeNull();
     expect(error).toMatch(/--format/);
-    expect(error).toMatch(/webp/);
+    expect(error).toMatch(/tiff/);
   });
 
   it('parses --out to a directory string', () => {
@@ -99,6 +122,40 @@ describe('parseExportArgs', () => {
   it('parses --flat as a boolean toggle', () => {
     expect(parseExportArgs(['--flat']).flags.flat).toBe(true);
     expect(parseExportArgs([]).flags.flat).toBe(false);
+  });
+
+  it('parses animated-export flags (Story 7.8)', () => {
+    const { flags, error } = parseExportArgs([
+      '--format', 'gif',
+      '--duration', '5s',
+      '--fps', '30',
+      '--scale', '2x',
+      '--loop', 'once',
+      '--capture', 'now',
+    ]);
+    expect(error).toBeNull();
+    expect(flags.format).toBe('gif');
+    expect(flags.isAnimated).toBe(true);
+    expect(flags.durationMs).toBe(5000);
+    expect(flags.fps).toBe(30);
+    expect(flags.scale).toBe(2);
+    expect(flags.loop).toBe('once');
+    expect(flags.captureMode).toBe('now');
+  });
+
+  it('rejects invalid --fps (out of 1-60 range)', () => {
+    expect(parseExportArgs(['--fps', '0']).error).toMatch(/--fps/);
+    expect(parseExportArgs(['--fps', '120']).error).toMatch(/--fps/);
+    expect(parseExportArgs(['--fps', 'abc']).error).toMatch(/--fps/);
+  });
+
+  it('rejects invalid --scale', () => {
+    expect(parseExportArgs(['--scale', '4x']).error).toMatch(/--scale/);
+    expect(parseExportArgs(['--scale', 'abc']).error).toMatch(/--scale/);
+  });
+
+  it('rejects invalid --capture', () => {
+    expect(parseExportArgs(['--capture', 'realtime']).error).toMatch(/--capture/);
   });
 
   it('combines positional + flags in any order', () => {
@@ -114,7 +171,10 @@ describe('parseExportArgs', () => {
       format: 'jpg',
       out: '/tmp/out',
       flat: true,
+      data: undefined,
+      config: undefined,
       help: false,
+      ...ANIMATED_DEFAULTS,
     });
   });
 

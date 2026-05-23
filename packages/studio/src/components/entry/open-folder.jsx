@@ -296,15 +296,74 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
  // Render helpers
  // ---------------------------------------------------------------------------
 
+ /**
+ * Story 7.9 — initialize a `.lerret/` in the picked folder as a "Blank canvas"
+ * project, then proceed as if it had one all along. Writes a minimal
+ * `.lerret/config.json` via the FSA handle and falls through to `onFolderPicked`.
+ *
+ * Future work: full three-button picker (Blank / With samples / Pick a preset),
+ * AI-rules step, .gitignore safety, confirmation step (FR58/FR58a/FR58b/FR59).
+ * This v1 ships only the Blank-canvas path; the two preset paths route users
+ * back to `npx create-lerret@latest --preset <name>`.
+ */
+ async function handleInitializeBlank() {
+ if (!_failedHandle) return;
+ setState('initializing');
+ try {
+ const lerretDir = await _failedHandle.getDirectoryHandle('.lerret', { create: true });
+ const cfgFile = await lerretDir.getFileHandle('config.json', { create: true });
+ const writable = await cfgFile.createWritable();
+ const body = JSON.stringify(
+ {
+ _meta: { initializedBy: 'studio-init-picker', initializedAt: new Date().toISOString() },
+ vars: {},
+ },
+ null,
+ 2,
+ );
+ await writable.write(body + '\n');
+ await writable.close();
+ } catch (err) {
+ // Honest degradation: keep the user on the error state with the
+ // original "Pick another" CTA still available.
+ // eslint-disable-next-line no-console
+ console.warn('[lerret/init] Blank canvas init failed:', err);
+ setState('not-lerret-project');
+ return;
+ }
+ setState('idle');
+ const handle = _failedHandle;
+ setFailedHandle(null);
+ if (typeof onFolderPicked === 'function') {
+ await onFolderPicked(handle);
+ }
+ }
+
  function renderNotLerretProject() {
  return (
  <div role="alert" style={notLerretBoxStyle} data-testid="not-lerret-project-message">
- <h2 style={errorHeadingStyle}>Not a Lerret project</h2>
+ <h2 style={errorHeadingStyle}>Not a Lerret project yet</h2>
  <p style={errorBodyStyle}>
  The folder you picked doesn&apos;t contain a <code>.lerret/</code>{' '}
- directory. Open a folder that has one, or create a new project with{' '}
- <code>npx create-lerret@latest my-canvas</code>.
+ directory. Initialize a blank canvas here, pick a different folder, or
+ create a richer project with{' '}
+ <code>npx create-lerret@latest my-canvas</code> (or{' '}
+ <code>--preset producthunt</code>, <code>--preset social-media</code>, …).
  </p>
+ <div style={{ display: 'flex', gap: 'var(--lm-space-2, 8px)', flexWrap: 'wrap' }}>
+ <button
+ type="button"
+ style={{
+ ...primaryButtonStyle,
+ ...(primaryHover ? { background: 'var(--lm-accent-strong, #9D4A28)' } : {}),
+ }}
+ onClick={handleInitializeBlank}
+ onMouseEnter={() => setPrimaryHover(true)}
+ onMouseLeave={() => setPrimaryHover(false)}
+ data-testid="init-blank-canvas-button"
+ >
+ Initialize Lerret here (blank)
+ </button>
  <button
  type="button"
  style={{
@@ -320,6 +379,16 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
  >
  Pick another folder
  </button>
+ </div>
+ </div>
+ );
+ }
+
+ function renderInitializing() {
+ return (
+ <div style={notLerretBoxStyle} data-testid="initializing-message">
+ <h2 style={errorHeadingStyle}>Initializing…</h2>
+ <p style={errorBodyStyle}>Creating <code>.lerret/config.json</code> in the picked folder.</p>
  </div>
  );
  }
@@ -397,6 +466,7 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
 
  {state === 'not-lerret-project' && renderNotLerretProject()}
  {state === 'cli-guide' && renderCliGuide()}
+ {state === 'initializing' && renderInitializing()}
 
  {(state === 'idle' || state === 'picking') && (
  <button

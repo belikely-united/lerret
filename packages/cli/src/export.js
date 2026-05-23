@@ -72,7 +72,13 @@ import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
-import { scan, collectArtboards } from '@lerret/core';
+import {
+  scan,
+  collectArtboards,
+  computeCascadedConfig,
+  partitionByExclusion,
+  excludedFolderPaths,
+} from '@lerret/core';
 
 import {
   createNodeBackend,
@@ -238,6 +244,13 @@ export function parseExportArgs(argv) {
         flat: { type: 'boolean' },
         data: { type: 'string' },
         config: { type: 'string' },
+        // Animated-export flags (Story 7.8) — only meaningful when --format is
+        // one of webp|gif|apng|mp4. Ignored for static formats.
+        duration: { type: 'string' },
+        fps: { type: 'string' },
+        scale: { type: 'string' },
+        loop: { type: 'string' },
+        capture: { type: 'string' },
         help: { type: 'boolean', short: 'h' },
       },
       // Reject unknown flags — surface a typo as a usage error rather than
@@ -267,7 +280,9 @@ export function parseExportArgs(argv) {
 
   // Format: defaults to 'png'. `jpeg` is accepted as an alias for `jpg` for
   // parity with `resolveFormat` used by the studio; both normalize to the
-  // 'jpg' string here so downstream code is straightforward.
+  // 'jpg' string here so downstream code is straightforward. Animated formats
+  // (gif, webp, apng, mp4) route to the animated-export pipeline.
+  const ANIMATED_FORMATS = new Set(['gif', 'webp', 'apng', 'mp4']);
   let format = DEFAULT_FORMAT;
   if (typeof values.format === 'string') {
     const f = values.format.toLowerCase();
@@ -275,10 +290,92 @@ export function parseExportArgs(argv) {
       format = 'png';
     } else if (f === 'jpg' || f === 'jpeg') {
       format = 'jpg';
+    } else if (ANIMATED_FORMATS.has(f)) {
+      format = f;
     } else {
       return {
         flags: null,
-        error: `--format: unsupported value "${values.format}" (expected png or jpg)`,
+        error: `--format: unsupported value "${values.format}" (expected png, jpg, gif, webp, apng, or mp4)`,
+      };
+    }
+  }
+
+  const isAnimated = ANIMATED_FORMATS.has(format);
+
+  // Parse animated-export flags. They're all optional and only meaningful for
+  // animated formats. A static-format export with these flags set surfaces a
+  // clear warning later (we don't error so existing scripts don't break).
+  let durationMs = 3000;
+  if (typeof values.duration === 'string') {
+    const m = values.duration.match(/^(\d+(?:\.\d+)?)(?:\s*s)?$/);
+    if (!m) {
+      return {
+        flags: null,
+        error: `--duration: invalid value "${values.duration}" (expected e.g. "3s" or "3000")`,
+      };
+    }
+    const num = Number(m[1]);
+    // If suffix was "s" OR the number is small (< 100), treat as seconds.
+    durationMs = values.duration.includes('s') || num < 100 ? num * 1000 : num;
+    if (durationMs < 100 || durationMs > 10000) {
+      return {
+        flags: null,
+        error: `--duration: out of range — must be between 0.1s and 10s, got ${durationMs}ms`,
+      };
+    }
+  }
+
+  let fps = 24;
+  if (typeof values.fps === 'string') {
+    const n = Number(values.fps);
+    if (!Number.isFinite(n) || n < 1 || n > 60) {
+      return {
+        flags: null,
+        error: `--fps: invalid value "${values.fps}" (expected 1–60)`,
+      };
+    }
+    fps = Math.round(n);
+  }
+
+  let scale = 1;
+  if (typeof values.scale === 'string') {
+    const m = values.scale.match(/^(\d+)x?$/);
+    if (!m) {
+      return {
+        flags: null,
+        error: `--scale: invalid value "${values.scale}" (expected 1x, 2x, or 3x)`,
+      };
+    }
+    const n = Number(m[1]);
+    if (n < 1 || n > 3) {
+      return {
+        flags: null,
+        error: `--scale: out of range "${values.scale}" (expected 1x, 2x, or 3x)`,
+      };
+    }
+    scale = n;
+  }
+
+  let loop = 'infinite';
+  if (typeof values.loop === 'string') {
+    if (values.loop === '∞' || values.loop === 'infinite') loop = 'infinite';
+    else if (values.loop === 'once') loop = 'once';
+    else if (/^\d+$/.test(values.loop)) loop = Number(values.loop);
+    else {
+      return {
+        flags: null,
+        error: `--loop: invalid value "${values.loop}" (expected ∞, infinite, once, or a positive integer)`,
+      };
+    }
+  }
+
+  let captureMode = 'cycle';
+  if (typeof values.capture === 'string') {
+    if (values.capture === 'cycle' || values.capture === 'now') captureMode = values.capture;
+    else {
+      return {
+        flags: null,
+        error: `--capture: invalid value "${values.capture}" (expected "cycle" or "now")`,
       };
     }
   }
@@ -293,10 +390,18 @@ export function parseExportArgs(argv) {
     flags: {
       pathArg,
       format,
+      isAnimated,
       out,
       flat,
       data,
       config,
+      // Animated-only flags — present always so the runner doesn't have to
+      // null-check, but only honored when `isAnimated` is true.
+      durationMs,
+      fps,
+      scale,
+      loop,
+      captureMode,
       help: !!values.help,
     },
     error: null,
@@ -1111,6 +1216,64 @@ export async function evaluateCaptureInPage(page, domId, format) {
   );
 }
 
+/**
+ * Same shape as `evaluateCaptureInPage` but invokes the studio's animated
+ * capture bridge (`window.__lerret_capture_animated`). Returns the encoded
+ * Blob's bytes as base64 plus the MIME type so the caller can pick the right
+ * file extension.
+ *
+ * @param {object} page
+ * @param {string} domId
+ * @param {{ format: 'webp'|'gif'|'apng'|'mp4', durationMs: number, fps: number, scale: number, loop: 'infinite'|'once'|number, captureMode: 'cycle'|'now', width: number, height: number, liveRefreshIntervalMs?: number }} settings
+ * @returns {Promise<{ ok: boolean, bytesB64?: string, mimeType?: string, error?: string }>}
+ */
+export async function evaluateAnimatedCaptureInPage(page, domId, settings) {
+  return await page.evaluate(
+    /* eslint-disable no-undef */
+    async ({ domId, settings, slotSelector, innerCardSelector }) => {
+      try {
+        const slot = document.querySelector(slotSelector);
+        if (!slot) return { ok: false, error: `slot not found for "${domId}"` };
+        const card = slot.querySelector(innerCardSelector);
+        if (!card) return { ok: false, error: `inner card not found inside slot "${domId}"` };
+
+        const deadline = Date.now() + 10000;
+        while (typeof window.__lerret_capture_animated !== 'function') {
+          if (Date.now() > deadline) {
+            return {
+              ok: false,
+              error:
+                '`window.__lerret_capture_animated` was not published — the bundled ' +
+                'studio may be missing @lerret/animation. Install @lerret/animation, ' +
+                'or use a static format (png/jpg).',
+            };
+          }
+          await new Promise((r) => setTimeout(r, 50));
+        }
+
+        const result = await window.__lerret_capture_animated(card, settings);
+        return {
+          ok: true,
+          bytesB64: result.bytesB64,
+          mimeType: result.mimeType,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err && err.message ? err.message : String(err),
+        };
+      }
+    },
+    /* eslint-enable no-undef */
+    {
+      domId,
+      settings,
+      slotSelector: ARTBOARD_SELECTORS.slotByDataAttr(domId),
+      innerCardSelector: ARTBOARD_SELECTORS.innerCardSelector,
+    },
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Orchestrator
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1236,11 +1399,40 @@ export async function runExport(argv, deps = {}) {
     return 1;
   }
 
+  // 2a. Filter out pages/groups with `excludeFromExport: true` (FR52).
+  //     Uses the same cascaded-config resolver as the studio (single source).
+  let excludedFolders = [];
+  try {
+    const backend = createNodeBackend();
+    const cascade = await computeCascadedConfig(scope.model, backend);
+    const getConfigFor = (path) => cascade.get(path);
+    const { kept, excluded } = partitionByExclusion(baseArtboards, getConfigFor);
+    if (excluded.length > 0) {
+      excludedFolders = excludedFolderPaths(excluded);
+      baseArtboards = kept;
+    }
+  } catch (err) {
+    // Cascade load failures are non-fatal — log a warn and proceed without
+    // exclusion filtering. The export pipeline runs at full v1 behavior.
+    process.stderr.write(
+      `@lerret/cli export: warning — could not compute cascaded config for excludeFromExport ` +
+        `filter (${err && err.message ? err.message : String(err)}); exporting every artboard.\n`,
+    );
+  }
+
   const expanded = expandArtboardVariants(baseArtboards);
   if (expanded.length === 0) {
-    process.stderr.write(
-      `@lerret/cli export: no artboards found in scope (${scope.scopeKind}). Nothing to export.\n`,
-    );
+    if (excludedFolders.length > 0) {
+      const names = excludedFolders.map((p) => p.split('/').filter(Boolean).pop() || p).join(', ');
+      process.stderr.write(
+        `@lerret/cli export: every artboard in scope was excluded via excludeFromExport ` +
+          `(${names}). Nothing to export.\n`,
+      );
+    } else {
+      process.stderr.write(
+        `@lerret/cli export: no artboards found in scope (${scope.scopeKind}). Nothing to export.\n`,
+      );
+    }
     return 1;
   }
 
@@ -1445,7 +1637,21 @@ export async function runExport(argv, deps = {}) {
 
         let result;
         try {
-          result = await captureInPage(page, entry.domId, flags.format);
+          if (flags.isAnimated) {
+            const dims = entry.artboard?.asset?.meta?.dimensions || { width: 1280, height: 720 };
+            result = await evaluateAnimatedCaptureInPage(page, entry.domId, {
+              format: flags.format,
+              durationMs: flags.durationMs,
+              fps: flags.fps,
+              scale: flags.scale,
+              loop: flags.loop,
+              captureMode: flags.captureMode,
+              width: dims.width,
+              height: dims.height,
+            });
+          } else {
+            result = await captureInPage(page, entry.domId, flags.format);
+          }
         } catch (err) {
           result = {
             ok: false,
@@ -1498,6 +1704,14 @@ export async function runExport(argv, deps = {}) {
     if (failures.length > 0) {
       summaryLines.push(
         `@lerret/cli export: ${failures.length} artboard${failures.length === 1 ? '' : 's'} failed (see messages above)`,
+      );
+    }
+    if (excludedFolders.length > 0) {
+      const names = excludedFolders
+        .map((p) => p.split('/').filter(Boolean).pop() || p)
+        .join(', ');
+      summaryLines.push(
+        `@lerret/cli export: skipped ${excludedFolders.length} page${excludedFolders.length === 1 ? '' : 's'} (excludeFromExport): ${names}`,
       );
     }
     if (allUnembeddedFonts.size > 0) {

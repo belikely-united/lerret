@@ -64,7 +64,7 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
  '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;transition:background .12s}',
  '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
- '.dc-expand{position:absolute;bottom:100%;right:0;margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
+ '.dc-expand{position:absolute;bottom:100%;right:32px;margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
  ' background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center}',
  '.dc-expand:hover{background:rgba(0,0,0,.06);color:#2a251f}',
@@ -79,8 +79,12 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-dl[disabled]{opacity:.6;cursor:wait}',
  '.dc-dl[data-dc-error-disabled]{cursor:not-allowed;opacity:.45;background:rgba(200,60,60,.08);color:#a83228}',
  '[data-dc-slot]:hover .dc-dl{opacity:1}',
- '.dc-dl-png{right:30px}',
- '.dc-dl-jpg{right:74px}',
+ // Right-edge cluster, ordered L→R: [ANIM*][JPG][PNG][expand][kebab].
+ // Kebab is always visible at right:0 (portaled in from artboard-kebab.jsx);
+ // the other buttons sit left of it. ANIM is conditional on liveRefresh.
+ '.dc-dl-png{right:60px}',
+ '.dc-dl-jpg{right:104px}',
+ '.dc-dl-animated{right:148px}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');
@@ -813,7 +817,7 @@ export function DCArtboard() { return null; }
 function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus }) {
  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {},
  // Per-artboard export wiring props
- assetName, variantName, isError } = artboard.props;
+ assetName, variantName, isError, hasLiveRefresh } = artboard.props;
  const id = rawId ?? rawLabel;
  const ref = React.useRef(null);
  const cardRef = React.useRef(null);
@@ -925,7 +929,12 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
 
  return (
  <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} style={{ position: 'relative', flexShrink: 0 }}>
- <div className="dc-labelrow" style={{ position: 'absolute', bottom: '100%', left: -4, marginBottom: 4, color: DC.label }}>
+ {/* Labelrow stretches the full card width so the portaled kebab
+ (artboard-kebab.jsx) can right-align inside it via margin-left:auto.
+ The right-edge button cluster (ANIM/JPG/PNG/expand/kebab) is rendered
+ as absolutely-positioned siblings below — they overlay the labelrow's
+ right side but with explicit `right:N` offsets that step left from 0. */}
+ <div className="dc-labelrow" style={{ position: 'absolute', bottom: '100%', left: -4, right: -4, marginBottom: 4, color: DC.label }}>
  <button
  className="dc-grip"
  onPointerDown={onGripDown}
@@ -980,6 +989,25 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  title={isError ? "Can't export — this artboard has an error" : captureError === 'jpg' ? 'Capture failed — try again' : 'Download as JPG'}
  aria-label={isError ? "Can't export — this artboard has an error" : 'Download as JPG'}
  >{busy === 'jpg' ? '…' : 'JPG'}</button>
+ {/* Animated export button — only shown when this artboard's container
+ has a `liveRefresh` entry for it. Click dispatches a per-slot event;
+ the kebab (ComponentArtboardKebab) listens and opens the
+ AnimatedExportDialog it already mounts. Same visual treatment as PNG/JPG. */}
+ {hasLiveRefresh ? (
+ <button
+ className="dc-dl dc-dl-animated"
+ onClick={() => {
+ if (typeof window !== 'undefined') {
+ window.dispatchEvent(new CustomEvent('lerret:openAnimatedDialog', { detail: { slotId: id } }));
+ }
+ }}
+ onPointerDown={(e) => e.stopPropagation()}
+ disabled={!!busy || isError}
+ data-dc-error-disabled={isError ? 'true' : undefined}
+ title={isError ? "Can't export — this artboard has an error" : 'Export as animated (WebP / GIF / APNG / MP4)'}
+ aria-label={isError ? "Can't export — this artboard has an error" : 'Export as animated'}
+ >ANIM</button>
+ ) : null}
  <div ref={cardRef} className="dc-card"
  style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: '#fff', ...style }}>
  {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}

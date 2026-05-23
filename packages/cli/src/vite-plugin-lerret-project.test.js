@@ -14,6 +14,7 @@ import {
   DELETE_ENDPOINT,
   DUPLICATE_ENDPOINT,
   HMR_CHANGE_EVENT,
+  MOVE_ENDPOINT,
   PROJECT_ASSET_BASE_URL,
   RENAME_ENDPOINT,
   REVEAL_ENDPOINT,
@@ -23,6 +24,7 @@ import {
   checkWritePath,
   createDeleteMiddleware,
   createDuplicateMiddleware,
+  createMoveMiddleware,
   createRenameMiddleware,
   createRevealMiddleware,
   createWriteMiddleware,
@@ -749,5 +751,306 @@ describe('createRevealMiddleware', () => {
     expect(DUPLICATE_ENDPOINT).toBe('/__lerret/duplicate');
     expect(DELETE_ENDPOINT).toBe('/__lerret/delete');
     expect(REVEAL_ENDPOINT).toBe('/__lerret/reveal');
+    expect(MOVE_ENDPOINT).toBe('/__lerret/move');
+  });
+});
+
+describe('createMoveMiddleware', () => {
+  let lerretAbs;
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+  });
+
+  async function call(middleware, body, method = 'POST') {
+    const { EventEmitter } = await import('node:events');
+    const req = new EventEmitter();
+    req.method = method;
+    req.destroy = () => {};
+    const captured = { headers: {} };
+    const res = {
+      get statusCode() { return captured.status; },
+      set statusCode(v) { captured.status = v; },
+      setHeader(name, value) { captured.headers[name] = value; },
+      end(payload) { captured.body = payload; captured.done = true; },
+    };
+    middleware(req, res, () => {});
+    await new Promise((r) => setImmediate(r));
+    if (body !== undefined) {
+      req.emit('data', Buffer.from(typeof body === 'string' ? body : JSON.stringify(body), 'utf-8'));
+    }
+    req.emit('end');
+    const deadline = Date.now() + 5000;
+    while (!captured.done && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    return { status: captured.status, body: captured.body ? JSON.parse(captured.body) : null };
+  }
+
+  it('moves a file across folders and returns 200 with newPath and rewroteLiveRefresh', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'social'));
+    await fsp.mkdir(join(lerretAbs, 'landing'));
+    await fsp.writeFile(join(lerretAbs, 'social', 'og-card.jsx'), '/* og */');
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/social/og-card.jsx`,
+      toFolderPath: `${lerretDir}/landing`,
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({
+      ok: true,
+      newPath: `${lerretDir}/landing/og-card.jsx`,
+      rewroteLiveRefresh: 'none',
+    });
+    expect(await fsp.readFile(join(lerretAbs, 'landing', 'og-card.jsx'), 'utf-8')).toBe('/* og */');
+  });
+
+  it('returns 400 on cycle (folder into itself)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'social'));
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/social`,
+      toFolderPath: `${lerretDir}/social`,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toMatch(/same folder/);
+  });
+
+  it('returns 400 on cycle (folder into its descendant)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'social', 'sub'), { recursive: true });
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/social`,
+      toFolderPath: `${lerretDir}/social/sub`,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/descendant/);
+  });
+
+  it('returns 400 when the source path does not exist', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'landing'));
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/ghost.jsx`,
+      toFolderPath: `${lerretDir}/landing`,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/does not exist/);
+  });
+
+  it('returns 400 when the destination folder does not exist', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.writeFile(join(lerretAbs, 'a.jsx'), 'A');
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/a.jsx`,
+      toFolderPath: `${lerretDir}/ghost-folder`,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/destination folder does not exist/);
+  });
+
+  it('returns 409 on destination collision (no auto-suffix on move)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'social'));
+    await fsp.mkdir(join(lerretAbs, 'landing'));
+    await fsp.writeFile(join(lerretAbs, 'social', 'og-card.jsx'), 'NEW');
+    await fsp.writeFile(join(lerretAbs, 'landing', 'og-card.jsx'), 'OLD');
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/social/og-card.jsx`,
+      toFolderPath: `${lerretDir}/landing`,
+    });
+
+    expect(result.status).toBe(409);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toContain('og-card.jsx');
+
+    // Neither file was disturbed.
+    expect(await fsp.readFile(join(lerretAbs, 'social', 'og-card.jsx'), 'utf-8')).toBe('NEW');
+    expect(await fsp.readFile(join(lerretAbs, 'landing', 'og-card.jsx'), 'utf-8')).toBe('OLD');
+  });
+
+  it('returns 400 when fromPath is outside .lerret/', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, {
+      fromPath: '/etc/passwd',
+      toFolderPath: `${lerretDir}/landing`,
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('outside the project');
+  });
+
+  it('returns 400 when toFolderPath is outside .lerret/', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.writeFile(join(lerretAbs, 'a.jsx'), 'A');
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/a.jsx`,
+      toFolderPath: '/tmp/escape',
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('inside .lerret/');
+  });
+
+  it('allows moving into the .lerret root itself (top-level page placement)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'parent'));
+    await fsp.mkdir(join(lerretAbs, 'parent', 'social'), { recursive: true });
+    await fsp.writeFile(join(lerretAbs, 'parent', 'social', 'a.jsx'), 'A');
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/parent/social`,
+      toFolderPath: lerretDir,
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.newPath).toBe(`${lerretDir}/social`);
+    expect(await fsp.readFile(join(lerretAbs, 'social', 'a.jsx'), 'utf-8')).toBe('A');
+  });
+
+  it('returns 400 on `..` traversal in fromPath', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/../escape.jsx`,
+      toFolderPath: `${lerretDir}/landing`,
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('..');
+  });
+
+  it('rejects when fromPath is missing or not a string', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, { toFolderPath: `${lerretDir}/x` });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('fromPath');
+  });
+
+  it('rejects when toFolderPath is missing or not a string', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, { fromPath: `${lerretDir}/x.jsx` });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('toFolderPath');
+  });
+
+  it('rejects when carryLiveRefresh is non-boolean', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/x.jsx`,
+      toFolderPath: `${lerretDir}/y`,
+      carryLiveRefresh: 'sure',
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('carryLiveRefresh');
+  });
+
+  it('rejects non-POST methods with 405', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, undefined, 'GET');
+    expect(result.status).toBe(405);
+  });
+
+  it('rejects invalid JSON body with 400', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    const result = await call(mw, 'not json');
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('invalid JSON');
+  });
+
+  it('strips liveRefresh on a happy-path move and returns the tag in the response', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'live'));
+    await fsp.mkdir(join(lerretAbs, 'static'));
+    await fsp.writeFile(join(lerretAbs, 'live', 'clock.jsx'), 'C');
+    await fsp.writeFile(
+      join(lerretAbs, 'live', 'config.json'),
+      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
+    );
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/live/clock.jsx`,
+      toFolderPath: `${lerretDir}/static`,
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.rewroteLiveRefresh).toBe('stripped');
+    const srcConfig = JSON.parse(
+      await fsp.readFile(join(lerretAbs, 'live', 'config.json'), 'utf-8'),
+    );
+    expect(srcConfig.liveRefresh).toBeUndefined();
+  });
+
+  it('carries liveRefresh over when carryLiveRefresh=true', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'live'));
+    await fsp.mkdir(join(lerretAbs, 'static'));
+    await fsp.writeFile(join(lerretAbs, 'live', 'clock.jsx'), 'C');
+    await fsp.writeFile(
+      join(lerretAbs, 'live', 'config.json'),
+      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
+    );
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/live/clock.jsx`,
+      toFolderPath: `${lerretDir}/static`,
+      carryLiveRefresh: true,
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.rewroteLiveRefresh).toBe('carried-over');
+    const destConfig = JSON.parse(
+      await fsp.readFile(join(lerretAbs, 'static', 'config.json'), 'utf-8'),
+    );
+    expect(destConfig.liveRefresh).toEqual({ clock: 1000 });
+  });
+
+  it('returns 400 when carryLiveRefresh=true and dest config is malformed', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createMoveMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'live'));
+    await fsp.mkdir(join(lerretAbs, 'static'));
+    await fsp.writeFile(join(lerretAbs, 'live', 'clock.jsx'), 'C');
+    await fsp.writeFile(
+      join(lerretAbs, 'live', 'config.json'),
+      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
+    );
+    await fsp.writeFile(join(lerretAbs, 'static', 'config.json'), '{ broken');
+
+    const result = await call(mw, {
+      fromPath: `${lerretDir}/live/clock.jsx`,
+      toFolderPath: `${lerretDir}/static`,
+      carryLiveRefresh: true,
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('malformed');
+    // The clock asset never moved.
+    expect(await fsp.readFile(join(lerretAbs, 'live', 'clock.jsx'), 'utf-8')).toBe('C');
   });
 });

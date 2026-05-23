@@ -178,6 +178,66 @@ describe('CascadedConfigProvider + useCascadedConfig', () => {
  expect(fn).toBe(results[0]);
  }
  });
+
+ // D.S6 regression — the cascade walker (`computeCascadedConfig`) only walks
+ // pages, so the project root (`.lerret/`) never appears as a key. Without
+ // an injection here, the Move-to picker has no way to reach the root, but
+ // the backend explicitly allows moves to the root. `knownFolders()` must
+ // derive the root from any entry and inject it.
+ it('knownFolders() injects the project root .lerret/ derived from entries', () => {
+ const entries = [
+ ['/proj/.lerret/social', {}],
+ ['/proj/.lerret/landing', {}],
+ ['/proj/.lerret/live', {}],
+ ];
+ let knownFolders;
+ function Consumer() {
+ const getConfigFor = useCascadedConfig();
+ knownFolders = getConfigFor.knownFolders();
+ return null;
+ }
+ const container = document.createElement('div');
+ document.body.appendChild(container);
+ const root = createRoot(container);
+ act(() => root.render(
+ <CascadedConfigProvider cascadeEntries={entries}>
+ <Consumer />
+ </CascadedConfigProvider>,
+ ));
+ act(() => root.unmount());
+ container.remove();
+ expect(knownFolders).toContain('/proj/.lerret');
+ // Plus all the original entries are still there.
+ expect(knownFolders).toContain('/proj/.lerret/social');
+ expect(knownFolders).toContain('/proj/.lerret/landing');
+ expect(knownFolders).toContain('/proj/.lerret/live');
+ });
+
+ // No duplicate if the root is already a known entry (defensive).
+ it('knownFolders() does not duplicate the root when it is already in the cascade', () => {
+ const entries = [
+ ['/proj/.lerret', {}],
+ ['/proj/.lerret/social', {}],
+ ];
+ let knownFolders;
+ function Consumer() {
+ const getConfigFor = useCascadedConfig();
+ knownFolders = getConfigFor.knownFolders();
+ return null;
+ }
+ const container = document.createElement('div');
+ document.body.appendChild(container);
+ const root = createRoot(container);
+ act(() => root.render(
+ <CascadedConfigProvider cascadeEntries={entries}>
+ <Consumer />
+ </CascadedConfigProvider>,
+ ));
+ act(() => root.unmount());
+ container.remove();
+ const rootCount = knownFolders.filter((p) => p === '/proj/.lerret').length;
+ expect(rootCount).toBe(1);
+ });
 });
 
 // ──────────────────────────────────────────────────────────────────────────

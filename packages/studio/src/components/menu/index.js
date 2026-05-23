@@ -14,7 +14,9 @@ export {
  applyDeleteConfirm,
  duplicate,
  destroy,
+ move,
  reveal,
  inCliMode,
 } from './entity-kebab.jsx';
+export { MovePicker } from './move-picker.jsx';
 export { default } from './Menu.jsx';

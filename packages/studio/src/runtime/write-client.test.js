@@ -9,12 +9,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
  DELETE_ENDPOINT,
  DUPLICATE_ENDPOINT,
+ MOVE_ENDPOINT,
  RENAME_ENDPOINT,
  REVEAL_ENDPOINT,
  WRITE_ENDPOINT,
  deleteProjectFile,
  duplicateProjectFile,
  inCliMode,
+ moveProjectFile,
  renameProjectFile,
  revealProjectFile,
  writeProjectFile,
@@ -193,6 +195,111 @@ describe('duplicateProjectFile', () => {
  const result = await duplicateProjectFile('/x/.lerret/A.jsx', { fetch: fetchMock });
  expect(result.ok).toBe(false);
  expect(result.error).toContain('duplicate failed');
+ });
+});
+
+describe('moveProjectFile', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { fromPath, toFolderPath } to the move endpoint and returns newPath + rewroteLiveRefresh', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx', rewroteLiveRefresh: 'stripped' }),
+ });
+ const result = await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', { fetch: fetchMock });
+ expect(result).toEqual({
+ ok: true,
+ newPath: '/x/.lerret/landing/og-card.jsx',
+ rewroteLiveRefresh: 'stripped',
+ });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(MOVE_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(init.headers['Content-Type']).toBe('application/json');
+ expect(JSON.parse(init.body)).toEqual({
+ fromPath: '/x/.lerret/social/og-card.jsx',
+ toFolderPath: '/x/.lerret/landing',
+ });
+ });
+
+ it('includes carryLiveRefresh in the body when the option is true', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx', rewroteLiveRefresh: 'carried-over' }),
+ });
+ await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', {
+ fetch: fetchMock,
+ carryLiveRefresh: true,
+ });
+ const [, init] = fetchMock.mock.calls[0];
+ expect(JSON.parse(init.body)).toEqual({
+ fromPath: '/x/.lerret/social/og-card.jsx',
+ toFolderPath: '/x/.lerret/landing',
+ carryLiveRefresh: true,
+ });
+ });
+
+ it('omits carryLiveRefresh from the body when option is false / absent', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx', rewroteLiveRefresh: 'none' }),
+ });
+ await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', {
+ fetch: fetchMock,
+ carryLiveRefresh: false,
+ });
+ const [, init] = fetchMock.mock.calls[0];
+ const body = JSON.parse(init.body);
+ expect(body).not.toHaveProperty('carryLiveRefresh');
+ });
+
+ it('returns ok:false with the server-supplied error on cycle refusal (400)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 400,
+ json: async () => ({ ok: false, error: 'cannot move folder into its own descendant' }),
+ });
+ const result = await moveProjectFile('/x/.lerret/social', '/x/.lerret/social/sub', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('descendant');
+ });
+
+ it('returns ok:false on collision (409)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 409,
+ json: async () => ({ ok: false, error: 'destination already has an asset named og-card.jsx' }),
+ });
+ const result = await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('already has an asset');
+ });
+
+ it('validates inputs before fetching', async () => {
+ const fetchMock = vi.fn();
+ expect((await moveProjectFile('', '/x/.lerret/landing', { fetch: fetchMock })).ok).toBe(false);
+ expect((await moveProjectFile('/x/.lerret/A.jsx', '', { fetch: fetchMock })).ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('returns standalone-mode error without calling fetch', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const fetchMock = vi.fn();
+ const result = await moveProjectFile('/x/.lerret/A.jsx', '/x/.lerret/B', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('standalone');
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('returns ok:false on network error', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new Error('econnrefused'));
+ const result = await moveProjectFile('/x/.lerret/A.jsx', '/x/.lerret/B', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('econnrefused');
  });
 });
 

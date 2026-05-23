@@ -53,6 +53,7 @@ export const RENAME_ENDPOINT = '/__lerret/rename';
 export const DUPLICATE_ENDPOINT = '/__lerret/duplicate';
 export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
+export const MOVE_ENDPOINT = '/__lerret/move';
 
 /**
  * Detect CLI mode from the same flag the CLI's plugin injects in
@@ -254,6 +255,51 @@ export async function duplicateProjectFile(path, opts = {}) {
  const result = await callLifecycleEndpoint(DUPLICATE_ENDPOINT, { path }, opts);
  if (!result.ok) return { ok: false, error: result.error };
  return { ok: true, path: typeof result.path === 'string' ? result.path : undefined };
+}
+
+/**
+ * Move a file or folder from `fromPath` into `toFolderPath` (a destination
+ * parent folder, NOT a final path). The server handles companion-file
+ * discovery (data file, component-prefixed images) atomically and rewrites
+ * the source folder's `liveRefresh` block per the {@link opts.carryLiveRefresh}
+ * flag (see spec `spec-move-asset-cross-group.md`).
+ *
+ * @param {string} fromPath The {@link LerretPath} to move (asset or folder).
+ * @param {string} toFolderPath The {@link LerretPath} of the destination
+ *   parent folder. Must be inside `.lerret/`.
+ * @param {object} [opts]
+ * @param {boolean} [opts.carryLiveRefresh]
+ *   When `true`, carry the source folder's `liveRefresh[<basename>]` entry
+ *   over to the destination folder's `config.json` (creating the block if
+ *   missing). Default `false`: the key is simply stripped from the source.
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{
+ *   ok: boolean,
+ *   newPath?: string,
+ *   rewroteLiveRefresh?: 'stripped'|'carried-over'|'none'|'skipped-malformed',
+ *   error?: string,
+ * }>}
+ *   On success, `newPath` is the final {@link LerretPath} of the moved
+ *   asset/folder and `rewroteLiveRefresh` records what happened to the
+ *   liveRefresh block (so the caller can surface a meaningful toast).
+ */
+export async function moveProjectFile(fromPath, toFolderPath, opts = {}) {
+ if (typeof fromPath !== 'string' || fromPath.length === 0) {
+ return { ok: false, error: 'moveProjectFile: fromPath must be a non-empty string' };
+ }
+ if (typeof toFolderPath !== 'string' || toFolderPath.length === 0) {
+ return { ok: false, error: 'moveProjectFile: toFolderPath must be a non-empty string' };
+ }
+ const body = { fromPath, toFolderPath };
+ if (opts.carryLiveRefresh === true) body.carryLiveRefresh = true;
+ const result = await callLifecycleEndpoint(MOVE_ENDPOINT, body, opts);
+ if (!result.ok) return { ok: false, error: result.error };
+ return {
+ ok: true,
+ newPath: typeof result.newPath === 'string' ? result.newPath : undefined,
+ rewroteLiveRefresh:
+ typeof result.rewroteLiveRefresh === 'string' ? result.rewroteLiveRefresh : undefined,
+ };
 }
 
 /**

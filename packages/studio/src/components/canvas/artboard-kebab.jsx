@@ -39,15 +39,82 @@ import {
  EntityKebab,
  ComponentEditorHost,
  MarkdownEditorHost,
+ MovePicker,
  applyDeleteConfirm,
  buildComponentItems,
  buildMarkdownItems,
  destroy,
  duplicate,
  inCliMode,
+ move,
  reveal,
 } from '../menu/index.js';
+import { AnimatedExportDialog } from '../export/animated-export-dialog.jsx';
+import { useCascadedConfig } from './cascade-context.jsx';
 import { bindOneShotRename } from './use-inline-rename.js';
+
+/**
+ * Derive the parent folder LerretPath for an asset path. Strips the file
+ * basename. Returns `''` for a bare filename (no path components).
+ *
+ * @param {string | undefined | null} assetPath
+ * @returns {string}
+ */
+function parentFolderOf(assetPath) {
+ if (typeof assetPath !== 'string') return '';
+ const slash = assetPath.lastIndexOf('/');
+ return slash === -1 ? '' : assetPath.slice(0, slash);
+}
+
+/**
+ * Derive the asset basename (stem, without extension) — used to look up
+ * a `liveRefresh` key in the source folder's config.
+ *
+ * @param {string | undefined | null} assetPath
+ * @returns {string}
+ */
+function assetBasename(assetPath) {
+ if (typeof assetPath !== 'string') return '';
+ const slash = assetPath.lastIndexOf('/');
+ const tail = slash === -1 ? assetPath : assetPath.slice(slash + 1);
+ const dot = tail.lastIndexOf('.');
+ return dot === -1 ? tail : tail.slice(0, dot);
+}
+
+function findArtboardElement(slotId) {
+ if (typeof document === 'undefined' || !slotId) return null;
+ const escaped = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(slotId) : String(slotId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+ return (
+  document.querySelector(`[data-dc-slot="${escaped}"] [data-asset-id]`) ||
+  document.querySelector(`[data-asset-id="${escaped}"]`) ||
+  document.querySelector(`[data-dc-slot="${escaped}"]`)
+ );
+}
+
+export function liveRefreshIntervalFor(entry, getConfigFor) {
+ if (!entry?.asset?.name) return undefined;
+ // Only COMPONENT assets are eligible for liveRefresh — the live-refresh
+ // manager (live-refresh-manager.js) gates timer registration on assetKind,
+ // and animated export only makes sense for components. Without this guard
+ // a stale or mis-keyed `liveRefresh` block naming a markdown file would
+ // enable the ANIM export button on a card that can never animate.
+ if (entry.assetKind && entry.assetKind !== 'component') return undefined;
+ // The liveRefresh block lives in the asset's containing folder's effective
+ // config. Derive that folder path from the asset's file path (strip filename),
+ // then look it up in the cascade. The cascade is keyed by folder LerretPath,
+ // exactly what `assetFolderPath` returns.
+ const assetPath = entry.asset.path;
+ if (typeof assetPath !== 'string' || typeof getConfigFor !== 'function') return undefined;
+ const slash = assetPath.lastIndexOf('/');
+ const containerPath = slash === -1 ? '' : assetPath.slice(0, slash);
+ const cfg = getConfigFor(containerPath);
+ const lr = cfg?.liveRefresh;
+ if (!lr || typeof lr !== 'object') return undefined;
+ const value = lr[entry.asset.name];
+ if (typeof value === 'number' && value > 0) return value;
+ if (value && typeof value === 'object' && typeof value.interval === 'number') return value.interval;
+ return undefined;
+}
 
 // ── CSS injection ────────────────────────────────────────────────────────────
 //
@@ -69,9 +136,13 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
  height: 100%;
 }
 .lm-artboard-kebab {
- /* Portaled into .dc-labelrow as an inline flex child. */
+ /* Portaled into .dc-labelrow as an inline flex child.
+    margin-left: auto pushes the kebab to the right edge of the labelrow
+    (now stretched to the card width). Right-side cluster order, L to R:
+    [ANIM*][JPG][PNG][expand][kebab]. */
  display: inline-flex;
  align-items: center;
+ margin-left: auto;
  z-index: 5;
 }
  `.trim();
@@ -320,6 +391,12 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  // the new file automatically. No client-side projection needed.
  }, [entry]);
 
+ const [moveOpen, setMoveOpen] = React.useState(false);
+ const onMove = React.useCallback(() => {
+ if (!entry?.asset?.path) return;
+ setMoveOpen(true);
+ }, [entry]);
+
  const onDelete = React.useCallback(() => {
  setConfirming(true);
  }, []);
@@ -335,6 +412,27 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  if (!entry?.id) return;
  exportArtboardSlot(entry.id);
  }, [entry]);
+
+ // Animated-export dialog open/close — Story 7.7.
+ const [animatedDialogOpen, setAnimatedDialogOpen] = React.useState(false);
+ const getConfigFor = useCascadedConfig();
+ const onExportAnimated = React.useCallback(() => {
+ setAnimatedDialogOpen(true);
+ }, []);
+
+ // Bridge: the standalone ANIM export button (rendered by design-canvas.jsx
+ // in the right-edge cluster, gated on liveRefresh) dispatches a window event
+ // when clicked. Open this artboard's dialog if the event names our slot.
+ React.useEffect(() => {
+ if (typeof window === 'undefined') return undefined;
+ const slotId = entry?.id;
+ if (!slotId) return undefined;
+ const onOpen = (e) => {
+ if (e?.detail?.slotId === slotId) setAnimatedDialogOpen(true);
+ };
+ window.addEventListener('lerret:openAnimatedDialog', onOpen);
+ return () => window.removeEventListener('lerret:openAnimatedDialog', onOpen);
+ }, [entry?.id]);
 
  const onRevealEditor = React.useCallback(() => {
  if (entry?.asset?.path) reveal(entry.asset.path, 'editor');
@@ -355,13 +453,15 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  onEditMeta: () => setMetaOpen(true),
  onDuplicate,
  onRename,
+ onMove,
  onDelete,
  onExport,
+ onExportAnimated,
  onRevealEditor,
  onRevealFinder,
  cliMode,
  }),
- [onDuplicate, onRename, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [onDuplicate, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = React.useMemo(
@@ -387,8 +487,45 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 
  const kebab = (
  <div className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
- <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-start" />
+ <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-end" />
  </div>
+ );
+
+ // Build the destination list for the Move-to picker. We derive it lazily
+ // when the picker is open so we don't allocate a Map walk on every render.
+ // `knownFolders` is attached to the cascade's `getConfigFor` (see
+ // cascade-context.jsx). When no cascade exists we still return [] and the
+ // picker shows its empty-state.
+ const sourcePath = entry?.asset?.path || '';
+ const parentPath = parentFolderOf(sourcePath);
+ const basename = assetBasename(sourcePath);
+ const sourceLiveRefresh = React.useMemo(() => {
+ if (!parentPath) return undefined;
+ const cfg = getConfigFor(parentPath);
+ const lr = cfg && typeof cfg === 'object' ? cfg.liveRefresh : undefined;
+ if (!lr || typeof lr !== 'object') return undefined;
+ return basename in lr ? basename : undefined;
+ }, [getConfigFor, parentPath, basename]);
+
+ const destinations = React.useMemo(() => {
+ if (!moveOpen) return [];
+ const knownFolders =
+ typeof getConfigFor.knownFolders === 'function' ? getConfigFor.knownFolders() : [];
+ return knownFolders.map((p) => ({ path: p, label: p.split('/').filter(Boolean).pop() || p }));
+ }, [moveOpen, getConfigFor]);
+
+ const onConfirmMove = React.useCallback(
+ async ({ toFolderPath, carryLiveRefresh }) => {
+ if (!sourcePath || !toFolderPath) return;
+ // `move()` resolves with `{ ok, error }` rather than throwing. Re-throw on
+ // `!ok` so MovePicker's catch surfaces the error inline (otherwise the
+ // picker would close silently on 400 cycle / 409 collision / 500 fs-fail,
+ // breaking the spec's AC4 / AC5 / AC6 user-visible-error promise).
+ const result = await move(sourcePath, toFolderPath, { carryLiveRefresh });
+ if (!result?.ok) throw new Error(result?.error || 'Move failed');
+ // Watcher → loader patcher → canvas re-renders automatically.
+ },
+ [sourcePath],
  );
 
  return (
@@ -410,6 +547,25 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  initialFocusField={focusField}
  initialActiveVariant={focusVariant}
  />
+ {animatedDialogOpen && (
+ <AnimatedExportDialog
+ element={findArtboardElement(entry?.id)}
+ assetName={entry?.label || entry?.asset?.name || 'artboard'}
+ dimensions={entry?.meta?.dimensions || { width: 1280, height: 720 }}
+ persistKey={entry?.id}
+ onClose={() => setAnimatedDialogOpen(false)}
+ />
+ )}
+ {moveOpen && (
+ <MovePicker
+ onClose={() => setMoveOpen(false)}
+ onConfirm={onConfirmMove}
+ sourcePath={sourcePath}
+ currentParentPath={parentPath}
+ destinations={destinations}
+ liveRefreshKey={sourceLiveRefresh}
+ />
+ )}
  </div>
  );
 }
@@ -427,6 +583,8 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 export function MarkdownCardKebab({ entry, children }) {
  const [open, setOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
+ const [moveOpen, setMoveOpen] = React.useState(false);
+ const getConfigFor = useCascadedConfig();
 
  const onRename = React.useCallback(() => {
  if (typeof document === 'undefined') return;
@@ -449,6 +607,11 @@ export function MarkdownCardKebab({ entry, children }) {
  const onDuplicate = React.useCallback(async () => {
  const path = entry?.asset?.path;
  if (path) await duplicate(path);
+ }, [entry]);
+
+ const onMove = React.useCallback(() => {
+ if (!entry?.asset?.path) return;
+ setMoveOpen(true);
  }, [entry]);
 
  const onDelete = React.useCallback(() => setConfirming(true), []);
@@ -477,13 +640,14 @@ export function MarkdownCardKebab({ entry, children }) {
  onEdit: () => setOpen(true),
  onDuplicate,
  onRename,
+ onMove,
  onDelete,
  onExport,
  onRevealEditor,
  onRevealFinder,
  cliMode,
  }),
- [onDuplicate, onRename, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = React.useMemo(
@@ -507,8 +671,39 @@ export function MarkdownCardKebab({ entry, children }) {
 
  const kebab = (
  <div className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
- <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-start" />
+ <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-end" />
  </div>
+ );
+
+ // Move-picker destinations & liveRefresh detection — same shape as
+ // ComponentArtboardKebab.
+ const sourcePath = entry?.asset?.path || '';
+ const parentPath = parentFolderOf(sourcePath);
+ const basename = assetBasename(sourcePath);
+ const sourceLiveRefresh = React.useMemo(() => {
+ if (!parentPath) return undefined;
+ const cfg = getConfigFor(parentPath);
+ const lr = cfg && typeof cfg === 'object' ? cfg.liveRefresh : undefined;
+ if (!lr || typeof lr !== 'object') return undefined;
+ return basename in lr ? basename : undefined;
+ }, [getConfigFor, parentPath, basename]);
+ const destinations = React.useMemo(() => {
+ if (!moveOpen) return [];
+ const knownFolders =
+ typeof getConfigFor.knownFolders === 'function' ? getConfigFor.knownFolders() : [];
+ return knownFolders.map((p) => ({ path: p, label: p.split('/').filter(Boolean).pop() || p }));
+ }, [moveOpen, getConfigFor]);
+
+ const onConfirmMove = React.useCallback(
+ async ({ toFolderPath, carryLiveRefresh }) => {
+ if (!sourcePath || !toFolderPath) return;
+ // `move()` resolves with `{ ok, error }` rather than throwing. Re-throw on
+ // `!ok` so MovePicker's catch surfaces the error inline (otherwise the
+ // picker would close silently on 400/409/500). See artboard-kebab fix above.
+ const result = await move(sourcePath, toFolderPath, { carryLiveRefresh });
+ if (!result?.ok) throw new Error(result?.error || 'Move failed');
+ },
+ [sourcePath],
  );
 
  return (
@@ -516,6 +711,16 @@ export function MarkdownCardKebab({ entry, children }) {
  {children}
  {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}
  <MarkdownEditorHost open={open} onClose={() => setOpen(false)} entry={entry} />
+ {moveOpen && (
+ <MovePicker
+ onClose={() => setMoveOpen(false)}
+ onConfirm={onConfirmMove}
+ sourcePath={sourcePath}
+ currentParentPath={parentPath}
+ destinations={destinations}
+ liveRefreshKey={sourceLiveRefresh}
+ />
+ )}
  </div>
  );
 }

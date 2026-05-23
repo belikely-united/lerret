@@ -36,6 +36,7 @@ function baseCtx(extra = {}) {
  onEditConfig: noop,
  onDuplicate: noop,
  onRename: noop,
+ onMove: noop,
  onDelete: noop,
  onExport: noop,
  onRevealEditor: noop,
@@ -56,18 +57,44 @@ function findItem(items, id) {
 // ── Component item set ──────────────────────────────────────────────────────
 
 describe('buildComponentItems', () => {
- it('includes Edit data / Edit meta / Duplicate / Rename / Delete / Export / Reveal', () => {
+ it('includes Edit data / Edit meta / Duplicate / Rename / Move / Delete / Export / Reveal', () => {
  const items = buildComponentItems(baseCtx());
  expect(itemIds(items)).toEqual([
  'edit-data',
  'edit-meta',
  'duplicate',
  'rename',
+ 'move',
  'delete',
  'export',
  'reveal-editor',
  'reveal-finder',
  ]);
+ });
+
+ it('positions "Move to…" between Rename and Delete', () => {
+ const ids = itemIds(buildComponentItems(baseCtx()));
+ const renameIdx = ids.indexOf('rename');
+ const moveIdx = ids.indexOf('move');
+ const deleteIdx = ids.indexOf('delete');
+ expect(renameIdx).toBeGreaterThanOrEqual(0);
+ expect(moveIdx).toBe(renameIdx + 1);
+ expect(deleteIdx).toBe(moveIdx + 1);
+ });
+
+ it('omits "Move to…" when onMove is not provided (legacy callers)', () => {
+ const items = buildComponentItems(baseCtx({ onMove: undefined }));
+ expect(itemIds(items)).not.toContain('move');
+ });
+
+ it('wires onMove callback to the Move to… item', () => {
+ const onMove = vi.fn();
+ const items = buildComponentItems(baseCtx({ onMove }));
+ const moveItem = findItem(items, 'move');
+ expect(moveItem).toBeTruthy();
+ expect(moveItem.label).toBe('Move to…');
+ moveItem.onSelect();
+ expect(onMove).toHaveBeenCalledOnce();
  });
 
  it('renders reveal items disabled-with-reason in hosted (non-CLI) mode', () => {
@@ -102,11 +129,26 @@ describe('buildMarkdownItems', () => {
  'edit',
  'duplicate',
  'rename',
+ 'move',
  'delete',
  'export',
  'reveal-editor',
  'reveal-finder',
  ]);
+ });
+
+ it('positions "Move to…" between Rename and Delete', () => {
+ const ids = itemIds(buildMarkdownItems(baseCtx()));
+ const renameIdx = ids.indexOf('rename');
+ const moveIdx = ids.indexOf('move');
+ const deleteIdx = ids.indexOf('delete');
+ expect(moveIdx).toBe(renameIdx + 1);
+ expect(deleteIdx).toBe(moveIdx + 1);
+ });
+
+ it('omits "Move to…" when onMove is not provided', () => {
+ const items = buildMarkdownItems(baseCtx({ onMove: undefined }));
+ expect(itemIds(items)).not.toContain('move');
  });
 
  it('reveal items respect cliMode just like component', () => {
@@ -119,11 +161,12 @@ describe('buildMarkdownItems', () => {
 // ── Section item set ────────────────────────────────────────────────────────
 
 describe('buildSectionItems', () => {
- it('includes Edit config / Rename / Delete / Export / Reveal — no Duplicate', () => {
+ it('includes Edit config / Rename / Move / Delete / Export / Reveal — no Duplicate', () => {
  const items = buildSectionItems(baseCtx());
  expect(itemIds(items)).toEqual([
  'edit-config',
  'rename',
+ 'move',
  'delete',
  'export',
  'reveal-editor',
@@ -132,6 +175,20 @@ describe('buildSectionItems', () => {
  // Folder kebab does NOT expose Duplicate — folder duplication isn't a
  // first-class surface (see the ACs).
  expect(itemIds(items)).not.toContain('duplicate');
+ });
+
+ it('positions "Move to…" between Rename and Delete', () => {
+ const ids = itemIds(buildSectionItems(baseCtx()));
+ const renameIdx = ids.indexOf('rename');
+ const moveIdx = ids.indexOf('move');
+ const deleteIdx = ids.indexOf('delete');
+ expect(moveIdx).toBe(renameIdx + 1);
+ expect(deleteIdx).toBe(moveIdx + 1);
+ });
+
+ it('omits "Move to…" when onMove is not provided', () => {
+ const items = buildSectionItems(baseCtx({ onMove: undefined }));
+ expect(itemIds(items)).not.toContain('move');
  });
 
  it('mode-limits reveal items the same way as artboards', () => {

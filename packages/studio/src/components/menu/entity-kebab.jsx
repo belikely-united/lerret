@@ -52,6 +52,7 @@ import {
  deleteProjectFile,
  duplicateProjectFile,
  inCliMode,
+ moveProjectFile,
  revealProjectFile,
 } from '../../runtime/write-client.js';
 
@@ -88,20 +89,30 @@ const REVEAL_FINDER_DISABLED_REASON = 'Available in the local CLI';
  * @param {() => void} ctx.onEditMeta
  * @param {() => void} ctx.onDuplicate
  * @param {() => void} ctx.onRename
+ * @param {() => void} [ctx.onMove]
+ *   Move-to picker opener. When provided, a "Move to…" item appears
+ *   between "Rename" and "Delete". Omitted in legacy callers (no UI for move).
  * @param {() => void} ctx.onDelete The "open the inline confirm" path.
  * @param {() => void} ctx.onExport
+ * @param {() => void} [ctx.onExportAnimated]  When provided, an "Export animated…" entry appears
+ *   below the static "Export" entry (Story 7.7). Omitted in legacy callers.
  * @param {() => void} ctx.onRevealEditor
  * @param {() => void} ctx.onRevealFinder
  * @param {boolean} ctx.cliMode
  * @returns {Array<object>}
  */
 export function buildComponentItems(ctx) {
- return [
+ const items = [
  { kind: 'item', id: 'edit-data', label: 'Edit data', onSelect: ctx.onEditData },
  { kind: 'item', id: 'edit-meta', label: 'Edit meta', onSelect: ctx.onEditMeta },
  { kind: 'separator', id: 'sep-1' },
  { kind: 'item', id: 'duplicate', label: 'Duplicate', onSelect: ctx.onDuplicate },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
+ ];
+ if (typeof ctx.onMove === 'function') {
+ items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
+ }
+ items.push(
  {
  kind: 'item',
  id: 'delete',
@@ -110,6 +121,16 @@ export function buildComponentItems(ctx) {
  },
  { kind: 'separator', id: 'sep-2' },
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
+ );
+ if (typeof ctx.onExportAnimated === 'function') {
+ items.push({
+ kind: 'item',
+ id: 'export-animated',
+ label: 'Export animated…',
+ onSelect: ctx.onExportAnimated,
+ });
+ }
+ items.push(
  {
  kind: 'item',
  id: 'reveal-editor',
@@ -126,7 +147,8 @@ export function buildComponentItems(ctx) {
  reason: ctx.cliMode ? undefined : REVEAL_FINDER_DISABLED_REASON,
  onSelect: ctx.onRevealFinder,
  },
- ];
+ );
+ return items;
 }
 
 /**
@@ -137,6 +159,8 @@ export function buildComponentItems(ctx) {
  * @param {() => void} ctx.onEdit
  * @param {() => void} ctx.onDuplicate
  * @param {() => void} ctx.onRename
+ * @param {() => void} [ctx.onMove]
+ *   When provided, a "Move to…" item appears between "Rename" and "Delete".
  * @param {() => void} ctx.onDelete
  * @param {() => void} ctx.onExport
  * @param {() => void} ctx.onRevealEditor
@@ -145,11 +169,16 @@ export function buildComponentItems(ctx) {
  * @returns {Array<object>}
  */
 export function buildMarkdownItems(ctx) {
- return [
+ const items = [
  { kind: 'item', id: 'edit', label: 'Edit', onSelect: ctx.onEdit },
  { kind: 'separator', id: 'sep-1' },
  { kind: 'item', id: 'duplicate', label: 'Duplicate', onSelect: ctx.onDuplicate },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
+ ];
+ if (typeof ctx.onMove === 'function') {
+ items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
+ }
+ items.push(
  { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete },
  { kind: 'separator', id: 'sep-2' },
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
@@ -169,7 +198,8 @@ export function buildMarkdownItems(ctx) {
  reason: ctx.cliMode ? undefined : REVEAL_FINDER_DISABLED_REASON,
  onSelect: ctx.onRevealFinder,
  },
- ];
+ );
+ return items;
 }
 
 /**
@@ -178,6 +208,8 @@ export function buildMarkdownItems(ctx) {
  * @param {object} ctx
  * @param {() => void} ctx.onEditConfig
  * @param {() => void} ctx.onRename
+ * @param {() => void} [ctx.onMove]
+ *   When provided, a "Move to…" item appears between "Rename" and "Delete".
  * @param {() => void} ctx.onDelete
  * @param {() => void} ctx.onExport
  * @param {() => void} ctx.onRevealEditor
@@ -186,13 +218,28 @@ export function buildMarkdownItems(ctx) {
  * @returns {Array<object>}
  */
 export function buildSectionItems(ctx) {
- return [
+ const items = [
  { kind: 'item', id: 'edit-config', label: 'Edit config', onSelect: ctx.onEditConfig },
  { kind: 'separator', id: 'sep-1' },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
+ ];
+ if (typeof ctx.onMove === 'function') {
+ items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
+ }
+ items.push(
  { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete },
  { kind: 'separator', id: 'sep-2' },
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
+ );
+ if (typeof ctx.onExportAnimated === 'function') {
+ items.push({
+ kind: 'item',
+ id: 'export-animated',
+ label: 'Export animated all…',
+ onSelect: ctx.onExportAnimated,
+ });
+ }
+ items.push(
  {
  kind: 'item',
  id: 'reveal-editor',
@@ -209,7 +256,8 @@ export function buildSectionItems(ctx) {
  reason: ctx.cliMode ? undefined : REVEAL_FINDER_DISABLED_REASON,
  onSelect: ctx.onRevealFinder,
  },
- ];
+ );
+ return items;
 }
 
 /**
@@ -281,6 +329,46 @@ export async function duplicate(path) {
  if (!result.ok) {
  console.warn('[lerret] duplicate failed:', result.error);
  }
+ return result;
+}
+
+/**
+ * Move a file or folder into `toFolderPath`. Surfaces any failure through
+ * `console.warn` and emits a brief `console.log` toast on success
+ * (no in-studio toast surface exists yet — minor v1 UX gap). The brownfield
+ * watcher reflects the new path on the canvas automatically.
+ *
+ * @param {string} fromPath The asset / folder being moved.
+ * @param {string} toFolderPath The destination parent folder's LerretPath.
+ * @param {object} [opts]
+ * @param {boolean} [opts.carryLiveRefresh]
+ *   When `true`, carry the source folder's `liveRefresh[<basename>]` entry
+ *   over to the destination folder's `config.json`.
+ * @returns {Promise<{
+ *   ok: boolean,
+ *   newPath?: string,
+ *   rewroteLiveRefresh?: 'stripped'|'carried-over'|'none'|'skipped-malformed',
+ *   error?: string,
+ * }>}
+ */
+export async function move(fromPath, toFolderPath, opts = {}) {
+ const result = await moveProjectFile(fromPath, toFolderPath, opts);
+ if (!result.ok) {
+ console.warn('[lerret] move failed:', result.error);
+ return result;
+ }
+ // The studio has no toast surface (yet). Log a calm success line so the
+ // user has SOME signal in devtools — and surface the liveRefresh-strip
+ // side effect per AC7 of the spec.
+ const liveRefreshNote =
+ result.rewroteLiveRefresh === 'stripped'
+ ? '; removed liveRefresh entry from source folder'
+ : result.rewroteLiveRefresh === 'carried-over'
+ ? '; carried liveRefresh entry to destination'
+ : result.rewroteLiveRefresh === 'skipped-malformed'
+ ? '; warning: source config.json was malformed, liveRefresh untouched'
+ : '';
+ console.log(`[lerret] Moved to ${result.newPath || toFolderPath}${liveRefreshNote}`);
  return result;
 }
 

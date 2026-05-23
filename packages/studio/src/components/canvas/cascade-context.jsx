@@ -50,12 +50,60 @@ import React from 'react';
  *
  * @type {React.Context<GetConfigFor>}
  */
+const defaultGetConfigFor = /** @type {GetConfigFor & { knownFolders: () => string[] }} */ (
+ /** @type {any} */ (() => ({}))
+);
+defaultGetConfigFor.knownFolders = () => [];
+
 const CascadeContext = React.createContext(
- /** @type {GetConfigFor} */
- () => ({}),
+ /** @type {GetConfigFor} */ (defaultGetConfigFor),
 );
 
 CascadeContext.displayName = 'CascadeContext';
+
+/**
+ * Build the `getConfigFor` lookup for a cascade map, with a `.knownFolders()`
+ * accessor attached for the Move-to picker. Defined at module scope (not inside
+ * the component) on purpose: attaching a property to the function is a mutation,
+ * and the React-compiler `react-hooks/immutability` rule rejects that when the
+ * value is created within render/hook scope. At module scope it's a plain object
+ * construction — same reasoning as `defaultGetConfigFor.knownFolders` above.
+ *
+ * @param {Map<string, ConfigObject> | null} cascadeMap
+ * @returns {GetConfigFor & { knownFolders: () => string[] }}
+ */
+function makeGetConfigFor(cascadeMap) {
+ /** @type {GetConfigFor & { knownFolders: () => string[] }} */
+ const fn = /** @type {any} */ ((path) => {
+ if (!cascadeMap) return {};
+ const cfg = cascadeMap.get(path);
+ return (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) ? cfg : {};
+ });
+ // Inject the project root (`.lerret/`) into knownFolders if it isn't
+ // already in the cascade map. The cascade walker (`computeCascadedConfig`)
+ // walks the project model's `pages` only, so the root folder itself never
+ // appears as a key. Without this injection the Move-to picker has no way
+ // to reach the root — but the backend explicitly allows moves to the root
+ // (spec row #21 / AC scenario "move folder into root of .lerret/"). We
+ // derive the root path from any cascade entry by walking back to the
+ // `.lerret` path segment.
+ fn.knownFolders = () => {
+ if (!cascadeMap) return [];
+ const entries = Array.from(cascadeMap.keys());
+ if (entries.length === 0) return [];
+ const parts = entries[0].split('/');
+ let rootPath = null;
+ for (let i = parts.length - 1; i >= 0; i -= 1) {
+ if (parts[i] === '.lerret') {
+ rootPath = parts.slice(0, i + 1).join('/');
+ break;
+ }
+ }
+ if (rootPath === null || entries.includes(rootPath)) return entries;
+ return [rootPath, ...entries];
+ };
+ return fn;
+}
 
 /**
  * Provide the cascaded config map to descendant components.
@@ -88,18 +136,12 @@ export function CascadedConfigProvider({ cascadeEntries, children }) {
  }, [cascadeEntries]);
 
  // A stable callback that consumers call with a folder path to get its
- // effective config. `useCallback` re-creates it only when `cascadeMap`
- // changes (same cadence as the map above). This is a separately-stable
- // reference so React's rules-of-hooks and the React Compiler are both happy.
- const getConfigFor = React.useCallback(
- /** @type {GetConfigFor} */
- (path) => {
- if (!cascadeMap) return {};
- const cfg = cascadeMap.get(path);
- return (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) ? cfg : {};
- },
- [cascadeMap],
- );
+ // effective config. We also attach a `.knownFolders` accessor so consumers
+ // (the Move-to picker) can enumerate every folder the cascade knows about
+ // without us having to add a second context. The attached function is
+ // re-created in the same memo so both halves move together when the map
+ // changes — keeps reference equality stable across unrelated renders.
+ const getConfigFor = React.useMemo(() => makeGetConfigFor(cascadeMap), [cascadeMap]);
 
  return (
  <CascadeContext.Provider value={getConfigFor}>

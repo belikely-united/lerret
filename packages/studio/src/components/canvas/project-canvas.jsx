@@ -451,7 +451,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  subtitle={`${s.entries.length} asset${s.entries.length === 1 ? '' : 's'}`}
  sectionStyle={sectionStyle}
  >
- {s.entries.map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id] }))}
+ {s.entries.map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }))}
  </DCSection>
  </SectionKebab>
  );

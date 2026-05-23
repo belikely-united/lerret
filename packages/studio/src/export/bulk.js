@@ -32,7 +32,7 @@
 // For finer-grained progress the caller may show a spinner rather than
 // `i/total` text — the spec only requires "shows inline i/total progress".
 
-import { collectArtboards } from '@lerret/core';
+import { collectArtboards, partitionByExclusion, excludedFolderPaths } from '@lerret/core';
 import { buildArchive } from './zip.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -188,6 +188,10 @@ function _findArtboardElement(asset) {
  * Artboards that could not be captured.
  * @property {string[]} unembeddedFonts
  * Font-family names that could not be embedded — caller surfaces a calm notice.
+ * @property {string[]} excludedFolders
+ * Page or group paths that were filtered out via `excludeFromExport: true`
+ * (FR52). Empty when no folders were excluded. Useful for surfacing a calm
+ * "skipped intro/" notice.
  */
 
 /**
@@ -219,10 +223,15 @@ function _findArtboardElement(asset) {
  * @param {(i: number, total: number, label: string) => void} [params.onProgress]
  * Progress callback. Called with `(0, total, '')` before capture starts and
  * `(total, total, 'done')` on completion.
+ * @param {(path: string) => object} [params.getConfigFor]
+ * Optional lookup for the cascaded config of a page or group path. When
+ * provided, artboards whose containing folder has `excludeFromExport: true`
+ * are filtered out of the export (FR52). When omitted, no filtering is
+ * applied — every collected artboard is captured.
  *
  * @returns {Promise<BulkExportResult>}
  */
-export async function runBulkExport({ project, scope, format = 'png', flat = false, onProgress }) {
+export async function runBulkExport({ project, scope, format = 'png', flat = false, onProgress, getConfigFor }) {
  const filename = _deriveZipFilename(project, scope);
 
  // ── 1. Collect artboards ──────────────────────────────────────────────────
@@ -233,12 +242,23 @@ export async function runBulkExport({ project, scope, format = 'png', flat = fal
  } catch (err) {
  // RangeError (path not found) or TypeError (null model) — treat as empty.
  console.warn('[lerret/bulk-export] collectArtboards failed:', err);
- return { blob: null, filename, skipped: [], unembeddedFonts: [] };
+ return { blob: null, filename, skipped: [], unembeddedFonts: [], excludedFolders: [] };
+ }
+
+ // ── 1a. Filter out excludeFromExport pages/groups (FR52) ─────────────────
+ /** @type {string[]} */
+ let excludedFolders = [];
+ if (typeof getConfigFor === 'function') {
+ const { kept, excluded } = partitionByExclusion(artboards, getConfigFor);
+ if (excluded.length > 0) {
+ excludedFolders = excludedFolderPaths(excluded);
+ artboards = kept;
+ }
  }
 
  if (artboards.length === 0) {
- // Empty scope — no ZIP produced.
- return { blob: null, filename, skipped: [], unembeddedFonts: [] };
+ // Empty scope (or every artboard excluded) — no ZIP produced.
+ return { blob: null, filename, skipped: [], unembeddedFonts: [], excludedFolders };
  }
 
  // ── 2. Pair each artboard with its DOM element ────────────────────────────
@@ -265,7 +285,7 @@ export async function runBulkExport({ project, scope, format = 'png', flat = fal
  // If all artboards are DOM-missing, return empty result.
  if (items.length === 0) {
  onProgress?.(total, total, 'done');
- return { blob: null, filename, skipped: missingDom, unembeddedFonts: [] };
+ return { blob: null, filename, skipped: missingDom, unembeddedFonts: [], excludedFolders };
  }
 
  // ── 3. Build archive ──────────────────────────────────────────────────────
@@ -275,7 +295,7 @@ export async function runBulkExport({ project, scope, format = 'png', flat = fal
  } catch (err) {
  console.warn('[lerret/bulk-export] buildArchive failed:', err);
  onProgress?.(total, total, 'done');
- return { blob: null, filename, skipped: missingDom, unembeddedFonts: [] };
+ return { blob: null, filename, skipped: missingDom, unembeddedFonts: [], excludedFolders };
  }
 
  onProgress?.(total, total, 'done');
@@ -288,6 +308,7 @@ export async function runBulkExport({ project, scope, format = 'png', flat = fal
  filename,
  skipped: allSkipped,
  unembeddedFonts: archiveResult.unembeddedFonts || [],
+ excludedFolders,
  };
 }
 

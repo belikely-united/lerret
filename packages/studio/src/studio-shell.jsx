@@ -25,6 +25,7 @@ import * as ReactDOM from 'react-dom';
 import { PagePicker } from './components/dock/page-picker.jsx';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
+import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 // Import the extracted walkthrough overlay and offer.
 // The overlay and its step sequence now live in components/walkthrough/.
@@ -210,6 +211,8 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  const projectPages = useProjectPages();
  // The loaded ProjectNode — used by the "Export project" button.
  const projectModel = useProjectModel();
+ // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
+ const getConfigFor = useCascadedConfig();
  // Global "All PNG/JPG" download — drives every artboard via the
  // dcDownloadSlots window export (see design-canvas.jsx).
  const [busy, setBusy] = React.useState(null);
@@ -263,6 +266,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  scope: { kind: 'project' },
  format: fmt,
  flat,
+ getConfigFor,
  onProgress: (i, total) => {
  setExportProgress(i === total ? null : `${i}/${total}…`);
  },
@@ -272,23 +276,34 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  setExportProgress(null);
 
  if (!result.blob) {
- setExportNotice('Nothing to export.');
+ setExportNotice(
+ result.excludedFolders?.length
+ ? 'Nothing to export — every page in scope is excludeFromExport.'
+ : 'Nothing to export.',
+ );
  return;
  }
 
  triggerBulkDownload(result.blob, result.filename);
 
- // Calm notice for skipped / unembedded fonts.
+ // Calm notice for skipped / unembedded fonts / excluded pages.
  const notices = [];
  if (result.skipped.length > 0) {
  const names = result.skipped.map((s) => s.artboard?.asset?.name || '?').join(', ');
  notices.push(`Skipped: ${names}`);
  }
+ if (result.excludedFolders?.length > 0) {
+ notices.push(
+ `Excluded (excludeFromExport): ${result.excludedFolders
+ .map((p) => p.split('/').filter(Boolean).pop() || p)
+ .join(', ')}`,
+ );
+ }
  if (result.unembeddedFonts.length > 0) {
  notices.push(`Fonts not embedded: ${result.unembeddedFonts.join(', ')}`);
  }
  setExportNotice(notices.length > 0 ? notices.join(' · ') : null);
- }, [projectModel, exportBusy]);
+ }, [projectModel, exportBusy, getConfigFor]);
 
  const dlLabel = (fmt) => {
  if (busy === fmt && progress) return `${progress.i}/${progress.total}…`;

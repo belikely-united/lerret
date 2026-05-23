@@ -606,7 +606,501 @@ async function revealEntry(targetPath, target) {
   return { ok: false, error: `unknown reveal target: ${target}` };
 }
 
-export { renameEntry, duplicateEntry, deleteEntry, revealEntry };
+/**
+ * Convert a PascalCase / kebab / snake / lower stem into its "PascalCase" form
+ * with the first letter capitalized. Used to discover component-prefixed image
+ * companions: an asset `Twitter.jsx` should sweep `Twitter-logo.png`, and an
+ * asset `twitter.jsx` should ALSO sweep `Twitter-logo.png` (case-insensitive on
+ * the prefix). The check itself is done case-insensitively on the comparison
+ * side; this helper is no longer strictly required but kept as a no-op for
+ * future-proofing the discovery pass.
+ *
+ * @param {string} stem
+ * @returns {string}
+ */
+function stemPascal(stem) {
+  if (!stem) return stem;
+  return stem.charAt(0).toUpperCase() + stem.slice(1);
+}
+
+/**
+ * Discover companion files that should travel with an asset on move. Per the
+ * "Companion discovery contract" in the move spec:
+ *
+ *   • `<stem>.data.json`
+ *   • `<stem>.data.js`
+ *   • `<StemPascal>-*.{png|jpg|jpeg|svg|gif|webp|avif}` — case-insensitive
+ *      extension AND case-insensitive prefix (so `twitter-logo.png` matches a
+ *      `Twitter.jsx` asset and vice versa).
+ *
+ * Only same-folder siblings. Walking deeper is not part of the contract —
+ * shared `assets/` images live above and explicitly are not moved.
+ *
+ * @param {string} folderNative  Native (OS-separator) path of the source folder.
+ * @param {string} stem          Asset basename without extension.
+ * @returns {Promise<string[]>}  Native paths of companion files found on disk.
+ */
+async function discoverCompanions(folderNative, stem) {
+  if (!stem) return [];
+  /** @type {string[]} */
+  const out = [];
+
+  // Lower-case prefix for case-insensitive comparison. We do NOT require the
+  // disk file to match the stem's case exactly — `Twitter.jsx` and
+  // `twitter-logo.png` are considered companions.
+  const stemLower = stem.toLowerCase();
+  const pascalStem = stemPascal(stem); // referenced for parity with the spec
+  void pascalStem;
+
+  const imageExts = new Set([
+    '.png', '.jpg', '.jpeg', '.svg', '.gif', '.webp', '.avif',
+  ]);
+
+  let entries;
+  try {
+    entries = await fsp.readdir(folderNative, { withFileTypes: true });
+  } catch {
+    // No source folder somehow? No companions to worry about.
+    return [];
+  }
+
+  for (const dirent of entries) {
+    if (!dirent.isFile()) continue;
+    const name = dirent.name;
+    const lower = name.toLowerCase();
+
+    // Exact-match data files: `<stem>.data.json` or `<stem>.data.js`.
+    if (lower === `${stemLower}.data.json` || lower === `${stemLower}.data.js`) {
+      out.push(joinNative(folderNative, name));
+      continue;
+    }
+
+    // Component-prefixed images: `<StemPascal>-*.<ext>` (case-insensitive both
+    // for the prefix and the extension). The `-` is required so we don't sweep
+    // an unrelated `TwitterLogo.png` accidentally.
+    const prefix = `${stemLower}-`;
+    if (lower.startsWith(prefix)) {
+      const ext = extname(lower);
+      if (imageExts.has(ext)) {
+        out.push(joinNative(folderNative, name));
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Best-effort safe-parse of a `config.json`. Returns `null` if the file is
+ * missing OR malformed — caller decides how to react. The two cases are
+ * disambiguated by the returned flag:
+ *
+ *   `{ kind: 'missing' }`   — no such file. Treat as empty config.
+ *   `{ kind: 'malformed' }` — present but unparseable. Caller may skip writes
+ *                             or refuse the operation depending on context.
+ *   `{ kind: 'ok', value }` — parsed value.
+ *
+ * @param {string} configNative
+ * @returns {Promise<{kind:'missing'}|{kind:'malformed'}|{kind:'ok',value:Record<string,unknown>}>}
+ */
+async function tryReadConfig(configNative) {
+  let text;
+  try {
+    text = await fsp.readFile(configNative, 'utf-8');
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return { kind: 'missing' };
+    throw err;
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      // A non-object root is treated as malformed for the purposes of liveRefresh.
+      return { kind: 'malformed' };
+    }
+    return { kind: 'ok', value: parsed };
+  } catch {
+    return { kind: 'malformed' };
+  }
+}
+
+/**
+ * Move (rename across folders) a file or folder atomically, alongside any
+ * sibling companion files. The contract:
+ *
+ *   • `sourcePath` is the asset/file/folder being moved.
+ *   • `toFolderPath` is the destination folder (must already exist on disk and
+ *      already be validated to be inside `.lerret/` by the middleware).
+ *   • `opts.carryLiveRefresh` (optional, default `false`) — when `true`, the
+ *      asset's `liveRefresh` key (if present in the source folder's
+ *      `config.json`) is carried over to the destination's `config.json`. When
+ *      `false` we still STRIP the key from the source's config.json so the old
+ *      parent does not retain an orphan ticker.
+ *
+ * Semantics:
+ *   1. Refuse cycles — moving a folder into itself or into one of its own
+ *      descendants is a `cycle` error.
+ *   2. Refuse name collisions — if the destination already has an entry with
+ *      the same basename, return a `collision` error. (Move is a reparent, not
+ *      a copy; auto-suffix would surprise the user.)
+ *   3. Refuse missing-source — if `sourcePath` does not exist, return a
+ *      `missing-source` error.
+ *   4. liveRefresh strip + optional carry-over:
+ *       a. Read the source folder's `config.json`. If it has `liveRefresh.<stem>`,
+ *          strip it (and write the new config atomically).
+ *       b. If `carryLiveRefresh === true`, read the destination folder's
+ *          `config.json`. If that file is MALFORMED, REFUSE THE MOVE with
+ *          `malformed-dest-config` (we cannot safely inject without risking the
+ *          user's edits). Otherwise, inject the key under `liveRefresh.<stem>`.
+ *       c. If the SOURCE config.json is malformed and we'd be stripping, skip
+ *          the strip (we don't want to overwrite the user's broken JSON), but
+ *          still proceed with the move. Surface `skipped-malformed`.
+ *   5. Move the asset with `fsp.rename`. On `EXDEV`, fall back to
+ *      `fsp.cp(..., recursive) + fsp.rm(..., recursive)` after verifying the
+ *      destination exists.
+ *   6. Move every companion the same way. Any companion failure rolls the
+ *      asset BACK to its original path so disk state is consistent.
+ *
+ * @param {string} sourcePath        Contract-level (forward-slash) source path.
+ * @param {string} toFolderPath      Contract-level destination folder path.
+ * @param {{ carryLiveRefresh?: boolean }} [opts]
+ * @returns {Promise<{
+ *   path: string,
+ *   rewroteLiveRefresh: 'stripped' | 'carried-over' | 'none' | 'skipped-malformed',
+ * }>}
+ *   The destination path (LerretPath form), plus a tag describing the
+ *   liveRefresh side-effect for the caller's success toast.
+ *
+ *   Throws:
+ *     • `Error` with `code: 'cycle'`              — cycle move refused.
+ *     • `Error` with `code: 'missing-source'`     — source path does not exist.
+ *     • `Error` with `code: 'missing-dest'`       — destination folder does not exist.
+ *     • `Error` with `code: 'collision'`          — destination already has an entry of that name.
+ *     • `Error` with `code: 'malformed-dest-config'` — `carryLiveRefresh` with malformed dest config.
+ *     • `Error` (no code)                          — bubble-up of fs errors.
+ */
+async function moveEntry(sourcePath, toFolderPath, opts = {}) {
+  const carry = opts.carryLiveRefresh === true;
+
+  // ── Cycle prevention (contract-path / forward-slash basis) ────────────────
+  // Compare on the forward-slash paths so we don't get tripped up by mixed
+  // separators on Windows. A folder moved into itself OR into any descendant
+  // is the unambiguous cycle case.
+  const srcNorm = sourcePath.replace(/\/+$/, '');
+  const destNorm = toFolderPath.replace(/\/+$/, '');
+  if (destNorm === srcNorm) {
+    const err = new Error('cannot move into the same folder');
+    err.code = 'cycle';
+    throw err;
+  }
+  if (destNorm.startsWith(srcNorm + '/')) {
+    const err = new Error('cannot move folder into its own descendant');
+    err.code = 'cycle';
+    throw err;
+  }
+
+  const srcNative = toNativePath(sourcePath);
+  const destFolderNative = toNativePath(toFolderPath);
+
+  // ── Source must exist ──────────────────────────────────────────────────────
+  let srcStat;
+  try {
+    srcStat = await fsp.stat(srcNative);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      const e = new Error('fromPath does not exist');
+      e.code = 'missing-source';
+      throw e;
+    }
+    throw err;
+  }
+
+  // ── Destination folder must exist and be a directory ──────────────────────
+  let destStat;
+  try {
+    destStat = await fsp.stat(destFolderNative);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      const e = new Error('destination folder does not exist');
+      e.code = 'missing-dest';
+      throw e;
+    }
+    throw err;
+  }
+  if (!destStat.isDirectory()) {
+    const e = new Error('destination is not a folder');
+    e.code = 'missing-dest';
+    throw e;
+  }
+
+  const baseName = basename(srcNative);
+  const targetNative = joinNative(destFolderNative, baseName);
+
+  // ── Collision check on the primary entry ──────────────────────────────────
+  try {
+    await fsp.access(targetNative);
+    const e = new Error(`destination already has an asset named ${baseName}`);
+    e.code = 'collision';
+    throw e;
+  } catch (err) {
+    if (err && err.code === 'collision') throw err;
+    if (err && err.code !== 'ENOENT') throw err;
+  }
+
+  // ── Companion discovery (files only — folders carry their tree intact) ────
+  const isDir = srcStat.isDirectory();
+  const ext = isDir ? '' : extname(baseName);
+  const stem = ext ? baseName.slice(0, -ext.length) : baseName;
+  const parentNative = dirname(srcNative);
+
+  /** @type {string[]} */
+  const companionsNative = isDir
+    ? []
+    : await discoverCompanions(parentNative, stem);
+
+  // ── liveRefresh strip + carry-over PLAN (no disk writes yet — D.M3 fix) ───
+  //
+  // For folder moves we leave the destination's config.json alone (folders
+  // carry their own config.json inside their tree on move). We still skip
+  // the source-config edit because a folder move uproots the source folder
+  // entirely — its config.json moves with it.
+  //
+  // Previously the writes happened HERE (before the asset rename). If the
+  // asset rename then failed (cross-device EXDEV partial state, ENOSPC,
+  // collision race, permission), the configs would already be mutated with
+  // no rollback. We now compute the PLAN here but defer the writes until
+  // after the asset + companions have moved successfully.
+  /** @type {'stripped' | 'carried-over' | 'none' | 'skipped-malformed'} */
+  let rewroteLiveRefresh = 'none';
+
+  const sourceConfigNative = joinNative(parentNative, 'config.json');
+  const destConfigNative = joinNative(destFolderNative, 'config.json');
+
+  /** @type {null | { sourceWrite?: { path: string, value: object }, destWrite?: { path: string, value: object }, label: 'stripped' | 'carried-over' }} */
+  let liveRefreshPlan = null;
+
+  if (!isDir) {
+    const sourceConfig = await tryReadConfig(sourceConfigNative);
+
+    // Validate destination config FIRST when carrying — we want to refuse the
+    // whole move before touching anything on disk if the dest is malformed.
+    let destConfig = null;
+    if (carry) {
+      destConfig = await tryReadConfig(destConfigNative);
+      if (destConfig.kind === 'malformed') {
+        const e = new Error('destination config.json is malformed; refusing to carry liveRefresh');
+        e.code = 'malformed-dest-config';
+        throw e;
+      }
+    }
+
+    // Decide what to strip and where.
+    let sourceHadKey = false;
+    if (sourceConfig.kind === 'ok') {
+      const lr = sourceConfig.value && sourceConfig.value.liveRefresh;
+      if (lr && typeof lr === 'object' && !Array.isArray(lr) && Object.prototype.hasOwnProperty.call(lr, stem)) {
+        sourceHadKey = true;
+      }
+    }
+
+    if (sourceHadKey && sourceConfig.kind === 'ok') {
+      // Build the stripped config. We mutate a copy.
+      const next = { ...sourceConfig.value };
+      const nextLr = { ...(/** @type {Record<string, unknown>} */ (next.liveRefresh)) };
+      const carriedValue = nextLr[stem];
+      delete nextLr[stem];
+      if (Object.keys(nextLr).length === 0) {
+        delete next.liveRefresh;
+      } else {
+        next.liveRefresh = nextLr;
+      }
+      const plan = /** @type {{ sourceWrite: { path: string, value: object }, destWrite?: { path: string, value: object }, label: 'stripped' | 'carried-over' }} */ ({
+        sourceWrite: { path: toLerretPath(sourceConfigNative), value: next },
+        label: 'stripped',
+      });
+      if (carry && destConfig) {
+        const destBase =
+          destConfig.kind === 'ok' ? { ...destConfig.value } : {};
+        const destLr =
+          destConfig.kind === 'ok' && destConfig.value && destConfig.value.liveRefresh && typeof destConfig.value.liveRefresh === 'object' && !Array.isArray(destConfig.value.liveRefresh)
+            ? { ...(/** @type {Record<string, unknown>} */ (destConfig.value.liveRefresh)) }
+            : {};
+        destLr[stem] = carriedValue;
+        destBase.liveRefresh = destLr;
+        plan.destWrite = { path: toLerretPath(destConfigNative), value: destBase };
+        plan.label = 'carried-over';
+      }
+      liveRefreshPlan = plan;
+    } else if (sourceConfig.kind === 'malformed') {
+      // We can't tell whether the key was there. Don't overwrite a possibly
+      // hand-edited broken JSON; skip the strip, still proceed with the move.
+      rewroteLiveRefresh = 'skipped-malformed';
+    }
+  }
+
+  // ── Helper: race-free rename with EXDEV + collision atomicity ─────────────
+  //
+  // Two issues this fixes vs. a naive `fsp.rename`:
+  //   1. **Collision race (D.S4)** — `fsp.rename` silently OVERWRITES the
+  //      destination on POSIX. The upstream collision probe (above) has a
+  //      TOCTOU gap where a concurrent writer could create the destination
+  //      between our probe and the rename, and we'd silently clobber their
+  //      file. `fsp.link` fails atomically with `EEXIST` instead, closing
+  //      that window for the file case. (Folders can't be hardlinked on
+  //      POSIX so they fall through to `cp { errorOnExist: true }`, which
+  //      enforces the same atomic-on-collision semantic.)
+  //   2. **EXDEV partial-state strand (D.M2)** — if `cp` succeeds but `rm`
+  //      fails on the cross-device fallback, the old code would leave an
+  //      orphan at the destination AND the source intact. Worse, when this
+  //      happened on a COMPANION mid-loop, the destination orphan was never
+  //      added to `moved[]` and the outer rollback missed it. Now we clean
+  //      up the destination copy on `rm` failure so the caller sees a clean
+  //      "move did not happen" failure with source intact.
+  //
+  /**
+   * @param {string} fromN  Native source path.
+   * @param {string} toN    Native target path.
+   * @returns {Promise<void>}
+   */
+  async function renameWithExdev(fromN, toN) {
+    // Fast path: try `link` first for atomic-on-collision semantics. On the
+    // same filesystem for files, `link + unlink` is atomic and avoids the
+    // TOCTOU window. EPERM/EISDIR (folder) and EXDEV (cross-device) fall
+    // through to the cp+rm path below.
+    let usedLink = false;
+    try {
+      await fsp.link(fromN, toN);
+      usedLink = true;
+    } catch (linkErr) {
+      if (linkErr && linkErr.code === 'EEXIST') {
+        // Concurrent writer created the destination between our probe and
+        // this call. Surface a clean collision error.
+        const e = new Error('destination already has an asset with this name (race)');
+        e.code = 'collision';
+        throw e;
+      }
+      if (linkErr && (linkErr.code === 'EPERM' || linkErr.code === 'EISDIR' || linkErr.code === 'EXDEV' || linkErr.code === 'ENOTSUP' || linkErr.code === 'EOPNOTSUPP')) {
+        // Fall through to cp+rm path.
+      } else {
+        throw linkErr;
+      }
+    }
+
+    if (usedLink) {
+      // Source still has a hardlink. Remove it. If that fails, clean up the
+      // destination so the caller sees a clean failure with source intact.
+      try {
+        await fsp.unlink(fromN);
+      } catch (unlinkErr) {
+        try { await fsp.unlink(toN); } catch { /* best effort */ }
+        throw unlinkErr;
+      }
+      return;
+    }
+
+    // Fallback: copy-then-remove. `errorOnExist: true` is the race-free
+    // safeguard here — even if another writer creates the destination
+    // between our upstream probe and this call, `cp` refuses.
+    await fsp.cp(fromN, toN, { recursive: true, force: false, errorOnExist: true });
+    let destOk = false;
+    try {
+      await fsp.access(toN);
+      destOk = true;
+    } catch {
+      destOk = false;
+    }
+    if (!destOk) {
+      throw new Error(`EXDEV fallback: destination ${toN} did not materialize after copy`);
+    }
+    try {
+      await fsp.rm(fromN, { recursive: true, force: true });
+    } catch (rmErr) {
+      // D.M2 fix: clean up the destination copy so the caller sees a clean
+      // failure with source intact. Otherwise we'd strand an orphan at the
+      // destination AND leave the source intact — and on a companion this
+      // orphan would not be in moved[] so the outer rollback would miss it.
+      try {
+        await fsp.rm(toN, { recursive: true, force: true });
+      } catch {
+        // Both rms failed — caller sees two copies. Surface the original rm error.
+      }
+      throw rmErr;
+    }
+  }
+
+  // ── Move the primary entry ────────────────────────────────────────────────
+  await renameWithExdev(srcNative, targetNative);
+
+  // ── Move companions with atomic-rollback semantics ─────────────────────────
+  /** @type {Array<{ from: string, to: string }>} */
+  const moved = [];
+  try {
+    for (const companionNative of companionsNative) {
+      const companionName = basename(companionNative);
+      const companionDest = joinNative(destFolderNative, companionName);
+      // Companion-level collision: refuse and roll back. (renameWithExdev
+      // also enforces atomic-on-collision via link/cp, but this probe gives
+      // a clearer error message.)
+      try {
+        await fsp.access(companionDest);
+        const e = new Error(`destination already has a companion file named ${companionName}`);
+        e.code = 'collision';
+        throw e;
+      } catch (probeErr) {
+        if (probeErr && probeErr.code === 'collision') throw probeErr;
+        if (probeErr && probeErr.code !== 'ENOENT') throw probeErr;
+      }
+      await renameWithExdev(companionNative, companionDest);
+      moved.push({ from: companionNative, to: companionDest });
+    }
+  } catch (companionErr) {
+    // Roll back: every companion that DID move comes back, then the asset.
+    for (const m of moved.reverse()) {
+      try {
+        await renameWithExdev(m.to, m.from);
+      } catch {
+        // Best-effort rollback — if rollback itself fails we surface the
+        // original error rather than the rollback's. The user gets the
+        // primary failure message; a stranded companion is logged below.
+      }
+    }
+    try {
+      await renameWithExdev(targetNative, srcNative);
+    } catch {
+      // Same — best effort.
+    }
+    throw companionErr;
+  }
+
+  // ── D.M3 fix: NOW persist the liveRefresh writes (was BEFORE the move) ───
+  //
+  // The asset + companions are at the destination. If the config write fails
+  // here, we roll back the moves to keep on-disk state consistent. Better to
+  // surface a failed move than to leave the source mid-renamed with a
+  // mismatched config.
+  if (liveRefreshPlan) {
+    try {
+      await writeJson(liveRefreshPlan.sourceWrite.path, liveRefreshPlan.sourceWrite.value);
+      if (liveRefreshPlan.destWrite) {
+        await writeJson(liveRefreshPlan.destWrite.path, liveRefreshPlan.destWrite.value);
+      }
+      rewroteLiveRefresh = liveRefreshPlan.label;
+    } catch (writeErr) {
+      // Roll back asset + companions so the move appears to have not happened.
+      for (const m of moved.reverse()) {
+        try { await renameWithExdev(m.to, m.from); } catch { /* best effort */ }
+      }
+      try { await renameWithExdev(targetNative, srcNative); } catch { /* best effort */ }
+      throw writeErr;
+    }
+  }
+
+  return {
+    path: toLerretPath(targetNative),
+    rewroteLiveRefresh,
+  };
+}
+
+export { renameEntry, duplicateEntry, deleteEntry, revealEntry, moveEntry };
 
 // ---------------------------------------------------------------------------
 // Plain text file reader (CLI-internal, NOT part of FilesystemAccess)

@@ -64,6 +64,7 @@ import {
   createNodeBackend,
   deleteEntry,
   duplicateEntry,
+  moveEntry,
   renameEntry,
   revealEntry,
 } from './fs/node-backend.js';
@@ -186,6 +187,7 @@ export const RENAME_ENDPOINT = '/__lerret/rename';
 export const DUPLICATE_ENDPOINT = '/__lerret/duplicate';
 export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
+export const MOVE_ENDPOINT = '/__lerret/move';
 
 /**
  * Serialize a `Map<string, object>` cascade to a JSON-safe
@@ -507,6 +509,7 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       // cannot escape the `.lerret/` tree.
       server.middlewares.use(RENAME_ENDPOINT, createRenameMiddleware({ lerretDir }));
       server.middlewares.use(DUPLICATE_ENDPOINT, createDuplicateMiddleware({ lerretDir }));
+      server.middlewares.use(MOVE_ENDPOINT, createMoveMiddleware({ lerretDir }));
       server.middlewares.use(DELETE_ENDPOINT, createDeleteMiddleware({ lerretDir }));
       server.middlewares.use(REVEAL_ENDPOINT, createRevealMiddleware({ lerretDir }));
 
@@ -913,6 +916,122 @@ export function createDuplicateMiddleware({ lerretDir }) {
       sendJson(res, 500, { ok: false, error: `duplicate failed: ${message}` });
     }
   });
+}
+
+/**
+ * `POST /__lerret/move` — body
+ *   `{ fromPath: LerretPath, toFolderPath: LerretPath, carryLiveRefresh?: boolean }`.
+ *
+ * Moves a file or folder from `fromPath` into the destination folder
+ * `toFolderPath` (keeping the source's basename — collisions are refused with
+ * `409` since move is a reparent, not a copy). Both paths are gated through
+ * {@link checkWritePath} server-side; cycle moves and missing-source paths are
+ * `400` (not `500`) so the picker can surface them inline.
+ *
+ * The handler delegates to {@link moveEntry} for the actual filesystem dance:
+ * companion-file discovery, EXDEV fallback, atomic rollback on partial
+ * failure, and optional liveRefresh carry-over.
+ *
+ * Response shape (always JSON):
+ *   • 200 `{ ok: true, newPath: <LerretPath>, rewroteLiveRefresh: <tag> }`
+ *   • 400 `{ ok: false, error: <message> }` — cycle / missing source /
+ *         outside .lerret/ / malformed dest config when carrying.
+ *   • 409 `{ ok: false, error: <message> }` — destination collision.
+ *   • 500 `{ ok: false, error: <message> }` — unrecognized fs failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createMoveMiddleware({ lerretDir }) {
+  return withJsonBody(async (_req, res, body) => {
+    const { fromPath, toFolderPath, carryLiveRefresh } = body;
+    if (typeof fromPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'fromPath must be a string' });
+      return;
+    }
+    if (typeof toFolderPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'toFolderPath must be a string' });
+      return;
+    }
+    if (carryLiveRefresh !== undefined && typeof carryLiveRefresh !== 'boolean') {
+      sendJson(res, 400, { ok: false, error: 'carryLiveRefresh must be a boolean' });
+      return;
+    }
+    const fromCheck = checkWritePath(fromPath, lerretDir);
+    if (!fromCheck.ok) {
+      sendJson(res, 400, { ok: false, error: `fromPath: ${fromCheck.error}` });
+      return;
+    }
+    // For the destination folder we allow equality with the .lerret/ root
+    // (moving a folder to the top-level page list is a valid case per the
+    // spec's row #21). `checkWritePath` refuses the bare .lerret/ path, so
+    // we hand-roll the destination check.
+    const toCheck = validateMoveDest(toFolderPath, lerretDir);
+    if (!toCheck.ok) {
+      sendJson(res, 400, { ok: false, error: `toFolderPath: ${toCheck.error}` });
+      return;
+    }
+    try {
+      const result = await moveEntry(fromCheck.normalized, toCheck.normalized, {
+        carryLiveRefresh: carryLiveRefresh === true,
+      });
+      sendJson(res, 200, {
+        ok: true,
+        newPath: result.path,
+        rewroteLiveRefresh: result.rewroteLiveRefresh,
+      });
+    } catch (err) {
+      const code = err && err.code;
+      const message = err instanceof Error ? err.message : String(err);
+      if (code === 'cycle' || code === 'missing-source' || code === 'missing-dest' || code === 'malformed-dest-config') {
+        sendJson(res, 400, { ok: false, error: message });
+        return;
+      }
+      if (code === 'collision') {
+        sendJson(res, 409, { ok: false, error: message });
+        return;
+      }
+      console.error('[lerret] move failed:', message);
+      sendJson(res, 500, { ok: false, error: `move failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * Validate the `toFolderPath` payload for the move endpoint. Mirrors
+ * {@link checkWritePath} but allows the bare `.lerret/` directory (moving a
+ * folder to the project root is a legitimate move).
+ *
+ * @param {string} requestPath
+ * @param {string | null} lerretDir
+ * @returns {{ ok: true, normalized: string } | { ok: false, error: string }}
+ */
+function validateMoveDest(requestPath, lerretDir) {
+  if (!lerretDir) {
+    return { ok: false, error: 'no project is loaded — writes are not available' };
+  }
+  if (typeof requestPath !== 'string' || requestPath.length === 0) {
+    return { ok: false, error: 'path must be a non-empty string' };
+  }
+  if (requestPath.includes('\0')) {
+    return { ok: false, error: 'path contains an illegal NUL byte' };
+  }
+  const normalized = requestPath.replaceAll('\\', '/');
+  const segments = normalized.split('/');
+  for (const seg of segments) {
+    if (seg === '..') {
+      return { ok: false, error: 'path traversal (..) is not allowed' };
+    }
+  }
+  const root = lerretDir.replace(/\/+$/, '');
+  if (normalized === root) {
+    return { ok: true, normalized };
+  }
+  if (!normalized.startsWith(root + '/')) {
+    return { ok: false, error: 'destination must be inside .lerret/' };
+  }
+  return { ok: true, normalized };
 }
 
 /**

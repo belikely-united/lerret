@@ -192,3 +192,20 @@ export { validateProps } from './assets/validate.js';
 // typedef re-exports implicitly with this barrel file.
 
 export { collectArtboards } from './export/collect.js';
+
+// ---------------------------------------------------------------------------
+// excludeFromExport filter (FR52)
+// ---------------------------------------------------------------------------
+//
+// PURE helpers that filter out artboards whose containing page or group has
+// `excludeFromExport: true` in its effective cascaded config. Applied at
+// export time only — the loader, runtime, and canvas do NOT check the flag
+// (excluded pages still render in the studio). Both the studio bulk-export and
+// the CLI bulk-export use these helpers to share one implementation.
+
+export {
+    isFolderExcludedFromExport,
+    isArtboardExcludedFromExport,
+    partitionByExclusion,
+    excludedFolderPaths,
+} from './export/filter-excluded.js';

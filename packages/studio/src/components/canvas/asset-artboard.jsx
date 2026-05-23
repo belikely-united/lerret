@@ -21,7 +21,7 @@ import { RerenderCue } from './rerender-cue.jsx';
 import { VarsWrapper, assetFolderPath } from './vars-injector.jsx';
 // per-entity kebab menus + lifecycle actions. Replaces the
 // temporary Edit data / Edit markdown triggers from Stories 3.4 / 3.7.
-import { ComponentArtboardKebab, MarkdownCardKebab } from './artboard-kebab.jsx';
+import { ComponentArtboardKebab, MarkdownCardKebab, liveRefreshIntervalFor } from './artboard-kebab.jsx';
 
 // Default artboard size for a component asset that declares no `meta`
 // dimensions — a `meta`-less asset still renders at a sensible size (NFR8).
@@ -98,6 +98,15 @@ export function artboardForEntry(entry, opts = {}) {
  // per subsequent live re-load.
  const cueKey = opts.cueKey;
 
+ // `getConfigFor` (cascade-context lookup) is passed in by the caller —
+ // it can't be acquired here because `artboardForEntry` is a plain function,
+ // not a React component. Used solely to detect whether this entry has a
+ // `liveRefresh` mapping so the ANIM export button can render on the
+ // right-edge cluster (gating done in `DCArtboardFrame` via `hasLiveRefresh`).
+ const hasLiveRefresh = opts.getConfigFor
+ ? typeof liveRefreshIntervalFor(entry, opts.getConfigFor) === 'number'
+ : false;
+
  // derive the asset's owning folder path from its file path so
  // the `VarsWrapper` can look up the effective `vars` for that folder in the
  // cascade context. The folder path is the directory part of the asset path
@@ -124,6 +133,7 @@ export function artboardForEntry(entry, opts = {}) {
  height={isMarkdown ? 120 : height}
  isError={true}
  assetName={assetName}
+ hasLiveRefresh={hasLiveRefresh}
  >
  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
  <AssetErrorCard error={entry.error} filePath={filePath} />
@@ -206,7 +216,7 @@ export function artboardForEntry(entry, opts = {}) {
  // rendered component reflects the data file on disk.
  return (
  <DCArtboard key={entry.id} id={entry.id} label={entry.label} width={width} height={height}
- assetName={assetName} variantName={entry.variantName}>
+ assetName={assetName} variantName={entry.variantName} hasLiveRefresh={hasLiveRefresh}>
  <VarsWrapper
  folderPath={folderPath}
  style={{ position: 'relative', width: '100%', height: '100%' }}

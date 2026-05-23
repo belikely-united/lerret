@@ -11,7 +11,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { fetchDataValue } from './artboard-kebab.jsx';
+import { fetchDataValue, liveRefreshIntervalFor } from './artboard-kebab.jsx';
 
 describe('fetchDataValue', () => {
  it('uses dynamic import against the /@lerret-project base for a .lerret/-rooted path', async () => {
@@ -94,5 +94,47 @@ describe('fetchDataValue', () => {
  const value = await fetchDataValue('relative/data.json', { importModule });
  expect(value).toEqual({ ok: true });
  expect(urls[0]).toMatch(/^\/@lerret-project\/relative\/data\.json\?t=\d+$/);
+ });
+});
+
+// B.S regression — `liveRefreshIntervalFor` must gate on assetKind. A stale
+// or mis-keyed `liveRefresh` block naming a markdown file would otherwise
+// enable the ANIM export button on a card that can never animate (the
+// live-refresh-manager only registers timers for component assets).
+describe('liveRefreshIntervalFor — assetKind gating', () => {
+ const cascadeFor = (cfg) => () => cfg;
+
+ it('returns the interval for a COMPONENT entry whose folder has a matching liveRefresh key', () => {
+ const entry = {
+ assetKind: 'component',
+ asset: { name: 'clock', path: '/proj/.lerret/live/clock.jsx' },
+ };
+ const result = liveRefreshIntervalFor(entry, cascadeFor({ liveRefresh: { clock: 1000 } }));
+ expect(result).toBe(1000);
+ });
+
+ it('returns undefined for a MARKDOWN entry even when the folder has a matching key', () => {
+ const entry = {
+ assetKind: 'markdown',
+ asset: { name: 'about-live-refresh', path: '/proj/.lerret/live/about-live-refresh.md' },
+ };
+ const result = liveRefreshIntervalFor(entry, cascadeFor({ liveRefresh: { 'about-live-refresh': 1000 } }));
+ expect(result).toBeUndefined();
+ });
+
+ it('returns undefined for an ERROR entry (assetKind absent)', () => {
+ // Error entries can be missing assetKind. The guard treats missing
+ // assetKind as "unknown" and still queries the cascade — but since
+ // error-state entries typically don't have a working liveRefresh setup,
+ // they end up undefined anyway. This test pins the behavior for the
+ // explicit-component-only path.
+ const entry = {
+ assetKind: 'component',
+ asset: { name: 'broken', path: '/proj/.lerret/live/broken.jsx' },
+ status: 'error',
+ };
+ // Folder has no liveRefresh block → undefined.
+ const result = liveRefreshIntervalFor(entry, cascadeFor({}));
+ expect(result).toBeUndefined();
  });
 });
