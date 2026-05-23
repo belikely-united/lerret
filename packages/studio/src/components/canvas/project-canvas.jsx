@@ -31,18 +31,20 @@
 // section.
 //
 // ── Nested groups (FR3 visual mapping) ─────────────────────────────────────
-// The brownfield `DCSection` was single-level. The canvas now supports
-// nested groups: every group — however deep — is still emitted as a *direct*
-// `DCSection` child of `DesignCanvas` (so focus mode, drag-reorder, and the
-// per-section download keep working unchanged), but each section carries a
-// `depth` (folder nesting level) and a `kicker` (its parent group's name).
-// `DCSection` renders a depth>0 section as a *contained* nested section:
-// indented from the canvas edge, drawn with a lighter dashed frame + an accent
-// depth rail, and titled with an "in <parent>" eyebrow. A group-inside-a-group
-// thus reads as visually contained, with the nesting depth legible.
+// The brownfield `DCSection` was single-level. The canvas now supports nested
+// groups with *true containment*: a sub-group (a group inside a group) renders
+// INSIDE its parent group's frame — exactly like an asset renders inside its
+// group — so the folder hierarchy is spatial, not merely indented.
 //
-// The sections are emitted in depth-first order, so a group's section appears
-// directly below its parent's — the on-canvas order mirrors a folder tree.
+// `collectPageSections` still returns a flat, depth-first list (each section
+// carries its `depth`, its `parentPath`, and a `kicker` = its parent's name).
+// At render time `ProjectCanvas` rebuilds the parent→child tree from that flat
+// list and renders it recursively: the page's own section (depth 0) and each
+// top-level group (depth 1) are separate cards on the canvas; every deeper
+// sub-group (depth >= 2) is rendered as a child *inside* its parent's frame —
+// a dashed, progressively warmer, depth-railed card with an "in <parent>"
+// eyebrow. `DesignCanvas`'s focus/reorder registry walks the tree recursively,
+// so focus mode, drag-reorder, and per-section download work at every depth.
 
 import React from 'react';
 
@@ -123,29 +125,36 @@ function resolveSectionBg(cfg, folderPath) {
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
- * One canvas section, derived from a page or group that directly holds assets.
+ * One canvas section, derived from a page or group.
  *
  * @typedef {object} CanvasSectionDef
  * @property {string} id Stable section id — the container's `LerretPath`.
  * @property {string} title The container's real folder name (page or group).
  * @property {number} depth Folder nesting depth: 0 for a page's own
  * top-level section, 1+ for a group nested that many folders deep.
- * @property {string | null} kicker The immediate parent group's name for a
- * nested section (`depth >= 1`), or `null` for a page-level section.
+ * @property {string | null} kicker The immediate parent's name for a nested
+ * section (`depth >= 1`), or `null` for a page-level section. (It is rendered
+ * as the "in <parent>" eyebrow only for a contained sub-group, `depth >= 2`.)
+ * @property {string | null} parentPath The parent container's `LerretPath`
+ * (`depth >= 1`), or `null` for a page-level section — used to rebuild the
+ * parent→child tree so a sub-group nests inside its parent's frame.
+ * @property {boolean} isEmpty Whether the container holds neither a recognized
+ * asset nor a child group — a truly-empty group placeholder.
  * @property {import('@lerret/core').AssetNode[]} assets The container's
  * recognized assets, ordered components-first then markdown documents.
  */
 
 /**
- * Walk one page depth-first and build the flat, depth-ordered list of sections
- * to render — one per page/group that *directly* contains at least one
- * recognized asset.
+ * Walk one page depth-first and build the flat, depth-ordered list of sections.
  *
- * A container with no direct assets contributes no section (an empty frame
- * would be noise), but the walk still recurses into its child groups, so an
- * assets-bearing descendant still appears — indented by its true folder depth.
- * Within a section, component assets are ordered before markdown assets so the
- * fixed-dimension artboards lead and the auto-height document cards trail.
+ * The page (depth 0) contributes a section only when it *directly* holds assets
+ * — otherwise it is no card and its groups become the top-level cards (an
+ * asset-less, group-less page is handled by the empty-page notice). EVERY group
+ * (depth >= 1) contributes a section, always — including an intermediate group
+ * that holds only sub-groups — so every sub-group has a parent card to nest
+ * into when `ProjectCanvas` rebuilds the tree. Within a section, component
+ * assets are ordered before markdown assets so the fixed-dimension artboards
+ * lead and the auto-height document cards trail.
  *
  * @param {import('@lerret/core').PageNode} page The page to lay out.
  * @returns {CanvasSectionDef[]} Depth-first ordered sections.
@@ -158,47 +167,41 @@ export function collectPageSections(page) {
  * @param {import('@lerret/core').PageNode | import('@lerret/core').GroupNode} container
  * @param {number} depth
  * @param {string | null} parentName
+ * @param {string | null} parentPath
  */
- function walk(container, depth, parentName) {
+ function walk(container, depth, parentName, parentPath) {
+ const childGroups = container.groups || [];
  const assets = (container.assets || []).filter(
  (a) =>
  a.kind === NODE_KIND.ASSET &&
  (a.assetKind === 'component' || a.assetKind === 'markdown'),
  );
- if (assets.length > 0) {
  const ordered = [
  ...assets.filter((a) => a.assetKind === 'component'),
  ...assets.filter((a) => a.assetKind === 'markdown'),
  ];
+ // Emit for the page only when it directly holds assets; emit for EVERY
+ // group regardless, so a deep sub-group always has a parent card to nest
+ // into and an empty group still shows a fillable placeholder card.
+ if (depth >= 1 || ordered.length > 0) {
  sections.push({
  id: container.path,
  title: container.name,
  depth,
  kicker: depth >= 1 ? parentName : null,
+ parentPath: depth >= 1 ? parentPath : null,
  assets: ordered,
- isEmpty: false,
- });
- } else if (depth >= 1 && (container.groups || []).length === 0) {
- // An empty leaf GROUP — surfaced as a soft placeholder section so a
- // just-created group is visible and fillable. (A page with no assets is
- // handled by the page-level empty notice instead.)
- sections.push({
- id: container.path,
- title: container.name,
- depth,
- kicker: depth >= 1 ? parentName : null,
- assets: [],
- isEmpty: true,
+ isEmpty: ordered.length === 0 && childGroups.length === 0,
  });
  }
  // Recurse into child groups — depth-first, so a group's section is
  // emitted directly after its parent's. The model already sorts `groups`.
- for (const group of container.groups || []) {
- walk(group, depth + 1, container.name);
+ for (const group of childGroups) {
+ walk(group, depth + 1, container.name, container.path);
  }
  }
 
- walk(page, 0, null);
+ walk(page, 0, null, null);
  return sections;
 }
 
@@ -261,7 +264,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // switch) lets the render derive "still loading" by comparing the tag to
  // the current page — so the effect only ever calls `setState` once, when
  // its async load finishes.
- /** @type {[null | { pagePath: string, sections: ReadonlyArray<{ id: string, title: string, depth: number, kicker: string | null, entries: import('../../runtime/asset-runtime.js').AssetEntry[] }>, cueKeys: Readonly<Record<string, number>> }, React.Dispatch<React.SetStateAction<any>>]} */
+ /** @type {[null | { pagePath: string, sections: ReadonlyArray<{ id: string, title: string, depth: number, kicker: string | null, parentPath: string | null, isEmpty: boolean, entries: import('../../runtime/asset-runtime.js').AssetEntry[] }>, cueKeys: Readonly<Record<string, number>> }, React.Dispatch<React.SetStateAction<any>>]} */
  const [loaded, setLoaded] = React.useState(null);
 
  // In-canvas creation. `createState` is `{ kind, parentPath, parentLabel,
@@ -295,10 +298,11 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  title: def.title,
  depth: def.depth,
  kicker: def.kicker,
+ parentPath: def.parentPath,
  isEmpty: !!def.isEmpty,
- entries: def.isEmpty
- ? []
- : (await Promise.all(def.assets.map((a) => runtime.loadAsset(a)))).flat(),
+ entries: (
+ await Promise.all((def.assets || []).map((a) => runtime.loadAsset(a)))
+ ).flat(),
  })),
  );
  if (cancelled) return;
@@ -520,35 +524,50 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  }
  const cueKeys = (loaded && loaded.cueKeys) || {};
 
- // `key={page.path}` remounts the canvas per page so the brownfield
- // `DesignCanvas`'s per-section state (order/labels) is scoped to a page
- // and a page switch starts each page from a clean canvas state.
- //
- // Important for : live re-renders (entry replacements within
- // a section) do NOT change the canvas key — only the affected entries'
- // identities change. The `DesignCanvas` instance, its per-section
- // state, and the user's viewport zoom + scroll position are preserved.
- return (
- <>
- <DesignCanvas key={page.path}>
- {sections.map((s) => {
- // look up the effective config for this section's folder
- // and resolve the presentation.background color. A malformed value
- // falls back to null (no bg override) with a console.warn.
+ // Rebuild the parent→child tree from the flat, depth-first `sections` so a
+ // sub-group (depth >= 2) renders nested INSIDE its parent group's frame —
+ // true containment, like an asset inside a group. The page's own section
+ // (depth 0) and each top-level group (depth 1) stay as separate cards on the
+ // canvas; everything deeper attaches to its parent (matched by `parentPath`).
+ const nodeById = new Map();
+ for (const s of sections) nodeById.set(s.id, { section: s, children: [] });
+ const roots = [];
+ for (const s of sections) {
+ const node = nodeById.get(s.id);
+ const parent = s.depth >= 2 && s.parentPath ? nodeById.get(s.parentPath) : null;
+ if (parent) parent.children.push(node);
+ else roots.push(node);
+ }
+
+ // Render one section and, recursively, its nested sub-groups. A section's
+ // artboards lead, then its sub-group cards, then the in-canvas add bar — so
+ // "add into this group" always sits at the bottom of the group it targets.
+ const renderSection = (node) => {
+ const s = node.section;
+ // look up the effective config for this section's folder and resolve the
+ // presentation.background color. A malformed value falls back to null (no
+ // bg override) with a console.warn.
  const effectiveCfg = getConfigFor(s.id);
  const bgColor = resolveSectionBg(effectiveCfg, s.id);
- const sectionStyle = bgColor
- ? { backgroundColor: bgColor }
- : undefined;
+ const sectionStyle = bgColor ? { backgroundColor: bgColor } : undefined;
 
- // wrap each section in `SectionKebab` so the kebab trigger
- // hangs above the section header. The kebab owns Edit config / Rename /
- // Delete / Export / Reveal items and the ConfigEditor sheet that
- // "Edit config" toggles.
- //
- // pass `project` (for collectArtboards) and `sectionKind`
- // (page vs group) so the kebab's bulk-export action scopes correctly.
+ // wrap each section in `SectionKebab` so the kebab trigger hangs above the
+ // section header. The kebab owns Edit config / Rename / Delete / Export /
+ // Reveal items and the ConfigEditor sheet. `project` (for collectArtboards)
+ // and `sectionKind` (page vs group) scope its bulk-export action correctly.
  const sectionKind = page && page.path === s.id ? 'page' : 'group';
+
+ // Subtitle reflects what the card actually shows: its own assets and the
+ // sub-groups nested inside it. A card with neither reads as "empty group".
+ const assetCount = s.entries.length;
+ const groupCount = node.children.length;
+ const parts = [];
+ if (assetCount) parts.push(`${assetCount} asset${assetCount === 1 ? '' : 's'}`);
+ if (groupCount) parts.push(`${groupCount} group${groupCount === 1 ? '' : 's'}`);
+ const subtitle = parts.length > 0 ? parts.join(' · ') : 'empty group';
+ const isEmpty = assetCount === 0 && groupCount === 0;
+ const existingNames = sectionChildNames(project, s.id);
+
  return (
  <SectionKebab
  key={s.id}
@@ -562,29 +581,26 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  title={s.title}
  depth={s.depth}
  kicker={s.kicker}
- subtitle={
- s.isEmpty
- ? 'empty group'
- : `${s.entries.length} asset${s.entries.length === 1 ? '' : 's'}`
- }
+ subtitle={subtitle}
  sectionStyle={sectionStyle}
  >
- {!s.isEmpty &&
- s.entries.map((entry) =>
+ {s.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }),
  )}
- {/* In-canvas "add into THIS section" control — the spatially-explicit
- way to create a group/asset inside a specific container. Renders
- below the section frame; also serves as the empty-group affordance. */}
+ {/* Nested sub-groups render INSIDE this frame — true containment. */}
+ {node.children.map((child) => renderSection(child))}
+ {/* In-canvas "add into THIS group" control — the spatially-explicit
+ way to create a group/asset inside a specific container. Also serves
+ as the empty-group affordance. */}
  <SectionAddBar
- isEmpty={s.isEmpty}
+ isEmpty={isEmpty}
  cliMode={cliMode}
  onAddAsset={() =>
  setCreateState({
  kind: 'asset',
  parentPath: s.id,
  parentLabel: s.title,
- existingNames: sectionChildNames(project, s.id),
+ existingNames,
  })
  }
  onAddGroup={() =>
@@ -592,14 +608,27 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  kind: 'group',
  parentPath: s.id,
  parentLabel: s.title,
- existingNames: sectionChildNames(project, s.id),
+ existingNames,
  })
  }
  />
  </DCSection>
  </SectionKebab>
  );
- })}
+ };
+
+ // `key={page.path}` remounts the canvas per page so the brownfield
+ // `DesignCanvas`'s per-section state (order/labels) is scoped to a page and a
+ // page switch starts each page from a clean canvas state.
+ //
+ // Important for live edits: entry replacements within a section do NOT change
+ // the canvas key — only the affected entries' identities change. The
+ // `DesignCanvas` instance, its per-section state, and the user's viewport zoom
+ // + scroll position are preserved.
+ return (
+ <>
+ <DesignCanvas key={page.path}>
+ {roots.map((node) => renderSection(node))}
  </DesignCanvas>
  {createDialog}
  </>

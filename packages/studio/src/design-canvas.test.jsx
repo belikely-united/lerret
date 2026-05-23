@@ -561,3 +561,81 @@ describe('DCSection — section download buttons', () => {
  cleanup();
  });
 });
+
+describe('DCSection — nested sub-groups (true containment)', () => {
+ it('renders a nested DCSection INSIDE its parent section frame', async () => {
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas>
+ <DCSection id="parent" title="Parent" depth={1}>
+ <DCArtboard id="pa" label="ParentArt" width={200} height={150} />
+ <DCSection id="child" title="Child" depth={2} kicker="Parent">
+ <DCArtboard id="ca" label="ChildArt" width={200} height={150} />
+ </DCSection>
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ const parent = container.querySelector('[data-dc-section="parent"]');
+ const child = container.querySelector('[data-dc-section="child"]');
+ expect(parent).not.toBeNull();
+ expect(child).not.toBeNull();
+ // True containment: the child section is a DOM descendant of the parent.
+ expect(child).not.toBe(parent);
+ expect(parent.contains(child)).toBe(true);
+
+ cleanup();
+ });
+
+ it('opens focus view for a nested sub-group artboard (recursive registry)', async () => {
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas>
+ <DCSection id="parent" title="Parent" depth={1}>
+ <DCArtboard id="pa" label="ParentArt" width={200} height={150} />
+ <DCSection id="child" title="Child" depth={2} kicker="Parent">
+ <DCArtboard id="ca" label="ChildArt" width={200} height={150} />
+ </DCSection>
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+ // Expand the artboard that lives inside the nested sub-group.
+ const childSlot = container.querySelector('[data-dc-slot="ca"]');
+ expect(childSlot).not.toBeNull();
+ const expandBtn = childSlot.querySelector('.dc-expand');
+ expect(expandBtn).not.toBeNull();
+ act(() => { expandBtn.click(); });
+ // The overlay only renders when the focus id resolves in the registry, so
+ // its presence proves the nested section was registered.
+ expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+ cleanup();
+ });
+
+ it('parent direct slots exclude nested sub-group artboards (download/reorder scope)', async () => {
+ // Invariant per-section download + drag-reorder rely on: a nested artboard's
+ // nearest [data-dc-section] ancestor is the CHILD section, not the parent.
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas>
+ <DCSection id="parent" title="Parent" depth={1}>
+ <DCArtboard id="p1" label="P1" width={120} height={90} />
+ <DCArtboard id="p2" label="P2" width={120} height={90} />
+ <DCSection id="child" title="Child" depth={2} kicker="Parent">
+ <DCArtboard id="c1" label="C1" width={120} height={90} />
+ </DCSection>
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ const parentEl = container.querySelector('[data-dc-section="parent"]');
+ const directSlots = Array.from(parentEl.querySelectorAll('[data-dc-slot]')).filter(
+ (el) => el.closest('[data-dc-section]') === parentEl,
+ );
+ expect(directSlots.map((el) => el.dataset.dcSlot)).toEqual(['p1', 'p2']);
+
+ cleanup();
+ });
+});

@@ -86,11 +86,17 @@ describe('collectPageSections', () => {
  expect(sections.map((s) => s.depth)).toEqual([0, 1, 2]);
  // A nested section names its immediate parent group as the kicker.
  expect(sections.map((s) => s.kicker)).toEqual([null, 'home', 'components']);
+ // …and records its parent's path so the renderer can nest it inside it.
+ expect(sections.map((s) => s.parentPath)).toEqual([
+ null,
+ '/.lerret/home',
+ '/.lerret/home/components',
+ ]);
  });
 
- it('skips a container with no direct assets but still recurses into its groups', () => {
- // An empty intermediate group contributes no section, but its
- // assets-bearing child still appears — at its true (deeper) depth.
+ it('emits an intermediate group (assets-less, sub-groups only) so its sub-group has a parent to nest into', () => {
+ // `mid` holds no direct assets, only a child group. Under true nesting it
+ // is still emitted (as a card) so `leaf` can render contained inside it.
  const leaf = createGroupNode({
  name: 'leaf',
  path: '/.lerret/home/mid/leaf',
@@ -110,8 +116,17 @@ describe('collectPageSections', () => {
  });
 
  const sections = collectPageSections(page);
- expect(sections).toHaveLength(1);
- expect(sections[0]).toMatchObject({ title: 'leaf', depth: 2, kicker: 'mid' });
+ // The page has no direct assets → no page card; `mid` + `leaf` both emit.
+ expect(sections.map((s) => s.title)).toEqual(['mid', 'leaf']);
+ expect(sections.map((s) => s.depth)).toEqual([1, 2]);
+ // `leaf` records `mid` as its parent so the renderer nests it inside it.
+ expect(sections.find((s) => s.title === 'leaf')).toMatchObject({
+ depth: 2,
+ kicker: 'mid',
+ parentPath: '/.lerret/home/mid',
+ });
+ // `mid` is not "empty" — it contains a sub-group.
+ expect(sections.find((s) => s.title === 'mid')).toMatchObject({ isEmpty: false });
  });
 
  it('emits a placeholder section for an empty leaf group', () => {
@@ -131,7 +146,7 @@ describe('collectPageSections', () => {
  expect(sections.find((s) => s.title === 'home')).toMatchObject({ isEmpty: false });
  });
 
- it('does NOT placeholder an empty group that still has child groups', () => {
+ it('emits an intermediate group that holds only sub-groups (not flagged empty)', () => {
  const child = createGroupNode({
  name: 'child',
  path: '/.lerret/home/mid/child',
@@ -139,8 +154,14 @@ describe('collectPageSections', () => {
  });
  const mid = createGroupNode({ name: 'mid', path: '/.lerret/home/mid', groups: [child] });
  const page = createPageNode({ name: 'home', path: '/.lerret/home', groups: [mid] });
- // Only the assets-bearing child shows; `mid` contributes nothing.
- expect(collectPageSections(page).map((s) => s.title)).toEqual(['child']);
+ const sections = collectPageSections(page);
+ // Both `mid` (depth-1 card) and `child` (depth-2, nested) are emitted.
+ expect(sections.map((s) => s.title)).toEqual(['mid', 'child']);
+ // `mid` holds a sub-group, so it is not an empty-group placeholder.
+ expect(sections.find((s) => s.title === 'mid')).toMatchObject({ isEmpty: false, depth: 1 });
+ expect(sections.find((s) => s.title === 'child')).toMatchObject({
+ parentPath: '/.lerret/home/mid',
+ });
  });
 
  it('orders component assets before markdown assets within a section', () => {

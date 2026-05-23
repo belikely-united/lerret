@@ -287,25 +287,29 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  return () => clearTimeout(t);
  }, [state.sections]);
 
- // Build registries synchronously from children so FocusOverlay can read
- // them in the same render. A section may be wrapped ONE level (e.g. in
- // <SectionKebab> for per-section chrome): resolve the DCSection whether it is
- // the direct child or sits inside a single wrapper, so wrapping no longer
- // opts a section out of focus/reorder.
+ // Build registries synchronously from children so FocusOverlay can read them
+ // in the same render. Sections nest: a sub-group's DCSection is rendered
+ // INSIDE its parent's DCSection (each wrapped one level in <SectionKebab> for
+ // per-section chrome). So the walk is recursive AND resolves a DCSection
+ // whether it is a direct child or sits inside a single wrapper — every
+ // section, at any depth, is registered for focus / reorder / download.
  const registry = {}; // slotId -> { sectionId, artboard }
  const sectionMeta = {}; // sectionId -> { title, subtitle, slotIds[] }
  const sectionOrder = [];
- React.Children.forEach(children, (node) => {
- if (!node) return;
- let sec = node;
- if (node.type !== DCSection) {
+ const resolveSection = (node) => {
+ if (!node) return null;
+ if (node.type === DCSection) return node;
+ // Resolve through a single wrapper (e.g. <SectionKebab>).
  let found = null;
  React.Children.forEach(node.props && node.props.children, (c) => {
  if (!found && c && c.type === DCSection) found = c;
  });
- sec = found;
- }
- if (!sec || sec.type !== DCSection) return;
+ return found;
+ };
+ const visitSections = (nodes) => {
+ React.Children.forEach(nodes, (node) => {
+ const sec = resolveSection(node);
+ if (!sec) return;
  const sid = sec.props.id ?? sec.props.title;
  if (!sid) return;
  sectionOrder.push(sid);
@@ -324,7 +328,11 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  subtitle: sec.props.subtitle,
  slotIds: [...kept, ...srcIds.filter((k) => !kept.includes(k))],
  };
+ // Recurse into this section's children to register nested sub-groups.
+ visitSections(sec.props.children);
  });
+ };
+ visitSections(children);
 
  const api = React.useMemo(() => ({
  state,
@@ -439,17 +447,31 @@ function DCDownloadAll() {
  );
 }
 
+// Artboard slots that belong DIRECTLY to a section — excluding slots inside
+// nested sub-group sections (DOM descendants now that a sub-group renders
+// contained inside its parent's frame). Per-section download and drag-reorder
+// use this so they scope to the section's own artboards, never its sub-groups'.
+function dcDirectSlots(sectionId) {
+ if (typeof document === 'undefined') return [];
+ const sid = String(sectionId);
+ return Array.from(
+ document.querySelectorAll(`[data-dc-section="${sid}"] [data-dc-slot]`)
+ ).filter((el) => {
+ const owner = el.closest('[data-dc-section]');
+ return !!owner && owner.getAttribute('data-dc-section') === sid;
+ });
+}
+
 // Per-section "download all in this group" buttons. Lives inside the
-// section header card; scopes to slots within data-dc-section={sid}.
+// section header card; scopes to the section's *own* artboards (a nested
+// sub-group has its own download for its own artboards).
 function DCSectionDownload({ sectionId }) {
  const [busy, setBusy] = React.useState(null);
  const [progress, setProgress] = React.useState(null);
 
  const download = async (fmt) => {
  if (busy) return;
- const slots = Array.from(
- document.querySelectorAll(`[data-dc-section="${sectionId}"] [data-dc-slot]`)
- );
+ const slots = dcDirectSlots(sectionId);
  if (!slots.length) return;
  setBusy(fmt);
  setProgress({ i: 0, total: slots.length });
@@ -737,15 +759,18 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
 
  const byId = Object.fromEntries(artboards.map((a) => [a.props.id ?? a.props.label, a]));
 
- // Nested-group visual treatment. Each folder of depth indents the section AND
- // gives it a distinct, light card background (`sectionDepthBg`), so a
- // group-inside-a-group reads as a clearly different level. A cascade
+ // Visual nesting. A *sub-group* (a group inside a group, depth >= 2) renders
+ // CONTAINED inside its parent group's frame: a dashed, progressively warmer
+ // card (`sectionDepthBg`) with an accent depth rail and an "in <parent>"
+ // eyebrow, hugging inside the parent's padding. Top-level cards — the page's
+ // own section (depth 0) and a top-level group (depth 1) — render as separate
+ // cards on the canvas with generous margins and a solid frame. A cascade
  // `presentation.background` (via `sectionStyle`) overrides the depth default.
- const nested = depth > 0;
- const indent = Math.min(depth, 4) * 40;
+ const nested = depth >= 2;
  const titleSize = Math.max(19, 28 - depth * 4);
  const cascadeBg = sectionStyle && sectionStyle.backgroundColor;
  const frameBg = cascadeBg || sectionDepthBg(depth);
+ const hasArtboards = order.length > 0;
 
  return (
  <div
@@ -753,14 +778,17 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  data-dc-section-depth={depth}
  data-tour="section"
  style={{
- margin: `0 60px 80px ${60 + indent}px`,
+ // Top-level cards breathe on the canvas; a nested sub-group hugs inside
+ // its parent's frame (the small left inset leaves room for the depth
+ // rail at left:-16).
+ margin: nested ? '20px 0 8px 12px' : '0 60px 80px 60px',
  position: 'relative',
  width: 'max-content',
  }}
  >
- {/* Depth rail — a sienna accent bar on a nested section's left edge.
- Reinforces "this section sits inside the one above" beyond indent
- alone. Absent at depth 0 (a page's own top-level group). */}
+ {/* Depth rail — a sienna accent bar on a nested sub-group's left edge.
+ Reinforces "this card sits inside the card above" beyond the frame
+ alone. Absent on top-level cards (depth <= 1). */}
  {nested && (
  <div
  aria-hidden="true"
@@ -775,15 +803,15 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  }}
  />
  )}
- {/* Group frame — rounded rectangle around title + artboards. Subtle so
- it reads as scaffolding, not chrome. Padding-top fits the
- absolutely-positioned artboard labels (~36px) so they stay inside
- the border. Nested sections get a lighter frame + dashed border so
- the containment hierarchy is legible. */}
+ {/* Group frame — rounded rectangle around title + artboards + any nested
+ sub-groups. Subtle so it reads as scaffolding, not chrome. Padding-top
+ on the artboard row fits the absolutely-positioned artboard labels
+ (~36px) so they stay inside the border. A nested sub-group gets a
+ lighter dashed frame so the containment hierarchy is legible. */}
  <div style={{
  border: `1px ${nested ? 'dashed' : 'solid'} rgba(60,50,40,0.13)`,
  borderRadius: 16,
- padding: nested ? '20px 28px 28px' : '24px 32px 32px',
+ padding: nested ? '18px 22px 22px' : '24px 32px 32px',
  background: frameBg,
  }}>
  <div style={{
@@ -791,11 +819,11 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  alignItems: 'flex-start',
  justifyContent: 'space-between',
  gap: 24,
- marginBottom: 56,
+ marginBottom: hasArtboards ? 56 : 16,
  }}>
  <div>
- {/* Nesting eyebrow — names the parent group so a nested section
- says where it lives without leaving the canvas. */}
+ {/* Nesting eyebrow — names the parent group so a contained
+ sub-group says where it lives without leaving the canvas. */}
  {nested && kicker && (
  <div style={{
  fontSize: 10,
@@ -819,8 +847,9 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  style={{ fontSize: titleSize, fontWeight: 600, color: DC.title, letterSpacing: -0.4, marginBottom: 6, display: 'inline-block' }} />
  {subtitle && <div style={{ fontSize: 16, color: DC.subtitle }}>{subtitle}</div>}
  </div>
- {artboards.length > 0 && <DCSectionDownload sectionId={sid} />}
+ {hasArtboards && <DCSectionDownload sectionId={sid} />}
  </div>
+ {hasArtboards && (
  <div style={{ display: 'flex', gap, paddingTop: 36, alignItems: 'flex-start', width: 'max-content' }}>
  {order.map((k) => (
  <DCArtboardFrame key={k} sectionId={sid} sectionTitle={sec.title ?? title} artboard={byId[k]} order={order}
@@ -830,8 +859,12 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
  ))}
  </div>
- </div>
+ )}
+ {/* Non-artboard children — nested sub-group cards and the in-canvas add
+ bar — render INSIDE the frame, after the artboard row, so a sub-group
+ is visually contained by its parent (true nesting). */}
  {rest}
+ </div>
  </div>
  );
 }
@@ -900,7 +933,9 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  // getBoundingClientRect().left are screen-space — divide by the viewport's
  // current scale so the dragged card tracks the cursor at any zoom level.
  const scale = me.getBoundingClientRect().width / me.offsetWidth || 1;
- const peers = Array.from(document.querySelectorAll(`[data-dc-section="${sectionId}"] [data-dc-slot]`));
+ // Direct slots only — a nested sub-group's artboards are NOT reorder peers
+ // of this section (they live in their own section frame).
+ const peers = dcDirectSlots(sectionId);
  const homes = peers.map((el) => ({ el, id: el.dataset.dcSlot, x: el.getBoundingClientRect().left }));
  const slotXs = homes.map((h) => h.x);
  const startIdx = order.indexOf(id);
