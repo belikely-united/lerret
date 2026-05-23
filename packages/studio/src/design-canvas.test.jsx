@@ -23,7 +23,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { DesignCanvas, DCSection, DCArtboard } from './design-canvas.jsx';
+import { DesignCanvas, DCSection, DCArtboard, sectionDepthBg } from './design-canvas.jsx';
 
 // ─── jsdom environment stubs ──────────────────────────────────────────────────
 
@@ -505,6 +505,22 @@ describe('Drag-pan — kebab and popover targets are excluded (regression)', () 
 
  expect(capture).toHaveBeenCalledWith(4);
  cleanup();
+ });
+});
+
+describe('sectionDepthBg — nesting differentiation', () => {
+ it('returns a distinct, light color per nesting depth', () => {
+ const c0 = sectionDepthBg(0);
+ const c1 = sectionDepthBg(1);
+ const c2 = sectionDepthBg(2);
+ expect(c0).not.toBe(c1);
+ expect(c1).not.toBe(c2);
+ expect(c0).not.toBe(c2);
+ });
+
+ it('clamps at the deepest tier and is defensive on bad input', () => {
+ expect(sectionDepthBg(99)).toBe(sectionDepthBg(3));
+ expect(sectionDepthBg(-1)).toBe(sectionDepthBg(0));
  });
 });
 

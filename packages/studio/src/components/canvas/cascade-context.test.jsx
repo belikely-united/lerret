@@ -289,10 +289,12 @@ describe('ProjectCanvas — section background from cascade', () => {
 
  await waitFor(() => container.querySelector('[data-card]'), { label: 'card rendered' });
 
- // The section wrapper should carry backgroundColor: '#ff0000'.
+ // The cascade bg colors the section's frame (depth 0 has no depth-rail, so
+ // the frame is the first child div). It overrides the per-depth default.
  const section = container.querySelector('[data-dc-section]');
  expect(section).not.toBeNull();
- expect(section.style.backgroundColor).toBe('rgb(255, 0, 0)');
+ const frame = section.firstElementChild;
+ expect(frame.style.backgroundColor).toBe('rgb(255, 0, 0)');
  });
 
  it('uses default styling (no backgroundColor) when the cascade has no bg', async () => {

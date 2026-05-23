@@ -706,6 +706,21 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
 // with a small "in <parent>" eyebrow so the folder nesting is legible. The
 // optional `kicker` is that eyebrow text (the parent group's name).
 // ─────────────────────────────────────────────────────────────
+/**
+ * Distinct, light card backgrounds per nesting depth, so a sub-group reads as a
+ * clearly different level from its parent at a glance: depth 0 (a page's own
+ * section / a top-level group) is a warm white that lifts off the linen canvas,
+ * and each deeper level steps to a progressively warmer sand. Clamped at the
+ * deepest tier. A folder's cascade `presentation.background` overrides this.
+ *
+ * @param {number} depth
+ * @returns {string} A CSS color.
+ */
+export function sectionDepthBg(depth) {
+ const steps = ['#fdfcfa', '#f6f1e9', '#efe7da', '#e8decc'];
+ return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
+}
+
 export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, kicker, sectionStyle }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
@@ -722,13 +737,15 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
 
  const byId = Object.fromEntries(artboards.map((a) => [a.props.id ?? a.props.label, a]));
 
- // Nested-group visual treatment. Each folder of depth indents the section
- // and lightens its frame, so a group-inside-a-group reads as contained.
+ // Nested-group visual treatment. Each folder of depth indents the section AND
+ // gives it a distinct, light card background (`sectionDepthBg`), so a
+ // group-inside-a-group reads as a clearly different level. A cascade
+ // `presentation.background` (via `sectionStyle`) overrides the depth default.
  const nested = depth > 0;
  const indent = Math.min(depth, 4) * 40;
- const frameAlpha = Math.max(0.05, 0.14 - depth * 0.03);
- const fillAlpha = Math.max(0.05, 0.18 - depth * 0.05);
  const titleSize = Math.max(19, 28 - depth * 4);
+ const cascadeBg = sectionStyle && sectionStyle.backgroundColor;
+ const frameBg = cascadeBg || sectionDepthBg(depth);
 
  return (
  <div
@@ -739,13 +756,6 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  margin: `0 60px 80px ${60 + indent}px`,
  position: 'relative',
  width: 'max-content',
- // Presentation config background. Applied to the section's
- // outer wrapper so the tinted surface extends around the frame — the
- // frame's own semi-transparent background sits atop it. This gives a
- // subtle "canvas tinted for this section" effect without overriding
- // the frame's material. `sectionStyle` comes from the cascade context
- // via `project-canvas.jsx`; it is `undefined` when no bg is set.
- ...sectionStyle,
  }}
  >
  {/* Depth rail — a sienna accent bar on a nested section's left edge.
@@ -771,10 +781,10 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  the border. Nested sections get a lighter frame + dashed border so
  the containment hierarchy is legible. */}
  <div style={{
- border: `1px ${nested ? 'dashed' : 'solid'} rgba(60,50,40,${frameAlpha})`,
+ border: `1px ${nested ? 'dashed' : 'solid'} rgba(60,50,40,0.13)`,
  borderRadius: 16,
  padding: nested ? '20px 28px 28px' : '24px 32px 32px',
- background: `rgba(255,255,255,${fillAlpha})`,
+ background: frameBg,
  }}>
  <div style={{
  display: 'flex',
