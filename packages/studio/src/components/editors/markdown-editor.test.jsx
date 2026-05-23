@@ -57,6 +57,12 @@ function fireBlur(el) {
  el.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
 }
 
+/** Click the Source / Preview toggle (the editor shows one pane at a time). */
+function clickTab(name) {
+ const tab = document.querySelector(`[data-testid="lm-md-editor-tab-${name}"]`);
+ act(() => { tab.click(); });
+}
+
 // ── Test fixtures ────────────────────────────────────────────────────────────
 
 const releaseNotesEntry = {
@@ -375,6 +381,7 @@ describe('MarkdownEditor — live preview', () => {
  <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} />,
  );
 
+ clickTab('preview');
  const preview = document.querySelector('[data-testid="lm-md-editor-preview"]');
  expect(preview).not.toBeNull();
  // The preview should contain rendered text from the initial markdown.
@@ -399,6 +406,7 @@ describe('MarkdownEditor — live preview', () => {
  setReactTextareaValue(ta, '## Brand new heading');
  });
 
+ clickTab('preview');
  const preview = document.querySelector('[data-testid="lm-md-editor-preview"]');
  expect(preview.textContent).toContain('Brand new heading');
  // The onTextChange hook was called.
@@ -417,6 +425,7 @@ describe('MarkdownEditor — live preview', () => {
  />,
  );
 
+ clickTab('preview');
  const preview = document.querySelector('[data-testid="lm-md-editor-preview"]');
  expect(preview.textContent).toContain('Empty document');
 
@@ -440,6 +449,7 @@ describe('MarkdownEditor — prefers-reduced-motion', () => {
  <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} />,
  );
 
+ clickTab('preview');
  const preview = document.querySelector('[data-testid="lm-md-editor-preview"]');
  expect(preview).not.toBeNull();
  // The `data-reduced-motion` attribute drives the CSS `transition: none`.
@@ -460,6 +470,7 @@ describe('MarkdownEditor — prefers-reduced-motion', () => {
  <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} />,
  );
 
+ clickTab('preview');
  const preview = document.querySelector('[data-testid="lm-md-editor-preview"]');
  expect(preview.hasAttribute('data-reduced-motion')).toBe(false);
 
@@ -503,6 +514,52 @@ describe('MarkdownEditor — re-seeds when entry changes', () => {
  ta = document.querySelector('[data-testid="lm-md-editor-textarea"]');
  expect(ta.value).toBe('# Document B');
 
+ cleanup();
+ });
+});
+
+// ── Source / Preview toggle ───────────────────────────────────────────────────
+
+describe('MarkdownEditor — source/preview toggle', () => {
+ it('defaults to Source and toggles to Preview and back (one pane at a time)', () => {
+ const { cleanup } = renderToDom(
+ <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} />,
+ );
+ // Source by default: textarea shown, preview not mounted.
+ expect(document.querySelector('[data-testid="lm-md-editor-textarea"]')).not.toBeNull();
+ expect(document.querySelector('[data-testid="lm-md-editor-preview"]')).toBeNull();
+ expect(
+ document.querySelector('[data-testid="lm-md-editor-tab-source"]').getAttribute('aria-selected'),
+ ).toBe('true');
+
+ // Switch to Preview: preview mounts full-width, textarea unmounts.
+ clickTab('preview');
+ expect(document.querySelector('[data-testid="lm-md-editor-preview"]')).not.toBeNull();
+ expect(document.querySelector('[data-testid="lm-md-editor-textarea"]')).toBeNull();
+ expect(
+ document.querySelector('[data-testid="lm-md-editor-tab-preview"]').getAttribute('aria-selected'),
+ ).toBe('true');
+
+ // Back to Source.
+ clickTab('source');
+ expect(document.querySelector('[data-testid="lm-md-editor-textarea"]')).not.toBeNull();
+ expect(document.querySelector('[data-testid="lm-md-editor-preview"]')).toBeNull();
+
+ cleanup();
+ });
+
+ it('flushes a pending edit when switching to Preview (no lost text)', async () => {
+ const writer = vi.fn().mockResolvedValue({ ok: true });
+ const { cleanup } = renderToDom(
+ <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} writer={writer} />,
+ );
+ const ta = document.querySelector('[data-testid="lm-md-editor-textarea"]');
+ await act(async () => { setReactTextareaValue(ta, '# Edited before toggle'); });
+ // Switch to Preview before the debounce fires — the edit flushes + renders.
+ clickTab('preview');
+ expect(writer).toHaveBeenCalledWith(releaseNotesEntry.asset.path, '# Edited before toggle');
+ const preview = document.querySelector('[data-testid="lm-md-editor-preview"]');
+ expect(preview.textContent).toContain('Edited before toggle');
  cleanup();
  });
 });
