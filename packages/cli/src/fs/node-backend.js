@@ -708,7 +708,7 @@ async function discoverCompanions(folderNative, stem) {
  * @param {string} configNative
  * @returns {Promise<{kind:'missing'}|{kind:'malformed'}|{kind:'ok',value:Record<string,unknown>}>}
  */
-async function tryReadConfig(configNative) {
+export async function tryReadConfig(configNative) {
   let text;
   try {
     text = await fsp.readFile(configNative, 'utf-8');

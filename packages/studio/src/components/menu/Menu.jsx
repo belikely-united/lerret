@@ -400,7 +400,9 @@ export function Menu({
  const item = items[activeIdx];
  if (item && item.kind !== 'separator' && !item.disabled) {
  item.onSelect && item.onSelect();
- closeMenu();
+ // `keepOpen` items (e.g. "Delete…" → inline confirm) leave the menu
+ // open so the follow-up row shows in place.
+ if (!item.keepOpen) closeMenu();
  }
  break;
  }
@@ -433,7 +435,10 @@ export function Menu({
  const handleItemSelect = React.useCallback((item) => {
  if (item.disabled) return;
  item.onSelect && item.onSelect();
- closeMenu();
+ // `keepOpen` items (the "Delete…" → inline-confirm morph, and "Cancel")
+ // keep the menu open so the follow-up row renders in place instead of the
+ // user having to reopen the menu.
+ if (!item.keepOpen) closeMenu();
  }, [closeMenu]);
 
  const handleMouseEnterItem = React.useCallback((idx) => {

@@ -74,6 +74,7 @@ import {
   moveEntry,
   renameEntry,
   revealEntry,
+  tryReadConfig,
 } from './fs/node-backend.js';
 import { startWatcher } from './watcher.js';
 
@@ -196,6 +197,7 @@ export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
+export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
 
 /**
  * Serialize a `Map<string, object>` cascade to a JSON-safe
@@ -521,6 +523,7 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       server.middlewares.use(CREATE_ENDPOINT, createCreateMiddleware({ lerretDir }));
       server.middlewares.use(DELETE_ENDPOINT, createDeleteMiddleware({ lerretDir }));
       server.middlewares.use(REVEAL_ENDPOINT, createRevealMiddleware({ lerretDir }));
+      server.middlewares.use(READ_CONFIG_ENDPOINT, createReadConfigMiddleware({ lerretDir }));
 
       if (!hasProject) {
         // No watcher needed in no-project mode; the virtual module already
@@ -1072,6 +1075,57 @@ export function createDeleteMiddleware({ lerretDir }) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[lerret] delete failed:', message);
       sendJson(res, 500, { ok: false, error: `delete failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/read-config` — body `{ path: LerretPath }` (a folder's
+ * `config.json` path inside `.lerret/`). Reads and safe-parses the folder's
+ * OWN config.json so the studio's Config editor can show its current values.
+ *
+ * Why this exists: a plain GET of the file can't be used — the dev server's
+ * SPA fallback returns index.html (text/html) for any unknown path, so the
+ * editor could never tell "missing" apart from "present" without it.
+ *
+ * Response (always JSON):
+ *   • 200 `{ ok: true, value }`                     — parsed config object.
+ *   • 200 `{ ok: true, missing: true, value: {} }`  — no config.json yet.
+ *   • 200 `{ ok: false, error }`                    — present but invalid JSON.
+ *   • 400 `{ ok: false, error }`                    — bad / escaping path.
+ *   • 500 `{ ok: false, error }`                    — unexpected read failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createReadConfigMiddleware({ lerretDir }) {
+  return withJsonBody(async (_req, res, body) => {
+    const { path: requestPath } = body;
+    if (typeof requestPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'path must be a string' });
+      return;
+    }
+    const check = checkWritePath(requestPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: check.error });
+      return;
+    }
+    try {
+      const result = await tryReadConfig(check.normalized);
+      if (result.kind === 'missing') {
+        sendJson(res, 200, { ok: true, missing: true, value: {} });
+        return;
+      }
+      if (result.kind === 'malformed') {
+        sendJson(res, 200, { ok: false, error: 'config.json is not valid JSON' });
+        return;
+      }
+      sendJson(res, 200, { ok: true, value: result.value });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[lerret] read-config failed:', message);
+      sendJson(res, 500, { ok: false, error: `read failed: ${message}` });
     }
   });
 }

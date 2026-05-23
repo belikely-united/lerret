@@ -46,7 +46,7 @@ import { serializeJson } from '@lerret/core';
 
 import { EditorSheet } from './editor-sheet.jsx';
 import { FormControl } from '../forms/index.js';
-import { writeProjectFile } from '../../runtime/write-client.js';
+import { writeProjectFile, readProjectConfig, inCliMode } from '../../runtime/write-client.js';
 
 // ── Known config keys (ordered for display) ──────────────────────────────────
 
@@ -235,6 +235,13 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  * @returns {Promise<{ ok: boolean, value: Record<string, unknown>, missing?: boolean, error?: string }>}
  */
 async function defaultReadConfigFile(configPath) {
+ // CLI mode: read through the dedicated `/__lerret/read-config` endpoint. A
+ // plain GET of the file can't be used — the dev server's SPA fallback returns
+ // index.html for any unknown path, so the editor could never tell a missing
+ // config apart from an existing one (it always showed "Create config.json").
+ if (inCliMode()) {
+ return readProjectConfig(configPath);
+ }
  if (typeof globalThis === 'undefined' || typeof globalThis.fetch !== 'function') {
  return { ok: false, value: {}, error: 'no fetch implementation available' };
  }

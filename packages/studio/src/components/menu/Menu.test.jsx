@@ -328,6 +328,34 @@ describe('Menu — keyboard navigation', () => {
  cleanup();
  });
 
+ it('keeps the menu open when a keepOpen item is selected (inline-confirm pattern)', () => {
+ const onDelete = vi.fn();
+ const onOther = vi.fn();
+ const items = [
+ { kind: 'item', id: 'delete', label: 'Delete…', onSelect: onDelete, keepOpen: true },
+ { kind: 'item', id: 'other', label: 'Other', onSelect: onOther },
+ ];
+ const { container, cleanup } = renderToDom(
+ <Menu trigger={makeTrigger()} items={items} />,
+ );
+ const btn = container.querySelector('button[data-testid="trigger"]');
+ act(() => btn.click());
+ expect(findMenu()).toBeTruthy();
+ // Selecting the keepOpen item runs onSelect but leaves the menu open, so a
+ // call-site that morphs the items (e.g. → "Confirm delete · Cancel") shows
+ // the follow-up row in place instead of forcing a reopen.
+ const deleteItem = findMenuItems().find((el) => el.textContent.includes('Delete'));
+ act(() => deleteItem.click());
+ expect(onDelete).toHaveBeenCalledOnce();
+ expect(findMenu()).toBeTruthy();
+ // A normal item still closes the menu.
+ const otherItem = findMenuItems().find((el) => el.textContent.includes('Other'));
+ act(() => otherItem.click());
+ expect(onOther).toHaveBeenCalledOnce();
+ expect(findMenu()).toBeNull();
+ cleanup();
+ });
+
  it('Escape closes the menu without calling any onSelect', () => {
  const { container, cleanup } = renderToDom(
  <Menu trigger={makeTrigger()} items={ITEMS} />,

@@ -27,6 +27,7 @@ import {
   createDeleteMiddleware,
   createDuplicateMiddleware,
   createMoveMiddleware,
+  createReadConfigMiddleware,
   createRenameMiddleware,
   createRevealMiddleware,
   createWriteMiddleware,
@@ -1198,5 +1199,76 @@ describe('createCreateMiddleware', () => {
     const result = await call(mw, undefined, 'GET');
 
     expect(result.status).toBe(405);
+  });
+});
+
+describe('createReadConfigMiddleware', () => {
+  let lerretAbs;
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+  });
+
+  async function call(middleware, body) {
+    const { EventEmitter } = await import('node:events');
+    const req = new EventEmitter();
+    req.method = 'POST';
+    req.destroy = () => {};
+    const captured = { headers: {} };
+    const res = {
+      get statusCode() { return captured.status; },
+      set statusCode(v) { captured.status = v; },
+      setHeader(name, value) { captured.headers[name] = value; },
+      end(payload) { captured.body = payload; captured.done = true; },
+    };
+    middleware(req, res, () => {});
+    await new Promise((r) => setImmediate(r));
+    req.emit('data', Buffer.from(JSON.stringify(body), 'utf-8'));
+    req.emit('end');
+    const deadline = Date.now() + 5000;
+    while (!captured.done && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    return { status: captured.status, body: captured.body ? JSON.parse(captured.body) : null };
+  }
+
+  it('returns the parsed config for an existing config.json', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createReadConfigMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'brand'), { recursive: true });
+    await fsp.writeFile(
+      join(lerretAbs, 'brand', 'config.json'),
+      JSON.stringify({ presentation: { background: '#000' } }),
+    );
+    const result = await call(mw, { path: `${lerretDir}/brand/config.json` });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, value: { presentation: { background: '#000' } } });
+  });
+
+  it('reports missing for a folder with no config.json (the real bug)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createReadConfigMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'empty'), { recursive: true });
+    const result = await call(mw, { path: `${lerretDir}/empty/config.json` });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, missing: true, value: {} });
+  });
+
+  it('reports an error for malformed config.json', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createReadConfigMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'bad'), { recursive: true });
+    await fsp.writeFile(join(lerretAbs, 'bad', 'config.json'), '{ not json');
+    const result = await call(mw, { path: `${lerretDir}/bad/config.json` });
+    expect(result.status).toBe(200);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toMatch(/valid JSON/i);
+  });
+
+  it('rejects a path outside .lerret/', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createReadConfigMiddleware({ lerretDir });
+    const result = await call(mw, { path: '/etc/passwd' });
+    expect(result.status).toBe(400);
   });
 });

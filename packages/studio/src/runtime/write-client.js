@@ -55,6 +55,7 @@ export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
+export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
 
 /**
  * Detect CLI mode from the same flag the CLI's plugin injects in
@@ -148,6 +149,71 @@ export async function writeProjectFile(path, content, opts = {}) {
  error:
  (body && typeof body.error === 'string' && body.error) ||
  `write failed (status ${response.status})`,
+ };
+}
+
+/**
+ * Read a folder's OWN config.json via the CLI's read-config endpoint.
+ *
+ * Returns `{ ok, value, missing?, error? }` — never throws. A plain GET of the
+ * file can't be used: the dev server's SPA fallback returns index.html for any
+ * unknown path, so this dedicated POST is the only reliable read in CLI mode.
+ * In standalone mode it returns a clear non-ok so the caller can fall back.
+ *
+ * @param {string} configPath
+ * The {@link LerretPath} of the `config.json` file to read.
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, value: Record<string, unknown>, missing?: boolean, error?: string }>}
+ */
+export async function readProjectConfig(configPath, opts = {}) {
+ if (typeof configPath !== 'string' || configPath.length === 0) {
+ return { ok: false, value: {}, error: 'readProjectConfig: path must be a non-empty string' };
+ }
+ if (!isCliMode()) {
+ return { ok: false, value: {}, error: 'config reads are disabled in standalone mode' };
+ }
+ const fetchImpl = opts.fetch || (typeof globalThis !== 'undefined' ? globalThis.fetch : undefined);
+ if (typeof fetchImpl !== 'function') {
+ return { ok: false, value: {}, error: 'no fetch implementation available' };
+ }
+ let response;
+ try {
+ response = await fetchImpl(READ_CONFIG_ENDPOINT, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ path: configPath }),
+ });
+ } catch (err) {
+ return {
+ ok: false,
+ value: {},
+ error: `network error: ${err instanceof Error ? err.message : String(err)}`,
+ };
+ }
+ let parsed;
+ try {
+ parsed = await response.json();
+ } catch {
+ return {
+ ok: false,
+ value: {},
+ error: `server returned non-JSON response (status ${response.status})`,
+ };
+ }
+ if (parsed && parsed.ok === true) {
+ const value =
+ parsed.value && typeof parsed.value === 'object' && !Array.isArray(parsed.value)
+ ? parsed.value
+ : {};
+ return { ok: true, value, missing: parsed.missing === true };
+ }
+ return {
+ ok: false,
+ value: {},
+ error:
+ (parsed && typeof parsed.error === 'string' && parsed.error) ||
+ `read failed (status ${response.status})`,
  };
 }
 

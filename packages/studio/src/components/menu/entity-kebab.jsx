@@ -119,6 +119,9 @@ export function buildComponentItems(ctx) {
  id: 'delete',
  label: 'Delete…',
  onSelect: ctx.onDelete,
+ // Keep the menu open so the inline "Confirm delete · Cancel" row appears
+ // in place (selecting it flips `confirming` at the call site).
+ keepOpen: true,
  },
  { kind: 'separator', id: 'sep-2' },
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
@@ -180,7 +183,7 @@ export function buildMarkdownItems(ctx) {
  items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
  }
  items.push(
- { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete },
+ { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete, keepOpen: true },
  { kind: 'separator', id: 'sep-2' },
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
  {
@@ -244,7 +247,7 @@ export function buildSectionItems(ctx) {
  items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
  }
  items.push(
- { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete },
+ { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete, keepOpen: true },
  { kind: 'separator', id: 'sep-2' },
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
  );
@@ -305,6 +308,8 @@ export function applyDeleteConfirm(items, { confirming, onConfirmDelete, onCance
  id: 'delete-cancel',
  label: 'Cancel',
  onSelect: onCancelDelete,
+ // Cancel reverts to the normal item set but keeps the menu open.
+ keepOpen: true,
  });
  } else {
  out.push(item);
