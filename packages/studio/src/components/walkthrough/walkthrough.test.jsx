@@ -109,8 +109,8 @@ describe('WALKTHROUGH_STEPS — step sequence', () => {
  expect(WALKTHROUGH_STEPS[5].body).toMatch(/data/i);
  });
 
- it('step 7 — Export — targets dock-export', () => {
- expect(WALKTHROUGH_STEPS[6].target).toBe('[data-tour="dock-export"]');
+ it('step 7 — Export — targets the Lerret brand menu', () => {
+ expect(WALKTHROUGH_STEPS[6].target).toBe('[data-tour="dock-brand"]');
  expect(WALKTHROUGH_STEPS[6].title).toMatch(/export/i);
  });
 
@@ -177,7 +177,7 @@ describe('spotlight targets — DOM resolution', () => {
  <span data-tour="dock-pages"></span>
  <div data-tour="section"></div>
  <div class="lm-artboard-kebab" data-testid="lm-artboard-kebab"></div>
- <span data-tour="dock-export"></span>
+ <span data-tour="dock-brand"></span>
  `;
  document.body.appendChild(fixture);
  });
@@ -213,7 +213,7 @@ describe('spotlight targets — DOM resolution', () => {
  expect(resolveTarget(WALKTHROUGH_STEPS[5].target)).toBeTruthy();
  });
 
- it('step 7 target resolves (dock-export)', () => {
+ it('step 7 target resolves (dock-brand)', () => {
  expect(resolveTarget(WALKTHROUGH_STEPS[6].target)).toBeTruthy();
  });
 

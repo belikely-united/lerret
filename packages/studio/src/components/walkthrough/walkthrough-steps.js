@@ -69,9 +69,9 @@ export const WALKTHROUGH_STEPS = [
 
  // 7 — Export
  {
- target: '[data-tour="dock-export"]',
- title: 'Export the whole project as a ZIP.',
- body: 'Click "Export ZIP" to download every artboard across all pages in one structured archive. Use the ↓ PNG / ↓ JPG buttons to export only the current canvas view. The kebab menu Export item targets a single artboard — and "Export animated…" lets you turn a LiveRefresh artboard into WebP, GIF, APNG, or MP4.',
+ target: '[data-tour="dock-brand"]',
+ title: 'Export from the Lerret menu.',
+ body: 'Open the Lerret menu → Export project to download every artboard across all pages as one structured ZIP (choose PNG or JPG). To export a single page or group, use its ⋯ Actions menu; a single artboard exports from its hover kebab — and "Export animated…" turns a LiveRefresh artboard into WebP, GIF, APNG, or MP4.',
  },
 
  // 8 — Done / docs

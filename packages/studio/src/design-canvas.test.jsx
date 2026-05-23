@@ -639,3 +639,31 @@ describe('DCSection — nested sub-groups (true containment)', () => {
  cleanup();
  });
 });
+
+describe('DCViewport — wayfinding chrome', () => {
+ it('renders the zoom controls: readout + zoom in/out + reset + fit', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
+
+ const controls = container.querySelector('[data-tour="zoom-controls"]');
+ expect(controls).not.toBeNull();
+ // A live percentage readout (starts at 100%).
+ expect(controls.textContent).toMatch(/%/);
+ expect(container.querySelector('[aria-label="Zoom in"]')).not.toBeNull();
+ expect(container.querySelector('[aria-label="Zoom out"]')).not.toBeNull();
+ expect(container.querySelector('[aria-label="Reset zoom to 100%"]')).not.toBeNull();
+ expect(container.querySelector('[aria-label="Fit to screen"]')).not.toBeNull();
+
+ cleanup();
+ });
+
+ it('hides the mini-map when content is not measurable (degenerate bounds)', async () => {
+ // jsdom reports 0×0 rects, so content bounds are empty — the mini-map hides
+ // itself rather than drawing a degenerate overview. (Its populated behavior
+ // is verified in a real browser.)
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
+ expect(container.querySelector('[data-testid="dc-minimap"]')).toBeNull();
+ cleanup();
+ });
+});

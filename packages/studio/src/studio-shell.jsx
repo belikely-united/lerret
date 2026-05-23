@@ -153,7 +153,39 @@ function StudioDockButton({
  );
 }
 
-function StudioBrandMenu({ onDownloadLogo }) {
+function StudioBrandMenu({
+ anchorRef,
+ menuRef,
+ onDownloadLogo,
+ canExport = false,
+ exportFormat = 'png',
+ onExportFormatChange,
+ onExportProject,
+ exportBusy = false,
+ exportProgress = null,
+ exportNotice = null,
+ onDismissNotice,
+}) {
+ // The dock clips overflow (and its backdrop-filter is a containing block), so
+ // the menu is portaled to <body> and anchored to the brand lockup in viewport
+ // space — the same trick DockNewMenu / PagePicker use.
+ const [coords, setCoords] = React.useState(null);
+ React.useEffect(() => {
+ const measure = () => {
+ const el = anchorRef && anchorRef.current;
+ if (!el) return;
+ const r = el.getBoundingClientRect();
+ setCoords({ left: r.left, bottom: window.innerHeight - r.top });
+ };
+ measure();
+ window.addEventListener('resize', measure);
+ window.addEventListener('scroll', measure, true);
+ return () => {
+ window.removeEventListener('resize', measure);
+ window.removeEventListener('scroll', measure, true);
+ };
+ }, [anchorRef]);
+
  const item = (label, hint, onClick) => (
  <button
  type="button"
@@ -175,12 +207,19 @@ function StudioBrandMenu({ onDownloadLogo }) {
  {hint && <span style={{ fontSize: 11, color: '#6E6960', marginTop: 2 }}>{hint}</span>}
  </button>
  );
- return (
- <div style={{
- position: 'absolute',
- bottom: 'calc(100% + 8px)',
- left: 0,
- minWidth: 220,
+ const sectionLabel = {
+ fontSize: 9.5, fontWeight: 600,
+ letterSpacing: '0.14em', textTransform: 'uppercase',
+ color: '#9a958c',
+ padding: '8px 14px 4px',
+ };
+ if (!coords) return null;
+ return ReactDOM.createPortal(
+ <div ref={menuRef} style={{
+ position: 'fixed',
+ bottom: coords.bottom + 8,
+ left: coords.left,
+ minWidth: 230,
  background: 'rgba(255,255,255,0.97)',
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
@@ -189,17 +228,90 @@ function StudioBrandMenu({ onDownloadLogo }) {
  padding: 6,
  boxShadow: '0 12px 32px rgba(15,23,42,0.18), 0 1px 3px rgba(15,23,42,0.06)',
  display: 'flex', flexDirection: 'column', gap: 2,
- zIndex: 70,
+ zIndex: 90,
  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
  }}>
- <div style={{
- fontSize: 9.5, fontWeight: 600,
- letterSpacing: '0.14em', textTransform: 'uppercase',
- color: '#9a958c',
- padding: '8px 14px 4px',
- }}>Brand kit</div>
+ <div style={sectionLabel}>Brand kit</div>
  {item('Lerret logo', 'PNG · 256 × 256', onDownloadLogo)}
+
+ {/* Export project — a deliberately low-frequency action, tucked here
+ rather than in the dock's prime row. Per-page / per-group / per-artboard
+ export already live in their ⋯ kebabs. */}
+ {canExport && (
+ <React.Fragment>
+ <div style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+ <div style={sectionLabel}>Export</div>
+ <div style={{ padding: '2px 14px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+ <span style={{ fontSize: 11, color: '#6E6960', lineHeight: 1.45 }}>
+ Every artboard across all pages, as one structured ZIP.
+ </span>
+ <div role="radiogroup" aria-label="Export format" style={{ display: 'inline-flex', gap: 6 }}>
+ {['png', 'jpg'].map((f) => {
+ const on = exportFormat === f;
+ return (
+ <button
+ key={f}
+ type="button"
+ role="radio"
+ aria-checked={on}
+ onClick={() => onExportFormatChange && onExportFormatChange(f)}
+ style={{
+ flex: 1,
+ padding: '6px 0',
+ borderRadius: 8,
+ border: `1px solid ${on ? '#B85B33' : 'rgba(26,23,20,0.14)'}`,
+ background: on ? '#B85B33' : 'transparent',
+ color: on ? '#FAF8F2' : '#3A3530',
+ fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+ cursor: 'pointer', transition: 'background .12s, border-color .12s',
+ }}
+ >
+ {f.toUpperCase()}
+ </button>
+ );
+ })}
  </div>
+ <button
+ type="button"
+ data-testid="dock-export-project"
+ disabled={exportBusy}
+ onClick={() => onExportProject && onExportProject(exportFormat)}
+ style={{
+ padding: '8px 12px',
+ borderRadius: 8,
+ border: 'none',
+ background: exportBusy ? 'rgba(42,37,31,0.5)' : '#2A251F',
+ color: '#fff',
+ fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+ cursor: exportBusy ? 'wait' : 'pointer',
+ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+ }}
+ >
+ <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
+ strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+ <path d="M6 1v7M3 5.5l3 3 3-3M2 10h8" />
+ </svg>
+ {exportProgress !== null ? exportProgress : 'Export ZIP'}
+ </button>
+ {exportNotice && (
+ <div style={{
+ fontSize: 11, color: '#6E6960', lineHeight: 1.4,
+ background: 'rgba(60,50,40,0.05)', borderRadius: 8, padding: '6px 8px',
+ }}>
+ {exportNotice}
+ <button
+ type="button"
+ onClick={onDismissNotice}
+ style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 11, padding: 0, fontFamily: 'inherit' }}
+ title="Dismiss"
+ >✕</button>
+ </div>
+ )}
+ </div>
+ </React.Fragment>
+ )}
+ </div>,
+ document.body,
  );
 }
 
@@ -437,23 +549,27 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  const projectModel = useProjectModel();
  // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
  const getConfigFor = useCascadedConfig();
- // Global "All PNG/JPG" download — drives every artboard via the
- // dcDownloadSlots window export (see design-canvas.jsx).
- const [busy, setBusy] = React.useState(null);
- const [progress, setProgress] = React.useState(null);
- // Project-level bulk export state.
+ // Project-level bulk export state. Export is a low-frequency action, so its
+ // controls live in the Lerret brand menu rather than the dock's prime row.
+ // (Per-page / per-group / per-artboard export already live in their kebabs.)
  const [exportBusy, setExportBusy] = React.useState(false);
  const [exportProgress, setExportProgress] = React.useState(null); // e.g. "2/10…"
  const [exportNotice, setExportNotice] = React.useState(null);
+ const [exportFormat, setExportFormat] = React.useState('png');
  // Brand menu — popover above the lockup. Holds the Brand kit download
  // (and anything else brand-adjacent we add later).
  const [brandOpen, setBrandOpen] = React.useState(false);
  const brandRef = React.useRef(null);
+ // The brand menu is portaled to <body>, so an "outside" click must also spare
+ // the menu itself — otherwise clicking the format toggle / Export closes it.
+ const brandMenuRef = React.useRef(null);
 
  React.useEffect(() => {
  if (!brandOpen) return;
  const onPd = (e) => {
- if (brandRef.current && !brandRef.current.contains(e.target)) setBrandOpen(false);
+ const inTrigger = brandRef.current && brandRef.current.contains(e.target);
+ const inMenu = brandMenuRef.current && brandMenuRef.current.contains(e.target);
+ if (!inTrigger && !inMenu) setBrandOpen(false);
  };
  const onKey = (e) => { if (e.key === 'Escape') setBrandOpen(false); };
  document.addEventListener('pointerdown', onPd);
@@ -463,20 +579,6 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  document.removeEventListener('keydown', onKey);
  };
  }, [brandOpen]);
-
- const downloadAll = async (fmt) => {
- if (busy || typeof window.dcDownloadSlots !== 'function') return;
- const slots = Array.from(document.querySelectorAll('[data-dc-slot]'));
- if (!slots.length) return;
- setBusy(fmt);
- setProgress({ i: 0, total: slots.length });
- try {
- await window.dcDownloadSlots(slots, fmt, (p) => setProgress(p));
- } finally {
- setBusy(null);
- setProgress(null);
- }
- };
 
  // Project-level bulk ZIP export.
  const exportProject = React.useCallback(async (fmt = 'png', flat = false) => {
@@ -528,11 +630,6 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  }
  setExportNotice(notices.length > 0 ? notices.join(' · ') : null);
  }, [projectModel, exportBusy, getConfigFor]);
-
- const dlLabel = (fmt) => {
- if (busy === fmt && progress) return `${progress.i}/${progress.total}…`;
- return fmt.toUpperCase();
- };
 
  const triggerDownload = (href, filename) => {
  const a = document.createElement('a');
@@ -599,7 +696,17 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  </button>
  {brandOpen && (
  <StudioBrandMenu
+ anchorRef={brandRef}
+ menuRef={brandMenuRef}
  onDownloadLogo={() => { triggerDownload('/assets/lerret-logo.png', 'lerret-logo.png'); setBrandOpen(false); }}
+ canExport={!!projectModel}
+ exportFormat={exportFormat}
+ onExportFormatChange={setExportFormat}
+ onExportProject={(fmt) => exportProject(fmt, false)}
+ exportBusy={exportBusy}
+ exportProgress={exportProgress}
+ exportNotice={exportNotice}
+ onDismissNotice={() => setExportNotice(null)}
  />
  )}
  </span>
@@ -638,85 +745,6 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  currentPagePath={projectPages?.current}
  onNavigate={projectPages?.onNavigate}
  />
-
- <StudioDockSeparator />
-
- {/* Global download */}
- <span data-tour="dock-download" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
- <StudioDockButton
- label={dlLabel('png')}
- icon="↓"
- active={busy === 'png'}
- disabled={!!busy && busy !== 'png'}
- onClick={() => downloadAll('png')}
- title="Download every artboard as PNG"
- />
- <StudioDockButton
- label={dlLabel('jpg')}
- icon="↓"
- active={busy === 'jpg'}
- disabled={!!busy && busy !== 'jpg'}
- onClick={() => downloadAll('jpg')}
- title="Download every artboard as JPG"
- />
- </span>
-
- {/* Export project ZIP — only shown when a project is loaded. */}
- {projectModel && (
- <React.Fragment>
- <StudioDockSeparator />
- <span
- data-tour="dock-export"
- style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}
- >
- <StudioDockButton
- label={exportProgress !== null ? exportProgress : 'Export ZIP'}
- icon={
- <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
- strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
- <path d="M6 1v7M3 5.5l3 3 3-3M2 10h8" />
- </svg>
- }
- active={exportBusy}
- disabled={exportBusy}
- onClick={() => exportProject('png', false)}
- title={exportBusy ? 'Export in progress…' : 'Export project as ZIP (PNG, structured)'}
- />
- {/* Calm notice for skipped / fonts — floats above the button, non-blocking */}
- {exportNotice && (
- <div style={{
- position: 'absolute',
- bottom: 'calc(100% + 6px)',
- left: '50%',
- transform: 'translateX(-50%)',
- whiteSpace: 'nowrap',
- background: 'rgba(255,255,255,0.96)',
- backdropFilter: 'blur(10px)',
- border: '1px solid rgba(26,23,20,0.10)',
- borderRadius: 8,
- padding: '6px 10px',
- fontSize: 11,
- color: '#6E6960',
- boxShadow: '0 4px 12px rgba(15,23,42,0.10)',
- maxWidth: 320,
- lineHeight: 1.4,
- }}>
- {exportNotice}
- <button
- type="button"
- onClick={() => setExportNotice(null)}
- style={{
- marginLeft: 6, background: 'none', border: 'none',
- cursor: 'pointer', color: '#9a958c', fontSize: 11,
- padding: 0, fontFamily: 'inherit',
- }}
- title="Dismiss"
- >✕</button>
- </div>
- )}
- </span>
- </React.Fragment>
- )}
 
  <StudioDockSeparator />
 

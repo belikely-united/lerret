@@ -558,12 +558,151 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  const vpRef = React.useRef(null);
  const worldRef = React.useRef(null);
  const tf = React.useRef({ x: 0, y: 0, scale: 1 });
+ // Transform-change subscribers (the zoom readout + mini-map). Notified on a
+ // throttled rAF so the pan/zoom hot path never re-renders the canvas world.
+ const listenersRef = React.useRef(new Set());
+ const publishRafRef = React.useRef(0);
 
  const apply = React.useCallback(() => {
  const { x, y, scale } = tf.current;
  const el = worldRef.current;
  if (el) el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
  }, []);
+
+ // Notify subscribers of the current transform (rAF-throttled).
+ const publish = React.useCallback(() => {
+ if (publishRafRef.current) return;
+ publishRafRef.current = requestAnimationFrame(() => {
+ publishRafRef.current = 0;
+ const t = tf.current;
+ listenersRef.current.forEach((fn) => { try { fn({ ...t }); } catch (_) {} });
+ });
+ }, []);
+
+ // Measure each top-level card (a page's own section or a top-level group) in
+ // world-LOCAL coordinates (transform-independent). Sub-groups are nested
+ // inside these, so the top-level cards bound all content.
+ const measureCards = React.useCallback(() => {
+ const world = worldRef.current;
+ if (!world) return [];
+ const cards = world.querySelectorAll(
+ '[data-dc-section-depth="0"], [data-dc-section-depth="1"]',
+ );
+ if (!cards.length) return [];
+ const s = tf.current.scale || 1;
+ const wr = world.getBoundingClientRect(); // reflects the applied transform
+ const out = [];
+ for (const c of cards) {
+ const b = c.getBoundingClientRect();
+ out.push({
+ x: (b.left - wr.left) / s,
+ y: (b.top - wr.top) / s,
+ w: b.width / s,
+ h: b.height / s,
+ });
+ }
+ return out;
+ }, []);
+
+ // Union bbox of the cards, in world-local coords. `null` when there's nothing.
+ const getContentBounds = React.useCallback(() => {
+ const cards = measureCards();
+ if (!cards.length) return null;
+ let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+ for (const c of cards) {
+ minX = Math.min(minX, c.x); minY = Math.min(minY, c.y);
+ maxX = Math.max(maxX, c.x + c.w); maxY = Math.max(maxY, c.y + c.h);
+ }
+ return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+ }, [measureCards]);
+
+ const getViewportSize = React.useCallback(() => {
+ const r = vpRef.current && vpRef.current.getBoundingClientRect();
+ return r ? { width: r.width, height: r.height } : { width: 0, height: 0 };
+ }, []);
+
+ // Bounded pan — content can never be flung into the void (the bug). When the
+ // content is larger than the viewport on an axis you can pan across it, but
+ // its far edge can't recede more than a small breathing margin past the
+ // viewport edge; when it's smaller than the viewport, it centers on that axis.
+ const clampPan = React.useCallback(() => {
+ const b = getContentBounds();
+ const r = vpRef.current && vpRef.current.getBoundingClientRect();
+ if (!b || !r) return;
+ const t = tf.current;
+ const s = t.scale;
+ const BM = 120; // how much empty canvas may show past an edge
+ const clampAxis = (pos, originLocal, sizeLocal, viewport) => {
+ const origin = originLocal * s;
+ const size = sizeLocal * s;
+ const lo = viewport - BM - (origin + size); // far edge ≥ viewport − BM
+ const hi = BM - origin; // near edge ≤ BM
+ // Content smaller than the viewport (lo > hi) → center it on this axis.
+ if (lo > hi) return (viewport - size) / 2 - origin;
+ return Math.max(lo, Math.min(hi, pos));
+ };
+ t.x = clampAxis(t.x, b.minX, b.width, r.width);
+ t.y = clampAxis(t.y, b.minY, b.height, r.height);
+ }, [getContentBounds]);
+
+ // Frame ALL content (the Fit button / Shift+1). Capped at 100% so a small
+ // project isn't blown up past its true size.
+ const fit = React.useCallback((padding = 90) => {
+ const r = vpRef.current && vpRef.current.getBoundingClientRect();
+ const b = getContentBounds();
+ if (!r || !b || b.width <= 0 || b.height <= 0) return;
+ let scale = Math.min((r.width - padding * 2) / b.width, (r.height - padding * 2) / b.height, 1);
+ scale = Math.max(minScale, Math.min(maxScale, scale));
+ tf.current = {
+ scale,
+ x: (r.width - b.width * scale) / 2 - b.minX * scale,
+ y: (r.height - b.height * scale) / 2 - b.minY * scale,
+ };
+ apply(); publish();
+ }, [apply, getContentBounds, minScale, maxScale, publish]);
+
+ // Frame to WIDTH, aligned to the top — the calm default when a page opens, so
+ // a tall stack of cards starts readable at the top rather than tiny.
+ const fitWidth = React.useCallback((padding = 60) => {
+ const r = vpRef.current && vpRef.current.getBoundingClientRect();
+ const b = getContentBounds();
+ if (!r || !b || b.width <= 0) return;
+ let scale = Math.min((r.width - padding * 2) / b.width, 1);
+ scale = Math.max(minScale, Math.min(maxScale, scale));
+ tf.current = {
+ scale,
+ x: (r.width - b.width * scale) / 2 - b.minX * scale,
+ y: padding - b.minY * scale,
+ };
+ apply(); publish();
+ }, [apply, getContentBounds, minScale, maxScale, publish]);
+
+ // Zoom to a target scale, keeping the viewport center fixed.
+ const setZoom = React.useCallback((nextScale) => {
+ const r = vpRef.current && vpRef.current.getBoundingClientRect();
+ if (!r) return;
+ const t = tf.current;
+ const ns = Math.max(minScale, Math.min(maxScale, nextScale));
+ const cx = r.width / 2, cy = r.height / 2;
+ const k = ns / t.scale;
+ t.x = cx - (cx - t.x) * k;
+ t.y = cy - (cy - t.y) * k;
+ t.scale = ns;
+ clampPan(); apply(); publish();
+ }, [apply, clampPan, minScale, maxScale, publish]);
+
+ const zoomBy = React.useCallback((factor) => setZoom(tf.current.scale * factor), [setZoom]);
+ const reset100 = React.useCallback(() => setZoom(1), [setZoom]);
+
+ // Center a world-LOCAL point in the viewport (used by mini-map click/drag).
+ const panToLocal = React.useCallback((lx, ly) => {
+ const r = vpRef.current && vpRef.current.getBoundingClientRect();
+ if (!r) return;
+ const t = tf.current;
+ t.x = r.width / 2 - lx * t.scale;
+ t.y = r.height / 2 - ly * t.scale;
+ clampPan(); apply(); publish();
+ }, [apply, clampPan, publish]);
 
  React.useEffect(() => {
  const vp = vpRef.current;
@@ -579,7 +718,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  t.x = px - (px - t.x) * k;
  t.y = py - (py - t.y) * k;
  t.scale = next;
- apply();
+ clampPan(); apply(); publish();
  };
 
  // Wheel routing — convention matches most apps:
@@ -598,13 +737,13 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  } else if (e.shiftKey && e.deltaX === 0) {
  // Shift+wheel → horizontal pan (browsers don't auto-flip axis here)
  tf.current.x -= e.deltaY;
- apply();
+ clampPan(); apply(); publish();
  } else {
  // Plain wheel scroll — pan in both axes (deltaX is non-zero on
  // trackpads and tilt-wheels; zero on a vertical-only mouse wheel).
  tf.current.x -= e.deltaX;
  tf.current.y -= e.deltaY;
- apply();
+ clampPan(); apply(); publish();
  }
  };
 
@@ -650,7 +789,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  tf.current.x += e.clientX - drag.lx;
  tf.current.y += e.clientY - drag.ly;
  drag.lx = e.clientX; drag.ly = e.clientY;
- apply();
+ clampPan(); apply(); publish();
  };
  const onPointerUp = (e) => {
  if (!drag || e.pointerId !== drag.id) return;
@@ -677,10 +816,58 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  vp.removeEventListener('pointerup', onPointerUp);
  vp.removeEventListener('pointercancel', onPointerUp);
  };
- }, [apply, minScale, maxScale]);
+ }, [apply, minScale, maxScale, clampPan, publish]);
+
+ // Public viewport API for the zoom controls + mini-map (rendered as fixed
+ // chrome outside the panned world, so they don't trip the pan handler).
+ const api = React.useMemo(() => ({
+ subscribe: (fn) => { listenersRef.current.add(fn); return () => listenersRef.current.delete(fn); },
+ getTransform: () => ({ ...tf.current }),
+ getContentBounds,
+ measureCards,
+ getViewportSize,
+ fit,
+ reset100,
+ zoomBy,
+ setZoom,
+ panToLocal,
+ }), [getContentBounds, measureCards, getViewportSize, fit, reset100, zoomBy, setZoom, panToLocal]);
+
+ // Auto-frame on mount (and on page switch — the canvas remounts per page):
+ // fit to width, top-aligned, once the cards have laid out. The canvas gates
+ // its children behind a short async "ready" read, so poll until content
+ // appears (up to ~2s), fit once, then stop.
+ React.useEffect(() => {
+ let cancelled = false;
+ let done = false;
+ let timer = 0;
+ const deadline = Date.now() + 2000;
+ const tryFit = () => {
+ if (cancelled || done) return;
+ const b = getContentBounds();
+ if (b && b.width > 0) { done = true; fitWidth(); publish(); return; }
+ if (Date.now() < deadline) timer = setTimeout(tryFit, 60);
+ };
+ const raf = requestAnimationFrame(tryFit);
+ return () => { cancelled = true; cancelAnimationFrame(raf); clearTimeout(timer); };
+ }, [getContentBounds, fitWidth, publish]);
+
+ // Keyboard shortcuts: Shift+1 = fit all, Shift+0 = 100% (ignored while typing).
+ React.useEffect(() => {
+ const onKey = (e) => {
+ const ae = document.activeElement;
+ if (ae && (ae.isContentEditable || /^(input|textarea|select)$/i.test(ae.tagName))) return;
+ if (!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+ if (e.key === '1' || e.key === '!') { e.preventDefault(); fit(); }
+ else if (e.key === '0' || e.key === ')') { e.preventDefault(); reset100(); }
+ };
+ window.addEventListener('keydown', onKey);
+ return () => window.removeEventListener('keydown', onKey);
+ }, [fit, reset100]);
 
  const gridSvg = `url("data:image/svg+xml,%3Csvg width='120' height='120' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M120 0H0v120' fill='none' stroke='${encodeURIComponent(DC.grid)}' stroke-width='1'/%3E%3C/svg%3E")`;
  return (
+ <React.Fragment>
  <div
  ref={vpRef}
  className="design-canvas"
@@ -711,6 +898,203 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  <div style={{ position: 'absolute', inset: -6000, backgroundImage: gridSvg, backgroundSize: '120px 120px', pointerEvents: 'none', zIndex: -1 }} />
  {children}
  </div>
+ </div>
+ {/* Wayfinding chrome — fixed, outside the panned world so they never trip
+ the pan handler. Mini-map (bottom-left) for overview + jump; zoom/Fit
+ cluster (bottom-right) for explicit control + a "you're never lost" exit. */}
+ <DCMiniMap api={api} />
+ <DCZoomControls api={api} />
+ </React.Fragment>
+ );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DCZoomControls — bottom-right zoom readout + controls. Reads the live
+// transform via the viewport's subscription so it never re-renders the world.
+// ─────────────────────────────────────────────────────────────
+function DCZoomControls({ api }) {
+ const [scale, setScale] = React.useState(() => api.getTransform().scale);
+ React.useEffect(() => api.subscribe((t) => setScale(t.scale)), [api]);
+ const pct = Math.round(scale * 100);
+
+ const wrap = {
+ position: 'fixed', right: 18, bottom: 18, zIndex: 55,
+ display: 'flex', alignItems: 'center', gap: 2,
+ background: 'rgba(255,255,255,0.88)',
+ backdropFilter: 'blur(16px) saturate(120%)',
+ WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+ borderRadius: 999, padding: '4px 6px',
+ boxShadow: '0 4px 18px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)',
+ fontFamily: DC.font,
+ };
+ const iconBtn = {
+ width: 28, height: 28, borderRadius: 999, border: 'none',
+ background: 'transparent', color: '#3a3530', cursor: 'pointer',
+ fontSize: 17, lineHeight: 1, display: 'inline-flex',
+ alignItems: 'center', justifyContent: 'center',
+ transition: 'background .12s',
+ };
+ const pctBtn = {
+ minWidth: 52, height: 28, borderRadius: 8, border: 'none',
+ background: 'transparent', color: '#3a3530', cursor: 'pointer',
+ font: '600 12px/1 ' + DC.font, fontVariantNumeric: 'tabular-nums',
+ transition: 'background .12s',
+ };
+ const fitBtn = {
+ height: 28, padding: '0 12px', borderRadius: 999, border: 'none',
+ background: 'transparent', color: '#3a3530', cursor: 'pointer',
+ font: '600 12px/1 ' + DC.font,
+ display: 'inline-flex', alignItems: 'center', gap: 6,
+ transition: 'background .12s',
+ };
+ const hov = (on) => (e) => { e.currentTarget.style.background = on ? 'rgba(0,0,0,0.05)' : 'transparent'; };
+
+ return (
+ <div data-tour="zoom-controls" style={wrap}>
+ <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => api.zoomBy(1 / 1.2)}
+ style={iconBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>−</button>
+ <button type="button" title="Reset to 100% (Shift+0)" aria-label="Reset zoom to 100%" onClick={() => api.reset100()}
+ style={pctBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>{pct}%</button>
+ <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => api.zoomBy(1.2)}
+ style={iconBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>+</button>
+ <div style={{ width: 1, height: 18, background: 'rgba(60,50,40,0.14)', margin: '0 2px' }} />
+ <button type="button" title="Fit everything to screen (Shift+1)" aria-label="Fit to screen" onClick={() => api.fit()}
+ style={fitBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>
+ <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+ <path d="M1.5 4.5v-3h3M11.5 4.5v-3h-3M1.5 8.5v3h3M11.5 8.5v3h-3" />
+ </svg>
+ Fit
+ </button>
+ </div>
+ );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DCMiniMap — bottom-left overview. Draws each top-level card as a small
+// rectangle plus a "viewport" rectangle showing what's currently on screen.
+// Click or drag anywhere on the map to recenter the canvas there.
+// ─────────────────────────────────────────────────────────────
+const DC_MINIMAP_W = 184;
+const DC_MINIMAP_H = 132;
+
+function DCMiniMap({ api }) {
+ const [t, setT] = React.useState(() => api.getTransform());
+ // A tick that advances on transform changes AND on window resize so the
+ // card layout + viewport rectangle re-measure.
+ const [, setTick] = React.useState(0);
+ const mapRef = React.useRef(null);
+ const dragRef = React.useRef(false);
+
+ React.useEffect(() => api.subscribe((next) => setT(next)), [api]);
+ React.useEffect(() => {
+ const onResize = () => setTick((n) => n + 1);
+ window.addEventListener('resize', onResize);
+ return () => window.removeEventListener('resize', onResize);
+ }, []);
+
+ const bounds = api.getContentBounds();
+ const cards = api.measureCards();
+ const vpSize = api.getViewportSize();
+ // Nothing to map (no content) — hide entirely.
+ if (!bounds || bounds.width <= 0 || bounds.height <= 0 || !cards.length) return null;
+
+ const PAD = 10;
+ const innerW = DC_MINIMAP_W - PAD * 2;
+ const innerH = DC_MINIMAP_H - PAD * 2;
+ const s = Math.min(innerW / bounds.width, innerH / bounds.height);
+ const offX = PAD + (innerW - bounds.width * s) / 2;
+ const offY = PAD + (innerH - bounds.height * s) / 2;
+ const toMapX = (lx) => offX + (lx - bounds.minX) * s;
+ const toMapY = (ly) => offY + (ly - bounds.minY) * s;
+
+ // Current visible region in world-LOCAL coords → map coords.
+ const scale = t.scale || 1;
+ const visLeft = -t.x / scale;
+ const visTop = -t.y / scale;
+ const visW = vpSize.width / scale;
+ const visH = vpSize.height / scale;
+ const vmX = toMapX(visLeft);
+ const vmY = toMapY(visTop);
+ const vmW = visW * s;
+ const vmH = visH * s;
+
+ const recenterFromEvent = (clientX, clientY) => {
+ const el = mapRef.current;
+ if (!el) return;
+ const r = el.getBoundingClientRect();
+ const mx = clientX - r.left;
+ const my = clientY - r.top;
+ const lx = bounds.minX + (mx - offX) / s;
+ const ly = bounds.minY + (my - offY) / s;
+ api.panToLocal(lx, ly);
+ };
+
+ const onDown = (e) => {
+ e.preventDefault();
+ e.stopPropagation();
+ dragRef.current = true;
+ try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+ recenterFromEvent(e.clientX, e.clientY);
+ };
+ const onMove = (e) => {
+ if (!dragRef.current) return;
+ recenterFromEvent(e.clientX, e.clientY);
+ };
+ const onUp = (e) => {
+ dragRef.current = false;
+ try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+ };
+
+ return (
+ <div
+ ref={mapRef}
+ data-tour="minimap"
+ data-testid="dc-minimap"
+ onPointerDown={onDown}
+ onPointerMove={onMove}
+ onPointerUp={onUp}
+ onPointerCancel={onUp}
+ title="Overview — click or drag to navigate"
+ style={{
+ position: 'fixed', left: 18, bottom: 18, zIndex: 55,
+ width: DC_MINIMAP_W, height: DC_MINIMAP_H,
+ background: 'rgba(255,255,255,0.82)',
+ backdropFilter: 'blur(16px) saturate(120%)',
+ WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+ border: '1px solid rgba(26,23,20,0.10)',
+ borderRadius: 12,
+ boxShadow: '0 4px 18px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)',
+ cursor: 'pointer',
+ touchAction: 'none',
+ overflow: 'hidden',
+ }}
+ >
+ <svg width={DC_MINIMAP_W} height={DC_MINIMAP_H} style={{ display: 'block' }} aria-hidden="true">
+ {cards.map((c, i) => (
+ <rect
+ key={i}
+ x={toMapX(c.x)}
+ y={toMapY(c.y)}
+ width={Math.max(2, c.w * s)}
+ height={Math.max(2, c.h * s)}
+ rx={2}
+ fill="rgba(60,50,40,0.14)"
+ stroke="rgba(60,50,40,0.22)"
+ strokeWidth="0.75"
+ />
+ ))}
+ {/* Viewport rectangle — what's currently on screen. */}
+ <rect
+ x={vmX}
+ y={vmY}
+ width={Math.max(4, vmW)}
+ height={Math.max(4, vmH)}
+ rx={2}
+ fill="rgba(184,91,51,0.12)"
+ stroke="#B85B33"
+ strokeWidth="1.25"
+ />
+ </svg>
  </div>
  );
 }
