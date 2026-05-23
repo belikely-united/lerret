@@ -7,12 +7,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+ CREATE_ENDPOINT,
  DELETE_ENDPOINT,
  DUPLICATE_ENDPOINT,
  MOVE_ENDPOINT,
  RENAME_ENDPOINT,
  REVEAL_ENDPOINT,
  WRITE_ENDPOINT,
+ createProjectEntry,
  deleteProjectFile,
  duplicateProjectFile,
  inCliMode,
@@ -382,5 +384,79 @@ describe('inCliMode', () => {
  it('reports false when the CLI mode flag is absent', () => {
  delete globalThis.__LERRET_CLI_MODE__;
  expect(inCliMode()).toBe(false);
+ });
+});
+
+describe('createProjectEntry', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { parentPath, name, kind } for a folder and returns the path', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, path: '/x/.lerret/landing' }),
+ });
+ const result = await createProjectEntry('/x/.lerret', 'landing', 'folder', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true, path: '/x/.lerret/landing' });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(CREATE_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(JSON.parse(init.body)).toEqual({ parentPath: '/x/.lerret', name: 'landing', kind: 'folder' });
+ });
+
+ it('includes assetKind for an asset (defaulting to component)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, path: '/x/.lerret/landing/hero.jsx' }),
+ });
+ await createProjectEntry('/x/.lerret/landing', 'hero', 'asset', { fetch: fetchMock });
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+ parentPath: '/x/.lerret/landing',
+ name: 'hero',
+ kind: 'asset',
+ assetKind: 'component',
+ });
+ });
+
+ it('passes assetKind: markdown through', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, path: '/x/.lerret/landing/notes.md' }),
+ });
+ await createProjectEntry('/x/.lerret/landing', 'notes', 'asset', {
+ fetch: fetchMock,
+ assetKind: 'markdown',
+ });
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body).assetKind).toBe('markdown');
+ });
+
+ it('surfaces a server error without throwing', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 409,
+ json: async () => ({ ok: false, error: '"landing" already exists here' }),
+ });
+ const result = await createProjectEntry('/x/.lerret', 'landing', 'folder', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toMatch(/already exists/);
+ });
+
+ it('validates inputs before any fetch', async () => {
+ const fetchMock = vi.fn();
+ expect((await createProjectEntry('', 'x', 'folder', { fetch: fetchMock })).ok).toBe(false);
+ expect((await createProjectEntry('/x/.lerret', '', 'folder', { fetch: fetchMock })).ok).toBe(false);
+ expect((await createProjectEntry('/x/.lerret', 'x', 'bogus', { fetch: fetchMock })).ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('no-ops with a clear error outside CLI mode', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const result = await createProjectEntry('/x/.lerret', 'landing', 'folder');
+ expect(result.ok).toBe(false);
+ expect(result.error).toMatch(/standalone/);
  });
 });

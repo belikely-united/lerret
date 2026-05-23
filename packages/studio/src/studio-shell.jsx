@@ -26,6 +26,7 @@ import { PagePicker } from './components/dock/page-picker.jsx';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
+import { CreateEntryDialog, create, inCliMode } from './components/menu/index.js';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 // Import the extracted walkthrough overlay and offer.
 // The overlay and its step sequence now live in components/walkthrough/.
@@ -200,6 +201,229 @@ function StudioBrandMenu({ onDownloadLogo }) {
  {item('Lerret logo', 'PNG · 256 × 256', onDownloadLogo)}
  </div>
  );
+}
+
+/**
+ * The dock's "+ New…" menu — the always-present, page-level creation surface.
+ * Opens a small popover offering New page / New group in ‹page› / New asset in
+ * ‹page›, then drives the shared CreateEntryDialog. Only rendered in CLI mode
+ * with a loaded project (creation writes to disk via the CLI). With zero pages,
+ * only "New page" is offered, so the very first page is always reachable.
+ *
+ * @param {object} props
+ * @param {object | null} props.projectModel  The loaded ProjectNode.
+ * @param {string | undefined} props.currentPagePath
+ * @param {(id: string) => void} [props.onNavigate]
+ * @returns {React.ReactElement | null}
+ */
+function DockNewMenu({ projectModel, currentPagePath, onNavigate }) {
+  const [open, setOpen] = React.useState(false);
+  const [createState, setCreateState] = React.useState(null);
+  const [coords, setCoords] = React.useState(null);
+  const rootRef = React.useRef(null);
+  const triggerRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+
+  // The dock has a backdrop-filter (a containing block for fixed elements) and
+  // clips overflow, so the menu is portaled to <body> and positioned in viewport
+  // space anchored to the trigger — the same trick PagePicker uses.
+  const measure = React.useCallback(() => {
+    if (!triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    setCoords({ left: r.left, bottom: window.innerHeight - r.top });
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onPd = (e) => {
+      const inTrigger = rootRef.current && rootRef.current.contains(e.target);
+      const inMenu = menuRef.current && menuRef.current.contains(e.target);
+      if (!inTrigger && !inMenu) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const reanchor = () => measure();
+    document.addEventListener('pointerdown', onPd);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', reanchor);
+    window.addEventListener('scroll', reanchor, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPd);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', reanchor);
+      window.removeEventListener('scroll', reanchor, true);
+    };
+  }, [open, measure]);
+
+  // Creation writes to disk via the CLI — only meaningful with a loaded project
+  // in CLI mode. (The brownfield #storyboard has no projectModel.)
+  if (!inCliMode() || !projectModel) return null;
+
+  const lerretPath = projectModel.path;
+  const pages = projectModel.pages || [];
+  const currentPage = pages.find((p) => p.path === currentPagePath) || pages[0] || null;
+  const pageNames = pages.map((p) => p.name);
+  const currentChildNames = currentPage
+    ? [
+        ...(currentPage.groups || []).map((g) => g.name),
+        ...(currentPage.assets || []).map((a) => a.fileName),
+      ]
+    : [];
+
+  const openCreate = (state) => {
+    setOpen(false);
+    setCreateState(state);
+  };
+
+  const onConfirm = async ({ name, assetKind }) => {
+    if (!createState) return;
+    const endpointKind = createState.kind === 'asset' ? 'asset' : 'folder';
+    const result = await create(createState.parentPath, name, endpointKind, { assetKind });
+    if (!result?.ok) throw new Error(result?.error || 'Create failed');
+    // Navigate to a brand-new page once it exists.
+    if (createState.kind === 'page' && result.path && typeof onNavigate === 'function') {
+      onNavigate(result.path);
+    }
+  };
+
+  const itemStyle = {
+    display: 'block',
+    width: '100%',
+    textAlign: 'left',
+    padding: '8px 12px',
+    borderRadius: 8,
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--lm-text-primary, #1a1714)',
+    fontFamily: 'inherit',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+
+  return (
+    <span ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          setOpen((o) => {
+            const next = !o;
+            if (next) measure();
+            return next;
+          });
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Create a page, group, or asset"
+        data-testid="dock-new-trigger"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '8px 12px',
+          borderRadius: 8,
+          border: 'none',
+          background: open ? 'rgba(0,0,0,0.06)' : 'transparent',
+          color: 'var(--lm-text-secondary, #3a3530)',
+          fontFamily: 'inherit',
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        + New
+      </button>
+      {open && coords &&
+        ReactDOM.createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          data-testid="dock-new-menu"
+          style={{
+            position: 'fixed',
+            bottom: coords.bottom + 8,
+            left: coords.left,
+            minWidth: 200,
+            background: 'rgba(255,255,255,0.97)',
+            backdropFilter: 'blur(16px) saturate(120%)',
+            WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+            border: '1px solid rgba(26,23,20,0.10)',
+            borderRadius: 12,
+            padding: 6,
+            boxShadow: '0 12px 32px rgba(15,23,42,0.18), 0 1px 3px rgba(15,23,42,0.06)',
+            zIndex: 90,
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            style={itemStyle}
+            data-testid="dock-new-page"
+            onClick={() =>
+              openCreate({
+                kind: 'page',
+                parentPath: lerretPath,
+                parentLabel: null,
+                existingNames: pageNames,
+              })
+            }
+          >
+            New page
+          </button>
+          {currentPage && (
+            <button
+              type="button"
+              role="menuitem"
+              style={itemStyle}
+              data-testid="dock-new-group"
+              onClick={() =>
+                openCreate({
+                  kind: 'group',
+                  parentPath: currentPage.path,
+                  parentLabel: currentPage.name,
+                  existingNames: currentChildNames,
+                })
+              }
+            >
+              New group in {currentPage.name}
+            </button>
+          )}
+          {currentPage && (
+            <button
+              type="button"
+              role="menuitem"
+              style={itemStyle}
+              data-testid="dock-new-asset"
+              onClick={() =>
+                openCreate({
+                  kind: 'asset',
+                  parentPath: currentPage.path,
+                  parentLabel: currentPage.name,
+                  existingNames: currentChildNames,
+                })
+              }
+            >
+              New asset in {currentPage.name}
+            </button>
+          )}
+        </div>,
+        document.body,
+        )}
+      {createState && (
+        <CreateEntryDialog
+          kind={createState.kind}
+          parentLabel={createState.parentLabel}
+          existingNames={createState.existingNames}
+          onConfirm={onConfirm}
+          onClose={() => setCreateState(null)}
+        />
+      )}
+    </span>
+  );
 }
 
 function StudioDock({ pages, current, onNavigate, onHelp }) {
@@ -408,6 +632,12 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  ))}
  </span>
  )}
+
+ <DockNewMenu
+ projectModel={projectModel}
+ currentPagePath={projectPages?.current}
+ onNavigate={projectPages?.onNavigate}
+ />
 
  <StudioDockSeparator />
 

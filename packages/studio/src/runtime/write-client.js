@@ -54,6 +54,7 @@ export const DUPLICATE_ENDPOINT = '/__lerret/duplicate';
 export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
+export const CREATE_ENDPOINT = '/__lerret/create';
 
 /**
  * Detect CLI mode from the same flag the CLI's plugin injects in
@@ -300,6 +301,44 @@ export async function moveProjectFile(fromPath, toFolderPath, opts = {}) {
  rewroteLiveRefresh:
  typeof result.rewroteLiveRefresh === 'string' ? result.rewroteLiveRefresh : undefined,
  };
+}
+
+/**
+ * Create a new page/group folder or a starter asset file inside `parentPath`.
+ *
+ * `parentPath` is the destination folder's {@link LerretPath} (the bare
+ * `.lerret/` root is allowed for a new top-level page). `name` is the user's
+ * raw name — the server validates + normalizes it (the studio dialog runs the
+ * same `validateEntryName` for instant feedback). For `kind: 'asset'`,
+ * `opts.assetKind` picks `'component'` (`.jsx`, default) or `'markdown'`
+ * (`.md`).
+ *
+ * @param {string} parentPath  Destination folder's LerretPath.
+ * @param {string} name        Raw entry name (no extension needed).
+ * @param {'folder'|'asset'} kind
+ * @param {object} [opts]
+ * @param {'component'|'markdown'} [opts.assetKind]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, path?: string, error?: string }>}
+ *   On success, `path` is the created entry's LerretPath.
+ */
+export async function createProjectEntry(parentPath, name, kind, opts = {}) {
+  if (typeof parentPath !== 'string' || parentPath.length === 0) {
+    return { ok: false, error: 'createProjectEntry: parentPath must be a non-empty string' };
+  }
+  if (typeof name !== 'string' || name.length === 0) {
+    return { ok: false, error: 'createProjectEntry: name must be a non-empty string' };
+  }
+  if (kind !== 'folder' && kind !== 'asset') {
+    return { ok: false, error: 'createProjectEntry: kind must be "folder" or "asset"' };
+  }
+  const reqBody = { parentPath, name, kind };
+  if (kind === 'asset') {
+    reqBody.assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
+  }
+  const result = await callLifecycleEndpoint(CREATE_ENDPOINT, reqBody, opts);
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, path: typeof result.path === 'string' ? result.path : undefined };
 }
 
 /**

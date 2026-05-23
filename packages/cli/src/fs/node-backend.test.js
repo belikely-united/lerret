@@ -16,7 +16,7 @@ import {
   vi,
 } from 'vitest';
 
-import { createNodeBackend, moveEntry, realpathOrSelf } from './node-backend.js';
+import { createEntry, createNodeBackend, moveEntry, realpathOrSelf } from './node-backend.js';
 
 /** A fresh scratch directory per test, removed afterwards. @type {string} */
 let workDir;
@@ -934,4 +934,77 @@ describe('moveEntry — D.M3 liveRefresh write ordering', () => {
   // primary D.M3 regression (configs NOT touched when the move itself fails)
   // is covered by the test above. The post-move-rollback path is exercised
   // implicitly via the companion-rollback test below.
+});
+
+describe('createEntry', () => {
+  it('creates a folder (page/group) and returns its path', async () => {
+    const result = await createEntry(asLerretPath(workDir), 'landing', 'folder');
+    expect(result.path).toBe(asLerretPath(join(workDir, 'landing')));
+    const stat = await fsp.stat(join(workDir, 'landing'));
+    expect(stat.isDirectory()).toBe(true);
+  });
+
+  it('creates a component asset with renderable starter content', async () => {
+    const result = await createEntry(asLerretPath(workDir), 'tw-banner', 'asset', {
+      assetKind: 'component',
+    });
+    expect(result.path).toBe(asLerretPath(join(workDir, 'tw-banner.jsx')));
+    const src = await fsp.readFile(join(workDir, 'tw-banner.jsx'), 'utf-8');
+    expect(src).toContain('export default function TwBanner()');
+    expect(src).toContain('export const meta');
+  });
+
+  it('creates a markdown asset (.md)', async () => {
+    const result = await createEntry(asLerretPath(workDir), 'notes', 'asset', {
+      assetKind: 'markdown',
+    });
+    expect(result.path).toBe(asLerretPath(join(workDir, 'notes.md')));
+    const src = await fsp.readFile(join(workDir, 'notes.md'), 'utf-8');
+    expect(src.startsWith('# notes')).toBe(true);
+  });
+
+  it('defaults asset kind to component', async () => {
+    await createEntry(asLerretPath(workDir), 'hero', 'asset');
+    await fsp.access(join(workDir, 'hero.jsx'));
+  });
+
+  it('refuses an exact-name collision', async () => {
+    await fsp.mkdir(join(workDir, 'landing'));
+    await expect(createEntry(asLerretPath(workDir), 'landing', 'folder')).rejects.toMatchObject({
+      code: 'collision',
+    });
+  });
+
+  it('refuses a case-insensitive collision (macOS/Windows-safe)', async () => {
+    await fsp.mkdir(join(workDir, 'landing'));
+    await expect(createEntry(asLerretPath(workDir), 'Landing', 'folder')).rejects.toMatchObject({
+      code: 'collision',
+    });
+  });
+
+  it('refuses a collision against an existing asset filename', async () => {
+    await fsp.writeFile(join(workDir, 'hero.jsx'), 'export default 1;');
+    await expect(
+      createEntry(asLerretPath(workDir), 'hero', 'asset', { assetKind: 'component' }),
+    ).rejects.toMatchObject({ code: 'collision' });
+  });
+
+  it('throws missing-parent when the parent does not exist', async () => {
+    await expect(
+      createEntry(asLerretPath(join(workDir, 'nope')), 'x', 'folder'),
+    ).rejects.toMatchObject({ code: 'missing-parent' });
+  });
+
+  it('throws missing-parent when the parent is a file', async () => {
+    await fsp.writeFile(join(workDir, 'afile'), 'x');
+    await expect(
+      createEntry(asLerretPath(join(workDir, 'afile')), 'x', 'folder'),
+    ).rejects.toMatchObject({ code: 'missing-parent' });
+  });
+
+  it('throws invalid-kind for an unknown kind', async () => {
+    await expect(createEntry(asLerretPath(workDir), 'x', 'bogus')).rejects.toMatchObject({
+      code: 'invalid-kind',
+    });
+  });
 });

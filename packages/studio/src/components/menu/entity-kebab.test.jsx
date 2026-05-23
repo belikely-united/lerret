@@ -196,6 +196,29 @@ describe('buildSectionItems', () => {
  expect(findItem(items, 'reveal-editor').disabled).toBe(true);
  expect(findItem(items, 'reveal-finder').disabled).toBe(true);
  });
+
+ it('leads with Add asset / Add group when those handlers are provided', () => {
+ const ids = itemIds(buildSectionItems(baseCtx({ onAddAsset: noop, onAddGroup: noop })));
+ expect(ids[0]).toBe('add-asset');
+ expect(ids[1]).toBe('add-group');
+ expect(ids).toContain('edit-config');
+ });
+
+ it('omits the create items when no add handlers are provided (legacy)', () => {
+ const ids = itemIds(buildSectionItems(baseCtx()));
+ expect(ids).not.toContain('add-asset');
+ expect(ids).not.toContain('add-group');
+ });
+
+ it('wires the onAddAsset / onAddGroup callbacks', () => {
+ const onAddAsset = vi.fn();
+ const onAddGroup = vi.fn();
+ const items = buildSectionItems(baseCtx({ onAddAsset, onAddGroup }));
+ findItem(items, 'add-asset').onSelect();
+ findItem(items, 'add-group').onSelect();
+ expect(onAddAsset).toHaveBeenCalledOnce();
+ expect(onAddGroup).toHaveBeenCalledOnce();
+ });
 });
 
 // ── Delete confirmation ─────────────────────────────────────────────────────

@@ -49,6 +49,7 @@ import { MetaEditor } from '../editors/meta-editor.jsx';
 import { MarkdownEditor } from '../editors/markdown-editor.jsx';
 import { ConfigEditor } from '../editors/config-editor.jsx';
 import {
+ createProjectEntry,
  deleteProjectFile,
  duplicateProjectFile,
  inCliMode,
@@ -206,6 +207,10 @@ export function buildMarkdownItems(ctx) {
  * Build the items for a folder/section kebab.
  *
  * @param {object} ctx
+ * @param {() => void} [ctx.onAddAsset]
+ *   "Add asset…" opener. When provided, leads the menu (in-studio creation).
+ * @param {() => void} [ctx.onAddGroup]
+ *   "Add group…" opener. When provided, leads the menu (in-studio creation).
  * @param {() => void} ctx.onEditConfig
  * @param {() => void} ctx.onRename
  * @param {() => void} [ctx.onMove]
@@ -218,11 +223,23 @@ export function buildMarkdownItems(ctx) {
  * @returns {Array<object>}
  */
 export function buildSectionItems(ctx) {
- const items = [
+ const items = [];
+ // Creation actions lead the menu when wired (in-studio "New group / asset").
+ // Optional so legacy callers keep the original item set.
+ if (typeof ctx.onAddAsset === 'function' || typeof ctx.onAddGroup === 'function') {
+ if (typeof ctx.onAddAsset === 'function') {
+ items.push({ kind: 'item', id: 'add-asset', label: 'Add asset…', onSelect: ctx.onAddAsset });
+ }
+ if (typeof ctx.onAddGroup === 'function') {
+ items.push({ kind: 'item', id: 'add-group', label: 'Add group…', onSelect: ctx.onAddGroup });
+ }
+ items.push({ kind: 'separator', id: 'sep-add' });
+ }
+ items.push(
  { kind: 'item', id: 'edit-config', label: 'Edit config', onSelect: ctx.onEditConfig },
  { kind: 'separator', id: 'sep-1' },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
- ];
+ );
  if (typeof ctx.onMove === 'function') {
  items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
  }
@@ -369,6 +386,29 @@ export async function move(fromPath, toFolderPath, opts = {}) {
  ? '; warning: source config.json was malformed, liveRefresh untouched'
  : '';
  console.log(`[lerret] Moved to ${result.newPath || toFolderPath}${liveRefreshNote}`);
+ return result;
+}
+
+/**
+ * Create a new page/group folder, or a starter asset, inside `parentPath`.
+ * Surfaces any failure through `console.warn`; the brownfield watcher reflects
+ * the new entry on the canvas automatically.
+ *
+ * @param {string} parentPath The destination folder's LerretPath (the bare
+ *   `.lerret/` root is allowed for a new top-level page).
+ * @param {string} name The raw entry name (server validates + normalizes).
+ * @param {'folder'|'asset'} kind
+ * @param {object} [opts]
+ * @param {'component'|'markdown'} [opts.assetKind]
+ * @returns {Promise<{ ok: boolean, path?: string, error?: string }>}
+ */
+export async function create(parentPath, name, kind, opts = {}) {
+ const result = await createProjectEntry(parentPath, name, kind, opts);
+ if (!result.ok) {
+ console.warn('[lerret] create failed:', result.error);
+ return result;
+ }
+ console.log(`[lerret] Created ${result.path || name}`);
  return result;
 }
 

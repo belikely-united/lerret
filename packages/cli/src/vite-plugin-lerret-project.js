@@ -58,10 +58,17 @@
 
 import { resolve as resolvePath } from 'node:path';
 
-import { scan, applyWatchEvent, makeWatchEvent, computeCascadedConfig } from '@lerret/core';
+import {
+  scan,
+  applyWatchEvent,
+  makeWatchEvent,
+  computeCascadedConfig,
+  validateEntryName,
+} from '@lerret/core';
 
 import {
   createNodeBackend,
+  createEntry,
   deleteEntry,
   duplicateEntry,
   moveEntry,
@@ -188,6 +195,7 @@ export const DUPLICATE_ENDPOINT = '/__lerret/duplicate';
 export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
+export const CREATE_ENDPOINT = '/__lerret/create';
 
 /**
  * Serialize a `Map<string, object>` cascade to a JSON-safe
@@ -510,6 +518,7 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       server.middlewares.use(RENAME_ENDPOINT, createRenameMiddleware({ lerretDir }));
       server.middlewares.use(DUPLICATE_ENDPOINT, createDuplicateMiddleware({ lerretDir }));
       server.middlewares.use(MOVE_ENDPOINT, createMoveMiddleware({ lerretDir }));
+      server.middlewares.use(CREATE_ENDPOINT, createCreateMiddleware({ lerretDir }));
       server.middlewares.use(DELETE_ENDPOINT, createDeleteMiddleware({ lerretDir }));
       server.middlewares.use(REVEAL_ENDPOINT, createRevealMiddleware({ lerretDir }));
 
@@ -1100,6 +1109,92 @@ export function createRevealMiddleware({ lerretDir }) {
       sendJson(res, 200, { ok: true });
     } else {
       sendJson(res, 500, { ok: false, error: result.error || 'reveal failed' });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/create` — body
+ *   `{ parentPath, name, kind: 'folder'|'asset', assetKind?: 'component'|'markdown' }`.
+ *
+ * Creates a new page/group folder (parent === `.lerret/` → page; deeper →
+ * group) or a starter asset file inside `parentPath`. The parent is validated
+ * with {@link validateMoveDest} (which allows the bare `.lerret/` root, so a new
+ * top-level page is permitted); the name is validated with the shared
+ * `validateEntryName` from `@lerret/core` — the same rules the studio dialog
+ * uses, so client and server never disagree.
+ *
+ * Response shape (always JSON):
+ *   • 200 `{ ok: true, path: <LerretPath> }` — the created entry.
+ *   • 400 `{ ok: false, error }` — bad parent / name / kind.
+ *   • 409 `{ ok: false, error }` — a sibling of that name already exists
+ *     (case-insensitive).
+ *   • 500 `{ ok: false, error }` — unexpected filesystem failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createCreateMiddleware({ lerretDir }) {
+  return withJsonBody(async (_req, res, body) => {
+    const { parentPath, name, kind, assetKind } = body;
+    if (typeof parentPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'parentPath must be a string' });
+      return;
+    }
+    if (typeof name !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'name must be a string' });
+      return;
+    }
+    if (kind !== 'folder' && kind !== 'asset') {
+      sendJson(res, 400, { ok: false, error: 'kind must be "folder" or "asset"' });
+      return;
+    }
+    if (
+      kind === 'asset' &&
+      assetKind !== undefined &&
+      assetKind !== 'component' &&
+      assetKind !== 'markdown'
+    ) {
+      sendJson(res, 400, { ok: false, error: 'assetKind must be "component" or "markdown"' });
+      return;
+    }
+
+    // Validate the parent folder (allows the bare `.lerret/` root for pages).
+    const parentCheck = validateMoveDest(parentPath, lerretDir);
+    if (!parentCheck.ok) {
+      sendJson(res, 400, { ok: false, error: `parentPath: ${parentCheck.error}` });
+      return;
+    }
+
+    // Derive the name-validation kind: a folder directly under the project root
+    // is a page; a deeper folder is a group; otherwise an asset. This drives the
+    // reserved-name rules (e.g. leading `_` is reserved for folders).
+    const root = (lerretDir || '').replace(/\/+$/, '');
+    const isRoot = parentCheck.normalized === root;
+    const nameKind = kind === 'asset' ? 'asset' : isRoot ? 'page' : 'group';
+    const nameCheck = validateEntryName(name, { kind: nameKind });
+    if (!nameCheck.ok) {
+      sendJson(res, 400, { ok: false, error: nameCheck.error });
+      return;
+    }
+
+    try {
+      const result = await createEntry(parentCheck.normalized, nameCheck.name, kind, { assetKind });
+      sendJson(res, 200, { ok: true, path: result.path });
+    } catch (err) {
+      const code = err && err.code;
+      const message = err instanceof Error ? err.message : String(err);
+      if (code === 'collision') {
+        sendJson(res, 409, { ok: false, error: message });
+        return;
+      }
+      if (code === 'missing-parent' || code === 'invalid-kind') {
+        sendJson(res, 400, { ok: false, error: message });
+        return;
+      }
+      console.error('[lerret] create failed:', message);
+      sendJson(res, 500, { ok: false, error: `create failed: ${message}` });
     }
   });
 }

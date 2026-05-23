@@ -55,6 +55,9 @@ import { useLiveRefresh } from './live-refresh-manager.js';
 // per-section kebab menu (Edit config / Rename / Delete / Export /
 // Reveal …). Replaces the temporary `SectionWithConfigTrigger` .
 import { SectionKebab } from './section-kebab.jsx';
+// in-canvas creation — the empty-page CTAs and empty-group placeholders open
+// the shared CreateEntryDialog; `create` performs the write.
+import { CreateEntryDialog, create, inCliMode } from '../menu/index.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Presentation config helpers
@@ -173,6 +176,19 @@ export function collectPageSections(page) {
  depth,
  kicker: depth >= 1 ? parentName : null,
  assets: ordered,
+ isEmpty: false,
+ });
+ } else if (depth >= 1 && (container.groups || []).length === 0) {
+ // An empty leaf GROUP — surfaced as a soft placeholder section so a
+ // just-created group is visible and fillable. (A page with no assets is
+ // handled by the page-level empty notice instead.)
+ sections.push({
+ id: container.path,
+ title: container.name,
+ depth,
+ kicker: depth >= 1 ? parentName : null,
+ assets: [],
+ isEmpty: true,
  });
  }
  // Recurse into child groups — depth-first, so a group's section is
@@ -248,6 +264,11 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  /** @type {[null | { pagePath: string, sections: ReadonlyArray<{ id: string, title: string, depth: number, kicker: string | null, entries: import('../../runtime/asset-runtime.js').AssetEntry[] }>, cueKeys: Readonly<Record<string, number>> }, React.Dispatch<React.SetStateAction<any>>]} */
  const [loaded, setLoaded] = React.useState(null);
 
+ // In-canvas creation. `createState` is `{ kind, parentPath, parentLabel,
+ // existingNames }` while the shared CreateEntryDialog is open (opened by the
+ // empty-page CTAs and the empty-group placeholders); null when closed.
+ const [createState, setCreateState] = React.useState(null);
+
  const page = React.useMemo(() => resolvePage(project, pageId), [project, pageId]);
 
  // start (and reconcile) per-asset refresh timers for assets
@@ -274,7 +295,10 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  title: def.title,
  depth: def.depth,
  kicker: def.kicker,
- entries: (await Promise.all(def.assets.map((a) => runtime.loadAsset(a)))).flat(),
+ isEmpty: !!def.isEmpty,
+ entries: def.isEmpty
+ ? []
+ : (await Promise.all(def.assets.map((a) => runtime.loadAsset(a)))).flat(),
  })),
  );
  if (cancelled) return;
@@ -388,26 +412,114 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  return unsubscribe;
  }, [runtime]);
 
+ // Create-dialog confirm + element, shared by the empty-state CTAs and the
+ // empty-group placeholders. Defined after all hooks, before the first early
+ // return, so every branch can include the dialog.
+ const onConfirmCreate = async ({ name, assetKind }) => {
+ if (!createState) return;
+ const endpointKind = createState.kind === 'asset' ? 'asset' : 'folder';
+ const result = await create(createState.parentPath, name, endpointKind, { assetKind });
+ if (!result?.ok) throw new Error(result?.error || 'Create failed');
+ };
+ const createDialog = createState ? (
+ <CreateEntryDialog
+ kind={createState.kind}
+ parentLabel={createState.parentLabel}
+ existingNames={createState.existingNames}
+ onConfirm={onConfirmCreate}
+ onClose={() => setCreateState(null)}
+ />
+ ) : null;
+ const cliMode = inCliMode();
+
  if (!page) {
- return <ProjectCanvasNotice title="No pages" body="This project has no pages yet. Add a folder under .lerret/ to create one." />;
+ return (
+ <>
+ <ProjectCanvasNotice
+ title="No pages"
+ body="This project has no pages yet."
+ actions={
+ cliMode ? (
+ <NoticeButton
+ label="+ New page"
+ primary
+ onClick={() =>
+ setCreateState({
+ kind: 'page',
+ parentPath: project.path,
+ parentLabel: null,
+ existingNames: (project.pages || []).map((p) => p.name),
+ })
+ }
+ />
+ ) : null
+ }
+ />
+ {createDialog}
+ </>
+ );
  }
  // The loaded result is for the current page only when its tag matches —
  // otherwise a page switch is in flight and we are still loading.
  const sections = loaded && loaded.pagePath === page.path ? loaded.sections : null;
  if (sections === null) {
- return <ProjectCanvasNotice title={null} body={`Loading ${page.name}…`} />;
+ return (
+ <>
+ <ProjectCanvasNotice title={null} body={`Loading ${page.name}…`} />
+ {createDialog}
+ </>
+ );
  }
  if (sections.length === 0) {
+ const pageChildNames = [
+ ...(page.groups || []).map((g) => g.name),
+ ...(page.assets || []).map((a) => a.fileName),
+ ];
  return (
+ <>
  <ProjectCanvasNotice
  title={page.name}
- body="This page has no assets yet. Drop a .jsx, .tsx, or .md file into it."
+ body={
+ cliMode
+ ? 'This page has no assets yet.'
+ : 'This page has no assets yet. Drop a .jsx, .tsx, or .md file into it.'
+ }
+ actions={
+ cliMode ? (
+ <>
+ <NoticeButton
+ label="+ Add asset"
+ primary
+ onClick={() =>
+ setCreateState({
+ kind: 'asset',
+ parentPath: page.path,
+ parentLabel: page.name,
+ existingNames: pageChildNames,
+ })
+ }
  />
+ <NoticeButton
+ label="+ Add group"
+ onClick={() =>
+ setCreateState({
+ kind: 'group',
+ parentPath: page.path,
+ parentLabel: page.name,
+ existingNames: pageChildNames,
+ })
+ }
+ />
+ </>
+ ) : null
+ }
+ />
+ {createDialog}
+ </>
  );
  }
  const cueKeys = (loaded && loaded.cueKeys) || {};
 
- return (
  // `key={page.path}` remounts the canvas per page so the brownfield
  // `DesignCanvas`'s per-section state (order/labels) is scoped to a page
  // and a page switch starts each page from a clean canvas state.
@@ -416,6 +528,8 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // a section) do NOT change the canvas key — only the affected entries'
  // identities change. The `DesignCanvas` instance, its per-section
  // state, and the user's viewport zoom + scroll position are preserved.
+ return (
+ <>
  <DesignCanvas key={page.path}>
  {sections.map((s) => {
  // look up the effective config for this section's folder
@@ -448,15 +562,35 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  title={s.title}
  depth={s.depth}
  kicker={s.kicker}
- subtitle={`${s.entries.length} asset${s.entries.length === 1 ? '' : 's'}`}
+ subtitle={
+ s.isEmpty
+ ? 'empty group'
+ : `${s.entries.length} asset${s.entries.length === 1 ? '' : 's'}`
+ }
  sectionStyle={sectionStyle}
  >
- {s.entries.map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }))}
+ {s.isEmpty ? (
+ <EmptyGroupPlaceholder
+ cliMode={cliMode}
+ onAddAsset={() =>
+ setCreateState({
+ kind: 'asset',
+ parentPath: s.id,
+ parentLabel: s.title,
+ existingNames: [],
+ })
+ }
+ />
+ ) : (
+ s.entries.map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }))
+ )}
  </DCSection>
  </SectionKebab>
  );
  })}
  </DesignCanvas>
+ {createDialog}
+ </>
  );
 }
 
@@ -489,9 +623,11 @@ function nextCueKey(bag) {
  * @param {object} props
  * @param {string | null} props.title
  * @param {string} props.body
+ * @param {React.ReactNode} [props.actions]
+ *   Optional CTA buttons rendered below the body (e.g. "+ Add asset").
  * @returns {React.ReactElement}
  */
-function ProjectCanvasNotice({ title, body }) {
+function ProjectCanvasNotice({ title, body, actions }) {
  return (
  <div
  style={{
@@ -518,6 +654,102 @@ function ProjectCanvasNotice({ title, body }) {
  <div style={{ fontSize: 14, color: 'var(--lm-text-tertiary, #6e6960)', maxWidth: '44ch', lineHeight: 1.5 }}>
  {body}
  </div>
+ {actions ? (
+ <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+ {actions}
+ </div>
+ ) : null}
+ </div>
+ );
+}
+
+/**
+ * A small CTA button used in the canvas empty-state notices. `primary` paints
+ * it in the accent color; otherwise it's a quiet outline button.
+ *
+ * @param {object} props
+ * @param {string} props.label
+ * @param {() => void} props.onClick
+ * @param {boolean} [props.primary]
+ * @returns {React.ReactElement}
+ */
+function NoticeButton({ label, onClick, primary }) {
+ return (
+ <button
+ type="button"
+ onClick={onClick}
+ data-testid="lm-notice-button"
+ style={{
+ padding: '8px 16px',
+ borderRadius: 8,
+ border: primary ? 'none' : '1px solid var(--lm-border, rgba(26,23,20,0.18))',
+ background: primary ? 'var(--lm-accent, #B85B33)' : 'transparent',
+ color: primary ? '#fff' : 'var(--lm-text-primary, #1a1714)',
+ fontFamily: 'inherit',
+ fontSize: 13,
+ fontWeight: 600,
+ cursor: 'pointer',
+ }}
+ >
+ {label}
+ </button>
+ );
+}
+
+/**
+ * The body rendered inside an empty leaf-group section — a soft dashed frame
+ * with an inline "Add asset" CTA (CLI mode) so a just-created group is an
+ * inviting next step rather than a dead end. In standalone mode the CTA is
+ * replaced by a calm hint (writes are CLI-only).
+ *
+ * @param {object} props
+ * @param {() => void} props.onAddAsset
+ * @param {boolean} props.cliMode
+ * @returns {React.ReactElement}
+ */
+function EmptyGroupPlaceholder({ onAddAsset, cliMode }) {
+ return (
+ <div
+ data-testid="lm-empty-group-placeholder"
+ style={{
+ display: 'flex',
+ flexDirection: 'column',
+ alignItems: 'center',
+ justifyContent: 'center',
+ gap: 10,
+ minWidth: 320,
+ minHeight: 150,
+ padding: 32,
+ border: '1.5px dashed var(--lm-border, rgba(26,23,20,0.22))',
+ borderRadius: 12,
+ background: 'rgba(0,0,0,0.015)',
+ color: 'var(--lm-text-tertiary, #6e6960)',
+ textAlign: 'center',
+ }}
+ >
+ <div style={{ fontSize: 13 }}>This group is empty.</div>
+ {cliMode ? (
+ <button
+ type="button"
+ onClick={onAddAsset}
+ data-testid="lm-empty-group-add"
+ style={{
+ padding: '8px 14px',
+ borderRadius: 8,
+ border: 'none',
+ background: 'var(--lm-accent, #B85B33)',
+ color: '#fff',
+ fontFamily: 'inherit',
+ fontSize: 12,
+ fontWeight: 600,
+ cursor: 'pointer',
+ }}
+ >
+ + Add asset
+ </button>
+ ) : (
+ <div style={{ fontSize: 11 }}>Add a .jsx, .tsx, or .md file into it.</div>
+ )}
  </div>
  );
 }

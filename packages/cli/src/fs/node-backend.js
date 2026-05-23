@@ -29,7 +29,12 @@ import {
   sep as nativeSep,
 } from 'node:path';
 
-import { assertFilesystemContract, serializeJson } from '@lerret/core';
+import {
+  assertFilesystemContract,
+  serializeJson,
+  assetFileName,
+  starterAssetContent,
+} from '@lerret/core';
 
 // ---------------------------------------------------------------------------
 // Path normalization
@@ -1100,7 +1105,104 @@ async function moveEntry(sourcePath, toFolderPath, opts = {}) {
   };
 }
 
-export { renameEntry, duplicateEntry, deleteEntry, revealEntry, moveEntry };
+/**
+ * Create a new page/group folder, or a starter asset file, inside an existing
+ * `parentPath`. Powers the studio's in-canvas "New page / group / asset" flow.
+ *
+ * `parentPath` must already exist and be a directory (the middleware validates
+ * it is inside `.lerret/`, allowing the bare project root for new pages). The
+ * `name` is the already-validated base name (no extension).
+ *
+ * Semantics:
+ *   • `kind: 'folder'` → `mkdir(parentPath/name)`.
+ *   • `kind: 'asset'`  → write `parentPath/<name><ext>` with minimal renderable
+ *     starter content (`opts.assetKind` picks `.jsx` vs `.md`).
+ *   • Collisions are refused **case-insensitively** among siblings, so a new
+ *     `Landing` next to an existing `landing` is rejected (macOS/Windows are
+ *     case-insensitive — silently merging would surprise the user).
+ *
+ * @param {string} parentPath  Contract-level (forward-slash) destination folder.
+ * @param {string} name        Validated base name (no extension).
+ * @param {'folder'|'asset'} kind
+ * @param {{ assetKind?: 'component'|'markdown' }} [opts]
+ * @returns {Promise<{ path: string }>}  The created entry's LerretPath.
+ *
+ *   Throws `Error` with:
+ *     • `code: 'missing-parent'` — parent doesn't exist or isn't a directory.
+ *     • `code: 'collision'`      — a sibling of that name already exists.
+ *     • `code: 'invalid-kind'`   — `kind` is neither 'folder' nor 'asset'.
+ */
+async function createEntry(parentPath, name, kind, opts = {}) {
+  if (kind !== 'folder' && kind !== 'asset') {
+    const e = new Error(`unknown create kind: ${kind}`);
+    e.code = 'invalid-kind';
+    throw e;
+  }
+
+  const parentNative = toNativePath(parentPath);
+
+  // Parent must exist and be a directory.
+  let parentStat;
+  try {
+    parentStat = await fsp.stat(parentNative);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      const e = new Error('parent folder does not exist');
+      e.code = 'missing-parent';
+      throw e;
+    }
+    throw err;
+  }
+  if (!parentStat.isDirectory()) {
+    const e = new Error('parent is not a folder');
+    e.code = 'missing-parent';
+    throw e;
+  }
+
+  const assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
+  const childName = kind === 'asset' ? assetFileName(name, assetKind) : name;
+
+  // Case-insensitive collision check among existing siblings (macOS/Windows are
+  // case-insensitive; matching exactly would let `Landing` shadow `landing`).
+  let siblings;
+  try {
+    siblings = await fsp.readdir(parentNative);
+  } catch {
+    siblings = [];
+  }
+  const childLower = childName.toLowerCase();
+  if (siblings.some((s) => s.toLowerCase() === childLower)) {
+    const e = new Error(`"${childName}" already exists here`);
+    e.code = 'collision';
+    throw e;
+  }
+
+  const targetNative = joinNative(parentNative, childName);
+
+  if (kind === 'folder') {
+    try {
+      // Non-recursive: the parent exists and the collision is already checked;
+      // `mkdir` without `recursive` still surfaces EEXIST as a race backstop.
+      await fsp.mkdir(targetNative);
+    } catch (err) {
+      if (err && err.code === 'EEXIST') {
+        const e = new Error(`"${childName}" already exists here`);
+        e.code = 'collision';
+        throw e;
+      }
+      throw err;
+    }
+    return { path: toLerretPath(targetNative) };
+  }
+
+  // asset — write the starter content atomically (the parent exists, so the
+  // temp-file-then-rename write lands cleanly).
+  const content = starterAssetContent(name, assetKind);
+  await writeFile(toLerretPath(targetNative), content, { encoding: 'utf-8' });
+  return { path: toLerretPath(targetNative) };
+}
+
+export { renameEntry, duplicateEntry, deleteEntry, revealEntry, moveEntry, createEntry };
 
 // ---------------------------------------------------------------------------
 // Plain text file reader (CLI-internal, NOT part of FilesystemAccess)

@@ -20,11 +20,13 @@
 import React from 'react';
 
 import {
+ CreateEntryDialog,
  EntityKebab,
  MovePicker,
  SectionEditorHost,
  applyDeleteConfirm,
  buildSectionItems,
+ create,
  destroy,
  inCliMode,
  move,
@@ -46,6 +48,31 @@ function parentFolderOf(folderPath) {
  const trimmed = folderPath.replace(/\/+$/, '');
  const slash = trimmed.lastIndexOf('/');
  return slash === -1 ? '' : trimmed.slice(0, slash);
+}
+
+/**
+ * Find the page/group node at `path` in the project model, so the create
+ * dialog can pre-check name collisions against its existing children. Returns
+ * the node's child folder names + asset filenames, or `[]` if not found.
+ *
+ * @param {object | null | undefined} project
+ * @param {string} path
+ * @returns {string[]}
+ */
+function childNamesAt(project, path) {
+ if (!project || !path) return [];
+ const stack = [...(project.pages || [])];
+ while (stack.length) {
+ const node = stack.pop();
+ if (node && node.path === path) {
+ return [
+ ...(node.groups || []).map((g) => g.name),
+ ...(node.assets || []).map((a) => a.fileName),
+ ];
+ }
+ if (node && node.groups) for (const g of node.groups) stack.push(g);
+ }
+ return [];
 }
 
 // ── CSS injection ────────────────────────────────────────────────────────────
@@ -234,6 +261,10 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  // ── Move state ────────────────────────────────────────────────
  const [moveOpen, setMoveOpen] = React.useState(false);
 
+ // ── Create state ──────────────────────────────────────────────
+ // 'group' | 'asset' while the create dialog is open; null when closed.
+ const [createKind, setCreateKind] = React.useState(null);
+
  // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
  const getConfigFor = useCascadedConfig();
 
@@ -257,6 +288,23 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  if (!sectionId) return;
  setMoveOpen(true);
  }, [sectionId]);
+
+ const onAddGroup = React.useCallback(() => setCreateKind('group'), []);
+ const onAddAsset = React.useCallback(() => setCreateKind('asset'), []);
+ const onConfirmCreate = React.useCallback(
+ async ({ name, assetKind }) => {
+ if (!sectionId || !createKind) return;
+ // 'group' creates a folder inside this section; 'asset' a starter file.
+ const endpointKind = createKind === 'asset' ? 'asset' : 'folder';
+ const result = await create(sectionId, name, endpointKind, { assetKind });
+ if (!result?.ok) throw new Error(result?.error || 'Create failed');
+ },
+ [sectionId, createKind],
+ );
+ const createChildNames = React.useMemo(
+ () => (createKind ? childNamesAt(project, sectionId) : []),
+ [createKind, project, sectionId],
+ );
 
  const onDelete = React.useCallback(() => setConfirming(true), []);
  const onCancelDelete = React.useCallback(() => setConfirming(false), []);
@@ -345,6 +393,8 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
 
  const baseItems = React.useMemo(
  () => buildSectionItems({
+ onAddAsset,
+ onAddGroup,
  onEditConfig: () => setConfigOpen(true),
  onRename,
  onMove,
@@ -354,7 +404,7 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  onRevealFinder,
  cliMode,
  }),
- [onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [onAddAsset, onAddGroup, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = React.useMemo(
@@ -422,6 +472,15 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  sourcePath={sectionId}
  currentParentPath={sectionParent}
  destinations={destinations}
+ />
+ )}
+ {createKind && (
+ <CreateEntryDialog
+ kind={createKind}
+ parentLabel={sectionTitle}
+ existingNames={createChildNames}
+ onConfirm={onConfirmCreate}
+ onClose={() => setCreateKind(null)}
  />
  )}
  </div>

@@ -12,6 +12,7 @@ export {
  buildMarkdownItems,
  buildSectionItems,
  applyDeleteConfirm,
+ create,
  duplicate,
  destroy,
  move,
@@ -19,4 +20,5 @@ export {
  inCliMode,
 } from './entity-kebab.jsx';
 export { MovePicker } from './move-picker.jsx';
+export { CreateEntryDialog } from './create-entry-dialog.jsx';
 export { default } from './Menu.jsx';

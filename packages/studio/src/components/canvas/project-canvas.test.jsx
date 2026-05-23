@@ -114,6 +114,35 @@ describe('collectPageSections', () => {
  expect(sections[0]).toMatchObject({ title: 'leaf', depth: 2, kicker: 'mid' });
  });
 
+ it('emits a placeholder section for an empty leaf group', () => {
+ const empty = createGroupNode({ name: 'social', path: '/.lerret/home/social' });
+ const page = createPageNode({
+ name: 'home',
+ path: '/.lerret/home',
+ assets: [componentAsset('/.lerret/home', 'Hero')],
+ groups: [empty],
+ });
+ const sections = collectPageSections(page);
+ // The page's own section + the empty group's placeholder.
+ expect(sections).toHaveLength(2);
+ const placeholder = sections.find((s) => s.title === 'social');
+ expect(placeholder).toMatchObject({ depth: 1, kicker: 'home', isEmpty: true });
+ expect(placeholder.assets).toEqual([]);
+ expect(sections.find((s) => s.title === 'home')).toMatchObject({ isEmpty: false });
+ });
+
+ it('does NOT placeholder an empty group that still has child groups', () => {
+ const child = createGroupNode({
+ name: 'child',
+ path: '/.lerret/home/mid/child',
+ assets: [componentAsset('/.lerret/home/mid/child', 'X')],
+ });
+ const mid = createGroupNode({ name: 'mid', path: '/.lerret/home/mid', groups: [child] });
+ const page = createPageNode({ name: 'home', path: '/.lerret/home', groups: [mid] });
+ // Only the assets-bearing child shows; `mid` contributes nothing.
+ expect(collectPageSections(page).map((s) => s.title)).toEqual(['child']);
+ });
+
  it('orders component assets before markdown assets within a section', () => {
  const page = createPageNode({
  name: 'docs',

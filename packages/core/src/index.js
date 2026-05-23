@@ -69,6 +69,17 @@ export {
   isAssetNode,
 } from './loader/model.js';
 
+// Pure helpers for creating new pages / groups / assets from the studio —
+// shared by the studio's CreateEntryDialog and the CLI's /__lerret/create
+// endpoint so name rules and starter content never drift.
+export {
+  validateEntryName,
+  assetFileName,
+  componentIdentifier,
+  starterAssetContent,
+  MAX_ENTRY_NAME_LENGTH,
+} from './loader/entry-name.js';
+
 // ---------------------------------------------------------------------------
 // Asset variants & meta
 // ---------------------------------------------------------------------------

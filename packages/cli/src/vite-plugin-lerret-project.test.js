@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CREATE_ENDPOINT,
   DELETE_ENDPOINT,
   DUPLICATE_ENDPOINT,
   HMR_CHANGE_EVENT,
@@ -22,6 +23,7 @@ import {
   WRITE_ENDPOINT,
   buildChangeEvent,
   checkWritePath,
+  createCreateMiddleware,
   createDeleteMiddleware,
   createDuplicateMiddleware,
   createMoveMiddleware,
@@ -1052,5 +1054,149 @@ describe('createMoveMiddleware', () => {
     expect(result.body.error).toContain('malformed');
     // The clock asset never moved.
     expect(await fsp.readFile(join(lerretAbs, 'live', 'clock.jsx'), 'utf-8')).toBe('C');
+  });
+});
+
+describe('createCreateMiddleware', () => {
+  let lerretAbs;
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+  });
+
+  async function call(middleware, body, method = 'POST') {
+    const { EventEmitter } = await import('node:events');
+    const req = new EventEmitter();
+    req.method = method;
+    req.destroy = () => {};
+    const captured = { headers: {} };
+    const res = {
+      get statusCode() { return captured.status; },
+      set statusCode(v) { captured.status = v; },
+      setHeader(name, value) { captured.headers[name] = value; },
+      end(payload) { captured.body = payload; captured.done = true; },
+    };
+    middleware(req, res, () => {});
+    await new Promise((r) => setImmediate(r));
+    if (body !== undefined) {
+      req.emit('data', Buffer.from(typeof body === 'string' ? body : JSON.stringify(body), 'utf-8'));
+    }
+    req.emit('end');
+    const deadline = Date.now() + 5000;
+    while (!captured.done && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    return { status: captured.status, body: captured.body ? JSON.parse(captured.body) : null };
+  }
+
+  it('exposes the create endpoint URL', () => {
+    expect(CREATE_ENDPOINT).toBe('/__lerret/create');
+  });
+
+  it('creates a page directly under the .lerret/ root (200 + path)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+
+    const result = await call(mw, { parentPath: lerretDir, name: 'landing', kind: 'folder' });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, path: `${lerretDir}/landing` });
+    expect((await fsp.stat(join(lerretAbs, 'landing'))).isDirectory()).toBe(true);
+  });
+
+  it('creates a group inside a page', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'landing'));
+
+    const result = await call(mw, {
+      parentPath: `${lerretDir}/landing`,
+      name: 'social',
+      kind: 'folder',
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.path).toBe(`${lerretDir}/landing/social`);
+  });
+
+  it('creates a component asset with starter content', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'landing'));
+
+    const result = await call(mw, {
+      parentPath: `${lerretDir}/landing`,
+      name: 'hero',
+      kind: 'asset',
+      assetKind: 'component',
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body.path).toBe(`${lerretDir}/landing/hero.jsx`);
+    expect(await fsp.readFile(join(lerretAbs, 'landing', 'hero.jsx'), 'utf-8')).toContain(
+      'export default function Hero()',
+    );
+  });
+
+  it('rejects a reserved page name (leading underscore) with 400', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+
+    const result = await call(mw, { parentPath: lerretDir, name: '_secret', kind: 'folder' });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/underscore/);
+  });
+
+  it('rejects an illegal-character name with 400', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+
+    const result = await call(mw, { parentPath: lerretDir, name: 'a/b', kind: 'folder' });
+
+    expect(result.status).toBe(400);
+  });
+
+  it('returns 409 on a case-insensitive collision', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'landing'));
+
+    const result = await call(mw, { parentPath: lerretDir, name: 'Landing', kind: 'folder' });
+
+    expect(result.status).toBe(409);
+    expect(result.body.error).toMatch(/already exists/);
+  });
+
+  it('rejects a parent outside .lerret/ with 400', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+
+    const result = await call(mw, {
+      parentPath: asLerretPath(workDir),
+      name: 'x',
+      kind: 'folder',
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/parentPath/);
+  });
+
+  it('rejects an unknown kind with 400', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+
+    const result = await call(mw, { parentPath: lerretDir, name: 'x', kind: 'bogus' });
+
+    expect(result.status).toBe(400);
+  });
+
+  it('rejects non-POST with 405', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createCreateMiddleware({ lerretDir });
+
+    const result = await call(mw, undefined, 'GET');
+
+    expect(result.status).toBe(405);
   });
 });
