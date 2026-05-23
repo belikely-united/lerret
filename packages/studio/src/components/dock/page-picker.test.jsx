@@ -11,7 +11,7 @@
 
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { PagePicker } from './page-picker.jsx';
 
@@ -201,6 +201,64 @@ describe('PagePicker — multiple pages', () => {
  expect(listbox.getAttribute('aria-activedescendant')).toBe('lerret-page-picker-option-2');
  keyDown(listbox, 'Home');
  expect(listbox.getAttribute('aria-activedescendant')).toBe('lerret-page-picker-option-0');
+ cleanup();
+ });
+});
+
+describe('PagePicker — manager mode (CLI)', () => {
+ const PROJECT = {
+ path: '/.lerret',
+ pages: [
+ { path: '/p/home', name: 'home', groups: [{}], assets: [{}, {}] },
+ { path: '/p/about', name: 'about', groups: [], assets: [] },
+ ],
+ };
+ const pages = [
+ { id: '/p/home', label: 'home' },
+ { id: '/p/about', label: 'about' },
+ ];
+
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ document.querySelectorAll('[role="listbox"],[data-testid="lm-confirm-dialog"],[data-testid="lm-create-dialog"]').forEach((el) => el.remove());
+ });
+
+ it('offers "New page" + a per-page delete in the dropdown', () => {
+ const { container, cleanup } = renderToDom(
+ <PagePicker pages={pages} current="/p/home" onNavigate={() => {}} projectModel={PROJECT} />,
+ );
+ const trigger = container.querySelector('button');
+ act(() => trigger.click());
+ expect(document.querySelector('[data-testid="page-picker-new"]')).not.toBeNull();
+ expect(document.querySelectorAll('[data-testid="page-picker-delete"]').length).toBe(2);
+ cleanup();
+ });
+
+ it('opens a confirm dialog (with a warning) when a page delete is clicked', () => {
+ const { container, cleanup } = renderToDom(
+ <PagePicker pages={pages} current="/p/home" onNavigate={() => {}} projectModel={PROJECT} />,
+ );
+ act(() => container.querySelector('button').click());
+ const del = document.querySelector('[data-testid="page-picker-delete"]');
+ act(() => del.click());
+ const dialog = document.querySelector('[data-testid="lm-confirm-dialog"]');
+ expect(dialog).not.toBeNull();
+ expect(dialog.textContent).toMatch(/delete page/i);
+ // The home page has 1 group + 2 assets → the warning names the contents.
+ expect(dialog.textContent).toMatch(/can.t be undone/i);
+ cleanup();
+ });
+
+ it('stays a switch-only static label outside CLI mode', () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const { container, cleanup } = renderToDom(
+ <PagePicker pages={[{ id: '/p/home', label: 'home' }]} current="/p/home" onNavigate={() => {}} projectModel={PROJECT} />,
+ );
+ // One page, non-CLI → static label, no dropdown trigger, no manage affordances.
+ expect(container.querySelector('[data-page-picker="static"]')).not.toBeNull();
  cleanup();
  });
 });

@@ -21,4 +21,5 @@ export {
 } from './entity-kebab.jsx';
 export { MovePicker } from './move-picker.jsx';
 export { CreateEntryDialog } from './create-entry-dialog.jsx';
+export { ConfirmDialog } from './confirm-dialog.jsx';
 export { default } from './Menu.jsx';

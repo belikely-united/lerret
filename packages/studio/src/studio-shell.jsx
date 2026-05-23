@@ -26,7 +26,6 @@ import { PagePicker } from './components/dock/page-picker.jsx';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
-import { CreateEntryDialog, create, inCliMode } from './components/menu/index.js';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 // Import the extracted walkthrough overlay and offer.
 // The overlay and its step sequence now live in components/walkthrough/.
@@ -157,9 +156,12 @@ function StudioBrandMenu({
  anchorRef,
  menuRef,
  onDownloadLogo,
+ onTakeTour,
  canExport = false,
  exportFormat = 'png',
  onExportFormatChange,
+ exportScope = 'project',
+ onExportScopeChange,
  onExportProject,
  exportBusy = false,
  exportProgress = null,
@@ -168,7 +170,7 @@ function StudioBrandMenu({
 }) {
  // The dock clips overflow (and its backdrop-filter is a containing block), so
  // the menu is portaled to <body> and anchored to the brand lockup in viewport
- // space — the same trick DockNewMenu / PagePicker use.
+ // space — the same trick the PagePicker uses.
  const [coords, setCoords] = React.useState(null);
  React.useEffect(() => {
  const measure = () => {
@@ -213,6 +215,16 @@ function StudioBrandMenu({
  color: '#9a958c',
  padding: '8px 14px 4px',
  };
+ const segStyle = (on) => ({
+ flex: 1,
+ padding: '6px 0',
+ borderRadius: 8,
+ border: `1px solid ${on ? '#B85B33' : 'rgba(26,23,20,0.14)'}`,
+ background: on ? '#B85B33' : 'transparent',
+ color: on ? '#FAF8F2' : '#3A3530',
+ fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+ cursor: 'pointer', transition: 'background .12s, border-color .12s',
+ });
  if (!coords) return null;
  return ReactDOM.createPortal(
  <div ref={menuRef} style={{
@@ -243,8 +255,28 @@ function StudioBrandMenu({
  <div style={sectionLabel}>Export</div>
  <div style={{ padding: '2px 14px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
  <span style={{ fontSize: 11, color: '#6E6960', lineHeight: 1.45 }}>
- Every artboard across all pages, as one structured ZIP.
+ {exportScope === 'page'
+ ? 'This page only, as one structured ZIP.'
+ : 'Every artboard across all pages, as one structured ZIP.'}
  </span>
+ <div role="radiogroup" aria-label="Export scope" style={{ display: 'inline-flex', gap: 6 }}>
+ {[['project', 'Whole project'], ['page', 'This page']].map(([val, label]) => {
+ const on = exportScope === val;
+ return (
+ <button
+ key={val}
+ type="button"
+ role="radio"
+ aria-checked={on}
+ data-testid={`dock-export-scope-${val}`}
+ onClick={() => onExportScopeChange && onExportScopeChange(val)}
+ style={segStyle(on)}
+ >
+ {label}
+ </button>
+ );
+ })}
+ </div>
  <div role="radiogroup" aria-label="Export format" style={{ display: 'inline-flex', gap: 6 }}>
  {['png', 'jpg'].map((f) => {
  const on = exportFormat === f;
@@ -255,16 +287,7 @@ function StudioBrandMenu({
  role="radio"
  aria-checked={on}
  onClick={() => onExportFormatChange && onExportFormatChange(f)}
- style={{
- flex: 1,
- padding: '6px 0',
- borderRadius: 8,
- border: `1px solid ${on ? '#B85B33' : 'rgba(26,23,20,0.14)'}`,
- background: on ? '#B85B33' : 'transparent',
- color: on ? '#FAF8F2' : '#3A3530',
- fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
- cursor: 'pointer', transition: 'background .12s, border-color .12s',
- }}
+ style={segStyle(on)}
  >
  {f.toUpperCase()}
  </button>
@@ -275,7 +298,7 @@ function StudioBrandMenu({
  type="button"
  data-testid="dock-export-project"
  disabled={exportBusy}
- onClick={() => onExportProject && onExportProject(exportFormat)}
+ onClick={() => onExportProject && onExportProject(exportFormat, exportScope)}
  style={{
  padding: '8px 12px',
  borderRadius: 8,
@@ -310,232 +333,18 @@ function StudioBrandMenu({
  </div>
  </React.Fragment>
  )}
+
+ {/* Take a tour — the walkthrough lives here (a one-time onboarding aid),
+ not in the dock's prime row where it competed with everyday controls. */}
+ {onTakeTour && (
+ <React.Fragment>
+ <div style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+ {item('Take a tour', 'A quick walkthrough of the studio', onTakeTour)}
+ </React.Fragment>
+ )}
  </div>,
  document.body,
  );
-}
-
-/**
- * The dock's "+ New…" menu — the always-present, page-level creation surface.
- * Opens a small popover offering New page / New group in ‹page› / New asset in
- * ‹page›, then drives the shared CreateEntryDialog. Only rendered in CLI mode
- * with a loaded project (creation writes to disk via the CLI). With zero pages,
- * only "New page" is offered, so the very first page is always reachable.
- *
- * @param {object} props
- * @param {object | null} props.projectModel  The loaded ProjectNode.
- * @param {string | undefined} props.currentPagePath
- * @param {(id: string) => void} [props.onNavigate]
- * @returns {React.ReactElement | null}
- */
-function DockNewMenu({ projectModel, currentPagePath, onNavigate }) {
-  const [open, setOpen] = React.useState(false);
-  const [createState, setCreateState] = React.useState(null);
-  const [coords, setCoords] = React.useState(null);
-  const rootRef = React.useRef(null);
-  const triggerRef = React.useRef(null);
-  const menuRef = React.useRef(null);
-
-  // The dock has a backdrop-filter (a containing block for fixed elements) and
-  // clips overflow, so the menu is portaled to <body> and positioned in viewport
-  // space anchored to the trigger — the same trick PagePicker uses.
-  const measure = React.useCallback(() => {
-    if (!triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    setCoords({ left: r.left, bottom: window.innerHeight - r.top });
-  }, []);
-
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const onPd = (e) => {
-      const inTrigger = rootRef.current && rootRef.current.contains(e.target);
-      const inMenu = menuRef.current && menuRef.current.contains(e.target);
-      if (!inTrigger && !inMenu) setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    const reanchor = () => measure();
-    document.addEventListener('pointerdown', onPd);
-    document.addEventListener('keydown', onKey);
-    window.addEventListener('resize', reanchor);
-    window.addEventListener('scroll', reanchor, true);
-    return () => {
-      document.removeEventListener('pointerdown', onPd);
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', reanchor);
-      window.removeEventListener('scroll', reanchor, true);
-    };
-  }, [open, measure]);
-
-  // Creation writes to disk via the CLI — only meaningful with a loaded project
-  // in CLI mode. (The brownfield #storyboard has no projectModel.)
-  if (!inCliMode() || !projectModel) return null;
-
-  const lerretPath = projectModel.path;
-  const pages = projectModel.pages || [];
-  const currentPage = pages.find((p) => p.path === currentPagePath) || pages[0] || null;
-  const pageNames = pages.map((p) => p.name);
-  const currentChildNames = currentPage
-    ? [
-        ...(currentPage.groups || []).map((g) => g.name),
-        ...(currentPage.assets || []).map((a) => a.fileName),
-      ]
-    : [];
-
-  const openCreate = (state) => {
-    setOpen(false);
-    setCreateState(state);
-  };
-
-  const onConfirm = async ({ name, assetKind }) => {
-    if (!createState) return;
-    const endpointKind = createState.kind === 'asset' ? 'asset' : 'folder';
-    const result = await create(createState.parentPath, name, endpointKind, { assetKind });
-    if (!result?.ok) throw new Error(result?.error || 'Create failed');
-    // Navigate to a brand-new page once it exists.
-    if (createState.kind === 'page' && result.path && typeof onNavigate === 'function') {
-      onNavigate(result.path);
-    }
-  };
-
-  const itemStyle = {
-    display: 'block',
-    width: '100%',
-    textAlign: 'left',
-    padding: '8px 12px',
-    borderRadius: 8,
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--lm-text-primary, #1a1714)',
-    fontFamily: 'inherit',
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  };
-
-  return (
-    <span ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => {
-          setOpen((o) => {
-            const next = !o;
-            if (next) measure();
-            return next;
-          });
-        }}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Create a page, group, or asset"
-        data-testid="dock-new-trigger"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '8px 12px',
-          borderRadius: 8,
-          border: 'none',
-          background: open ? 'rgba(0,0,0,0.06)' : 'transparent',
-          color: 'var(--lm-text-secondary, #3a3530)',
-          fontFamily: 'inherit',
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        + New
-      </button>
-      {open && coords &&
-        ReactDOM.createPortal(
-        <div
-          ref={menuRef}
-          role="menu"
-          data-testid="dock-new-menu"
-          style={{
-            position: 'fixed',
-            bottom: coords.bottom + 8,
-            left: coords.left,
-            minWidth: 200,
-            background: 'rgba(255,255,255,0.97)',
-            backdropFilter: 'blur(16px) saturate(120%)',
-            WebkitBackdropFilter: 'blur(16px) saturate(120%)',
-            border: '1px solid rgba(26,23,20,0.10)',
-            borderRadius: 12,
-            padding: 6,
-            boxShadow: '0 12px 32px rgba(15,23,42,0.18), 0 1px 3px rgba(15,23,42,0.06)',
-            zIndex: 90,
-          }}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            style={itemStyle}
-            data-testid="dock-new-page"
-            onClick={() =>
-              openCreate({
-                kind: 'page',
-                parentPath: lerretPath,
-                parentLabel: null,
-                existingNames: pageNames,
-              })
-            }
-          >
-            New page
-          </button>
-          {currentPage && (
-            <button
-              type="button"
-              role="menuitem"
-              style={itemStyle}
-              data-testid="dock-new-group"
-              onClick={() =>
-                openCreate({
-                  kind: 'group',
-                  parentPath: currentPage.path,
-                  parentLabel: currentPage.name,
-                  existingNames: currentChildNames,
-                })
-              }
-            >
-              New group in {currentPage.name}
-            </button>
-          )}
-          {currentPage && (
-            <button
-              type="button"
-              role="menuitem"
-              style={itemStyle}
-              data-testid="dock-new-asset"
-              onClick={() =>
-                openCreate({
-                  kind: 'asset',
-                  parentPath: currentPage.path,
-                  parentLabel: currentPage.name,
-                  existingNames: currentChildNames,
-                })
-              }
-            >
-              New asset in {currentPage.name}
-            </button>
-          )}
-        </div>,
-        document.body,
-        )}
-      {createState && (
-        <CreateEntryDialog
-          kind={createState.kind}
-          parentLabel={createState.parentLabel}
-          existingNames={createState.existingNames}
-          onConfirm={onConfirm}
-          onClose={() => setCreateState(null)}
-        />
-      )}
-    </span>
-  );
 }
 
 function StudioDock({ pages, current, onNavigate, onHelp }) {
@@ -556,6 +365,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  const [exportProgress, setExportProgress] = React.useState(null); // e.g. "2/10…"
  const [exportNotice, setExportNotice] = React.useState(null);
  const [exportFormat, setExportFormat] = React.useState('png');
+ const [exportScope, setExportScope] = React.useState('project'); // 'project' | 'page'
  // Brand menu — popover above the lockup. Holds the Brand kit download
  // (and anything else brand-adjacent we add later).
  const [brandOpen, setBrandOpen] = React.useState(false);
@@ -580,18 +390,24 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  };
  }, [brandOpen]);
 
- // Project-level bulk ZIP export.
- const exportProject = React.useCallback(async (fmt = 'png', flat = false) => {
+ // Bulk ZIP export — whole project, or just the current page. `currentPagePath`
+ // is read in render (a primitive) so the memoized callback's dep is exact.
+ const currentPagePath = projectPages?.current;
+ const exportProject = React.useCallback(async (fmt = 'png', scope = 'project') => {
  if (!projectModel || exportBusy) return;
+ const scopeArg =
+ scope === 'page' && currentPagePath
+ ? { kind: 'page', path: currentPagePath }
+ : { kind: 'project' };
  setExportBusy(true);
  setExportNotice(null);
  setExportProgress('0/…');
 
  const result = await runBulkExport({
  project: projectModel,
- scope: { kind: 'project' },
+ scope: scopeArg,
  format: fmt,
- flat,
+ flat: false,
  getConfigFor,
  onProgress: (i, total) => {
  setExportProgress(i === total ? null : `${i}/${total}…`);
@@ -629,7 +445,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  notices.push(`Fonts not embedded: ${result.unembeddedFonts.join(', ')}`);
  }
  setExportNotice(notices.length > 0 ? notices.join(' · ') : null);
- }, [projectModel, exportBusy, getConfigFor]);
+ }, [projectModel, exportBusy, getConfigFor, currentPagePath]);
 
  const triggerDownload = (href, filename) => {
  const a = document.createElement('a');
@@ -699,10 +515,13 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  anchorRef={brandRef}
  menuRef={brandMenuRef}
  onDownloadLogo={() => { triggerDownload('/assets/lerret-logo.png', 'lerret-logo.png'); setBrandOpen(false); }}
+ onTakeTour={() => { setBrandOpen(false); onHelp && onHelp(); }}
  canExport={!!projectModel}
  exportFormat={exportFormat}
  onExportFormatChange={setExportFormat}
- onExportProject={(fmt) => exportProject(fmt, false)}
+ exportScope={exportScope}
+ onExportScopeChange={setExportScope}
+ onExportProject={(fmt, scope) => exportProject(fmt, scope)}
  exportBusy={exportBusy}
  exportProgress={exportProgress}
  exportNotice={exportNotice}
@@ -723,6 +542,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  pages={projectPages.pages}
  current={projectPages.current}
  onNavigate={projectPages.onNavigate}
+ projectModel={projectModel}
  />
  ) : (
  <span data-tour="dock-pages" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -739,21 +559,6 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  ))}
  </span>
  )}
-
- <DockNewMenu
- projectModel={projectModel}
- currentPagePath={projectPages?.current}
- onNavigate={projectPages?.onNavigate}
- />
-
- <StudioDockSeparator />
-
- {/* Help */}
- <StudioDockButton
- label="?"
- onClick={() => onHelp && onHelp()}
- title="Take a tour"
- />
  </div>
  );
 }
