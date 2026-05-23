@@ -667,3 +667,58 @@ describe('DCViewport — wayfinding chrome', () => {
  cleanup();
  });
 });
+
+describe('DesignCanvas — top-level group reorder', () => {
+ it('shows a drag grip on top-level groups when a page orderKey is set', async () => {
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas orderKey="/p/home">
+ <DCSection id="g1" title="G1" depth={1}>
+ <DCArtboard id="a" label="A" width={120} height={90} />
+ </DCSection>
+ <DCSection id="g2" title="G2" depth={1}>
+ <DCArtboard id="b" label="B" width={120} height={90} />
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+ expect(container.querySelectorAll('.dc-section-grip').length).toBe(2);
+ cleanup();
+ });
+
+ it('shows no reorder grip without an orderKey', async () => {
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas>
+ <DCSection id="g1" title="G1" depth={1}>
+ <DCArtboard id="a" label="A" width={120} height={90} />
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+ expect(container.querySelector('.dc-section-grip')).toBeNull();
+ cleanup();
+ });
+
+ it('renders top-level groups in the persisted order from the sidecar', async () => {
+ // The sidecar read supplies a saved order that puts g2 before g1.
+ vi.stubGlobal('fetch', () => Promise.resolve({
+ ok: true,
+ json: () => Promise.resolve({ sections: {}, order: { '/p/home': ['g2', 'g1'] } }),
+ }));
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas orderKey="/p/home">
+ <DCSection id="g1" title="G1" depth={1}>
+ <DCArtboard id="a" label="A" width={120} height={90} />
+ </DCSection>
+ <DCSection id="g2" title="G2" depth={1}>
+ <DCArtboard id="b" label="B" width={120} height={90} />
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+ const ids = Array.from(container.querySelectorAll('[data-dc-section]')).map((el) =>
+ el.getAttribute('data-dc-section'),
+ );
+ expect(ids).toEqual(['g2', 'g1']);
+ cleanup();
+ });
+});

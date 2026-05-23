@@ -512,18 +512,18 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  title={page.name}
  body={
  cliMode
- ? 'This page has no assets yet.'
+ ? 'This page is empty. Create a group to organize your assets — or drop in a loose asset.'
  : 'This page has no assets yet. Drop a .jsx, .tsx, or .md file into it.'
  }
  actions={
  cliMode ? (
  <>
  <NoticeButton
- label="+ Add asset"
+ label="+ New group"
  primary
  onClick={() =>
  setCreateState({
- kind: 'asset',
+ kind: 'group',
  parentPath: page.path,
  parentLabel: page.name,
  existingNames: pageChildNames,
@@ -531,10 +531,10 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  }
  />
  <NoticeButton
- label="+ Add group"
+ label="+ Add asset"
  onClick={() =>
  setCreateState({
- kind: 'group',
+ kind: 'asset',
  parentPath: page.path,
  parentLabel: page.name,
  existingNames: pageChildNames,
@@ -659,13 +659,102 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // the canvas key — only the affected entries' identities change. The
  // `DesignCanvas` instance, its per-section state, and the user's viewport zoom
  // + scroll position are preserved.
+ // The page-level "+ New group" affordance is a non-section child, so the
+ // canvas keeps it after the (reorderable) group cards. It creates a top-level
+ // group on this page; new groups append, and can then be dragged into place.
+ const pageChildNamesForAdd = sectionChildNames(project, page.path);
  return (
  <>
- <DesignCanvas key={page.path}>
+ <DesignCanvas key={page.path} orderKey={page.path}>
  {roots.map((node) => renderSection(node))}
+ {cliMode && (
+ <PageAddBar
+ onAddGroup={() =>
+ setCreateState({
+ kind: 'group',
+ parentPath: page.path,
+ parentLabel: page.name,
+ existingNames: pageChildNamesForAdd,
+ })
+ }
+ onAddAsset={() =>
+ setCreateState({
+ kind: 'asset',
+ parentPath: page.path,
+ parentLabel: page.name,
+ existingNames: pageChildNamesForAdd,
+ })
+ }
+ />
+ )}
  </DesignCanvas>
  {createDialog}
  </>
+ );
+}
+
+/**
+ * Page-level create affordance, rendered after the group cards on the canvas:
+ * a prominent dashed "+ New group" (plus a quieter "+ Add asset" for a loose
+ * page asset). This is how a top-level group is added to a non-empty page —
+ * the spatial counterpart to the per-group add bar. Marked `.dc-section-cta`
+ * so the canvas pan handler treats it as interactive content, not background.
+ *
+ * @param {object} props
+ * @param {() => void} props.onAddGroup
+ * @param {() => void} props.onAddAsset
+ * @returns {React.ReactElement}
+ */
+function PageAddBar({ onAddGroup, onAddAsset }) {
+ return (
+ <div
+ className="dc-section-cta"
+ data-testid="page-add-bar"
+ style={{ margin: '0 60px 90px 60px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
+ >
+ <button
+ type="button"
+ onClick={onAddGroup}
+ data-testid="page-add-group"
+ style={{
+ display: 'inline-flex',
+ alignItems: 'center',
+ gap: 7,
+ padding: '12px 20px',
+ borderRadius: 12,
+ border: '1.5px dashed var(--lm-accent-border, rgba(184,91,51,0.35))',
+ background: 'var(--lm-accent-light, rgba(184,91,51,0.06))',
+ color: 'var(--lm-accent, #B85B33)',
+ fontFamily: 'inherit',
+ fontSize: 14,
+ fontWeight: 600,
+ cursor: 'pointer',
+ }}
+ >
+ <span style={{ fontSize: 17, lineHeight: 1 }}>+</span> New group
+ </button>
+ <button
+ type="button"
+ onClick={onAddAsset}
+ data-testid="page-add-asset"
+ style={{
+ display: 'inline-flex',
+ alignItems: 'center',
+ gap: 6,
+ padding: '12px 16px',
+ borderRadius: 12,
+ border: '1px dashed var(--lm-border, rgba(26,23,20,0.22))',
+ background: 'transparent',
+ color: 'var(--lm-text-tertiary, #6e6960)',
+ fontFamily: 'inherit',
+ fontSize: 13,
+ fontWeight: 600,
+ cursor: 'pointer',
+ }}
+ >
+ + Add asset
+ </button>
+ </div>
  );
 }
 

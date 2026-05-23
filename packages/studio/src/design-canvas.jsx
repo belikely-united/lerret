@@ -235,8 +235,11 @@ function dcTriggerDownload(dataUrl, filename) {
 const DC_STATE_FILE = '.design-canvas.state.json';
 const DC_LS_KEY = 'lerret-studio:state:' + (typeof location !== 'undefined' ? location.pathname : '/');
 
-export function DesignCanvas({ children, minScale, maxScale, style }) {
- const [state, setState] = React.useState({ sections: {}, focus: null });
+export function DesignCanvas({ children, orderKey, minScale, maxScale, style }) {
+ // `sections` holds per-section artboard order/titles/labels; `order` holds the
+ // user's custom TOP-LEVEL group order, keyed by page (`orderKey`), so groups
+ // can be arranged beyond their default alphabetical order. `focus` is ephemeral.
+ const [state, setState] = React.useState({ sections: {}, focus: null, order: {} });
  // Hold rendering until the sidecar read settles so the saved order/titles
  // appear on first paint (no source-order flash). didRead gates writes until
  // the read settles so the empty initial state can't clobber a slow read;
@@ -266,7 +269,7 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  }
  if (!next) return;
  skipNextWrite.current = true;
- setState((s) => ({ ...s, sections: next.sections }));
+ setState((s) => ({ ...s, sections: next.sections, order: next.order || {} }));
  })
  .catch(() => {})
  .finally(() => { didRead.current = true; if (!off) setReady(true); });
@@ -278,14 +281,14 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  if (!didRead.current) return;
  if (skipNextWrite.current) { skipNextWrite.current = false; return; }
  const t = setTimeout(() => {
- const payload = JSON.stringify({ sections: state.sections });
+ const payload = JSON.stringify({ sections: state.sections, order: state.order });
  // Always mirror to localStorage so plain-browser users get persistence.
  try { localStorage.setItem(DC_LS_KEY, payload); } catch (_) {}
  // Best-effort write back to the sidecar via the host bridge if present.
  window.omelette?.writeFile(DC_STATE_FILE, payload).catch(() => {});
  }, 250);
  return () => clearTimeout(t);
- }, [state.sections]);
+ }, [state.sections, state.order]);
 
  // Build registries synchronously from children so FocusOverlay can read them
  // in the same render. Sections nest: a sub-group's DCSection is rendered
@@ -332,7 +335,25 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  visitSections(sec.props.children);
  });
  };
- visitSections(children);
+ // Apply the user's custom top-level group order (persisted per page). Groups
+ // not in the saved order (newly created) append in source (alphabetical)
+ // order. Non-section children (e.g. the in-canvas "+ New group" affordance)
+ // are kept after the groups.
+ const savedTopOrder = (orderKey && state.order[orderKey]) || [];
+ const topSections = [];
+ const otherChildren = [];
+ React.Children.forEach(children, (child) => {
+ const sec = resolveSection(child);
+ const sid = sec && (sec.props.id ?? sec.props.title);
+ if (sid) topSections.push({ id: sid, child });
+ else if (child) otherChildren.push(child);
+ });
+ const keptTop = savedTopOrder.filter((id) => topSections.some((s) => s.id === id));
+ const topOrder = [...keptTop, ...topSections.map((s) => s.id).filter((id) => !keptTop.includes(id))];
+ const topById = Object.fromEntries(topSections.map((s) => [s.id, s.child]));
+ const orderedChildren = [...topOrder.map((id) => topById[id]), ...otherChildren];
+
+ visitSections(orderedChildren);
 
  const api = React.useMemo(() => ({
  state,
@@ -342,7 +363,14 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  sections: { ...s.sections, [id]: { ...s.sections[id], ...(typeof p === 'function' ? p(s.sections[id] || {}) : p) } },
  })),
  setFocus: (slotId) => setState((s) => ({ ...s, focus: slotId })),
- }), [state]);
+ // Reorder the top-level groups for this page. `ids` is the full new order.
+ reorderSections: (ids) => {
+ if (!orderKey) return;
+ setState((s) => ({ ...s, order: { ...s.order, [orderKey]: ids } }));
+ },
+ // Whether top-level group reordering is available (a page is loaded).
+ canReorderSections: !!orderKey,
+ }), [state, orderKey]);
 
  // Esc exits focus; any outside pointerdown commits an in-progress rename.
  React.useEffect(() => {
@@ -361,7 +389,7 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
 
  return (
  <DCCtx.Provider value={api}>
- <DCViewport minScale={minScale} maxScale={maxScale} style={style}>{ready && children}</DCViewport>
+ <DCViewport minScale={minScale} maxScale={maxScale} style={style}>{ready && orderedChildren}</DCViewport>
  {state.focus && registry[state.focus] && (
  <DCFocusOverlay entry={registry[state.focus]} sectionMeta={sectionMeta} sectionOrder={sectionOrder} />
  )}
@@ -777,7 +805,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  // artboard slot (e.g. the empty-group "+ Add asset" placeholder). Without
  // this, a pointerdown there counts as "background", the viewport captures
  // the pointer, and the button's click never fires (dead click).
- const onBg = !e.target.closest('[data-dc-slot], .dc-editable, .dc-section-cta');
+ const onBg = !e.target.closest('[data-dc-slot], .dc-editable, .dc-section-cta, .dc-section-grip');
  if (!(e.button === 1 || (e.button === 0 && onBg))) return;
  e.preventDefault();
  vp.setPointerCapture(e.pointerId);
@@ -1157,6 +1185,59 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  const frameBg = cascadeBg || sectionDepthBg(depth);
  const hasArtboards = order.length > 0;
 
+ // Top-level groups (depth <= 1) can be dragged to reorder. The grip lives in
+ // the section header; the drag reads the current top-level order from the DOM,
+ // tracks the pointer, and commits a new order on drop (persisted per page).
+ const canReorder = !!(ctx && ctx.canReorderSections && depth <= 1);
+ const onSectionGripDown = (e) => {
+ if (!ctx || typeof ctx.reorderSections !== 'function') return;
+ e.preventDefault();
+ e.stopPropagation();
+ const myEl = e.currentTarget.closest('[data-dc-section]');
+ if (!myEl) return;
+ const topEls = Array.from(
+ document.querySelectorAll('[data-dc-section-depth="0"],[data-dc-section-depth="1"]'),
+ );
+ const order2 = topEls.map((el) => el.getAttribute('data-dc-section'));
+ if (order2.length < 2) return;
+ const scale = myEl.getBoundingClientRect().height / myEl.offsetHeight || 1;
+ const startY = e.clientY;
+ const startIndex = order2.indexOf(sid);
+ let targetIndex = startIndex;
+ myEl.style.opacity = '0.65';
+ myEl.style.zIndex = '20';
+ const grip = e.currentTarget;
+ try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+ const move = (ev) => {
+ myEl.style.transform = `translateY(${(ev.clientY - startY) / scale}px)`;
+ const others = order2.filter((id) => id !== sid);
+ let idx = 0;
+ for (const id of others) {
+ const el = document.querySelector(`[data-dc-section="${id}"]`);
+ if (!el) continue;
+ const r = el.getBoundingClientRect();
+ if (ev.clientY > r.top + r.height / 2) idx++;
+ else break;
+ }
+ targetIndex = idx;
+ };
+ const up = (ev) => {
+ document.removeEventListener('pointermove', move);
+ document.removeEventListener('pointerup', up);
+ try { grip.releasePointerCapture(ev.pointerId); } catch (_) {}
+ myEl.style.opacity = '';
+ myEl.style.transform = '';
+ myEl.style.zIndex = '';
+ if (targetIndex !== startIndex) {
+ const next = order2.filter((id) => id !== sid);
+ next.splice(targetIndex, 0, sid);
+ ctx.reorderSections(next);
+ }
+ };
+ document.addEventListener('pointermove', move);
+ document.addEventListener('pointerup', up);
+ };
+
  return (
  <div
  data-dc-section={sid}
@@ -1203,11 +1284,41 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  <div style={{
  display: 'flex',
  alignItems: 'flex-start',
- justifyContent: 'space-between',
- gap: 24,
+ gap: 12,
  marginBottom: hasArtboards ? 56 : 16,
  }}>
- <div>
+ {/* Drag grip — reorder this top-level group. Marked `.dc-section-grip`
+ so the canvas pan handler treats it as interactive, not background. */}
+ {canReorder && (
+ <button
+ type="button"
+ className="dc-section-grip"
+ onPointerDown={onSectionGripDown}
+ title="Drag to reorder this group"
+ aria-label={`Reorder group ${sec.title ?? title}`}
+ style={{
+ flex: 'none',
+ marginTop: 4,
+ border: 'none',
+ background: 'transparent',
+ padding: '4px 2px',
+ borderRadius: 4,
+ cursor: 'grab',
+ color: 'rgba(60,50,40,0.4)',
+ lineHeight: 0,
+ touchAction: 'none',
+ }}
+ onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
+ onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+ >
+ <svg width="11" height="15" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true">
+ <circle cx="2" cy="2" r="1.1" /><circle cx="7" cy="2" r="1.1" />
+ <circle cx="2" cy="6.5" r="1.1" /><circle cx="7" cy="6.5" r="1.1" />
+ <circle cx="2" cy="11" r="1.1" /><circle cx="7" cy="11" r="1.1" />
+ </svg>
+ </button>
+ )}
+ <div style={{ flex: 1, minWidth: 0 }}>
  {/* Nesting eyebrow — names the parent group so a contained
  sub-group says where it lives without leaving the canvas. */}
  {nested && kicker && (
