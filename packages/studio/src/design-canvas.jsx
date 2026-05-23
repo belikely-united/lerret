@@ -288,12 +288,23 @@ export function DesignCanvas({ children, minScale, maxScale, style }) {
  }, [state.sections]);
 
  // Build registries synchronously from children so FocusOverlay can read
- // them in the same render. Only direct DCSection > DCArtboard children are
- // walked — wrapping them in other elements opts out of focus/reorder.
+ // them in the same render. A section may be wrapped ONE level (e.g. in
+ // <SectionKebab> for per-section chrome): resolve the DCSection whether it is
+ // the direct child or sits inside a single wrapper, so wrapping no longer
+ // opts a section out of focus/reorder.
  const registry = {}; // slotId -> { sectionId, artboard }
  const sectionMeta = {}; // sectionId -> { title, subtitle, slotIds[] }
  const sectionOrder = [];
- React.Children.forEach(children, (sec) => {
+ React.Children.forEach(children, (node) => {
+ if (!node) return;
+ let sec = node;
+ if (node.type !== DCSection) {
+ let found = null;
+ React.Children.forEach(node.props && node.props.children, (c) => {
+ if (!found && c && c.type === DCSection) found = c;
+ });
+ sec = found;
+ }
  if (!sec || sec.type !== DCSection) return;
  const sid = sec.props.id ?? sec.props.title;
  if (!sid) return;
@@ -794,7 +805,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  style={{ fontSize: titleSize, fontWeight: 600, color: DC.title, letterSpacing: -0.4, marginBottom: 6, display: 'inline-block' }} />
  {subtitle && <div style={{ fontSize: 16, color: DC.subtitle }}>{subtitle}</div>}
  </div>
- <DCSectionDownload sectionId={sid} />
+ {artboards.length > 0 && <DCSectionDownload sectionId={sid} />}
  </div>
  <div style={{ display: 'flex', gap, paddingTop: 36, alignItems: 'flex-start', width: 'max-content' }}>
  {order.map((k) => (

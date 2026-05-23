@@ -105,6 +105,34 @@ describe('DCFocusOverlay — open & close', () => {
  cleanup();
  });
 
+ it('opens focus view when the section is wrapped one level (e.g. SectionKebab)', async () => {
+ // Regression: the real studio wraps every DCSection in <SectionKebab>, so
+ // the focus registry must resolve a section through a single wrapper.
+ // Before the fix the registry skipped wrapped sections and the overlay
+ // never appeared.
+ function Wrapper({ children }) {
+ return <div className="section-wrapper">{children}</div>;
+ }
+ const { container, cleanup } = renderToDom(
+ <DesignCanvas>
+ <Wrapper>
+ <DCSection id="s1" title="Section One">
+ <DCArtboard id="a1" label="Alpha" width={200} height={150} />
+ </DCSection>
+ </Wrapper>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+ const expandBtn = container.querySelector('.dc-expand');
+ expect(expandBtn).not.toBeNull();
+ act(() => { expandBtn.click(); });
+ expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+ cleanup();
+ });
+
  it('closes the focus overlay when Esc is pressed (NFR14)', async () => {
  const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
  await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
@@ -448,6 +476,44 @@ describe('Drag-pan — kebab and popover targets are excluded (regression)', () 
  });
 
  expect(capture).toHaveBeenCalledWith(4);
+ cleanup();
+ });
+});
+
+describe('DCSection — section download buttons', () => {
+ it('shows the group PNG/JPG download when the section has artboards', async () => {
+ const { cleanup } = renderToDom(
+ <DesignCanvas>
+ <DCSection id="s1" title="Has assets">
+ <DCArtboard id="a1" label="Alpha" width={200} height={150} />
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+ expect(
+ document.querySelector('[title="Download every artboard in this group as PNG"]'),
+ ).not.toBeNull();
+ cleanup();
+ });
+
+ it('hides the group PNG/JPG download for an empty section (e.g. an empty group)', async () => {
+ const { cleanup } = renderToDom(
+ <DesignCanvas>
+ <DCSection id="s1" title="Empty group">
+ <div data-testid="placeholder">This group is empty.</div>
+ </DCSection>
+ </DesignCanvas>,
+ );
+ await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+ // The non-artboard placeholder still renders…
+ expect(document.querySelector('[data-testid="placeholder"]')).not.toBeNull();
+ // …but there's nothing to export, so the group download is absent.
+ expect(
+ document.querySelector('[title="Download every artboard in this group as PNG"]'),
+ ).toBeNull();
+ expect(
+ document.querySelector('[title="Download every artboard in this group as JPG"]'),
+ ).toBeNull();
  cleanup();
  });
 });
