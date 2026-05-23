@@ -782,15 +782,73 @@ describe('ObjectControl', () => {
  cleanup();
  });
 
- it('shows a message when no properties are defined and value is empty', () => {
+ it('offers an add-property row for a free-form object (no declared properties)', () => {
  const { container, cleanup } = renderToDom(
  React.createElement(ObjectControl, {
- fieldKey: 'data',
+ fieldKey: 'vars',
  schema: { type: 'object' },
  value: {},
  }),
  );
- expect(container.textContent).toMatch(/no properties/i);
+ // Free-form + empty → the add-property affordance, not a dead-end message.
+ expect(container.querySelector('[data-object-add-key]')).not.toBeNull();
+ expect(container.querySelector('[data-object-add-btn]')).not.toBeNull();
+ cleanup();
+ });
+
+ it('adds a free-form property via the + Add row', () => {
+ const commits = [];
+ const { container, cleanup } = renderToDom(
+ React.createElement(ObjectControl, {
+ fieldKey: 'vars',
+ schema: { type: 'object' },
+ value: {},
+ onCommit: (v) => commits.push(v),
+ }),
+ );
+ const input = container.querySelector('[data-object-add-key]');
+ // Update the controlled input through React's value tracker, then fire input.
+ const setValue = Object.getOwnPropertyDescriptor(
+ window.HTMLInputElement.prototype,
+ 'value',
+ ).set;
+ act(() => {
+ setValue.call(input, 'brandHue');
+ input.dispatchEvent(new Event('input', { bubbles: true }));
+ });
+ const addBtn = container.querySelector('[data-object-add-btn]');
+ act(() => { addBtn.click(); });
+ expect(commits[commits.length - 1]).toEqual({ brandHue: '' });
+ cleanup();
+ });
+
+ it('removes a free-form property via its remove button', () => {
+ const commits = [];
+ const { container, cleanup } = renderToDom(
+ React.createElement(ObjectControl, {
+ fieldKey: 'vars',
+ schema: { type: 'object' },
+ value: { a: '1', b: '2' },
+ onCommit: (v) => commits.push(v),
+ }),
+ );
+ // First remove button corresponds to the first key ('a').
+ const removeBtn = container.querySelector('.lm-object__remove');
+ act(() => { removeBtn.click(); });
+ expect(commits[commits.length - 1]).toEqual({ b: '2' });
+ cleanup();
+ });
+
+ it('does not offer add/remove for an object with declared properties', () => {
+ const { container, cleanup } = renderToDom(
+ React.createElement(ObjectControl, {
+ fieldKey: 'presentation',
+ schema: { type: 'object', properties: { background: { type: 'string' } } },
+ value: {},
+ }),
+ );
+ expect(container.querySelector('[data-object-add-key]')).toBeNull();
+ expect(container.querySelector('.lm-object__remove')).toBeNull();
  cleanup();
  });
 

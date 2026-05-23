@@ -1,10 +1,14 @@
 // ObjectControl.jsx — nested object group control.
 //
 // Renders a sub-control for each declared property in `schema.properties`.
-// When `properties` is absent the object's current keys are rendered as
-// text fields (best-effort display for unknown shapes).
+// When `properties` is absent the object is treated as FREE-FORM: its current
+// keys are rendered as editable rows, and the user can add their own key/value
+// pairs (a "+ Add" row) or remove existing ones (a × per row). This is what
+// makes `vars` / `colors` / `fonts` / `liveRefresh` authorable from the visual
+// editor — no raw-JSON detour required.
 //
-// Commit model: commits the full updated object on every sub-field commit.
+// Commit model: commits the full updated object on every sub-field commit,
+// add, or remove.
 
 import React from 'react';
 import { validateField } from './validate.js';
@@ -30,16 +34,39 @@ export function ObjectControl({ fieldKey, schema, value, onChange, onCommit, dis
  const invalid = !validation.valid;
 
  const properties = schema?.properties ?? {};
- // If no properties are declared, derive keys from the current value.
- const keys =
- Object.keys(properties).length > 0
- ? Object.keys(properties)
- : Object.keys(obj);
+ const declared = Object.keys(properties);
+ // No declared properties → free-form object: keys come from the value, and
+ // the user may add / remove their own key/value pairs.
+ const freeForm = declared.length === 0;
+ const keys = freeForm ? Object.keys(obj) : declared;
+
+ // New-property key input (free-form only).
+ const [newKey, setNewKey] = React.useState('');
 
  const handleSubChange = (key, v) => {
  const next = { ...obj, [key]: v };
  onChange?.(next);
  onCommit?.(next);
+ };
+
+ const handleRemove = (key) => {
+ const next = { ...obj };
+ delete next[key];
+ onChange?.(next);
+ onCommit?.(next);
+ };
+
+ const trimmedNew = newKey.trim();
+ const isDuplicate = Object.prototype.hasOwnProperty.call(obj, trimmedNew);
+ const canAdd = !disabled && trimmedNew.length > 0 && !isDuplicate;
+
+ const handleAdd = () => {
+ if (!canAdd) return;
+ // Seed the new key with an empty string; its sub-control then lets the
+ // user type the value (and a number/boolean is just typed as text — the
+ // raw-JSON fallback remains for richer shapes).
+ handleSubChange(trimmedNew, '');
+ setNewKey('');
  };
 
  return (
@@ -53,9 +80,8 @@ export function ObjectControl({ fieldKey, schema, value, onChange, onCommit, dis
  <div className="lm-object" data-control-type="object">
  {keys.map((key) => {
  const subSchema = properties[key] ?? { type: 'string' };
- return (
+ const control = (
  <FormControl
- key={key}
  fieldKey={key}
  schema={subSchema}
  value={Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined}
@@ -64,8 +90,61 @@ export function ObjectControl({ fieldKey, schema, value, onChange, onCommit, dis
  disabled={disabled}
  />
  );
+ // Declared keys are fixed — render the control as-is.
+ if (!freeForm) return <React.Fragment key={key}>{control}</React.Fragment>;
+ // Free-form keys get a remove affordance.
+ return (
+ <div className="lm-object__row" key={key}>
+ <div className="lm-object__row-field">{control}</div>
+ <button
+ type="button"
+ className="lm-icon-btn lm-object__remove"
+ onClick={() => handleRemove(key)}
+ disabled={disabled}
+ aria-label={`Remove ${key}`}
+ title={`Remove ${key}`}
+ >
+ ×
+ </button>
+ </div>
+ );
  })}
- {keys.length === 0 && (
+
+ {freeForm && (
+ <div className="lm-object__add" data-object-add>
+ <input
+ type="text"
+ className="lm-object__add-key"
+ value={newKey}
+ onChange={(e) => setNewKey(e.target.value)}
+ onKeyDown={(e) => {
+ if (e.key === 'Enter') {
+ e.preventDefault();
+ handleAdd();
+ }
+ }}
+ placeholder="new property name"
+ aria-label={`New ${fieldKey} property name`}
+ disabled={disabled}
+ spellCheck={false}
+ autoCorrect="off"
+ autoCapitalize="off"
+ data-object-add-key
+ />
+ <button
+ type="button"
+ className="lm-object__add-btn"
+ onClick={handleAdd}
+ disabled={!canAdd}
+ aria-label={`Add property to ${fieldKey}`}
+ data-object-add-btn
+ >
+ + Add
+ </button>
+ </div>
+ )}
+
+ {!freeForm && keys.length === 0 && (
  <p
  style={{
  margin: 0,

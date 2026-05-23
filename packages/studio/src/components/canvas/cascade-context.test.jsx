@@ -297,6 +297,27 @@ describe('ProjectCanvas — section background from cascade', () => {
  expect(frame.style.backgroundColor).toBe('rgb(255, 0, 0)');
  });
 
+ it('applies the cascade foreground color (presentation.color) to the section frame', async () => {
+ const pagePath = '/.lerret/home';
+ const { project, runtime } = setup({ pagePath });
+ const cascadeEntries = [[pagePath, { presentation: { color: '#00ff00' } }]];
+
+ const container = await mount(
+ <CascadedConfigProvider cascadeEntries={cascadeEntries}>
+ <ProjectCanvas project={project} runtime={runtime} />
+ </CascadedConfigProvider>,
+ );
+
+ await waitFor(() => container.querySelector('[data-card]'), { label: 'card rendered' });
+
+ // The cascade color sets the section frame's text color (depth 0 → frame is
+ // the first child div). Title / subtitle inherit it.
+ const section = container.querySelector('[data-dc-section]');
+ expect(section).not.toBeNull();
+ const frame = section.firstElementChild;
+ expect(frame.style.color).toBe('rgb(0, 255, 0)');
+ });
+
  it('uses default styling (no backgroundColor) when the cascade has no bg', async () => {
  const pagePath = '/.lerret/home';
  const { project, runtime } = setup({ pagePath });

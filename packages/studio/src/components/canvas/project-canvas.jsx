@@ -105,17 +105,44 @@ function isUsableCssColor(value) {
  * @returns {string | null}
  */
 function resolveSectionBg(cfg, folderPath) {
+ return resolvePresentationColor(cfg, folderPath, 'background');
+}
+
+/**
+ * Resolve the effective foreground/text color for a section from the cascaded
+ * config's `presentation.color`. Mirrors {@link resolveSectionBg}: returns the
+ * validated CSS color, or `null` (no override) — warning on a malformed value.
+ *
+ * @param {Record<string, unknown>} cfg The folder's effective config object.
+ * @param {string} folderPath The folder's `LerretPath` — used in the warning.
+ * @returns {string | null}
+ */
+function resolveSectionColor(cfg, folderPath) {
+ return resolvePresentationColor(cfg, folderPath, 'color');
+}
+
+/**
+ * Shared resolver for a `presentation.<key>` CSS color value. Returns the
+ * validated color string, or `null` when absent. A present-but-malformed value
+ * returns `null` and emits a `console.warn` naming the folder path + key.
+ *
+ * @param {Record<string, unknown>} cfg The folder's effective config object.
+ * @param {string} folderPath The folder's `LerretPath` — used in the warning.
+ * @param {'background' | 'color'} key
+ * @returns {string | null}
+ */
+function resolvePresentationColor(cfg, folderPath, key) {
  const presentation = cfg && cfg.presentation;
  if (!presentation || typeof presentation !== 'object' || Array.isArray(presentation)) {
  return null;
  }
- const bg = /** @type {Record<string, unknown>} */ (presentation).background;
- if (bg === undefined || bg === null) return null;
- if (isUsableCssColor(bg)) return /** @type {string} */ (bg);
- // Malformed — warn and fall back to default (no bg override).
+ const value = /** @type {Record<string, unknown>} */ (presentation)[key];
+ if (value === undefined || value === null) return null;
+ if (isUsableCssColor(value)) return /** @type {string} */ (value);
+ // Malformed — warn and fall back to default (no override).
  console.warn(
- `[lerret/canvas] Skipping malformed presentation.background at "${folderPath}": ` +
- `"${String(bg)}" is not a usable CSS color string. Falling back to the default surface.`,
+ `[lerret/canvas] Skipping malformed presentation.${key} at "${folderPath}": ` +
+ `"${String(value)}" is not a usable CSS color string. Falling back to the default.`,
  );
  return null;
 }
@@ -549,7 +576,14 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // bg override) with a console.warn.
  const effectiveCfg = getConfigFor(s.id);
  const bgColor = resolveSectionBg(effectiveCfg, s.id);
- const sectionStyle = bgColor ? { backgroundColor: bgColor } : undefined;
+ const fgColor = resolveSectionColor(effectiveCfg, s.id);
+ const sectionStyle =
+ bgColor || fgColor
+ ? {
+ ...(bgColor ? { backgroundColor: bgColor } : null),
+ ...(fgColor ? { color: fgColor } : null),
+ }
+ : undefined;
 
  // wrap each section in `SectionKebab` so the kebab trigger hangs above the
  // section header. The kebab owns Edit config / Rename / Delete / Export /

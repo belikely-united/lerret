@@ -1153,6 +1153,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  const nested = depth >= 2;
  const titleSize = Math.max(19, 28 - depth * 4);
  const cascadeBg = sectionStyle && sectionStyle.backgroundColor;
+ const cascadeColor = sectionStyle && sectionStyle.color;
  const frameBg = cascadeBg || sectionDepthBg(depth);
  const hasArtboards = order.length > 0;
 
@@ -1197,6 +1198,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  borderRadius: 16,
  padding: nested ? '18px 22px 22px' : '24px 32px 32px',
  background: frameBg,
+ color: cascadeColor || undefined,
  }}>
  <div style={{
  display: 'flex',
@@ -1228,8 +1230,8 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  )}
  <DCEditable tag="div" value={sec.title ?? title}
  onChange={(v) => ctx && sid && ctx.patchSection(sid, { title: v })}
- style={{ fontSize: titleSize, fontWeight: 600, color: DC.title, letterSpacing: -0.4, marginBottom: 6, display: 'inline-block' }} />
- {subtitle && <div style={{ fontSize: 16, color: DC.subtitle }}>{subtitle}</div>}
+ style={{ fontSize: titleSize, fontWeight: 600, color: cascadeColor || DC.title, letterSpacing: -0.4, marginBottom: 6, display: 'inline-block' }} />
+ {subtitle && <div style={{ fontSize: 16, color: cascadeColor || DC.subtitle }}>{subtitle}</div>}
  </div>
  {hasArtboards && <DCSectionDownload sectionId={sid} />}
  </div>

@@ -350,6 +350,10 @@ const PRESENTATION_SCHEMA = {
  type: 'string',
  description: 'CSS color string for this section\'s background (e.g. #f0e8d8, rgba(241,237,229,0.85))',
  },
+ color: {
+ type: 'string',
+ description: 'CSS text / foreground color for this section (e.g. #1a1714, rgba(255,255,255,0.92))',
+ },
  },
 };
 

@@ -256,6 +256,71 @@
  border-radius: var(--lm-radius-sm, 6px);
 }
 
+/* Free-form object: per-key row with a remove affordance. */
+.lm-object__row {
+ display: flex;
+ align-items: flex-start;
+ gap: var(--lm-space-1, 4px);
+}
+.lm-object__row-field {
+ flex: 1;
+ min-width: 0;
+}
+.lm-object__remove {
+ margin-top: 2px;
+}
+
+/* Free-form object: the "+ Add" key/value row. */
+.lm-object__add {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-1, 4px);
+}
+.lm-object__add-key {
+ flex: 1;
+ min-width: 0;
+ padding: var(--lm-space-1, 4px) var(--lm-space-2, 8px);
+ font-family: var(--lm-font-sans);
+ font-size: var(--lm-size-body-sm, 12px);
+ color: var(--lm-text-primary, #1A1714);
+ background: var(--lm-bg-primary, #FAF8F2);
+ border: 1px solid var(--lm-border, #DDD7CA);
+ border-radius: var(--lm-radius-sm, 6px);
+ outline: none;
+ transition: border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+}
+.lm-object__add-key:focus {
+ border-color: var(--lm-accent, #B85B33);
+ box-shadow: var(--lm-focus-ring);
+}
+.lm-object__add-btn {
+ flex-shrink: 0;
+ padding: var(--lm-space-1, 4px) var(--lm-space-3, 12px);
+ font-family: var(--lm-font-sans);
+ font-size: var(--lm-size-body-sm, 12px);
+ font-weight: var(--lm-weight-medium, 500);
+ color: var(--lm-accent, #B85B33);
+ background: transparent;
+ border: 1px dashed var(--lm-accent-border, rgba(184, 91, 51, 0.20));
+ border-radius: var(--lm-radius-sm, 6px);
+ cursor: pointer;
+ transition: background var(--lm-duration-fast, 120ms) var(--lm-ease),
+ border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ outline: none;
+}
+.lm-object__add-btn:hover:not(:disabled) {
+ background: var(--lm-accent-light, rgba(184, 91, 51, 0.10));
+ border-color: var(--lm-accent, #B85B33);
+}
+.lm-object__add-btn:focus-visible {
+ box-shadow: var(--lm-focus-ring);
+ border-color: var(--lm-accent, #B85B33);
+}
+.lm-object__add-btn:disabled {
+ opacity: 0.45;
+ cursor: not-allowed;
+}
+
 /* ── Icon button (for array reorder / remove) ────────────────────────── */
 .lm-icon-btn {
  display: inline-flex;
