@@ -194,6 +194,18 @@ export default defineConfig({
  // serve time. Also retain the spike guard.
  'virtual:lerret-project',
  /spike\/hosted-runtime\//,
+ // React + ReactDOM externals. The CLI's Vite dev server aliases
+ // `react`/`react-dom`/`react/jsx-runtime` etc. to its own bundled
+ // copies, so user-authored .jsx assets share React with the studio.
+ // Externalizing here means the studio bundle emits bare `import 'react'`
+ // statements; the dev server resolves them via the same aliases as the
+ // user assets, ensuring ONE React module instance at runtime — without
+ // this, user components that call hooks throw "Invalid hook call".
+ 'react',
+ 'react-dom',
+ 'react-dom/client',
+ 'react/jsx-runtime',
+ 'react/jsx-dev-runtime',
  ]
  : [
  // Default (hosted) build: only the spike guard.

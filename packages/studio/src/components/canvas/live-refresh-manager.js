@@ -40,6 +40,8 @@
 
 import { useEffect, useRef } from 'react';
 
+import { isLiveRefreshSuspended } from './live-refresh-suspend.js';
+
 /**
  * Minimum refresh interval in ms (one 60-fps frame).
  * Sub-frame intervals are clamped / rejected as invalid.
@@ -218,6 +220,12 @@ export function useLiveRefresh(page, getConfigFor, runtime) {
  clearInterval(timers.get(path));
  }
  const id = setInterval(() => {
+ // Skip the reload while a modal dialog is open (animated export / move
+ // picker). A background reload re-renders the artboard subtree that hosts
+ // the dialog and dismisses any open native `<select>` popup, making the
+ // dialog's dropdowns unusable on a live page. The asset's own internal
+ // animation keeps ticking; only the studio's reload timer pauses.
+ if (isLiveRefreshSuspended()) return;
  runtime.notifyChange(path);
  }, intervalMs);
  timers.set(path, id);

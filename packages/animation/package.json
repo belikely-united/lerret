@@ -1,0 +1,44 @@
+{
+  "name": "@lerret/animation",
+  "version": "0.1.0",
+  "description": "Animated-export engine for Lerret — frame capture + WebP / GIF / APNG / MP4 encoders behind a single AnimationEncoder interface. Reached only via dynamic import from @lerret/studio and @lerret/cli.",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.js",
+    "!src/**/*.test.jsx"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/belikely-united/lerret.git",
+    "directory": "packages/animation"
+  },
+  "homepage": "https://lerret.belikely.com",
+  "bugs": {
+    "url": "https://github.com/belikely-united/lerret/issues"
+  },
+  "keywords": [
+    "lerret",
+    "design-canvas",
+    "animation",
+    "webp",
+    "gif",
+    "apng",
+    "mp4",
+    "webcodecs"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "gif.js": "^0.2.0",
+    "html-to-image": "^1.11.13",
+    "mp4-muxer": "^5.2.2",
+    "upng-js": "^2.1.0"
+  }
+}

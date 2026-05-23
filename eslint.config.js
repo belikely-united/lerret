@@ -195,6 +195,16 @@ export default [
     },
   },
 
+  // @lerret/animation runs in the browser (Canvas, Blob, OffscreenCanvas,
+  // VideoEncoder, setTimeout). Exposes only frame-capture + encoders; reached
+  // exclusively via dynamic import from @lerret/studio and @lerret/cli.
+  {
+    files: ['packages/animation/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.browser, VideoEncoder: 'readonly', VideoFrame: 'readonly' },
+    },
+  },
+
   // Test files — Vitest globals.
   {
     files: ['**/*.{test,spec}.{js,jsx}'],

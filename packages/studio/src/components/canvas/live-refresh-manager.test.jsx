@@ -22,6 +22,11 @@ import {
 import { createPageNode, createGroupNode, createAssetNode } from '@lerret/core';
 
 import { buildIntervalMap, useLiveRefresh } from './live-refresh-manager.js';
+import {
+ suspendLiveRefresh,
+ isLiveRefreshSuspended,
+ __resetLiveRefreshSuspendForTests,
+} from './live-refresh-suspend.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -384,5 +389,48 @@ describe('useLiveRefresh hook', () => {
  mount(<LiveRefreshHarness page={null} getConfigFor={() => ({})} runtime={runtime} />);
  act(() => vi.advanceTimersByTime(5000));
  expect(runtime.notifyChange).not.toHaveBeenCalled();
+ });
+
+ // Suspension: while a modal dialog is open, ticks skip notifyChange so the
+ // background reload doesn't dismiss the dialog's native <select> popups.
+ it('skips notifyChange while liveRefresh is suspended, resumes after release', () => {
+ __resetLiveRefreshSuspendForTests();
+ const clock = makeAsset('/.lerret/ui', 'Clock');
+ const page = makePage('/.lerret/ui', [clock]);
+ const getConfigFor = () => ({ liveRefresh: { Clock: 1000 } });
+ const runtime = makeRuntime();
+
+ mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+
+ // Baseline: one tick fires normally.
+ act(() => vi.advanceTimersByTime(1000));
+ expect(runtime.notifyChange).toHaveBeenCalledTimes(1);
+
+ // Open a "dialog": suspend. Ticks now fire but skip notifyChange.
+ const release = suspendLiveRefresh();
+ expect(isLiveRefreshSuspended()).toBe(true);
+ act(() => vi.advanceTimersByTime(3000));
+ expect(runtime.notifyChange).toHaveBeenCalledTimes(1); // unchanged
+
+ // Close the dialog: release. Ticks resume.
+ release();
+ expect(isLiveRefreshSuspended()).toBe(false);
+ act(() => vi.advanceTimersByTime(1000));
+ expect(runtime.notifyChange).toHaveBeenCalledTimes(2);
+ });
+
+ // Overlapping suspensions compose (counter, not boolean).
+ it('stays suspended until every overlapping suspension is released', () => {
+ __resetLiveRefreshSuspendForTests();
+ const release1 = suspendLiveRefresh();
+ const release2 = suspendLiveRefresh();
+ expect(isLiveRefreshSuspended()).toBe(true);
+ release1();
+ expect(isLiveRefreshSuspended()).toBe(true); // release2 still holds
+ release2();
+ expect(isLiveRefreshSuspended()).toBe(false);
+ // Idempotent: double-release doesn't underflow.
+ release1();
+ expect(isLiveRefreshSuspended()).toBe(false);
  });
 });

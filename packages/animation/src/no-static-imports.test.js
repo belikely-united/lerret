@@ -1,0 +1,102 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * The dynamic-import boundary invariant: @lerret/animation is reached ONLY via
+ * `await import('@lerret/animation')` from @lerret/studio and @lerret/cli source.
+ *
+ * Static imports of @lerret/animation from those packages would defeat the boundary —
+ * encoder code would land in the studio's main chunk, the package could not be cleanly
+ * removed, and the future-flex the boundary was extracted for would silently regress.
+ *
+ * This test scans every source file in core/, studio/, cli/, and create-lerret/ and asserts
+ * zero static imports of @lerret/animation. Dynamic imports (`await import(...)`) are
+ * permitted and expected.
+ */
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const WORKSPACE_ROOT = join(__dirname, '..', '..', '..');
+
+const SCAN_PACKAGES = ['core', 'studio', 'cli', 'create-lerret'];
+const EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
+
+const STATIC_IMPORT_PATTERNS = [
+    /^\s*import\s+[^;]*?\s+from\s+['"]@lerret\/animation['"]/m,
+    /^\s*import\s+['"]@lerret\/animation['"]/m,
+    /\brequire\s*\(\s*['"]@lerret\/animation['"]\s*\)/,
+];
+
+function walkSource(dir, hits) {
+    let entries;
+    try {
+        entries = readdirSync(dir);
+    } catch {
+        return;
+    }
+    for (const name of entries) {
+        if (name === 'node_modules' || name === 'dist' || name === 'dist-studio') continue;
+        const full = join(dir, name);
+        let st;
+        try {
+            st = statSync(full);
+        } catch {
+            continue;
+        }
+        if (st.isDirectory()) {
+            walkSource(full, hits);
+        } else {
+            const dot = name.lastIndexOf('.');
+            const ext = dot === -1 ? '' : name.slice(dot);
+            if (!EXTENSIONS.has(ext)) continue;
+            const body = readFileSync(full, 'utf8');
+            for (const pattern of STATIC_IMPORT_PATTERNS) {
+                if (pattern.test(body)) {
+                    hits.push(full);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+describe('@lerret/animation dynamic-import boundary', () => {
+    it('no static imports of @lerret/animation in core/, studio/, cli/, create-lerret/', () => {
+        const offenders = [];
+        for (const pkg of SCAN_PACKAGES) {
+            walkSource(join(WORKSPACE_ROOT, pkg, 'src'), offenders);
+        }
+        expect(
+            offenders,
+            offenders.length
+                ? `Found static imports of @lerret/animation in:\n  ${offenders.join('\n  ')}\n\n` +
+                    'Use `await import(\'@lerret/animation\')` instead. The boundary keeps encoder ' +
+                    'code out of the studio main chunk and lets the package be removed cleanly.'
+                : 'boundary clean'
+        ).toEqual([]);
+    });
+
+    it('captures real static-import patterns when present in a synthetic source string', () => {
+        const positives = [
+            "import { createEncoder } from '@lerret/animation';",
+            'import animation from "@lerret/animation";',
+            "import '@lerret/animation';",
+            "const lib = require('@lerret/animation');",
+        ];
+        const negatives = [
+            "const animation = await import('@lerret/animation');",
+            "// import { createEncoder } from '@lerret/animation';",
+            "import { createEncoder } from '@lerret/animation-helpers';",
+        ];
+        for (const body of positives) {
+            const hit = STATIC_IMPORT_PATTERNS.some((p) => p.test(body));
+            expect(hit, `expected positive: ${body}`).toBe(true);
+        }
+        for (const body of negatives) {
+            const hit = STATIC_IMPORT_PATTERNS.some((p) => p.test(body));
+            expect(hit, `expected negative: ${body}`).toBe(false);
+        }
+    });
+});

@@ -21,6 +21,9 @@
     "react-markdown": "^10.1.0",
     "sucrase": "^3.35.0"
   },
+  "optionalDependencies": {
+    "@lerret/animation": "workspace:^"
+  },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^29.1.1",

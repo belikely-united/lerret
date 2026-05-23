@@ -64,6 +64,47 @@ import { captureArtboard } from './export/capture.js';
 
 if (typeof window !== 'undefined') {
  window.__lerret_capture = captureArtboard;
+
+ /**
+  * Headless-browser entry point for `@lerret/cli export --format <gif|webp|apng|mp4>`.
+  *
+  * Reaches `@lerret/animation` via dynamic import — the second of the two
+  * boundary call-sites (the first is the in-studio dialog at
+  * `components/export/animated-export-dialog.jsx`). Static imports of
+  * `@lerret/animation` from any studio source remain forbidden; the
+  * no-static-imports test in `packages/animation/src/no-static-imports.test.js`
+  * enforces this.
+  *
+  * Returns a `{ blob, bytesB64 }` shape so the Playwright bridge can transfer
+  * the bytes back to Node without serializing a Blob (which it can't).
+  */
+ window.__lerret_capture_animated = async (element, settings) => {
+  const animation = await import('@lerret/animation');
+  const { createEncoder, captureToEncoder } = animation;
+  const width = Math.round(settings.width * (settings.scale || 1));
+  const height = Math.round(settings.height * (settings.scale || 1));
+  const encoder = await createEncoder(settings.format, {
+   width,
+   height,
+   fps: settings.fps,
+   loop: settings.loop,
+  });
+  const blob = await captureToEncoder(element, encoder, {
+   mode: settings.captureMode || 'now',
+   durationMs: settings.durationMs,
+   fps: settings.fps,
+   scale: settings.scale,
+   liveRefreshIntervalMs: settings.liveRefreshIntervalMs || settings.durationMs,
+  });
+  // Encode Blob bytes to base64 for the bridge.
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < buf.length; i += chunk) {
+   bin += String.fromCharCode.apply(null, buf.subarray(i, i + chunk));
+  }
+  return { bytesB64: btoa(bin), mimeType: blob.type };
+ };
 }
 
 /**
