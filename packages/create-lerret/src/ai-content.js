@@ -62,29 +62,38 @@ This guidance exists for two reasons:
 
   projectLayout: `## Project layout
 
-A Lerret project is a folder called \`.lerret/\`. Anything inside it is part of the canvas.
+A Lerret project is a folder called \`.lerret/\`. Anything inside it is part of the canvas. The default scaffold ships a **five-page teaching preset** — every page demos one core capability:
 
 \`\`\`
 .lerret/
-  config.json                    # Root config — vars, presentation, liveRefresh
-  _fonts/                        # Drop .woff2/.woff/.ttf/.otf here — auto-registered
+  config.json                       # Root config — vars, presentation, liveRefresh
+  README.md                         # Markdown asset — renders as a document card
+  _fonts/                           # Drop .woff2/.woff/.ttf/.otf here — auto-registered
     LerretFixtureMono.woff2
-  samples/                       # A folder = a section/page on the canvas
-    landing-hero.jsx             # Asset (default-export React component)
-    landing-hero.data.json       # Co-located data for that asset (optional)
-    feature-grid.jsx             # Variants-using asset (see below)
-    feature-grid.data.json       # Per-variant data, keyed by export name
-    quote-card.jsx               # propsSchema with a select-enum
-    poster.jsx                   # Pure component — no data file
-    README.md                    # Markdown asset — renders as a document card
-  brand/
-    config.json                  # Per-folder config — inherits from parent
-    Logo.jsx
-    Logo-mark.svg                # Component-prefixed image (see below)
-    Logo-bg.png
+  intro/                            # A folder = a section/page on the canvas
+    config.json                     # Per-folder config — excludeFromExport here
+    welcome.md                      # Markdown asset (tour of the other pages)
+  landing/                          # Section/page — cascading-vars demo
+    landing-hero.jsx                # Asset (default-export React component)
+    about-vars.md                   # Markdown explainer co-located with the asset
+  social/                           # Variants + data-files demo
+    tw-banner.jsx                   # Variants asset — extra named exports
+    tw-banner.data.json             # Per-variant data, keyed by export name
+    og-card.jsx                     # propsSchema with a select-enum (\`tone\`)
+    og-card.data.json               # Co-located data for that asset
+    about-data-files.md
+  brand/                            # propsSchema validation-badge demo
+    business-card.jsx               # propsSchema with a required prop (no default)
+    business-card.data.json         # Default slice deliberately incomplete
+    about-validation.md
+  live/                             # liveRefresh demo
+    config.json                     # Per-folder config — \`liveRefresh\` block lives here
+    clock.jsx                       # Re-renders every 1 s via liveRefresh
+    counter.jsx                     # Same — pure local state + liveRefresh
+    about-live-refresh.md
 \`\`\`
 
-Folders nest as deep as you want. Each folder becomes a section on the canvas.`,
+Folders nest as deep as you want. Each folder becomes a section on the canvas. The preset folders (\`intro/\`, \`landing/\`, \`social/\`, \`brand/\`, \`live/\`) are scaffolding for first-run learning — the user is expected to clear them (via \`${CLI.clear} --all\`) and replace with their own once they understand the conventions.`,
 
   assetContract: `## The asset contract
 
@@ -153,7 +162,7 @@ Two filenames are recognised next to an asset:
 
 When **both** exist, \`.data.js\` wins. Most assets need only \`.data.json\`.
 
-The data file shares the asset's basename — \`landing-hero.jsx\` pairs with \`landing-hero.data.json\`. Co-location is strict: the data file must be in the same folder as the asset.`,
+The data file shares the asset's basename — \`og-card.jsx\` pairs with \`social/og-card.data.json\`. Co-location is strict: the data file must be in the same folder as the asset. Variants follow the same rule: \`social/tw-banner.jsx\` pairs with \`social/tw-banner.data.json\`, keyed by each variant's export name.`,
 
   propResolution: `## Four-tier prop resolution
 
@@ -211,7 +220,7 @@ Two rules — apply them by default.
 **Rule 1 — component-prefixed, co-located.** When an image is *for* one component, put it in the same folder as the component and prefix its filename with the component's name:
 
 \`\`\`
-samples/
+social/
   Twitter.jsx
   Twitter-logo.png         # used by Twitter.jsx
   Twitter-bg.jpg
@@ -239,7 +248,7 @@ assets/
   brand-logo.svg
   photo-placeholder.jpg
 .lerret/
-  samples/
+  social/
     Twitter.jsx          # uses ../../assets/brand-logo.svg
     Instagram.jsx        # also uses ../../assets/brand-logo.svg
 \`\`\`
@@ -274,7 +283,7 @@ Headlessly renders artboards to image files. Output mirrors the folder tree by d
 - \`--format\` — \`png\` (default) or \`jpg\`.
 - \`--out\` — destination directory (default: \`./exports\`).
 - \`--flat\` — flatten the output instead of mirroring folders.
-- \`--data\` — substitute a data file for one asset/variant at export time. Useful for batch generation (one component, N data files).
+- \`--data\` — substitute a data file at export time. The contents override the data tier (tier 1) for **every artboard in this run**, so scope the run with the \`[path]\` arg (a folder) to target a specific page or group. Useful for batch generation (one folder, N data files swapped in successive runs).
 - \`--config\` — substitute a config file for the run. Useful for re-skinning the whole project (e.g. swap \`vars\` to render light + dark variants of every asset).
 
 Reach for it when: shipping the actual images. CI-friendly — exit code 0 on success.
@@ -283,7 +292,7 @@ Reach for it when: shipping the actual images. CI-friendly — exit code 0 on su
 
 Removes sample assets or specific paths from \`.lerret/\`. Always preserves \`.lerret/config.json\` and \`.lerret/_fonts/\` — those are project state, not samples.
 
-- \`[path...]\` — one or more targets. A bare name (e.g. \`samples\`) resolves relative to \`.lerret/\`; an explicit \`./foo\` or absolute path is resolved the normal way.
+- \`[path...]\` — one or more targets. A bare name (e.g. \`intro\` or \`social\`) resolves relative to \`.lerret/\`; an explicit \`./foo\` or absolute path is resolved the normal way.
 - \`--all\` — wipe every child of \`.lerret/\` except the protected ones. Mutually exclusive with positional paths.
 - \`--yes\` — skip the y/N confirmation. Required for non-interactive (no-TTY) runs.
 - \`--dry-run\` — print the plan, touch nothing.
@@ -345,16 +354,16 @@ Most Lerret assets are stills — motion is irrelevant. If you're authoring an a
 
 Pick one: **generous negative space** OR **controlled density**. Both work. The failure mode is the unintentional middle — content placed where nothing was thought through.
 
-Use asymmetry, overlap, diagonal flow, grid-breaking elements when the aesthetic invites it. The sample \`feature-grid.jsx\` uses a 1-fr-by-fixed-pane split with a 320 px glyph as the right pane's only content — that's grid-breaking that earns its keep, not chaos. The sample \`poster.jsx\` uses three exploded headline lines with negative letter-spacing and right-aligned middle line for the same reason.`,
+Use asymmetry, overlap, diagonal flow, grid-breaking elements when the aesthetic invites it. The sample \`social/tw-banner.jsx\` uses a \`1fr 360px\` grid split with a 240 px glyph as the right pane's only content — grid-breaking that earns its keep, not chaos. The sample \`social/og-card.jsx\` floats a 540 px decorative quote-mark at 0.18 opacity behind the headline — overlap with intent.`,
 
   aestheticBackground: `### Backgrounds and atmosphere
 
 Solid \`#fff\` or \`#000\` is rarely the answer. Add:
 
-- subtle radial gradient meshes (the sample \`landing-hero.jsx\` has a single large off-axis disc that sets the background atmosphere without competing for attention);
+- subtle radial gradient meshes (the sample \`landing/landing-hero.jsx\` has a single large off-axis disc that sets the background atmosphere without competing for attention; \`live/clock.jsx\` uses a centered 900-px halo for the same effect);
 - noise / grain overlays for tactile feel;
-- geometric repeating patterns at low opacity (the sample \`landing-hero.jsx\` uses an 80-px vertical-line grid at 6% opacity; \`feature-grid.jsx\` uses a 40-px grid on its glyph pane at 8%);
-- decorative borders, dramatic shadows, layered transparencies (the sample \`poster.jsx\` uses a hairline inner frame inset by 40 px to set a typographic stage).
+- geometric repeating patterns at low opacity (\`landing/landing-hero.jsx\` uses a 60-px vertical-line grid at 5% opacity; \`social/tw-banner.jsx\` uses a 40-px grid on its accent pane at 8%; \`live/counter.jsx\` runs the same 40-px grid full-bleed at 8%);
+- decorative borders, dramatic shadows, layered transparencies (the sample \`social/og-card.jsx\` floats a 540-px decorative quote-mark at 0.18 opacity behind the type to set the stage).
 
 Each detail should earn its place. Atmosphere over decoration-for-decoration's-sake.`,
 
@@ -372,127 +381,144 @@ If you cannot defend a choice, change it.`,
 
   examples: `## Grounded examples
 
-These examples reference the sample assets the scaffolder ships at \`.lerret/samples/\`. Use them as the literal starting point — don't invent file paths.
+These examples reference the five-page teaching preset the scaffolder ships under \`.lerret/\` — \`intro/\`, \`landing/\`, \`social/\`, \`brand/\`, \`live/\`. Use them as the literal starting point — don't invent file paths.
 
-### Change the headline on the landing hero
+### Change the headline on the OG card
 
-The simplest edit. Two places to consider:
+\`social/og-card.jsx\` is the simplest \`propsSchema\` + data-file edit on the canvas. Two places to consider:
 
-- **Default in the component** — \`landing-hero.jsx\`: the \`default\` field inside \`propsSchema.headline\`, and the component's default parameter on the function signature. Change both for consistency.
-- **Data file** — \`landing-hero.data.json\`:
+- **Default in the component** — \`social/og-card.jsx\`: the \`default\` field inside \`propsSchema.headline\`, and the component's default parameter on the function signature. Change both for consistency.
+- **Data file** — \`social/og-card.data.json\`:
 
   \`\`\`json
-  { "headline": "Ship your design system", "subhead": "…", "cta": "npx create-lerret@latest" }
+  { "kicker": "/// social / og card", "headline": "Ship your design system.", "tone": "brand", "handle": "@you" }
   \`\`\`
 
   This is Tier 1 — it overrides any default. Prefer this when the change is content-only and you want the schema defaults to remain the safe fallback.
 
-### Add a variant to \`feature-grid.jsx\`
+### Add a variant to \`social/tw-banner.jsx\`
 
-\`feature-grid.jsx\` already exports three named variants (\`Fast\`, \`Open\`, \`Yours\`) plus the default. To add a fourth (\`Live\`):
+\`social/tw-banner.jsx\` already exports three named variants (\`default\`, \`Maker\`, \`Talk\`), all thin wrappers around the shared internal \`TwBanner\` component. To add a fourth (\`Hunter\`):
 
-1. Add the export at the bottom of the file, pointing at the same internal \`FeatureCard\` component:
-
-   \`\`\`jsx
-   export function Live(props) { return <FeatureCard {...props} />; }
-   \`\`\`
-
-2. Extend \`meta.variants\` to include \`'Live'\`:
+1. Add the export at the bottom of the file, pointing at the same internal \`TwBanner\` component:
 
    \`\`\`jsx
-   variants: ['default', 'Fast', 'Open', 'Yours', 'Live'],
+   export function Hunter(props) { return <TwBanner {...props} />; }
    \`\`\`
 
-3. Add the per-variant slice to \`feature-grid.data.json\`:
+2. Extend \`meta.variants\` to include \`'Hunter'\`:
+
+   \`\`\`jsx
+   variants: ['default', 'Maker', 'Talk', 'Hunter'],
+   \`\`\`
+
+3. Add the per-variant slice to \`social/tw-banner.data.json\`:
 
    \`\`\`json
-   "Live": {
-     "kicker": "04 / live",
-     "title": "Save and watch it re-render.",
-     "description": "HMR-grade re-renders so editing a .jsx feels like editing a Figma frame.",
-     "glyph": "◉"
+   "Hunter": {
+     "eyebrow": "03 / hunting",
+     "title": "New surface, new variant.",
+     "glyph": "◢"
    }
    \`\`\`
 
-### Add a tone to \`quote-card.jsx\`
+### Add a tone to \`social/og-card.jsx\`
 
-\`quote-card.jsx\` ships with three tones (\`dark\`, \`light\`, \`accent\`) via a \`tone\` select prop. To add a fourth (\`paper\`):
+\`social/og-card.jsx\` ships with three tones (\`dark\`, \`light\`, \`brand\`) via a \`tone\` select prop. To add a fourth (\`paper\`):
 
-1. Add the palette to the \`PALETTES\` table in the component (mirror the shape of the others — \`bg\`, \`quote\`, \`quoteMark\`, \`attribution\`, \`rule\`).
+1. Add the palette to the \`PALETTES\` table in the component (mirror the shape of the others — \`bg\`, \`text\`, \`accent\`, \`soft\`).
 2. Extend the \`propsSchema.tone.options\` array to include \`'paper'\`.
 
 If you want \`paper\` to render as its own artboard alongside the default, add a named export and add the name to \`meta.variants\`:
 
 \`\`\`jsx
-export const Paper = (props) => <QuoteCard {...props} tone="paper" />;
+export const Paper = (props) => <OgCard {...props} tone="paper" />;
 \`\`\`
+
+### Fill in the missing \`name\` on \`brand/business-card.jsx\`
+
+\`brand/business-card.jsx\` ships with two artboards. The default artboard's slice in \`business-card.data.json\` deliberately omits the required \`name\` prop — so the \`propsSchema\` validation badge (⚠️) fires on first load. Click the badge to see \`name — Required prop is absent.\` To clear it:
+
+\`\`\`json
+{
+  "default": {
+    "name": "your name here",
+    "title": "maker",
+    "email": "hello@example.com",
+    "location": "everywhere / nowhere"
+  }
+}
+\`\`\`
+
+Save. The badge clears immediately and the \`[ no name yet ]\` placeholder on the artboard fills in with what you typed. The paired \`Complete\` variant already shows the no-badge state — keep it as the canonical reference for a fully-validated slice.
 
 ### Swap the brand palette project-wide
 
-Edit \`.lerret/config.json\` \`vars\`. The sample sets ocean blues; to switch the whole project to a warm-paper palette:
+Edit \`.lerret/config.json\` \`vars\`. The sample sets warm-clay tones; to switch the whole project to a deep-ocean palette:
 
 \`\`\`json
 {
   "vars": {
-    "brandColor":   "#8B5A2B",
-    "accentColor":  "#FFE5B4",
-    "neutralDark":  "#2C1810",
-    "neutralMid":   "#7D6450",
-    "neutralLight": "#F5EFE0"
+    "brandColor":   "#3D5A80",
+    "accentColor":  "#E0FBFC",
+    "neutralDark":  "#1B2A3B",
+    "neutralMid":   "#4A6380",
+    "neutralLight": "#F4F7FA"
   }
 }
 \`\`\`
 
 Every asset that references those via \`var(--brandColor)\` etc., or whose \`propsSchema\` has a \`brandColor\` key, picks up the new values without further edits.
 
-### Add a font and use it on the poster
+### Add a font and use it on the clock
 
-1. Drop the font file in \`_fonts/\`. Example: \`_fonts/Editorial-Display.woff2\`.
-2. Reference it by basename in the component. In \`poster.jsx\`, change the wrapper \`fontFamily\`:
+1. Drop the font file in \`_fonts/\`. Example: \`_fonts/JetBrainsMono-Bold.woff2\`.
+2. Reference it by basename in the component. In \`live/clock.jsx\`, change the wrapper \`fontFamily\`:
 
    \`\`\`jsx
-   fontFamily: "'Editorial-Display', Georgia, serif",
+   fontFamily: "'JetBrainsMono-Bold', 'LerretFixtureMono', monospace",
    \`\`\`
 
-3. No \`@font-face\`, no import, no Vite config. The studio picks up the new font on next HMR tick.
+3. No \`@font-face\`, no import, no Vite config. The studio picks up the new font on next HMR tick — the digits redraw in the new face.
 
-### Localise the landing hero for an N-language batch
+### Localise the social page for an N-language batch
+
+The CLI's \`--data\` flag overrides data tier-1 for every artboard captured in a run. To localise just one folder's worth of assets, scope the run with the folder path as the positional argument. The \`[path]\` arg accepts a project root, page, or group folder — NOT a specific asset.
 
 1. Author one \`.data.json\` per locale (or one \`.data.js\` with computed entries).
-2. Render each locale at export time without touching the component:
+2. Render each locale at export time, scoped to the folder you want translated:
 
    \`\`\`sh
-   ${CLI.npxExport} samples/landing-hero \\
+   ${CLI.npxExport} social \\
      --data ./locales/fr.data.json --out ./exports/fr
-   ${CLI.npxExport} samples/landing-hero \\
+   ${CLI.npxExport} social \\
      --data ./locales/ja.data.json --out ./exports/ja
    \`\`\`
 
-   \`--data\` overrides the co-located data file for the run only.
+   \`--data\` overrides the co-located data file for every artboard in the run. If you only want ONE asset localised, put it in its own page (or temporarily wrap with a single-asset \`config.json\` excluding everything else from export).
 
 ### Clear the samples and start your own work
 
 When the bundled samples are in the way:
 
 \`\`\`sh
-${CLI.npxClear} --all     # wipe every sample, keep config.json + _fonts/
-${CLI.npxClear} samples/poster.jsx   # or remove just one
+${CLI.npxClear} --all     # wipe every page, keep config.json + _fonts/
+${CLI.npxClear} intro     # or remove just the tour page
 \`\`\`
 
 The \`config.json\` (your \`vars\`) and \`_fonts/\` (your fonts) are always preserved — they are project state, not samples. Use \`--dry-run\` first if you want to see the plan.
 
 ### Live-update an asset every second
 
-Add to \`.lerret/config.json\` (or any folder-level \`config.json\`):
+\`.lerret/live/config.json\` already wires the preset's two live assets:
 
 \`\`\`json
 {
-  "vars": { /* … */ },
-  "liveRefresh": { "Clock": 1000 }
+  "liveRefresh": { "clock": 1000, "counter": 1000 }
 }
 \`\`\`
 
-The key is the asset's exported component name (the basename of the file without \`.jsx\`). The value is the interval in milliseconds (minimum 16). The studio re-renders the named asset on that interval — useful for clock/dashboard surfaces with a real-time component.`,
+The key is the **file basename** without \`.jsx\` (lowercase \`clock\`, not the exported \`Clock\` component name). The value is the interval in milliseconds (minimum 16). The studio re-renders the named asset on that interval. Add a new live asset \`live/my-clock.jsx\` and append \`"my-clock": 1000\` here — useful for clock/dashboard surfaces with a real-time component.`,
 
   notDo: `## What not to do
 
@@ -505,7 +531,7 @@ The key is the asset's exported component name (the basename of the file without
 
   voice: `## Voice
 
-When proposing changes, be specific. "I'll add a \`Paper\` tone by extending the \`PALETTES\` table and adding a named export" beats "I'll improve the quote card." When you finish, name the files you touched and any non-obvious next step (e.g. "you'll want to add a \`Paper\` entry to \`quote-card.data.json\` if you want the new variant's quote to differ from the default").
+When proposing changes, be specific. "I'll add a \`Paper\` tone by extending the \`PALETTES\` table and adding a named export" beats "I'll improve the OG card." When you finish, name the files you touched and any non-obvious next step (e.g. "you'll want to add a \`Paper\` entry to \`social/og-card.data.json\` if you want the new variant's copy to differ from the default").
 
 Lerret is for people who care about how things look. Care about how things look.`,
 };

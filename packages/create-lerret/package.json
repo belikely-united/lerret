@@ -13,6 +13,8 @@
   "files": [
     "src",
     "template",
+    "template-presets",
+    "presets.json",
     "!src/**/*.test.js",
     "!src/**/*.test.jsx"
   ],

@@ -1,0 +1,8 @@
+{
+  "liveRefresh": {
+    "Clock": 1000,
+    "FastCounter": 100,
+    "Greeter": 60000,
+    "PulseDemo": 2000
+  }
+}

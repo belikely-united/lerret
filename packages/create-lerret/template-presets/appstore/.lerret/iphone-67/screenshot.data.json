@@ -1,0 +1,38 @@
+{
+  "default": {
+    "eyebrow": "01 / canvas",
+    "headline": "Designs are just files.",
+    "subhead": "Open-source. Lives in your repo. Renders React.",
+    "mockText": "lerret.your-project"
+  },
+  "Features": {
+    "eyebrow": "02 / features",
+    "headline": "Edit. Save. Render.",
+    "subhead": "Vite-fast HMR over plain React components.",
+    "mockText": "your-feature.jsx"
+  },
+  "Data": {
+    "eyebrow": "03 / data",
+    "headline": "Props you can git diff.",
+    "subhead": "Asset data lives next to the JSX in plain JSON.",
+    "mockText": "your-asset.data.json"
+  },
+  "LiveRefresh": {
+    "eyebrow": "04 / live",
+    "headline": "It re-renders, live.",
+    "subhead": "LiveRefresh ticks every interval — clocks, counters, anything stateful.",
+    "mockText": "live/config.json"
+  },
+  "Exports": {
+    "eyebrow": "05 / export",
+    "headline": "PNG. WebP. ZIP. Done.",
+    "subhead": "Bulk-export every artboard with one click or one CLI command.",
+    "mockText": "lerret export"
+  },
+  "OpenSource": {
+    "eyebrow": "06 / open",
+    "headline": "Your repo. Your tool.",
+    "subhead": "MIT-licensed. Lives in your project. No vendor cloud.",
+    "mockText": "github.com/belikely-united"
+  }
+}

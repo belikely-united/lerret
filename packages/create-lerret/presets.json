@@ -1,0 +1,34 @@
+{
+  "presets": {
+    "appstore": {
+      "dir": "template-presets/appstore",
+      "label": "App Store screenshot kit",
+      "description": "Three iPhone-sized pages (6.7\", 6.5\", 5.5\") with six artboards each — re-skin every screenshot from one shared vars block."
+    },
+    "producthunt": {
+      "dir": "template-presets/producthunt",
+      "label": "Product Hunt asset kit",
+      "description": "Gallery slide, thumbnail, hunter banner, and Maker-comment social card — everything you need for a launch."
+    },
+    "social-media": {
+      "dir": "template-presets/social-media",
+      "label": "Social media kit",
+      "description": "Twitter banner, X profile, LinkedIn cover, Instagram square, Instagram story, and Bluesky banner — one vars block re-skins all six."
+    },
+    "talks": {
+      "dir": "template-presets/talks",
+      "label": "Conference talk kit",
+      "description": "16:9 title slide, per-section dividers, and a thank-you / contact closer — ready for your next talk."
+    },
+    "personal": {
+      "dir": "template-presets/personal",
+      "label": "Personal homepage kit",
+      "description": "OG image, favicon, /now hero, and blog-post header template — the four assets every personal site needs."
+    },
+    "live": {
+      "dir": "template-presets/live",
+      "label": "LiveRefresh demo kit",
+      "description": "Four LiveRefresh artboards at distinct rhythms — clock, fast counter, time-of-day greeter, and an animated-export demo card."
+    }
+  }
+}

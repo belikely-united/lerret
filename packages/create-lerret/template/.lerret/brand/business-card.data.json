@@ -1,0 +1,13 @@
+{
+  "default": {
+    "title": "maker",
+    "email": "hello@example.com",
+    "location": "everywhere / nowhere"
+  },
+  "Complete": {
+    "name": "Ada Lovelace",
+    "title": "designer of designs",
+    "email": "ada@example.com",
+    "location": "London / 1843"
+  }
+}

@@ -1,9 +1,12 @@
 {
+  "_meta": {
+    "preset": "default-teaching-v1"
+  },
   "vars": {
-    "brandColor": "#3D5A80",
-    "accentColor": "#E0FBFC",
-    "neutralDark": "#1B2A3B",
-    "neutralMid": "#4A6380",
-    "neutralLight": "#F4F7FA"
+    "brandColor": "#B85B33",
+    "accentColor": "#F4D5C3",
+    "neutralDark": "#1A1814",
+    "neutralMid": "#5A4F46",
+    "neutralLight": "#F7F4F0"
   }
 }

@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "preset": "talks-v1"
+  },
+  "vars": {
+    "brandColor": "#B85B33",
+    "accentColor": "#F1EDE5",
+    "neutralDark": "#1A1714",
+    "neutralLight": "#F8F4EC",
+    "talkTitle": "Designs Are Just Files",
+    "speakerName": "Your Name",
+    "venueName": "ConferenceName 2026"
+  }
+}

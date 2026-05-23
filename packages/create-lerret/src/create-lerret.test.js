@@ -1386,13 +1386,37 @@ describe('pnpm pack — published tarball contains the right files', () => {
     expect(relFiles).toContain('src/create-lerret.js');
     expect(relFiles).toContain('src/ai-content.js');
 
-    // The .lerret/ template must ship.
+    // The .lerret/ template must ship. The default teaching preset (Story 7.1)
+    // has a project-root config + README plus five page folders:
+    // intro/, landing/, social/, brand/, live/.
     expect(relFiles).toContain('template/.lerret/config.json');
-    expect(relFiles).toContain('template/.lerret/samples/landing-hero.jsx');
-    expect(relFiles).toContain('template/.lerret/samples/feature-grid.jsx');
-    expect(relFiles).toContain('template/.lerret/samples/quote-card.jsx');
-    expect(relFiles).toContain('template/.lerret/samples/poster.jsx');
-    expect(relFiles).toContain('template/.lerret/samples/README.md');
+    expect(relFiles).toContain('template/.lerret/README.md');
+
+    // intro/ — Markdown-only tour page; excludeFromExport via its config.json.
+    expect(relFiles).toContain('template/.lerret/intro/config.json');
+    expect(relFiles).toContain('template/.lerret/intro/welcome.md');
+
+    // landing/ — cascading vars demo.
+    expect(relFiles).toContain('template/.lerret/landing/landing-hero.jsx');
+    expect(relFiles).toContain('template/.lerret/landing/about-vars.md');
+
+    // social/ — variants + co-located data files demo.
+    expect(relFiles).toContain('template/.lerret/social/tw-banner.jsx');
+    expect(relFiles).toContain('template/.lerret/social/tw-banner.data.json');
+    expect(relFiles).toContain('template/.lerret/social/og-card.jsx');
+    expect(relFiles).toContain('template/.lerret/social/og-card.data.json');
+    expect(relFiles).toContain('template/.lerret/social/about-data-files.md');
+
+    // brand/ — propsSchema validation badge demo.
+    expect(relFiles).toContain('template/.lerret/brand/business-card.jsx');
+    expect(relFiles).toContain('template/.lerret/brand/business-card.data.json');
+    expect(relFiles).toContain('template/.lerret/brand/about-validation.md');
+
+    // live/ — liveRefresh demo.
+    expect(relFiles).toContain('template/.lerret/live/config.json');
+    expect(relFiles).toContain('template/.lerret/live/clock.jsx');
+    expect(relFiles).toContain('template/.lerret/live/counter.jsx');
+    expect(relFiles).toContain('template/.lerret/live/about-live-refresh.md');
 
     // The .claude template must NOT ship (Story 6.11 moved this to runtime
     // rendering — no static AI-tool files in the template).
@@ -1404,4 +1428,102 @@ describe('pnpm pack — published tarball contains the right files', () => {
     // package.json must ship.
     expect(relFiles).toContain('package.json');
   }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// Story 7.4 — --preset <name> CLI flag
+// ---------------------------------------------------------------------------
+
+describe('--preset flag (Story 7.4)', () => {
+  it('scaffolds a named preset (--preset producthunt)', async () => {
+    const { code, stdout } = await runMain(
+      ['my-ph', '--preset', 'producthunt', '--no-ai-rules'],
+      { cwd: tmpDir },
+    );
+    expect(code).toBe(0);
+    expect(stdout).toContain('Product Hunt');
+    const projectRoot = join(tmpDir, 'my-ph');
+    const exists = await fsp
+      .access(join(projectRoot, '.lerret', 'config.json'))
+      .then(() => true, () => false);
+    expect(exists).toBe(true);
+    // Confirm the preset marker landed in the scaffolded config.
+    const cfg = JSON.parse(
+      await fsp.readFile(join(projectRoot, '.lerret', 'config.json'), 'utf-8'),
+    );
+    expect(cfg._meta?.preset).toBe('producthunt-v1');
+  });
+
+  it('rejects an unknown preset with a clear error listing valid options', async () => {
+    const { code, stderr } = await runMain(
+      ['proj', '--preset', 'invalid', '--no-ai-rules'],
+      { cwd: tmpDir },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/unknown preset "invalid"/);
+    expect(stderr).toMatch(/appstore/);
+    expect(stderr).toMatch(/producthunt/);
+  });
+
+  it('--preset and --no-samples together is a clear error', async () => {
+    const { code, stderr } = await runMain(
+      ['proj', '--preset', 'producthunt', '--no-samples'],
+      { cwd: tmpDir },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/--preset and --no-samples/);
+  });
+
+  it('--preset and --demo together is a clear error', async () => {
+    const { code, stderr } = await runMain(
+      ['proj', '--preset', 'producthunt', '--demo'],
+      { cwd: tmpDir },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/--demo and --preset/);
+  });
+
+  it('each registered preset name scaffolds with the expected _meta.preset marker', async () => {
+    const names = ['appstore', 'producthunt', 'social-media', 'talks', 'personal', 'live'];
+    for (const name of names) {
+      const projDir = `proj-${name}`;
+      const { code } = await runMain(
+        [projDir, '--preset', name, '--no-ai-rules'],
+        { cwd: tmpDir },
+      );
+      expect(code).toBe(0);
+      const cfg = JSON.parse(
+        await fsp.readFile(join(tmpDir, projDir, '.lerret', 'config.json'), 'utf-8'),
+      );
+      expect(cfg._meta?.preset).toBe(`${name}-v1`);
+    }
+  }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// Story 7.10 — --demo flag (writes first-run marker; does not auto-spawn in tests)
+// ---------------------------------------------------------------------------
+
+describe('--demo flag (Story 7.10)', () => {
+  it('writes the first-run.json marker into .lerret/.state/', async () => {
+    const { code } = await runMain(
+      ['my-demo', '--demo', '--no-ai-rules'],
+      { cwd: tmpDir },
+    );
+    expect(code).toBe(0);
+    const markerPath = join(tmpDir, 'my-demo', '.lerret', '.state', 'first-run.json');
+    const raw = await fsp.readFile(markerPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    expect(parsed.demo).toBe(true);
+    expect(typeof parsed.createdAt).toBe('string');
+  });
+
+  it('--demo and --no-samples together is a clear error', async () => {
+    const { code, stderr } = await runMain(
+      ['proj', '--demo', '--no-samples'],
+      { cwd: tmpDir },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toMatch(/--demo and --no-samples/);
+  });
 });

@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "preset": "social-media-v1"
+  },
+  "vars": {
+    "brandColor": "#B85B33",
+    "accentColor": "#F1EDE5",
+    "neutralDark": "#1A1714",
+    "neutralLight": "#F8F4EC",
+    "displayName": "Your Name",
+    "handle": "@you",
+    "tagline": "Designs are just files."
+  }
+}

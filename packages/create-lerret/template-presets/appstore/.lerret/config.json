@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "preset": "appstore-v1"
+  },
+  "vars": {
+    "brandColor": "#B85B33",
+    "accentColor": "#F1EDE5",
+    "neutralDark": "#1A1714",
+    "neutralLight": "#F8F4EC",
+    "headlineText": "Designs are just files.",
+    "subheadText": "An open-source design canvas that lives in your repo.",
+    "productName": "Lerret"
+  }
+}

@@ -77,6 +77,50 @@ import { AI_TOOLS, VALID_AI_TOOL_IDS } from './ai-content.js';
 const PACKAGE_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const TEMPLATE_ROOT = join(PACKAGE_ROOT, 'template');
 const TEMPLATE_SRC = join(TEMPLATE_ROOT, '.lerret');
+const PRESETS_REGISTRY_PATH = join(PACKAGE_ROOT, 'presets.json');
+const TEMPLATE_PRESETS_ROOT = join(PACKAGE_ROOT, 'template-presets');
+
+/**
+ * Read the preset registry from `presets.json` and resolve to the absolute
+ * `.lerret/` source directory for the named preset.
+ *
+ * @param {string} presetName
+ * @returns {Promise<{ ok: true, lerretSrc: string, label: string } | { ok: false, reason: string }>}
+ */
+async function resolvePreset(presetName) {
+  let registry;
+  try {
+    const raw = await fsp.readFile(PRESETS_REGISTRY_PATH, 'utf-8');
+    registry = JSON.parse(raw);
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `cannot read preset registry at ${PRESETS_REGISTRY_PATH}: ${
+        err && err.message ? err.message : String(err)
+      }`,
+    };
+  }
+  const entry = registry?.presets?.[presetName];
+  if (!entry) {
+    const valid = Object.keys(registry?.presets || {}).sort().join(', ');
+    return {
+      ok: false,
+      reason: `unknown preset "${presetName}". Valid options: ${valid || '(none)'}.`,
+    };
+  }
+  const lerretSrc = join(PACKAGE_ROOT, entry.dir, '.lerret');
+  try {
+    await fsp.access(lerretSrc);
+  } catch {
+    return {
+      ok: false,
+      reason:
+        `preset "${presetName}" registry points to ${entry.dir} but no .lerret/ ` +
+        'directory was found there. This is a packaging bug — please report it.',
+    };
+  }
+  return { ok: true, lerretSrc, label: entry.label || presetName };
+}
 
 // ---------------------------------------------------------------------------
 // Name validation
@@ -560,6 +604,8 @@ export async function main(argv = process.argv.slice(2)) {
         'no-samples': { type: 'boolean', default: false },
         'no-ai-rules': { type: 'boolean', default: false },
         'ai-tools': { type: 'string' },
+        preset: { type: 'string' },
+        demo: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
       allowPositionals: true,
@@ -580,12 +626,43 @@ export async function main(argv = process.argv.slice(2)) {
   const noSamples = values['no-samples'] === true;
   const noAiRules = values['no-ai-rules'] === true;
   const aiToolsRaw = values['ai-tools'];
+  const presetName = typeof values.preset === 'string' ? values.preset : null;
+  const demoFlag = values.demo === true;
 
   // --no-ai-rules and --ai-tools=... are mutually exclusive.
   if (noAiRules && typeof aiToolsRaw === 'string') {
     process.stderr.write(
       'create-lerret: --no-ai-rules and --ai-tools cannot be used together. ' +
         'Pick one: --no-ai-rules to skip every AI-tool file, or --ai-tools=... to scope which tools ship.\n',
+    );
+    return 1;
+  }
+
+  // --preset and --no-samples are mutually exclusive — picking a preset implies
+  // you want its samples (FR55 acceptance criterion).
+  if (presetName !== null && noSamples) {
+    process.stderr.write(
+      'create-lerret: --preset and --no-samples cannot be used together. ' +
+        'A preset always ships with its sample assets — drop --no-samples to use --preset.\n',
+    );
+    return 1;
+  }
+
+  // --demo and --preset are mutually exclusive — --demo implies the default
+  // teaching preset (FR65 acceptance criterion).
+  if (demoFlag && presetName !== null) {
+    process.stderr.write(
+      'create-lerret: --demo and --preset cannot be used together. ' +
+        '--demo implies the default teaching preset; pick one.\n',
+    );
+    return 1;
+  }
+
+  // --demo and --no-samples are mutually exclusive too — same reason.
+  if (demoFlag && noSamples) {
+    process.stderr.write(
+      'create-lerret: --demo and --no-samples cannot be used together. ' +
+        '--demo scaffolds the default teaching preset, which is samples.\n',
     );
     return 1;
   }
@@ -665,14 +742,28 @@ export async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  // Full-template path (default): copy the sample project verbatim.
+  // Full-template path (default or --preset): copy the chosen project verbatim.
+
+  // Resolve the template source: a named preset (--preset / FR55) or the
+  // default teaching preset (--demo and the no-flag form both land here).
+  let templateSrc = TEMPLATE_SRC;
+  let presetLabel = null;
+  if (presetName !== null) {
+    const resolved = await resolvePreset(presetName);
+    if (!resolved.ok) {
+      process.stderr.write(`create-lerret: ${resolved.reason}\n`);
+      return 1;
+    }
+    templateSrc = resolved.lerretSrc;
+    presetLabel = resolved.label;
+  }
 
   // Check the template exists (safeguard against a misconfigured package).
   try {
-    await fsp.access(TEMPLATE_SRC);
+    await fsp.access(templateSrc);
   } catch {
     process.stderr.write(
-      `create-lerret: template not found at ${TEMPLATE_SRC}\n` +
+      `create-lerret: template not found at ${templateSrc}\n` +
         'This is a bug — please report it at https://github.com/belikely-united/lerret\n',
     );
     return 1;
@@ -681,7 +772,7 @@ export async function main(argv = process.argv.slice(2)) {
   /** @type {string[]} */
   let aiFilesWritten = [];
   try {
-    aiFilesWritten = await copyTemplate(TEMPLATE_SRC, destDir, destExisted, selectedAiTools);
+    aiFilesWritten = await copyTemplate(templateSrc, destDir, destExisted, selectedAiTools);
   } catch (err) {
     process.stderr.write(
       `create-lerret: failed to scaffold "${name}": ` +
@@ -690,14 +781,53 @@ export async function main(argv = process.argv.slice(2)) {
     return 1;
   }
 
+  // For --demo: write the first-run marker so the studio offers the walkthrough
+  // automatically on next mount. Only the `.state/` sidecar may be written
+  // inside `.lerret/` (separation invariant per v1 NFR13).
+  if (demoFlag) {
+    try {
+      const stateDir = join(destDir, '.lerret', '.state');
+      await fsp.mkdir(stateDir, { recursive: true });
+      const marker = {
+        demo: true,
+        createdAt: new Date().toISOString(),
+      };
+      await fsp.writeFile(
+        join(stateDir, 'first-run.json'),
+        JSON.stringify(marker, null, 2) + '\n',
+        'utf-8',
+      );
+    } catch {
+      // Non-fatal — the project itself is fine; the walkthrough just won't auto-offer.
+    }
+  }
+
+  const headline = presetLabel
+    ? `✓ Created ${name}/.lerret/ with the "${presetLabel}" preset.`
+    : demoFlag
+      ? `✓ Created ${name}/.lerret/ in demo mode — open the studio to start the walkthrough.`
+      : `✓ Created ${name}/.lerret/ with sample assets.`;
+
   process.stdout.write(
-    formatSuccess(
-      name,
-      `✓ Created ${name}/.lerret/ with sample assets.`,
-      aiFilesWritten,
-      noAiRules,
-    ),
+    formatSuccess(name, headline, aiFilesWritten, noAiRules),
   );
+
+  if (demoFlag) {
+    // Best-effort: spawn `@lerret/cli dev` so the studio opens automatically.
+    // Failure is non-fatal — we already exited the user with code 0 above; the
+    // success message tells them how to start the studio manually if needed.
+    try {
+      const { spawn } = await import('node:child_process');
+      const child = spawn('npx', ['-y', '@lerret/cli@latest', 'dev', '--open'], {
+        cwd: destDir,
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+    } catch {
+      // Honest degradation: user sees the regular success message + can run dev manually.
+    }
+  }
 
   return 0;
 }

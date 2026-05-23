@@ -1,0 +1,17 @@
+{
+  "default": {
+    "eyebrow": "indie / building",
+    "title": "Designs are just files.",
+    "glyph": "◆"
+  },
+  "Maker": {
+    "eyebrow": "01 / shipping",
+    "title": "Variants are named exports.",
+    "glyph": "→"
+  },
+  "Talk": {
+    "eyebrow": "02 / talking",
+    "title": "Data files key by export name.",
+    "glyph": "{ }"
+  }
+}
