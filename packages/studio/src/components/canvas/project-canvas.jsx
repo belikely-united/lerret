@@ -710,6 +710,7 @@ function NoticeButton({ label, onClick, primary }) {
 function EmptyGroupPlaceholder({ onAddAsset, cliMode }) {
  return (
  <div
+ className="dc-section-cta"
  data-testid="lm-empty-group-placeholder"
  style={{
  display: 'flex',

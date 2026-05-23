@@ -461,6 +461,34 @@ describe('Drag-pan — kebab and popover targets are excluded (regression)', () 
  cleanup();
  });
 
+ it('does not call setPointerCapture when pointerdown targets a .dc-section-cta (empty-group "+ Add asset")', async () => {
+ const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+
+ const vp = container.querySelector('.design-canvas');
+ const capture = vi.fn();
+ vp.setPointerCapture = capture;
+
+ // The empty-group placeholder is in-canvas interactive content marked
+ // `.dc-section-cta`. A pointerdown there must NOT start a drag-pan, or the
+ // viewport captures the pointer and the button's click is swallowed (the
+ // dead-click bug).
+ const cta = document.createElement('div');
+ cta.className = 'dc-section-cta';
+ const addBtn = document.createElement('button');
+ cta.appendChild(addBtn);
+ vp.appendChild(cta);
+
+ act(() => {
+ addBtn.dispatchEvent(new PointerEvent('pointerdown', {
+ bubbles: true, cancelable: true, button: 0, pointerId: 7,
+ }));
+ });
+
+ expect(capture).not.toHaveBeenCalled();
+ cleanup();
+ });
+
  it('still captures pointer on plain background pointerdown (drag-pan unaffected)', async () => {
  const { container, cleanup } = renderToDom(<ThreeArtboardCanvas />);
  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });

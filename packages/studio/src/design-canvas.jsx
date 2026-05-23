@@ -612,7 +612,11 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  // the spec's "minimum surgical fix" boundary; broader `button` exclusion
  // was considered but is over-broad for the actual root cause.
  if (e.target.closest('.lm-kebab-trigger, .lm-menu-popover')) return;
- const onBg = !e.target.closest('[data-dc-slot], .dc-editable');
+ // `.dc-section-cta` marks in-canvas interactive content that isn't an
+ // artboard slot (e.g. the empty-group "+ Add asset" placeholder). Without
+ // this, a pointerdown there counts as "background", the viewport captures
+ // the pointer, and the button's click never fires (dead click).
+ const onBg = !e.target.closest('[data-dc-slot], .dc-editable, .dc-section-cta');
  if (!(e.button === 1 || (e.button === 0 && onBg))) return;
  e.preventDefault();
  vp.setPointerCapture(e.pointerId);
