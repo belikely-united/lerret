@@ -17,10 +17,10 @@
     "subhead": "Asset data lives next to the JSX in plain JSON.",
     "mockText": "your-asset.data.json"
   },
-  "LiveRefresh": {
+  "AutoRefresh": {
     "eyebrow": "04 / live",
     "headline": "It re-renders, live.",
-    "subhead": "LiveRefresh ticks every interval — clocks, counters, anything stateful.",
+    "subhead": "Auto-refresh ticks every interval — clocks, counters, anything stateful.",
     "mockText": "live/config.json"
   },
   "Exports": {

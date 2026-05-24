@@ -9,7 +9,7 @@ export const meta = {
   dimensions: { width: 1242, height: 2688 },
   label: 'iPhone 6.5" screenshot',
   tags: ['appstore', 'iphone', 'screenshot', '6.5'],
-  variants: ['default', 'Features', 'Data', 'LiveRefresh', 'Exports', 'OpenSource'],
+  variants: ['default', 'Features', 'Data', 'AutoRefresh', 'Exports', 'OpenSource'],
   propsSchema: {
     eyebrow: {
       type: 'string',
@@ -176,6 +176,6 @@ function Screenshot({ eyebrow, headline, subhead, mockText }) {
 export default function ScreenshotDefault(props) { return <Screenshot {...props} />; }
 export function Features(props) { return <Screenshot {...props} />; }
 export function Data(props) { return <Screenshot {...props} />; }
-export function LiveRefresh(props) { return <Screenshot {...props} />; }
+export function AutoRefresh(props) { return <Screenshot {...props} />; }
 export function Exports(props) { return <Screenshot {...props} />; }
 export function OpenSource(props) { return <Screenshot {...props} />; }
