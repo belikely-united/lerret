@@ -86,6 +86,13 @@ export const watchEventType = Object.freeze({
  *   the affected entry — a file or a folder. The watcher reports the path
  *   that was added / changed / removed; for a folder remove the patcher
  *   treats every nested model node as removed.
+ * @property {boolean} [isDirectory]
+ *   The known file/folder kind, when the watcher reports it (chokidar's
+ *   `addDir`/`unlinkDir`, the hosted snapshot's entry kind). When present it is
+ *   authoritative for path classification; when absent the classifier falls
+ *   back to an extension heuristic. Supplying it prevents a non-asset file
+ *   (`Name.config.json`, `Name.data.json`, an image) from being mistaken for a
+ *   folder and added as a phantom group.
  */
 
 /**
@@ -97,11 +104,19 @@ export const watchEventType = Object.freeze({
  * empty `path`) — a watcher producing garbage is a wiring bug, not a runtime
  * condition to silently swallow.
  *
+ * When the watcher knows whether the path is a directory (chokidar's
+ * `addDir`/`unlinkDir` vs `add`/`unlink`; the hosted snapshot's entry kind),
+ * it passes `isDirectory` so `applyWatchEvent`'s classifier never has to guess
+ * from the extension. Omitting it (or passing a non-boolean) keeps the legacy
+ * two-arg shape — the classifier then falls back to the extension heuristic.
+ *
  * @param {WatchEventType} type
  * @param {LerretPath} path
+ * @param {boolean} [isDirectory]
+ *   Known file/folder kind. Included on the event only when a boolean.
  * @returns {WatchEvent}
  */
-export function makeWatchEvent(type, path) {
+export function makeWatchEvent(type, path, isDirectory) {
   if (
     type !== watchEventType.ADD &&
     type !== watchEventType.CHANGE &&
@@ -116,6 +131,9 @@ export function makeWatchEvent(type, path) {
   }
   // Strip a trailing slash so `'/a/b/'` and `'/a/b'` are the same event.
   const normalized = path.replace(/\/+$/, '') || path;
+  if (typeof isDirectory === 'boolean') {
+    return { type, path: normalized, isDirectory };
+  }
   return { type, path: normalized };
 }
 
@@ -705,8 +723,14 @@ export function applyWatchEvent(project, event, opts = {}) {
     return removeUnder(project, path);
   }
 
-  // Add. Classify and route to the right add primitive.
-  const cls = classifyPath(project.path, path, opts.isDirectory);
+  // Add. Classify and route to the right add primitive. The event's own
+  // `isDirectory` (set by the watcher from chokidar's addDir/unlinkDir or the
+  // hosted snapshot) is authoritative; `opts.isDirectory` is the legacy
+  // per-call override used by tests. Either prevents a non-asset file from
+  // being misread as a folder.
+  const isDirectory =
+    typeof event.isDirectory === 'boolean' ? event.isDirectory : opts.isDirectory;
+  const cls = classifyPath(project.path, path, isDirectory);
   switch (cls.role) {
     case 'page-folder':
       return addPage(project, cls.name, path);

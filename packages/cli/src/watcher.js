@@ -182,11 +182,17 @@ export function startWatcher({ root, onEvent, onError, options = {} }) {
     const type = CHOKIDAR_TO_TYPE[chokidarEvent];
     if (type === undefined) return; // 'ready' / 'error' / 'raw' — not change events
     if (typeof nativePath !== 'string' || nativePath.length === 0) return;
+    // Chokidar tells us file vs folder via the event name (`addDir`/`unlinkDir`
+    // for folders, `add`/`change`/`unlink` for files). Pass it through so the
+    // loader's classifier never has to guess from the extension — without it a
+    // non-asset file like `Name.config.json` would be mistaken for a folder and
+    // patched in as a phantom group.
+    const isDirectory = chokidarEvent === 'addDir' || chokidarEvent === 'unlinkDir';
     try {
       // `makeWatchEvent` validates + normalizes — a single place to enforce
       // the contract. A bug in mapping fails loudly here, not silently in a
       // consumer.
-      onEvent(makeWatchEvent(type, toLerretPath(nativePath)));
+      onEvent(makeWatchEvent(type, toLerretPath(nativePath), isDirectory));
     } catch (err) {
       errorHandler(/** @type {Error} */ (err));
     }

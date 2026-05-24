@@ -85,6 +85,9 @@ describe('startWatcher (chokidar-backed)', () => {
       const add = events.find((e) => e.type === 'add');
       expect(add).toMatchObject({ type: 'add', path: asLerretPath(target) });
       expect(add.path).not.toContain('\\');
+      // The kind rides the event so the loader's classifier never guesses from
+      // the extension — a file add is flagged isDirectory:false.
+      expect(add.isDirectory).toBe(false);
     } finally {
       await handle.close();
     }
@@ -158,6 +161,36 @@ describe('startWatcher (chokidar-backed)', () => {
         () => events.some((e) => e.type === 'add' && e.path === asLerretPath(newGroup)),
         { label: 'add cards/', timeoutMs: 15000 },
       );
+      // A directory add is flagged isDirectory:true (chokidar's addDir) — the
+      // signal the classifier needs to tell a folder from a dotted file name.
+      const dirAdd = events.find((e) => e.type === 'add' && e.path === asLerretPath(newGroup));
+      expect(dirAdd.isDirectory).toBe(true);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('tags a non-asset companion file (Name.config.json) as a file, not a folder', async () => {
+    /** @type {import('@lerret/core').WatchEvent[]} */
+    const events = [];
+    const handle = startWatcher({
+      root: asLerretPath(workDir),
+      onEvent: (e) => events.push(e),
+    });
+
+    try {
+      await handle.ready;
+      await new Promise((r) => setTimeout(r, 200));
+      const cfg = join(workDir, 'Clock.config.json');
+      await fsp.writeFile(cfg, '{ "autoRefresh": 1000 }');
+      await waitFor(
+        () => events.some((e) => e.type === 'add' && e.path === asLerretPath(cfg)),
+        { label: 'add Clock.config.json', timeoutMs: 15000 },
+      );
+      const add = events.find((e) => e.type === 'add' && e.path === asLerretPath(cfg));
+      // Crux of the phantom-group fix: a `.json` companion must be flagged a
+      // file so `applyWatchEvent` treats it as 'irrelevant', not a new group.
+      expect(add.isDirectory).toBe(false);
     } finally {
       await handle.close();
     }

@@ -111,6 +111,24 @@ describe('makeWatchEvent', () => {
   it('exposes the watch-event-type constants', () => {
     expect(watchEventType).toEqual({ ADD: 'add', CHANGE: 'change', REMOVE: 'remove' });
   });
+
+  it('carries isDirectory only when the watcher reports a boolean', () => {
+    expect(makeWatchEvent('add', `${ROOT}/home/Hero.jsx`, false)).toEqual({
+      type: 'add',
+      path: `${ROOT}/home/Hero.jsx`,
+      isDirectory: false,
+    });
+    expect(makeWatchEvent('add', `${ROOT}/home/components`, true)).toEqual({
+      type: 'add',
+      path: `${ROOT}/home/components`,
+      isDirectory: true,
+    });
+    // Omitted (or non-boolean) keeps the legacy two-field shape.
+    expect(makeWatchEvent('add', `${ROOT}/x/Y.jsx`)).toEqual({
+      type: 'add',
+      path: `${ROOT}/x/Y.jsx`,
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -268,6 +286,30 @@ describe('applyWatchEvent — add', () => {
     expect(
       applyWatchEvent(prev, makeWatchEvent('add', `${ROOT}/home/logo.png`), { isDirectory: false }),
     ).toBe(prev);
+  });
+
+  it('is a no-op for a per-asset config/data file flagged on the event, not opts (no phantom group)', () => {
+    const prev = makeProject();
+    // PRODUCTION path: the watcher puts the file/folder kind on the EVENT (no
+    // opts). Without that bit a `.json` name would be misread as a folder by
+    // the extension heuristic and patched in as a phantom empty group — the
+    // ADR-003 per-asset config regression this guards against.
+    expect(
+      applyWatchEvent(prev, makeWatchEvent('add', `${ROOT}/home/Hero.config.json`, false)),
+    ).toBe(prev);
+    expect(
+      applyWatchEvent(prev, makeWatchEvent('add', `${ROOT}/home/Hero.data.json`, false)),
+    ).toBe(prev);
+  });
+
+  it('event-level isDirectory overrides the extension heuristic (dotted folder name → group)', () => {
+    const prev = makeProject();
+    // A real folder whose final segment contains a dot. Flagged as a directory
+    // on the event, it becomes a group — the heuristic alone would misjudge it.
+    const next = applyWatchEvent(prev, makeWatchEvent('add', `${ROOT}/home/section.v2`, true));
+    expect(next).not.toBe(prev);
+    const home = next.pages.find((p) => p.name === 'home');
+    expect(home.groups.map((g) => g.name)).toContain('section.v2');
   });
 
   it('is idempotent — adding the same asset twice does not duplicate it', () => {

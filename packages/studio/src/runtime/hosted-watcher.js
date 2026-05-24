@@ -171,7 +171,9 @@ function diffSnapshots(oldSnap, newSnap) {
  }
  removals.sort();
  for (const path of removals) {
- events.push(makeWatchEvent('remove', path));
+ // The snapshot knows the kind — pass it so the classifier never guesses a
+ // non-asset file (e.g. Name.config.json) is a folder.
+ events.push(makeWatchEvent('remove', path, oldSnap.get(path).isDirectory));
  }
 
  // Additions — paths in new but not in old.
@@ -183,7 +185,7 @@ function diffSnapshots(oldSnap, newSnap) {
  }
  additions.sort();
  for (const path of additions) {
- events.push(makeWatchEvent('add', path));
+ events.push(makeWatchEvent('add', path, newSnap.get(path).isDirectory));
  }
 
  // Modifications — paths in both; only files can produce a 'change' event.
@@ -201,7 +203,8 @@ function diffSnapshots(oldSnap, newSnap) {
  }
  modifications.sort();
  for (const path of modifications) {
- events.push(makeWatchEvent('change', path));
+ // Only file entries reach here (directories never emit 'change').
+ events.push(makeWatchEvent('change', path, false));
  }
 
  return events;
