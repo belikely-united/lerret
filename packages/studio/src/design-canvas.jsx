@@ -65,7 +65,7 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
  '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;transition:background .12s}',
  '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
- '.dc-expand{position:absolute;bottom:100%;right:32px;margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
+ '.dc-expand{position:absolute;bottom:100%;right:calc(var(--dc-cluster-w, 26px) + 6px);margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
  ' background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center}',
  '.dc-expand:hover{background:rgba(0,0,0,.06);color:#2a251f}',
@@ -80,12 +80,17 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-dl[disabled]{opacity:.6;cursor:wait}',
  '.dc-dl[data-dc-error-disabled]{cursor:not-allowed;opacity:.45;background:rgba(200,60,60,.08);color:#a83228}',
  '[data-dc-slot]:hover .dc-dl{opacity:1}',
- // Right-edge cluster, ordered L→R: [ANIM*][JPG][PNG][expand][kebab].
+ // Right-edge cluster, ordered L→R: [ANIM*][JPG][PNG][expand][badge][kebab].
  // Kebab is always visible at right:0 (portaled in from artboard-kebab.jsx);
  // the other buttons sit left of it. ANIM is conditional on liveRefresh.
- '.dc-dl-png{right:60px}',
- '.dc-dl-jpg{right:104px}',
- '.dc-dl-animated{right:148px}',
+ // `--dc-cluster-w` is the measured width of the always-visible right cluster
+ // (kebab, plus the auto-refresh badge when present), set per-slot by
+ // artboard-kebab.jsx. The hover buttons offset from it so they never overlap
+ // the badge; unset (no badge) the fallback reproduces the original offsets
+ // (26 + 6/34/78/122 = 32/60/104/148). Measured local px → zoom-safe.
+ '.dc-dl-png{right:calc(var(--dc-cluster-w, 26px) + 34px)}',
+ '.dc-dl-jpg{right:calc(var(--dc-cluster-w, 26px) + 78px)}',
+ '.dc-dl-animated{right:calc(var(--dc-cluster-w, 26px) + 122px)}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');

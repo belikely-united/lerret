@@ -520,6 +520,35 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  setLabelRowEl(findLabelRow(hostRef.current));
  }, [entry?.id]);
 
+ // Reserve room for the auto-refresh badge so the hover action buttons
+ // (ANIM/JPG/PNG/expand) — absolutely positioned at fixed right offsets —
+ // never overlap it. We publish the measured width of the always-visible
+ // right cluster (kebab + badge) as `--dc-cluster-w` on the slot;
+ // design-canvas offsets each hover button from it. `offsetWidth` is layout
+ // px (transform-independent), so this stays correct at any zoom. Cleared
+ // when there is no badge, falling back to the original offsets.
+ React.useLayoutEffect(() => {
+ const slot = hostRef.current ? hostRef.current.closest('[data-dc-slot]') : null;
+ if (!slot) return undefined;
+ const apply = () => {
+ const cluster = clusterRef.current;
+ if (cluster && liveRefreshMs != null) {
+ slot.style.setProperty('--dc-cluster-w', `${cluster.offsetWidth}px`);
+ } else {
+ slot.style.removeProperty('--dc-cluster-w');
+ }
+ };
+ apply();
+ const cluster = clusterRef.current;
+ if (!cluster || liveRefreshMs == null || typeof ResizeObserver === 'undefined') {
+ return undefined;
+ }
+ // Re-measure when the badge's width changes (rate edit, late font swap).
+ const ro = new ResizeObserver(apply);
+ ro.observe(cluster);
+ return () => ro.disconnect();
+ }, [liveRefreshMs, labelRowEl]);
+
  const kebab = (
  <div ref={clusterRef} className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
  {liveRefreshMs != null && (
