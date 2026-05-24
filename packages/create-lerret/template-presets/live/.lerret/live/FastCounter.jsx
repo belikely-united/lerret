@@ -1,7 +1,8 @@
-// FastCounter.jsx — LiveRefresh artboard #2.
+// FastCounter.jsx — auto-refresh artboard #2.
 //
-// Visibly racing counter. `liveRefresh: { FastCounter: 100 }` makes this
-// re-render ten times per second — the eye can see the digits change.
+// Visibly racing counter. `FastCounter.config.json` (co-located) sets
+// `{ "autoRefresh": 100 }`, making this re-render ten times per second —
+// the eye can see the digits change.
 //
 // The counter value is derived from `Date.now()` so it monotonically
 // increases without needing component state.
@@ -9,7 +10,7 @@
 export const meta = {
   dimensions: { width: 800, height: 400 },
   label: 'Fast counter — 100ms rhythm',
-  tags: ['live', 'counter', 'liveRefresh', 'fast'],
+  tags: ['live', 'counter', 'auto-refresh', 'fast'],
 };
 
 export default function FastCounter() {

@@ -1,8 +1,8 @@
-// Clock.jsx — a dynamic fixture asset for the liveRefresh demo.
+// Clock.jsx — a dynamic fixture asset for the auto-refresh demo.
 //
 // This component renders the current local time. Because it always reads
 // `new Date()` on render, it appears frozen in a static artboard — but
-// combined with a `liveRefresh: { Clock: 1000 }` entry in config.json,
+// combined with a co-located `Clock.config.json` of `{ "autoRefresh": 1000 }`,
 // the studio re-renders this artboard every second and the time updates live.
 
 export default function Clock() {

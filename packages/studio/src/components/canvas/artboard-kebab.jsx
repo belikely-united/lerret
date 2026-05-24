@@ -32,7 +32,7 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 
-import { resolveProps, resolveVariantData, validateProps } from '@lerret/core';
+import { resolveProps, resolveVariantData, validateProps, serializeJson, assetConfigPath } from '@lerret/core';
 
 import { ValidationBadge } from '../badge/validation-badge.jsx';
 import {
@@ -53,8 +53,17 @@ import {
 } from '../menu/index.js';
 import { AnimatedExportDialog } from '../export/animated-export-dialog.jsx';
 import { useCascadedConfig } from './cascade-context.jsx';
+import { useAssetConfig } from './asset-config-context.jsx';
 import { bindOneShotRename } from './use-inline-rename.js';
 import { onLerretChange } from '../../runtime/cli-hmr.js';
+import {
+ LiveRefreshBadge,
+ LiveRefreshPopover,
+ nextAssetConfig,
+ formatRate,
+} from './live-refresh-control.jsx';
+import { suspendLiveRefresh } from './live-refresh-suspend.js';
+import { writeProjectFile, deleteProjectFile } from '../../runtime/write-client.js';
 
 /**
  * Derive the parent folder LerretPath for an asset path. Strips the file
@@ -94,29 +103,18 @@ function findArtboardElement(slotId) {
  );
 }
 
-export function liveRefreshIntervalFor(entry, getConfigFor) {
- if (!entry?.asset?.name) return undefined;
- // Only COMPONENT assets are eligible for liveRefresh — the live-refresh
- // manager (live-refresh-manager.js) gates timer registration on assetKind,
- // and animated export only makes sense for components. Without this guard
- // a stale or mis-keyed `liveRefresh` block naming a markdown file would
- // enable the ANIM export button on a card that can never animate.
+export function liveRefreshIntervalFor(entry, getAssetConfig) {
+ if (!entry?.asset?.path) return undefined;
+ // Only COMPONENT assets are eligible — the manager gates timers on assetKind,
+ // and animated export only makes sense for components. Guarding here keeps a
+ // stray `autoRefresh` on a markdown card from lighting up the ANIM button.
  if (entry.assetKind && entry.assetKind !== 'component') return undefined;
- // The liveRefresh block lives in the asset's containing folder's effective
- // config. Derive that folder path from the asset's file path (strip filename),
- // then look it up in the cascade. The cascade is keyed by folder LerretPath,
- // exactly what `assetFolderPath` returns.
- const assetPath = entry.asset.path;
- if (typeof assetPath !== 'string' || typeof getConfigFor !== 'function') return undefined;
- const slash = assetPath.lastIndexOf('/');
- const containerPath = slash === -1 ? '' : assetPath.slice(0, slash);
- const cfg = getConfigFor(containerPath);
- const lr = cfg?.liveRefresh;
- if (!lr || typeof lr !== 'object') return undefined;
- const value = lr[entry.asset.name];
- if (typeof value === 'number' && value > 0) return value;
- if (value && typeof value === 'object' && typeof value.interval === 'number') return value.interval;
- return undefined;
+ if (typeof getAssetConfig !== 'function') return undefined;
+ // The interval lives in the asset's own `Name.config.json` (ADR-003), surfaced
+ // per asset-path via `getAssetConfig`. No folder lookup, no name-matching.
+ const cfg = getAssetConfig(entry.asset.path);
+ const value = cfg && typeof cfg === 'object' ? cfg.autoRefresh : undefined;
+ return typeof value === 'number' && value > 0 ? value : undefined;
 }
 
 // ── CSS injection ────────────────────────────────────────────────────────────
@@ -436,6 +434,50 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  return () => window.removeEventListener('lerret:openAnimatedDialog', onOpen);
  }, [entry?.id]);
 
+ // ── Auto-refresh (on-artboard rate control, ADR-003) ─────────────────────────
+ // The interval lives in the asset's own `Name.config.json` (`{ autoRefresh }`),
+ // surfaced per asset-path via `useAssetConfig`. Drives the label-row badge and
+ // the picker's active chip; undefined = off.
+ const getAssetConfig = useAssetConfig();
+ const liveRefreshMs = React.useMemo(
+ () => liveRefreshIntervalFor(entry, getAssetConfig),
+ [entry, getAssetConfig],
+ );
+ const [liveRefreshOpen, setLiveRefreshOpen] = React.useState(false);
+ const clusterRef = React.useRef(null);
+ const onLiveRefresh = React.useCallback(() => setLiveRefreshOpen(true), []);
+
+ // Pause refresh ticks while the picker is open so the artboard doesn't reload
+ // underneath the popover (matches the animated-export / move dialogs).
+ React.useEffect(() => {
+ if (!liveRefreshOpen) return undefined;
+ const release = suspendLiveRefresh();
+ return release;
+ }, [liveRefreshOpen]);
+
+ // Apply a rate change by writing the asset's own `Name.config.json`. Merge onto
+ // the current config (preserving any other keys, read from the in-memory map —
+ // no disk round-trip); an emptied config deletes the file. The chokidar watcher
+ // re-reads it and the badge / timer / ANIM button update.
+ const handleSelectRate = React.useCallback(
+ async (ms) => {
+ const asset = entry?.asset;
+ if (!asset?.path || !asset?.name) {
+ setLiveRefreshOpen(false);
+ return;
+ }
+ const configPath = assetConfigPath(asset);
+ const nextCfg = nextAssetConfig(getAssetConfig(asset.path), ms);
+ if (Object.keys(nextCfg).length === 0) {
+ await deleteProjectFile(configPath);
+ } else {
+ await writeProjectFile(configPath, serializeJson(nextCfg));
+ }
+ setLiveRefreshOpen(false);
+ },
+ [entry, getAssetConfig],
+ );
+
  const onRevealEditor = React.useCallback(() => {
  if (entry?.asset?.path) reveal(entry.asset.path, 'editor');
  }, [entry]);
@@ -453,6 +495,9 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  setDataOpen(true);
  },
  onEditMeta: () => setMetaOpen(true),
+ onLiveRefresh,
+ liveRefreshLabel:
+ liveRefreshMs != null ? `Auto-refresh · ${formatRate(liveRefreshMs)}` : 'Auto-refresh…',
  onDuplicate,
  onRename,
  onMove,
@@ -463,7 +508,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  onRevealFinder,
  cliMode,
  }),
- [onDuplicate, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
+ [onLiveRefresh, liveRefreshMs, onDuplicate, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = React.useMemo(
@@ -491,7 +536,10 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  }, [entry?.id]);
 
  const kebab = (
- <div className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
+ <div ref={clusterRef} className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
+ {liveRefreshMs != null && (
+ <LiveRefreshBadge rateMs={liveRefreshMs} onActivate={onLiveRefresh} />
+ )}
  <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-end" />
  </div>
  );
@@ -560,6 +608,16 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  dimensions={entry?.meta?.dimensions || { width: 1280, height: 720 }}
  persistKey={entry?.id}
  onClose={() => setAnimatedDialogOpen(false)}
+ />
+ )}
+ {liveRefreshOpen && (
+ <LiveRefreshPopover
+ anchorEl={clusterRef.current}
+ valueMs={liveRefreshMs}
+ disabled={!cliMode}
+ disabledReason="Auto-refresh editing needs `@lerret/cli dev`."
+ onSelect={handleSelectRate}
+ onClose={() => setLiveRefreshOpen(false)}
  />
  )}
  {moveOpen && (

@@ -55,7 +55,7 @@ import { writeProjectFile, readProjectConfig, inCliMode } from '../../runtime/wr
  * Order here is the display order in the form.
  * @type {ReadonlyArray<string>}
  */
-export const KNOWN_KEYS = ['presentation', 'vars', 'liveRefresh', 'colors', 'fonts'];
+export const KNOWN_KEYS = ['presentation', 'vars', 'colors', 'fonts'];
 
 // ── CSS injection (scoped, no global pollution) ────────────────────────────
 
@@ -368,14 +368,6 @@ const VARS_SCHEMA = {
 };
 
 /**
- * Schema for `liveRefresh`: maps asset-name → interval ms (number).
- */
-const LIVE_REFRESH_SCHEMA = {
- type: 'object',
- description: 'Live-refresh intervals per asset (asset-name → ms)',
-};
-
-/**
  * Schema for `colors` — a free-form object of color tokens.
  */
 const COLORS_SCHEMA = {
@@ -398,7 +390,6 @@ const FONTS_SCHEMA = {
 const KNOWN_KEY_SCHEMAS = {
  presentation: PRESENTATION_SCHEMA,
  vars: VARS_SCHEMA,
- liveRefresh: LIVE_REFRESH_SCHEMA,
  colors: COLORS_SCHEMA,
  fonts: FONTS_SCHEMA,
 };
@@ -776,7 +767,7 @@ export function ConfigEditor({ open, onClose, folderPath, folderName, writer, re
  */
 function KnownKeyForm({ formValues, onCommitField, fileValue }) {
  // Always render the most-common keys; show others only when the file has them.
- const ALWAYS_SHOW = new Set(['presentation', 'vars', 'liveRefresh']);
+ const ALWAYS_SHOW = new Set(['presentation', 'vars']);
 
  return (
  <>

@@ -1,9 +1,9 @@
 // counter.jsx — an auto-incrementing counter (1080 × 540).
 //
-// Same `liveRefresh` story as `clock.jsx`, demonstrating a second pattern:
+// Same auto-refresh story as `clock.jsx`, demonstrating a second pattern:
 // pure local state that bumps every tick. Useful as a debug tool — you
-// can see at a glance whether the refresh cadence in `live/config.json` is
-// actually firing.
+// can see at a glance whether the refresh cadence in `counter.config.json`
+// is actually firing.
 //
 // The displayed number resets every time you save the file (or when the
 // studio reloads), because `useState(0)` initializes to zero on mount.
@@ -114,8 +114,8 @@ export default function Counter() {
           position: 'relative',
         }}
       >
-        <div>liveRefresh: 1000 ms</div>
-        <div>edit live/config.json</div>
+        <div>autoRefresh: 1000 ms</div>
+        <div>edit counter.config.json</div>
       </div>
     </div>
   );

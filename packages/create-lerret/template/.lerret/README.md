@@ -22,9 +22,9 @@ A folder under `.lerret/` is a page. The studio mounts them alphabetically:
 4. **`brand/`** — the **`propsSchema` validation** demo. Two artboards: one
    deliberately under-filled (the ⚠️ badge fires) and a paired complete one
    (no badge). Click the ⚠️ to see what's missing.
-5. **`live/`** — the **`liveRefresh`** demo. Two artboards that tick: a
-   digital clock (HH:MM:SS, 1 s) and an auto-incrementing counter. Driven by
-   the `liveRefresh` block in `live/config.json`.
+5. **`live/`** — the **auto-refresh** demo. Two artboards that tick: a
+   digital clock (HH:MM:SS, 1 s) and an auto-incrementing counter. Each is
+   driven by its own co-located `<name>.config.json` (`{ "autoRefresh": 1000 }`).
 
 ## Move past the samples
 

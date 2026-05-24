@@ -44,6 +44,7 @@ import {
  project as INITIAL_PROJECT,
  assetBaseUrl as INITIAL_ASSET_BASE_URL,
  cascadeEntries as INITIAL_CASCADE_ENTRIES,
+ assetConfigEntries as INITIAL_ASSET_CONFIG_ENTRIES,
  epoch as INITIAL_EPOCH,
 } from 'virtual:lerret-project';
 
@@ -51,6 +52,7 @@ import { createViteRuntime } from './runtime/vite-runtime.js';
 import { onLerretChange } from './runtime/cli-hmr.js';
 import { ProjectStudio } from './project-studio.jsx';
 import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx';
+import { AssetConfigProvider } from './components/canvas/asset-config-context.jsx';
 
 // the real open-folder empty state replaces the old placeholder.
 import { OpenFolder } from './components/entry/open-folder.jsx';
@@ -130,6 +132,13 @@ export function CliProjectSource() {
  // components can look up any folder's effective config instantly.
  const [cascadeEntries, setCascadeEntries] = React.useState(
  INITIAL_CASCADE_ENTRIES || [],
+ );
+
+ // Serialized per-asset config entries (Name.config.json → { autoRefresh }),
+ // updated on every `lerret:change` that carries a new set. The
+ // `AssetConfigProvider` rehydrates these into a Map (ADR-003).
+ const [assetConfigEntries, setAssetConfigEntries] = React.useState(
+ INITIAL_ASSET_CONFIG_ENTRIES || [],
  );
 
  // `epoch` bumps on every folder switch. It (a) cache-busts asset imports via
@@ -214,6 +223,11 @@ export function CliProjectSource() {
  if ('cascadeEntries' in payload && Array.isArray(payload.cascadeEntries)) {
  setCascadeEntries(payload.cascadeEntries);
  }
+
+ // 5. The recomputed per-asset config (auto-refresh intervals), live.
+ if ('assetConfigEntries' in payload && Array.isArray(payload.assetConfigEntries)) {
+ setAssetConfigEntries(payload.assetConfigEntries);
+ }
  };
 
  return onLerretChange(onChange);
@@ -231,7 +245,9 @@ export function CliProjectSource() {
 
  return (
  <CascadedConfigProvider cascadeEntries={cascadeEntries}>
+ <AssetConfigProvider assetConfigEntries={assetConfigEntries}>
  <ProjectStudio project={project} runtime={runtime} assetBaseUrl={assetBaseUrl} />
+ </AssetConfigProvider>
  </CascadedConfigProvider>
  );
 }

@@ -5,8 +5,5 @@
   "vars": {
     "brandColor": "#B85B33",
     "maxWidth": "1200px"
-  },
-  "liveRefresh": {
-    "Clock": 1000
   }
 }

@@ -147,6 +147,20 @@ export { computeCascadedConfig } from './config/cascade.js';
 export { loadAssetData, collectAssets } from './data/loader.js';
 
 // ---------------------------------------------------------------------------
+// Per-asset config (`Name.config.json`)
+// ---------------------------------------------------------------------------
+//
+// PURE function that, per asset, discovers a co-located `<Name>.config.json`
+// via the injected `FilesystemAccess` backend and parses it. Holds tool-managed,
+// non-code settings — currently `autoRefresh` (a timer interval in ms; ADR-003).
+// Unlike the folder `config.json` cascade, per-asset config does NOT cascade.
+// Returns a Map keyed by asset `path`, with an entry only for assets that have a
+// valid config file. `assetConfigPath` gives the exact path core reads, so the
+// studio's write path targets the same file.
+
+export { loadAssetConfigs, assetConfigPath } from './config/asset-config.js';
+
+// ---------------------------------------------------------------------------
 // Per-variant data keying
 // ---------------------------------------------------------------------------
 //

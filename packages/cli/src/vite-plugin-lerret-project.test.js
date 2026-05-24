@@ -845,7 +845,7 @@ describe('createMoveMiddleware', () => {
     return { status: captured.status, body: captured.body ? JSON.parse(captured.body) : null };
   }
 
-  it('moves a file across folders and returns 200 with newPath and rewroteLiveRefresh', async () => {
+  it('moves a file across folders and returns 200 with newPath', async () => {
     const lerretDir = asLerretPath(lerretAbs);
     const mw = createMoveMiddleware({ lerretDir });
     await fsp.mkdir(join(lerretAbs, 'social'));
@@ -858,11 +858,8 @@ describe('createMoveMiddleware', () => {
     });
 
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({
-      ok: true,
-      newPath: `${lerretDir}/landing/og-card.jsx`,
-      rewroteLiveRefresh: 'none',
-    });
+    expect(result.body.ok).toBe(true);
+    expect(result.body.newPath).toBe(`${lerretDir}/landing/og-card.jsx`);
     expect(await fsp.readFile(join(lerretAbs, 'landing', 'og-card.jsx'), 'utf-8')).toBe('/* og */');
   });
 
@@ -1037,79 +1034,6 @@ describe('createMoveMiddleware', () => {
     const result = await call(mw, 'not json');
     expect(result.status).toBe(400);
     expect(result.body.error).toContain('invalid JSON');
-  });
-
-  it('strips liveRefresh on a happy-path move and returns the tag in the response', async () => {
-    const lerretDir = asLerretPath(lerretAbs);
-    const mw = createMoveMiddleware({ lerretDir });
-    await fsp.mkdir(join(lerretAbs, 'live'));
-    await fsp.mkdir(join(lerretAbs, 'static'));
-    await fsp.writeFile(join(lerretAbs, 'live', 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(lerretAbs, 'live', 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
-    );
-
-    const result = await call(mw, {
-      fromPath: `${lerretDir}/live/clock.jsx`,
-      toFolderPath: `${lerretDir}/static`,
-    });
-
-    expect(result.status).toBe(200);
-    expect(result.body.rewroteLiveRefresh).toBe('stripped');
-    const srcConfig = JSON.parse(
-      await fsp.readFile(join(lerretAbs, 'live', 'config.json'), 'utf-8'),
-    );
-    expect(srcConfig.liveRefresh).toBeUndefined();
-  });
-
-  it('carries liveRefresh over when carryLiveRefresh=true', async () => {
-    const lerretDir = asLerretPath(lerretAbs);
-    const mw = createMoveMiddleware({ lerretDir });
-    await fsp.mkdir(join(lerretAbs, 'live'));
-    await fsp.mkdir(join(lerretAbs, 'static'));
-    await fsp.writeFile(join(lerretAbs, 'live', 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(lerretAbs, 'live', 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
-    );
-
-    const result = await call(mw, {
-      fromPath: `${lerretDir}/live/clock.jsx`,
-      toFolderPath: `${lerretDir}/static`,
-      carryLiveRefresh: true,
-    });
-
-    expect(result.status).toBe(200);
-    expect(result.body.rewroteLiveRefresh).toBe('carried-over');
-    const destConfig = JSON.parse(
-      await fsp.readFile(join(lerretAbs, 'static', 'config.json'), 'utf-8'),
-    );
-    expect(destConfig.liveRefresh).toEqual({ clock: 1000 });
-  });
-
-  it('returns 400 when carryLiveRefresh=true and dest config is malformed', async () => {
-    const lerretDir = asLerretPath(lerretAbs);
-    const mw = createMoveMiddleware({ lerretDir });
-    await fsp.mkdir(join(lerretAbs, 'live'));
-    await fsp.mkdir(join(lerretAbs, 'static'));
-    await fsp.writeFile(join(lerretAbs, 'live', 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(lerretAbs, 'live', 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
-    );
-    await fsp.writeFile(join(lerretAbs, 'static', 'config.json'), '{ broken');
-
-    const result = await call(mw, {
-      fromPath: `${lerretDir}/live/clock.jsx`,
-      toFolderPath: `${lerretDir}/static`,
-      carryLiveRefresh: true,
-    });
-
-    expect(result.status).toBe(400);
-    expect(result.body.error).toContain('malformed');
-    // The clock asset never moved.
-    expect(await fsp.readFile(join(lerretAbs, 'live', 'clock.jsx'), 'utf-8')).toBe('C');
   });
 });
 

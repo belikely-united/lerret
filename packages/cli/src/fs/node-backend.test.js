@@ -372,7 +372,6 @@ describe('moveEntry — happy path', () => {
     );
 
     expect(result.path).toBe(`${asLerretPath(destFolder)}/og-card.jsx`);
-    expect(result.rewroteLiveRefresh).toBe('none');
     expect(await fsp.readFile(join(destFolder, 'og-card.jsx'), 'utf-8')).toBe(
       'export default () => null;',
     );
@@ -432,6 +431,25 @@ describe('moveEntry — happy path', () => {
       'export default { headline: "Hi" };',
     );
     await expect(fsp.access(join(src, 'og-card.data.js'))).rejects.toThrow();
+  });
+
+  it('carries the per-asset .config.json companion with the asset (ADR-003)', async () => {
+    const src = join(workDir, 'src');
+    const dest = join(workDir, 'dest');
+    await fsp.mkdir(src);
+    await fsp.mkdir(dest);
+    await fsp.writeFile(join(src, 'Clock.jsx'), 'C');
+    await fsp.writeFile(join(src, 'Clock.config.json'), '{"autoRefresh":1000}');
+
+    await moveEntry(
+      asLerretPath(join(src, 'Clock.jsx')),
+      asLerretPath(dest),
+    );
+
+    expect(await fsp.readFile(join(dest, 'Clock.jsx'), 'utf-8')).toBe('C');
+    expect(await fsp.readFile(join(dest, 'Clock.config.json'), 'utf-8')).toBe('{"autoRefresh":1000}');
+    await expect(fsp.access(join(src, 'Clock.jsx'))).rejects.toThrow();
+    await expect(fsp.access(join(src, 'Clock.config.json'))).rejects.toThrow();
   });
 
   it('carries component-prefixed images (mixed case extensions)', async () => {
@@ -576,187 +594,6 @@ describe('moveEntry — refusal cases', () => {
     // No file got moved.
     expect(await fsp.readFile(join(src, 'og-card.jsx'), 'utf-8')).toBe('NEW');
     expect(await fsp.readFile(join(dest, 'og-card.jsx'), 'utf-8')).toBe('OLD');
-  });
-});
-
-describe('moveEntry — liveRefresh handling', () => {
-  it('strips the asset\'s liveRefresh key from the source config (carry=false default)', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(src, 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000, other: 500 } }, null, 2) + '\n',
-    );
-
-    const result = await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-    );
-
-    expect(result.rewroteLiveRefresh).toBe('stripped');
-
-    const srcConfig = JSON.parse(await fsp.readFile(join(src, 'config.json'), 'utf-8'));
-    expect(srcConfig.liveRefresh).toEqual({ other: 500 });
-
-    // No destination config edited
-    await expect(fsp.access(join(dest, 'config.json'))).rejects.toThrow();
-  });
-
-  it('removes the liveRefresh block entirely when stripping the last key', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(src, 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 }, bg: '#fff' }, null, 2) + '\n',
-    );
-
-    const result = await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-    );
-    expect(result.rewroteLiveRefresh).toBe('stripped');
-
-    const srcConfig = JSON.parse(await fsp.readFile(join(src, 'config.json'), 'utf-8'));
-    expect(srcConfig.liveRefresh).toBeUndefined();
-    expect(srcConfig.bg).toBe('#fff');
-  });
-
-  it('carries the liveRefresh key over to the destination when carryLiveRefresh=true', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(src, 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 } }, null, 2) + '\n',
-    );
-
-    const result = await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-      { carryLiveRefresh: true },
-    );
-
-    expect(result.rewroteLiveRefresh).toBe('carried-over');
-
-    const srcConfig = JSON.parse(await fsp.readFile(join(src, 'config.json'), 'utf-8'));
-    expect(srcConfig.liveRefresh).toBeUndefined();
-
-    const destConfig = JSON.parse(await fsp.readFile(join(dest, 'config.json'), 'utf-8'));
-    expect(destConfig.liveRefresh).toEqual({ clock: 1000 });
-  });
-
-  it('merges into an existing destination liveRefresh block on carry-over', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(src, 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 } }, null, 2) + '\n',
-    );
-    await fsp.writeFile(
-      join(dest, 'config.json'),
-      JSON.stringify({ liveRefresh: { other: 200 }, bg: '#000' }, null, 2) + '\n',
-    );
-
-    await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-      { carryLiveRefresh: true },
-    );
-
-    const destConfig = JSON.parse(await fsp.readFile(join(dest, 'config.json'), 'utf-8'));
-    expect(destConfig.liveRefresh).toEqual({ other: 200, clock: 1000 });
-    expect(destConfig.bg).toBe('#000');
-  });
-
-  it('refuses the move when carryLiveRefresh=true and destination config is malformed', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(
-      join(src, 'config.json'),
-      JSON.stringify({ liveRefresh: { clock: 1000 } }) + '\n',
-    );
-    await fsp.writeFile(join(dest, 'config.json'), '{ this is not JSON');
-
-    let caught;
-    try {
-      await moveEntry(
-        asLerretPath(join(src, 'clock.jsx')),
-        asLerretPath(dest),
-        { carryLiveRefresh: true },
-      );
-    } catch (err) {
-      caught = err;
-    }
-    expect(caught.code).toBe('malformed-dest-config');
-
-    // Asset never moved.
-    expect(await fsp.readFile(join(src, 'clock.jsx'), 'utf-8')).toBe('C');
-    await expect(fsp.access(join(dest, 'clock.jsx'))).rejects.toThrow();
-  });
-
-  it('returns skipped-malformed and still moves when source config is malformed', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(join(src, 'config.json'), '{ broken json');
-
-    const result = await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-    );
-
-    expect(result.rewroteLiveRefresh).toBe('skipped-malformed');
-    // Source config left untouched (we never overwrite hand-broken JSON).
-    expect(await fsp.readFile(join(src, 'config.json'), 'utf-8')).toBe('{ broken json');
-    // But the file did move.
-    expect(await fsp.readFile(join(dest, 'clock.jsx'), 'utf-8')).toBe('C');
-  });
-
-  it('returns none when source config has no liveRefresh block', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-    await fsp.writeFile(join(src, 'config.json'), JSON.stringify({ bg: '#fff' }));
-
-    const result = await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-    );
-
-    expect(result.rewroteLiveRefresh).toBe('none');
-  });
-
-  it('returns none when there is no source config at all', async () => {
-    const src = join(workDir, 'src');
-    const dest = join(workDir, 'dest');
-    await fsp.mkdir(src);
-    await fsp.mkdir(dest);
-    await fsp.writeFile(join(src, 'clock.jsx'), 'C');
-
-    const result = await moveEntry(
-      asLerretPath(join(src, 'clock.jsx')),
-      asLerretPath(dest),
-    );
-
-    expect(result.rewroteLiveRefresh).toBe('none');
   });
 });
 

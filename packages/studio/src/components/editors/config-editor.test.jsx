@@ -2,8 +2,8 @@
 //
 // Coverage:
 // - Pure helpers: configFilePathFor, extractUnknownKeys, mergeConfigValue.
-// - Well-known key form: renders FormControl for presentation, vars,
-// liveRefresh (always shown); colors/fonts only when in file.
+// - Well-known key form: renders FormControl for presentation, vars
+// (always shown); colors/fonts only when in file.
 // - Unknown-key fallback: raw JSON toggle shows the textarea; invalid JSON
 // is flagged and NOT written; valid JSON writes through.
 // - No-config-yet create flow: shows create prompt; writes {} on confirm;
@@ -116,7 +116,7 @@ describe('extractUnknownKeys', () => {
  });
 
  it('returns empty object for a config with only known keys', () => {
- const cfg = { presentation: {}, vars: {}, liveRefresh: {}, colors: {}, fonts: {} };
+ const cfg = { presentation: {}, vars: {}, colors: {}, fonts: {} };
  expect(extractUnknownKeys(cfg)).toEqual({});
  });
 
@@ -168,7 +168,6 @@ describe('ConfigEditor — well-known key form', () => {
  const reader = makeReader({
  presentation: { background: 'rgba(241, 237, 229, 0.85)' },
  vars: { brandColor: '#B85B33' },
- liveRefresh: { Clock: 1000 },
  });
  const writer = vi.fn().mockResolvedValue({ ok: true });
 
@@ -189,10 +188,9 @@ describe('ConfigEditor — well-known key form', () => {
  const editor = document.querySelector('[data-testid="lm-config-editor"]');
  expect(editor).not.toBeNull();
 
- // presentation, vars, liveRefresh fields are always rendered.
+ // presentation and vars fields are always rendered.
  expect(document.querySelector('[data-testid="lm-config-editor-field-presentation"]')).not.toBeNull();
  expect(document.querySelector('[data-testid="lm-config-editor-field-vars"]')).not.toBeNull();
- expect(document.querySelector('[data-testid="lm-config-editor-field-liveRefresh"]')).not.toBeNull();
 
  cleanup();
  });

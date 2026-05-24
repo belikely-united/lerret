@@ -46,11 +46,12 @@
 
 import React from 'react';
 
-import { scan, computeCascadedConfig } from '@lerret/core';
+import { scan, computeCascadedConfig, loadAssetConfigs, collectAssets } from '@lerret/core';
 
 import { createViteRuntime } from './runtime/vite-runtime.js';
 import { ProjectStudio } from './project-studio.jsx';
 import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx';
+import { AssetConfigProvider } from './components/canvas/asset-config-context.jsx';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Fixture filesystem — DEV-HARNESS ONLY.
@@ -77,6 +78,14 @@ const FIXTURE_GLOB = import.meta.glob('../fixtures/sample-project/.lerret/**/*',
 // can read them via `makeFixtureFs().readFile`. This is the dev-harness
 // mirror of the CLI plugin's Node-backend `readFile`.
 const FIXTURE_CONFIG_GLOB = import.meta.glob('../fixtures/sample-project/.lerret/**/config.json', {
+ query: '?raw',
+ import: 'default',
+ eager: true,
+});
+
+// Per-asset `Name.config.json` sidecars (ADR-003) — raw content so
+// `makeFixtureFs().readFile` can serve them to `loadAssetConfigs`.
+const FIXTURE_ASSET_CONFIG_GLOB = import.meta.glob('../fixtures/sample-project/.lerret/**/*.config.json', {
  query: '?raw',
  import: 'default',
  eager: true,
@@ -138,7 +147,7 @@ function buildConfigContentMap() {
  const PREFIX = '../fixtures/sample-project/.lerret/';
  /** @type {Map<string, string>} */
  const map = new Map();
- for (const [key, content] of Object.entries(FIXTURE_CONFIG_GLOB)) {
+ for (const [key, content] of Object.entries({ ...FIXTURE_CONFIG_GLOB, ...FIXTURE_ASSET_CONFIG_GLOB })) {
  if (!key.startsWith(PREFIX)) continue;
  const rel = key.slice(PREFIX.length); // e.g. "ui-components/config.json"
  const lerretPath = `${FIXTURE_LERRET_ROOT}/${rel}`;
@@ -290,6 +299,14 @@ export function DevHarness() {
  // default backgrounds. Log so the developer can diagnose.
  console.error('[lerret/dev-harness] cascade computation failed:', cascadeErr);
  }
+ // 2b. Per-asset config (Name.config.json → { autoRefresh }) for badges + timers.
+ let assetConfigEntries = [];
+ try {
+ const assetCfgMap = await loadAssetConfigs(collectAssets(project), fixtureFs);
+ assetConfigEntries = Array.from(assetCfgMap.entries());
+ } catch (acfgErr) {
+ console.error('[lerret/dev-harness] asset-config load failed:', acfgErr);
+ }
  // 3. REAL CLI-mode runtime. `assetBaseUrl` is the Vite alias the
  // fixture's `.lerret/` is served under (see vite.config.js). The
  // CLI passes the real `@lerret/cli dev` server URL here instead.
@@ -325,7 +342,7 @@ export function DevHarness() {
  // signal; running notifyChange there is sufficient on its own.
  }
  // ── END FIXTURE WIRING ────────────────────────────────────────────
- if (!cancelled) setLoaded({ project, runtime, cascadeEntries });
+ if (!cancelled) setLoaded({ project, runtime, cascadeEntries, assetConfigEntries });
  } catch (err) {
  // A *harness* failure (the scan itself) — distinct from a per-asset
  // error, which the runtime contains. Should not happen.
@@ -363,11 +380,13 @@ export function DevHarness() {
  // harness mirror of the `CliProjectSource` wrapping.
  return (
  <CascadedConfigProvider cascadeEntries={loaded.cascadeEntries}>
+ <AssetConfigProvider assetConfigEntries={loaded.assetConfigEntries}>
  <ProjectStudio
  project={loaded.project}
  runtime={loaded.runtime}
  assetBaseUrl={FIXTURE_ASSET_BASE_URL}
  />
+ </AssetConfigProvider>
  </CascadedConfigProvider>
  );
 }

@@ -1,13 +1,14 @@
-// Greeter.jsx — LiveRefresh artboard #3.
+// Greeter.jsx — auto-refresh artboard #3.
 //
 // Displays "Good morning / Good afternoon / Good evening" based on the
-// current hour. Re-renders every 60s because `liveRefresh: { Greeter: 60000 }`
-// is set — that's enough to catch transitions when they happen.
+// current hour. Re-renders every 60s because `Greeter.config.json`
+// (co-located) sets `{ "autoRefresh": 60000 }` — enough to catch
+// transitions when they happen.
 
 export const meta = {
   dimensions: { width: 800, height: 400 },
   label: 'Greeter — 60s rhythm',
-  tags: ['live', 'greeter', 'liveRefresh', 'time-of-day'],
+  tags: ['live', 'greeter', 'auto-refresh', 'time-of-day'],
 };
 
 function greetingFor(hour) {

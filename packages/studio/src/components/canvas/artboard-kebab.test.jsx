@@ -98,43 +98,45 @@ describe('fetchDataValue', () => {
 });
 
 // B.S regression — `liveRefreshIntervalFor` must gate on assetKind. A stale
-// or mis-keyed `liveRefresh` block naming a markdown file would otherwise
-// enable the ANIM export button on a card that can never animate (the
-// live-refresh-manager only registers timers for component assets).
+// `autoRefresh` on a markdown asset's config would otherwise enable the ANIM
+// export button on a card that can never animate (the live-refresh-manager
+// only registers timers for component assets).
+//
+// Per ADR-003, the interval is read from the asset's own `Name.config.json`,
+// surfaced per asset-path via the `getAssetConfig` accessor — no folder lookup,
+// no name-matching.
 describe('liveRefreshIntervalFor — assetKind gating', () => {
- const cascadeFor = (cfg) => () => cfg;
+ // A `getAssetConfig` stub that returns `cfg` for `path` and `{}` otherwise.
+ const configFor = (path, cfg) => (assetPath) => (assetPath === path ? cfg : {});
 
- it('returns the interval for a COMPONENT entry whose folder has a matching liveRefresh key', () => {
+ it('returns the interval for a COMPONENT entry whose config sets autoRefresh', () => {
  const entry = {
  assetKind: 'component',
  asset: { name: 'clock', path: '/proj/.lerret/live/clock.jsx' },
  };
- const result = liveRefreshIntervalFor(entry, cascadeFor({ liveRefresh: { clock: 1000 } }));
+ const getAssetConfig = configFor('/proj/.lerret/live/clock.jsx', { autoRefresh: 1000 });
+ const result = liveRefreshIntervalFor(entry, getAssetConfig);
  expect(result).toBe(1000);
  });
 
- it('returns undefined for a MARKDOWN entry even when the folder has a matching key', () => {
+ it('returns undefined for a MARKDOWN entry even when its config sets autoRefresh', () => {
  const entry = {
  assetKind: 'markdown',
  asset: { name: 'about-live-refresh', path: '/proj/.lerret/live/about-live-refresh.md' },
  };
- const result = liveRefreshIntervalFor(entry, cascadeFor({ liveRefresh: { 'about-live-refresh': 1000 } }));
+ const getAssetConfig = configFor('/proj/.lerret/live/about-live-refresh.md', { autoRefresh: 1000 });
+ const result = liveRefreshIntervalFor(entry, getAssetConfig);
  expect(result).toBeUndefined();
  });
 
- it('returns undefined for an ERROR entry (assetKind absent)', () => {
- // Error entries can be missing assetKind. The guard treats missing
- // assetKind as "unknown" and still queries the cascade — but since
- // error-state entries typically don't have a working liveRefresh setup,
- // they end up undefined anyway. This test pins the behavior for the
- // explicit-component-only path.
+ it('returns undefined for a COMPONENT entry whose config has no autoRefresh', () => {
  const entry = {
  assetKind: 'component',
  asset: { name: 'broken', path: '/proj/.lerret/live/broken.jsx' },
  status: 'error',
  };
- // Folder has no liveRefresh block → undefined.
- const result = liveRefreshIntervalFor(entry, cascadeFor({}));
+ // Asset has no config (empty `{}`) → undefined.
+ const result = liveRefreshIntervalFor(entry, () => ({}));
  expect(result).toBeUndefined();
  });
 });

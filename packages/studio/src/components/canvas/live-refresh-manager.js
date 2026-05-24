@@ -31,6 +31,10 @@
 // Valid interval : typeof value === 'number' && isFinite(value) && value >= 16
 // Valid asset name : must match the `name` property of an asset in the page
 // (the name without extension, e.g. "ClockBanner").
+// Off sentinel : a value of `null` or `false` means "explicitly off" — it
+// overrides any rate inherited from a parent folder and is
+// NOT warned about (it is an intentional override, see the
+// studio's live-refresh control).
 // Invalid entries : ignored with a `console.warn` naming the bad entry;
 // valid entries still take effect.
 //
@@ -47,101 +51,62 @@ import { isLiveRefreshSuspended } from './live-refresh-suspend.js';
  * Sub-frame intervals are clamped / rejected as invalid.
  * @type {number}
  */
-const MIN_INTERVAL_MS = 16;
+export const MIN_INTERVAL_MS = 16;
 
 // ---------------------------------------------------------------------------
 // Pure helpers — build the desired timer map from page + cascade config
 // ---------------------------------------------------------------------------
 
 /**
- * Walk the page (depth-first) and collect all `AssetNode`s that are components.
+ * Walk the page (depth-first) and invoke `fn` for every component `AssetNode`.
  *
  * @param {import('@lerret/core').PageNode | import('@lerret/core').GroupNode} container
- * @param {Map<string, import('@lerret/core').AssetNode>} out
- * Accumulator: asset.name → AssetNode.
+ * @param {(asset: import('@lerret/core').AssetNode) => void} fn
  */
-function collectAssetsByName(container, out) {
+function forEachComponentAsset(container, fn) {
  for (const asset of container.assets || []) {
- if (asset && asset.assetKind === 'component') {
- out.set(asset.name, asset);
- }
+ if (asset && asset.assetKind === 'component') fn(asset);
  }
  for (const group of container.groups || []) {
- collectAssetsByName(group, out);
+ forEachComponentAsset(group, fn);
  }
 }
 
 /**
- * Derive the desired `Map<assetPath, intervalMs>` for the given page by
- * inspecting every section's effective `liveRefresh` config block.
+ * Derive the desired `Map<assetPath, intervalMs>` for the given page by reading
+ * each component asset's own `autoRefresh` setting — from its co-located
+ * `Name.config.json`, surfaced via `getAssetConfig` (see ADR-003). The setting
+ * is keyed to the asset itself: no folder cascade, no name-matching, no `null`
+ * sentinel. An asset with no config (or no `autoRefresh`) is simply off.
  *
- * The cascade config is per folder path. Each section (page-level or group)
- * may carry a `liveRefresh` object that names assets and their intervals.
- * Assets are matched by **name** (without extension) against all component
- * assets on the page.
- *
- * Invalid entries are dropped here (with a warning) so the caller only sees
- * valid path → interval pairs.
+ * Invalid values (non-number, or below the frame floor) are dropped with a
+ * warning so a typo never silently registers a runaway timer.
  *
  * @param {import('@lerret/core').PageNode} page
- * @param {(path: string) => Record<string, unknown>} getConfigFor
+ * @param {(assetPath: string) => Record<string, unknown>} getAssetConfig
+ *   The per-asset config accessor from `useAssetConfig()`.
  * @returns {Map<string, number>} assetPath → intervalMs for valid entries.
  */
-export function buildIntervalMap(page, getConfigFor) {
+export function buildIntervalMap(page, getAssetConfig) {
  /** @type {Map<string, number>} */
  const intervals = new Map();
+ if (!page || typeof getAssetConfig !== 'function') return intervals;
 
- // Build a flat name → AssetNode lookup for the whole page once.
- /** @type {Map<string, import('@lerret/core').AssetNode>} */
- const assetsByName = new Map();
- collectAssetsByName(page, assetsByName);
-
- /**
- * Inspect one container's effective config for a `liveRefresh` block.
- * @param {import('@lerret/core').PageNode | import('@lerret/core').GroupNode} container
- */
- function inspectContainer(container) {
- const cfg = getConfigFor(container.path);
- const liveRefresh = cfg && cfg.liveRefresh;
- if (liveRefresh && typeof liveRefresh === 'object' && !Array.isArray(liveRefresh)) {
- for (const [assetName, rawInterval] of Object.entries(liveRefresh)) {
- // Validate: interval must be a finite number >= MIN_INTERVAL_MS.
- if (
- typeof rawInterval !== 'number' ||
- !isFinite(rawInterval) ||
- rawInterval < MIN_INTERVAL_MS
- ) {
+ forEachComponentAsset(page, (asset) => {
+ const cfg = getAssetConfig(asset.path);
+ const raw = cfg && typeof cfg === 'object' ? cfg.autoRefresh : undefined;
+ // No `autoRefresh` (or an explicit null) → the asset is simply off.
+ if (raw === undefined || raw === null) return;
+ if (typeof raw !== 'number' || !isFinite(raw) || raw < MIN_INTERVAL_MS) {
  console.warn(
- `[lerret/live-refresh] Ignoring liveRefresh entry "${assetName}" in "${container.path}": ` +
- `interval ${JSON.stringify(rawInterval)} is not a positive number ≥ ${MIN_INTERVAL_MS} ms.`,
+ `[lerret/auto-refresh] Ignoring autoRefresh for "${asset.path}": ` +
+ `${JSON.stringify(raw)} is not a number ≥ ${MIN_INTERVAL_MS} ms.`,
  );
- continue;
+ return;
  }
+ intervals.set(asset.path, raw);
+ });
 
- // Validate: asset name must exist on the page.
- const assetNode = assetsByName.get(assetName);
- if (!assetNode) {
- console.warn(
- `[lerret/live-refresh] Ignoring liveRefresh entry "${assetName}" in "${container.path}": ` +
- `no component asset named "${assetName}" found on the current page.`,
- );
- continue;
- }
-
- // A path appearing in multiple containers uses the last-seen interval
- // (deepest wins, depth-first walk order). This is deliberate: a child
- // group's config overrides a parent's for the same asset.
- intervals.set(assetNode.path, rawInterval);
- }
- }
-
- // Recurse into child groups depth-first.
- for (const group of container.groups || []) {
- inspectContainer(group);
- }
- }
-
- inspectContainer(page);
  return intervals;
 }
 
@@ -171,12 +136,12 @@ export function buildIntervalMap(page, getConfigFor) {
  *
  * @param {import('@lerret/core').PageNode | null | undefined} page
  * The current page. If null/undefined, all timers are cleared (no-op).
- * @param {(path: string) => Record<string, unknown>} getConfigFor
- * The cascade accessor from `useCascadedConfig()`.
+ * @param {(assetPath: string) => Record<string, unknown>} getAssetConfig
+ * The per-asset config accessor from `useAssetConfig()`.
  * @param {import('../../runtime/asset-runtime.js').AssetRuntime | null | undefined} runtime
  * The asset runtime. If null/undefined, no timers are started.
  */
-export function useLiveRefresh(page, getConfigFor, runtime) {
+export function useLiveRefresh(page, getAssetConfig, runtime) {
  /**
  * Active timer handles: assetPath → setInterval id.
  * Held in a ref so reconciliation can compare previous vs. desired without
@@ -196,7 +161,7 @@ export function useLiveRefresh(page, getConfigFor, runtime) {
  }
 
  // Build the desired interval map for the current page.
- const desired = buildIntervalMap(page, getConfigFor);
+ const desired = buildIntervalMap(page, getAssetConfig);
 
  // 1. Clear timers for paths no longer in the desired set.
  for (const [path, id] of timers.entries()) {
@@ -236,5 +201,5 @@ export function useLiveRefresh(page, getConfigFor, runtime) {
  for (const id of timers.values()) clearInterval(id);
  timers.clear();
  };
- }, [page, getConfigFor, runtime]);
+ }, [page, getAssetConfig, runtime]);
 }

@@ -58,7 +58,7 @@ Each artboard:
 - Renders at its declared `meta.dimensions` (or a default size if absent).
 - Has its own **error boundary** — one broken artboard fails alone with an
   error card; the rest of the canvas keeps rendering.
-- Updates **in place** when its file changes (see [Live refresh](#live-refresh)).
+- Updates **in place** when its file changes (see [Live reload](#live-reload)).
 
 **Getting around:**
 
@@ -166,7 +166,7 @@ Whether you open it from the **⋮** kebab or by right-clicking, each entity
 exposes the same set:
 
 - **Component artboard** — Edit data · Edit meta · Duplicate · Rename · Move to… ·
-  Delete · Export (PNG/JPG, and animated when live-refresh is configured) ·
+  Delete · Export (PNG/JPG, and animated when auto-refresh is configured) ·
   Reveal in editor / file manager.
 - **Markdown card** — Edit · Duplicate · Rename · Move to… · Delete · Export ·
   Reveal…
@@ -221,8 +221,8 @@ render; the badge is a hint, not a gate.
 ## Moving things
 
 **Move to…** opens a picker of every folder in the project; choose a destination
-and the studio reparents the file (and its companions — data file, prefixed
-images) atomically, carrying or stripping any `liveRefresh` entry as you choose.
+and the studio reparents the file (and its companions — data file, config file,
+prefixed images) atomically, so its auto-refresh setting travels with it.
 
 ![The Move-to picker listing destination folders](/studio/move-picker.png)
 
@@ -246,7 +246,7 @@ Studio exports use the **exact same** `captureArtboard` as `@lerret/cli export`
 (the CLI runs it in a headless Chromium), so output is pixel-faithful between the
 two — use either interchangeably.
 
-## Live refresh
+## Live reload
 
 A file change on disk re-renders the affected artboard in well under a second.
 
@@ -258,6 +258,34 @@ A file change on disk re-renders the affected artboard in well under a second.
 Both backends emit identical `{ type, path }` events into the same incremental
 model patcher in `@lerret/core`, so add / remove / rename of files and folders
 show up on the canvas — no full reload, no lost viewport.
+
+## Auto-refresh
+
+[Live reload](#live-reload) reacts to *file* changes. Some assets need to
+re-render on a **timer** instead — a clock, a countdown, a live counter — even
+when nothing on disk changed. Auto-refresh is a per-asset interval that
+re-renders just that one artboard on a clock.
+
+Set it on the artboard: open a component's kebab (or right-click it) and choose
+**Auto-refresh**.
+
+![The artboard kebab menu with an "Auto-refresh · 1s" entry](/studio/auto-refresh-menu.png)
+
+Pick a preset — `Off · 0.5s · 1s · 2s · 5s` — or **Custom…** for any value down
+to a single frame. There's no asset name to type and no milliseconds to reason
+about.
+
+![The auto-refresh rate picker, preset chips with the 1s interval selected](/studio/auto-refresh-picker.png)
+
+While it's on, a small **● 1s** badge sits in the artboard's label row — your cue
+that the asset is live, and a one-click shortcut back to the picker. Only
+component assets can auto-refresh, and that same badge is what unlocks the
+**animated export** button.
+
+Under the hood it's a `<Name>.config.json` file sitting next to the asset, holding
+`{ "autoRefresh": <ms> }`. The picker writes it for you — one file per asset, so
+each asset carries its own rhythm with no folder-level map and no cascade. Full
+reference: [Auto-refresh in Concepts](/concepts#auto-refresh).
 
 ## Switching projects
 

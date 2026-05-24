@@ -53,6 +53,7 @@ import { NODE_KIND } from '@lerret/core';
 import { DesignCanvas, DCSection } from '../../design-canvas.jsx';
 import { artboardForEntry } from './asset-artboard.jsx';
 import { useCascadedConfig } from './cascade-context.jsx';
+import { useAssetConfig } from './asset-config-context.jsx';
 import { useLiveRefresh } from './live-refresh-manager.js';
 // per-section kebab menu (Edit config / Rename / Delete / Export /
 // Reveal …). Replaces the temporary `SectionWithConfigTrigger` .
@@ -286,6 +287,8 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // folder path. `getConfigFor` is a stable function reference (memoized in
  // CascadedConfigProvider) so it is safe to call in render without effects.
  const getConfigFor = useCascadedConfig();
+ // Per-asset config (Name.config.json → { autoRefresh }) for the timer below.
+ const getAssetConfig = useAssetConfig();
  // The loaded result, tagged with the page path it is for: `{ pagePath,
  // sections }`. Tagging (rather than resetting to `null` on every page
  // switch) lets the render derive "still loading" by comparing the tag to
@@ -301,11 +304,11 @@ export function ProjectCanvas({ project, runtime, pageId }) {
 
  const page = React.useMemo(() => resolvePage(project, pageId), [project, pageId]);
 
- // start (and reconcile) per-asset refresh timers for assets
- // whose folder config includes a `liveRefresh` block. Timers call
+ // start (and reconcile) per-asset refresh timers for assets that declare an
+ // `autoRefresh` interval in their own `Name.config.json`. Timers call
  // `runtime.notifyChange(assetPath)` on each tick, which re-renders only the
  // affected artboard via the existing live-edit loop.
- useLiveRefresh(page, getConfigFor, runtime);
+ useLiveRefresh(page, getAssetConfig, runtime);
 
  // The cue key for an entry: a fresh integer per live re-load, surfaced to
  // each artboard so the re-render cue flashes once per refresh and only
@@ -619,7 +622,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  sectionStyle={sectionStyle}
  >
  {s.entries.map((entry) =>
- artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor }),
+ artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),
  )}
  {/* Nested sub-groups render INSIDE this frame — true containment. */}
  {node.children.map((child) => renderSection(child))}

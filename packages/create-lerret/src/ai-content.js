@@ -66,7 +66,7 @@ A Lerret project is a folder called \`.lerret/\`. Anything inside it is part of 
 
 \`\`\`
 .lerret/
-  config.json                       # Root config — vars, presentation, liveRefresh
+  config.json                       # Root config — vars, presentation
   README.md                         # Markdown asset — renders as a document card
   _fonts/                           # Drop .woff2/.woff/.ttf/.otf here — auto-registered
     LerretFixtureMono.woff2
@@ -86,10 +86,11 @@ A Lerret project is a folder called \`.lerret/\`. Anything inside it is part of 
     business-card.jsx               # propsSchema with a required prop (no default)
     business-card.data.json         # Default slice deliberately incomplete
     about-validation.md
-  live/                             # liveRefresh demo
-    config.json                     # Per-folder config — \`liveRefresh\` block lives here
-    clock.jsx                       # Re-renders every 1 s via liveRefresh
-    counter.jsx                     # Same — pure local state + liveRefresh
+  live/                             # auto-refresh demo
+    clock.jsx                       # Re-renders every 1 s via auto-refresh
+    clock.config.json               # \`{ "autoRefresh": 1000 }\` — co-located with the asset
+    counter.jsx                     # Same — pure local state + auto-refresh
+    counter.config.json             # \`{ "autoRefresh": 1000 }\`
     about-live-refresh.md
 \`\`\`
 
@@ -164,6 +165,23 @@ When **both** exist, \`.data.js\` wins. Most assets need only \`.data.json\`.
 
 The data file shares the asset's basename — \`og-card.jsx\` pairs with \`social/og-card.data.json\`. Co-location is strict: the data file must be in the same folder as the asset. Variants follow the same rule: \`social/tw-banner.jsx\` pairs with \`social/tw-banner.data.json\`, keyed by each variant's export name.`,
 
+  autoRefresh: `## Auto-refresh — making an asset tick
+
+Most assets render once and hold still — correct for a banner, poster, or OG card. Some assets *should* tick on a timer: a clock, a counter, a time-of-day greeter, a live dashboard. That timer re-render is **auto-refresh**, and it is configured **per asset** in a co-located \`<AssetName>.config.json\`:
+
+\`\`\`json
+// Clock.config.json — sits next to Clock.jsx
+{ "autoRefresh": 1000 }
+\`\`\`
+
+- The file shares the asset's basename, same co-location rule as \`<AssetName>.data.json\` — \`live/clock.jsx\` pairs with \`live/clock.config.json\`.
+- \`autoRefresh\` is the interval in **milliseconds**. The studio re-renders the asset on that cadence; the component just reads \`new Date()\` / \`Date.now()\` (or normal React state) to compute the current value.
+- **No file, or no \`autoRefresh\` key, means off** — the default. Minimum is **16 ms** (one 60fps frame); component assets only.
+- It is **per asset, not per folder** — there is no folder-level auto-refresh, no cascade, no name-keyed map. To make a new asset tick, drop its own \`<Name>.config.json\` beside it.
+- \`<AssetName>.config.json\` is a tool-managed companion: it travels with the asset on move / rename / duplicate / delete, exactly like the data file. Keep the asset's own logic in the \`.jsx\` — this file holds only settings.
+
+(Don't confuse auto-refresh with **live reload**, the file-save HMR that repaints every asset when you edit and save its source. Auto-refresh is the no-file-change timer re-render; live reload is the editor loop. Different mechanisms.)`,
+
   propResolution: `## Four-tier prop resolution
 
 Every prop the component receives is resolved in this fixed order. First tier that supplies the prop wins. Per-prop independence — different props can come from different tiers in the same render.
@@ -181,8 +199,9 @@ Every folder may contain a \`config.json\`. Child configs **shallow-merge over**
 
 - \`vars\` — object of string/number tokens. Available as ambient CSS custom properties (\`var(--brandColor)\` etc.) on the wrapper around your component, and as Tier-2 props on \`propsSchema\` keys with matching names.
 - \`presentation\` — canvas presentation, e.g. \`{ background: '#f0e8d8' }\` paints this folder's section.
-- \`liveRefresh\` — \`{ <AssetName>: <interval-ms> }\`. Re-renders the named asset on the timer (minimum 16 ms). Useful for clock/timer/time-of-day assets.
 - \`colors\`, \`fonts\` — design tokens (free-form objects, kept for future tooling; safe to use today).
+
+**Auto-refresh is not a folder key.** Re-rendering an asset on a timer is configured **per asset**, in a co-located \`<AssetName>.config.json\` — never in the folder \`config.json\`. See the auto-refresh section below.
 
 Example root config:
 
@@ -348,7 +367,7 @@ Refuse the cliché defaults: purple-blue gradients on white, "pastel everything,
 
   aestheticMotion: `### Motion
 
-Most Lerret assets are stills — motion is irrelevant. If you're authoring an asset that runs under \`liveRefresh\` (clocks, dashboards, time-of-day surfaces), keep micro-interactions subtle and purposeful. One well-orchestrated transition beats five scattered ones. No bouncing letters.`,
+Most Lerret assets are stills — motion is irrelevant. If you're authoring an asset that runs under auto-refresh (clocks, dashboards, time-of-day surfaces), keep micro-interactions subtle and purposeful. One well-orchestrated transition beats five scattered ones. No bouncing letters.`,
 
   aestheticComposition: `### Spatial composition
 
@@ -508,21 +527,20 @@ ${CLI.npxClear} intro     # or remove just the tour page
 
 The \`config.json\` (your \`vars\`) and \`_fonts/\` (your fonts) are always preserved — they are project state, not samples. Use \`--dry-run\` first if you want to see the plan.
 
-### Live-update an asset every second
+### Auto-refresh an asset every second
 
-\`.lerret/live/config.json\` already wires the preset's two live assets:
+The preset's two live assets each carry their own co-located config file:
 
 \`\`\`json
-{
-  "liveRefresh": { "clock": 1000, "counter": 1000 }
-}
+// .lerret/live/clock.config.json
+{ "autoRefresh": 1000 }
 \`\`\`
 
-The key is the **file basename** without \`.jsx\` (lowercase \`clock\`, not the exported \`Clock\` component name). The value is the interval in milliseconds (minimum 16). The studio re-renders the named asset on that interval. Add a new live asset \`live/my-clock.jsx\` and append \`"my-clock": 1000\` here — useful for clock/dashboard surfaces with a real-time component.`,
+The file shares the asset's **basename** — \`live/clock.jsx\` pairs with \`live/clock.config.json\` (and \`live/counter.jsx\` with \`live/counter.config.json\`). \`autoRefresh\` is the interval in milliseconds (minimum 16); the studio re-renders that asset on the interval. To make a new asset \`live/my-clock.jsx\` tick, drop a \`live/my-clock.config.json\` beside it with \`{ "autoRefresh": 1000 }\` — useful for clock/dashboard surfaces with a real-time component. No file means the asset stays still.`,
 
   notDo: `## What not to do
 
-- **Don't invent new top-level config keys** unless you intend to consume them yourself. Lerret only acts on \`vars\`, \`presentation\`, \`liveRefresh\`, \`colors\`, \`fonts\`. Other keys are preserved verbatim but ignored by the runtime.
+- **Don't invent new top-level config keys** unless you intend to consume them yourself. Lerret only acts on \`vars\`, \`presentation\`, \`colors\`, \`fonts\` in a folder \`config.json\`. Other keys are preserved verbatim but ignored by the runtime. (Auto-refresh is **not** a folder key — it lives in a per-asset \`<Name>.config.json\`; see the auto-refresh section.)
 - **Don't add a build step.** Lerret assets run through the studio's transformer (Sucrase). Don't \`npm install\` anything into the project root unless the user explicitly asked for it. Don't add a \`package.json\` to the \`.lerret/\` directory.
 - **Don't reach for a CSS framework.** Tailwind, styled-components, CSS-in-JS libraries — none of them are configured. Inline styles or plain CSS via \`<style>\` tags in the component are the supported paths. The sample assets show inline-style; follow them.
 - **Don't import images via bundler magic** (e.g. \`import logo from './logo.png'\`). Use relative URLs: \`<img src="./logo.png" />\`. The studio serves the \`.lerret/\` directory as static files; this just works.
@@ -556,6 +574,7 @@ function sharedBody() {
     SECTIONS.assetContract,
     SECTIONS.variants,
     SECTIONS.dataFiles,
+    SECTIONS.autoRefresh,
     SECTIONS.propResolution,
     SECTIONS.cascadingConfig,
     SECTIONS.fonts,
@@ -604,7 +623,7 @@ description: Edit a Lerret asset (or scaffold a new one) under .lerret/ with the
 
 You are editing a Lerret project. The asset root is \`.lerret/\` at the workspace root (or the nearest \`.lerret/\` to the file the user named).
 
-Use the \`lerret-author\` skill — it covers Lerret's conventions (the \`meta\` export with \`dimensions\`/\`label\`/\`tags\`/\`propsSchema\`, variants via additional named exports, the four-tier prop resolution chain, cascading \`config.json\` with \`vars\`/\`presentation\`/\`liveRefresh\`, auto-registered \`_fonts/\`, co-located \`<name>.data.json\`/\`.data.js\`, component-prefixed image naming) AND the aesthetic bar Lerret expects (commit to a bold direction, distinctive typography from \`_fonts/\`, cohesive dominant-with-accents palette, no Arial/Inter/Roboto on headlines, no purple-gradient slop).
+Use the \`lerret-author\` skill — it covers Lerret's conventions (the \`meta\` export with \`dimensions\`/\`label\`/\`tags\`/\`propsSchema\`, variants via additional named exports, the four-tier prop resolution chain, cascading \`config.json\` with \`vars\`/\`presentation\`, per-asset auto-refresh via a co-located \`<name>.config.json\` with \`autoRefresh\`, auto-registered \`_fonts/\`, co-located \`<name>.data.json\`/\`.data.js\`, component-prefixed image naming) AND the aesthetic bar Lerret expects (commit to a bold direction, distinctive typography from \`_fonts/\`, cohesive dominant-with-accents palette, no Arial/Inter/Roboto on headlines, no purple-gradient slop).
 
 For top-tier visual output, the user can optionally install Anthropic's official \`frontend-design\` plugin — it goes deeper on production-grade frontend aesthetics. It's complementary to \`lerret-author\`, not a replacement. Install (one-time, not required for this command to work):
 

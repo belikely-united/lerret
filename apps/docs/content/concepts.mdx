@@ -228,7 +228,7 @@ When no tier supplies a prop, the resolver omits the key entirely. React then ap
 // → title resolves to 'Variant data title' (tier 1 wins)
 ```
 
-## Live refresh
+## Live reload
 
 A file change on disk re-renders the relevant artboard in under a second.
 
@@ -238,6 +238,32 @@ A file change on disk re-renders the relevant artboard in under a second.
 - **React Fast Refresh.** Component changes hot-swap through Vite's standard HMR. State is preserved where possible; the studio shell does not reload.
 
 The result: save a file, the affected artboard updates, the rest of the canvas is unaffected.
+
+## Auto-refresh
+
+Live reload is event-driven — it reacts to file changes. Auto-refresh is **time-driven**: an asset with an `autoRefresh` interval re-renders on a fixed clock with no file change at all. It's how a clock, countdown, or live counter stays alive on the canvas.
+
+The interval lives in a `<Name>.config.json` file **co-located** with the asset — the same companion lane as its `.data.json`. The only field is `autoRefresh`, the interval in milliseconds:
+
+```
+social/
+├── Clock.jsx
+└── Clock.config.json   ← auto-refresh settings for Clock.jsx
+```
+
+```json
+{
+  "autoRefresh": 1000
+}
+```
+
+`Clock` redraws every 1000 ms (once a second). Each asset carries its own file, so different assets keep different rhythms — give one `100` to redraw ten times a second, another `60000` to redraw once a minute.
+
+- The value is the interval in **milliseconds**. **No file or no `autoRefresh` key = off** — there's nothing to inherit and no cascade.
+- Only **component** assets are eligible.
+- The minimum interval is **16 ms** (one 60fps frame), and each tick re-renders only the affected artboard — never the whole canvas.
+
+You rarely write this by hand: set it from the artboard in the studio (see [Auto-refresh](/studio#auto-refresh)) and the control writes the file for you. Editing `<Name>.config.json` directly works too.
 
 ## Error isolation
 

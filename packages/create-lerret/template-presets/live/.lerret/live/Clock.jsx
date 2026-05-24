@@ -1,14 +1,14 @@
-// Clock.jsx — LiveRefresh artboard #1.
+// Clock.jsx — auto-refresh artboard #1.
 //
 // Renders the local time in HH:MM:SS. Re-renders every 1000ms because
-// `liveRefresh: { Clock: 1000 }` is set in `live/config.json`.
+// `Clock.config.json` (co-located) sets `{ "autoRefresh": 1000 }`.
 //
-// To slow it down or speed it up: edit `live/config.json`.
+// To slow it down or speed it up: edit `Clock.config.json`.
 
 export const meta = {
   dimensions: { width: 800, height: 400 },
   label: 'Clock — 1s rhythm',
-  tags: ['live', 'clock', 'liveRefresh'],
+  tags: ['live', 'clock', 'auto-refresh'],
 };
 
 export default function Clock() {
@@ -65,7 +65,7 @@ export default function Clock() {
           color: 'color-mix(in oklab, var(--neutralLight, #F8F4EC) 55%, transparent)',
         }}
       >
-        edit live/config.json to change the interval
+        edit Clock.config.json to change the interval
       </div>
     </div>
   );

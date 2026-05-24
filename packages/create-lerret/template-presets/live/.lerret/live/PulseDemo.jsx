@@ -1,16 +1,17 @@
-// PulseDemo.jsx — LiveRefresh artboard #4.
+// PulseDemo.jsx — auto-refresh artboard #4.
 //
 // The natural target of the animated-export feature: tap the kebab on this
 // artboard → Export animated… and capture the pulse as a GIF / WebP / MP4.
 //
-// `liveRefresh: { PulseDemo: 2000 }` keeps the asset re-rendering on the same
-// cadence as the pulse itself; the actual breathing is a CSS keyframes
-// animation so it interpolates smoothly between snapshots.
+// `PulseDemo.config.json` (co-located) sets `{ "autoRefresh": 2000 }`, keeping
+// the asset re-rendering on the same cadence as the pulse itself; the actual
+// breathing is a CSS keyframes animation so it interpolates smoothly between
+// snapshots.
 
 export const meta = {
   dimensions: { width: 800, height: 400 },
   label: 'Animated-export demo',
-  tags: ['live', 'pulse', 'liveRefresh', 'animated-export'],
+  tags: ['live', 'pulse', 'auto-refresh', 'animated-export'],
 };
 
 export default function PulseDemo() {

@@ -88,6 +88,12 @@ const REVEAL_FINDER_DISABLED_REASON = 'Available in the local CLI';
  * @param {object} ctx
  * @param {() => void} ctx.onEditData
  * @param {() => void} ctx.onEditMeta
+ * @param {() => void} [ctx.onLiveRefresh]
+ *   When provided, a "Auto-refresh" item appears after "Edit meta" that opens
+ *   the on-artboard rate picker. Omitted in legacy callers (no live-refresh UI).
+ * @param {string} [ctx.liveRefreshLabel]
+ *   Label for the live-refresh item (e.g. "Auto-refresh · 1s"). Defaults to
+ *   "Auto-refresh…".
  * @param {() => void} ctx.onDuplicate
  * @param {() => void} ctx.onRename
  * @param {() => void} [ctx.onMove]
@@ -106,6 +112,14 @@ export function buildComponentItems(ctx) {
  const items = [
  { kind: 'item', id: 'edit-data', label: 'Edit data', onSelect: ctx.onEditData },
  { kind: 'item', id: 'edit-meta', label: 'Edit meta', onSelect: ctx.onEditMeta },
+ ...(typeof ctx.onLiveRefresh === 'function'
+ ? [{
+ kind: 'item',
+ id: 'live-refresh',
+ label: ctx.liveRefreshLabel || 'Auto-refresh…',
+ onSelect: ctx.onLiveRefresh,
+ }]
+ : []),
  { kind: 'separator', id: 'sep-1' },
  { kind: 'item', id: 'duplicate', label: 'Duplicate', onSelect: ctx.onDuplicate },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },

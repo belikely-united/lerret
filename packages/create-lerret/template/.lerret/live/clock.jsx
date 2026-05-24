@@ -1,13 +1,13 @@
 // clock.jsx — a digital clock (1080 × 540).
 //
-// Teaches **`liveRefresh`** (FR19). The component renders the current
+// Teaches **auto-refresh** (FR19). The component renders the current
 // wall-clock time as HH:MM:SS. By itself it would render once and freeze.
-// What makes the artboard tick is the `liveRefresh` block in
-// `live/config.json`:
+// What makes the artboard tick is its co-located config file,
+// `clock.config.json`:
 //
-//   { "liveRefresh": { "clock": 1000, "counter": 1000 } }
+//   { "autoRefresh": 1000 }
 //
-// That line tells Lerret to re-render this asset every 1000 ms (1 s). The
+// That tells Lerret to re-render this asset every 1000 ms (1 s). The
 // runtime drives the refresh — the component itself just reads `Date.now()`
 // inside a `useEffect` and updates state.
 
@@ -26,10 +26,10 @@ function pad(n) {
 export default function Clock() {
   const [now, setNow] = useState(() => new Date());
 
-  // We belt-and-brace the liveRefresh-driven re-render with an internal
-  // setInterval. liveRefresh re-mounts the artboard wrapper; the interval
+  // We belt-and-brace the auto-refresh-driven re-render with an internal
+  // setInterval. Auto-refresh re-mounts the artboard wrapper; the interval
   // here keeps the in-component state honest if you ever inspect the
-  // component without liveRefresh enabled. Either path gives you a ticking
+  // component without auto-refresh enabled. Either path gives you a ticking
   // clock.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -120,8 +120,8 @@ export default function Clock() {
           position: 'relative',
         }}
       >
-        <div>liveRefresh: 1000 ms</div>
-        <div>edit live/config.json</div>
+        <div>autoRefresh: 1000 ms</div>
+        <div>edit clock.config.json</div>
       </div>
     </div>
   );

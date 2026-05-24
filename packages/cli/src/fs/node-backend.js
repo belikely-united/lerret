@@ -675,8 +675,14 @@ async function discoverCompanions(folderNative, stem) {
     const name = dirent.name;
     const lower = name.toLowerCase();
 
-    // Exact-match data files: `<stem>.data.json` or `<stem>.data.js`.
-    if (lower === `${stemLower}.data.json` || lower === `${stemLower}.data.js`) {
+    // Exact-match sidecars: `<stem>.data.json`, `<stem>.data.js`, and the
+    // per-asset `<stem>.config.json` (auto-refresh etc., ADR-003) — they travel
+    // with the asset on move.
+    if (
+      lower === `${stemLower}.data.json` ||
+      lower === `${stemLower}.data.js` ||
+      lower === `${stemLower}.config.json`
+    ) {
       out.push(joinNative(folderNative, name));
       continue;
     }
@@ -784,9 +790,7 @@ export async function tryReadConfig(configNative) {
  *     • `Error` with `code: 'malformed-dest-config'` — `carryLiveRefresh` with malformed dest config.
  *     • `Error` (no code)                          — bubble-up of fs errors.
  */
-async function moveEntry(sourcePath, toFolderPath, opts = {}) {
-  const carry = opts.carryLiveRefresh === true;
-
+async function moveEntry(sourcePath, toFolderPath) {
   // ── Cycle prevention (contract-path / forward-slash basis) ────────────────
   // Compare on the forward-slash paths so we don't get tripped up by mixed
   // separators on Windows. A folder moved into itself OR into any descendant
@@ -863,85 +867,9 @@ async function moveEntry(sourcePath, toFolderPath, opts = {}) {
     ? []
     : await discoverCompanions(parentNative, stem);
 
-  // ── liveRefresh strip + carry-over PLAN (no disk writes yet — D.M3 fix) ───
-  //
-  // For folder moves we leave the destination's config.json alone (folders
-  // carry their own config.json inside their tree on move). We still skip
-  // the source-config edit because a folder move uproots the source folder
-  // entirely — its config.json moves with it.
-  //
-  // Previously the writes happened HERE (before the asset rename). If the
-  // asset rename then failed (cross-device EXDEV partial state, ENOSPC,
-  // collision race, permission), the configs would already be mutated with
-  // no rollback. We now compute the PLAN here but defer the writes until
-  // after the asset + companions have moved successfully.
-  /** @type {'stripped' | 'carried-over' | 'none' | 'skipped-malformed'} */
-  let rewroteLiveRefresh = 'none';
-
-  const sourceConfigNative = joinNative(parentNative, 'config.json');
-  const destConfigNative = joinNative(destFolderNative, 'config.json');
-
-  /** @type {null | { sourceWrite?: { path: string, value: object }, destWrite?: { path: string, value: object }, label: 'stripped' | 'carried-over' }} */
-  let liveRefreshPlan = null;
-
-  if (!isDir) {
-    const sourceConfig = await tryReadConfig(sourceConfigNative);
-
-    // Validate destination config FIRST when carrying — we want to refuse the
-    // whole move before touching anything on disk if the dest is malformed.
-    let destConfig = null;
-    if (carry) {
-      destConfig = await tryReadConfig(destConfigNative);
-      if (destConfig.kind === 'malformed') {
-        const e = new Error('destination config.json is malformed; refusing to carry liveRefresh');
-        e.code = 'malformed-dest-config';
-        throw e;
-      }
-    }
-
-    // Decide what to strip and where.
-    let sourceHadKey = false;
-    if (sourceConfig.kind === 'ok') {
-      const lr = sourceConfig.value && sourceConfig.value.liveRefresh;
-      if (lr && typeof lr === 'object' && !Array.isArray(lr) && Object.prototype.hasOwnProperty.call(lr, stem)) {
-        sourceHadKey = true;
-      }
-    }
-
-    if (sourceHadKey && sourceConfig.kind === 'ok') {
-      // Build the stripped config. We mutate a copy.
-      const next = { ...sourceConfig.value };
-      const nextLr = { ...(/** @type {Record<string, unknown>} */ (next.liveRefresh)) };
-      const carriedValue = nextLr[stem];
-      delete nextLr[stem];
-      if (Object.keys(nextLr).length === 0) {
-        delete next.liveRefresh;
-      } else {
-        next.liveRefresh = nextLr;
-      }
-      const plan = /** @type {{ sourceWrite: { path: string, value: object }, destWrite?: { path: string, value: object }, label: 'stripped' | 'carried-over' }} */ ({
-        sourceWrite: { path: toLerretPath(sourceConfigNative), value: next },
-        label: 'stripped',
-      });
-      if (carry && destConfig) {
-        const destBase =
-          destConfig.kind === 'ok' ? { ...destConfig.value } : {};
-        const destLr =
-          destConfig.kind === 'ok' && destConfig.value && destConfig.value.liveRefresh && typeof destConfig.value.liveRefresh === 'object' && !Array.isArray(destConfig.value.liveRefresh)
-            ? { ...(/** @type {Record<string, unknown>} */ (destConfig.value.liveRefresh)) }
-            : {};
-        destLr[stem] = carriedValue;
-        destBase.liveRefresh = destLr;
-        plan.destWrite = { path: toLerretPath(destConfigNative), value: destBase };
-        plan.label = 'carried-over';
-      }
-      liveRefreshPlan = plan;
-    } else if (sourceConfig.kind === 'malformed') {
-      // We can't tell whether the key was there. Don't overwrite a possibly
-      // hand-edited broken JSON; skip the strip, still proceed with the move.
-      rewroteLiveRefresh = 'skipped-malformed';
-    }
-  }
+  // The asset's `Name.config.json` (auto-refresh etc.) travels as a companion
+  // (see `discoverCompanions`) — there is no folder-level `liveRefresh` to strip
+  // or carry anymore (ADR-003).
 
   // ── Helper: race-free rename with EXDEV + collision atomicity ─────────────
   //
@@ -1077,32 +1005,8 @@ async function moveEntry(sourcePath, toFolderPath, opts = {}) {
     throw companionErr;
   }
 
-  // ── D.M3 fix: NOW persist the liveRefresh writes (was BEFORE the move) ───
-  //
-  // The asset + companions are at the destination. If the config write fails
-  // here, we roll back the moves to keep on-disk state consistent. Better to
-  // surface a failed move than to leave the source mid-renamed with a
-  // mismatched config.
-  if (liveRefreshPlan) {
-    try {
-      await writeJson(liveRefreshPlan.sourceWrite.path, liveRefreshPlan.sourceWrite.value);
-      if (liveRefreshPlan.destWrite) {
-        await writeJson(liveRefreshPlan.destWrite.path, liveRefreshPlan.destWrite.value);
-      }
-      rewroteLiveRefresh = liveRefreshPlan.label;
-    } catch (writeErr) {
-      // Roll back asset + companions so the move appears to have not happened.
-      for (const m of moved.reverse()) {
-        try { await renameWithExdev(m.to, m.from); } catch { /* best effort */ }
-      }
-      try { await renameWithExdev(targetNative, srcNative); } catch { /* best effort */ }
-      throw writeErr;
-    }
-  }
-
   return {
     path: toLerretPath(targetNative),
-    rewroteLiveRefresh,
   };
 }
 

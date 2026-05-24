@@ -31,12 +31,13 @@ it to see what's missing. The paired variant has a complete data file and
 shows no badge. The Markdown card explains the badge and how to dismiss it
 by fixing the data.
 
-## `live/` — `liveRefresh`
+## `live/` — auto-refresh
 
-Two artboards driven by `liveRefresh` config: a digital clock showing
-HH:MM:SS at a 1 s tick and an auto-incrementing counter that visibly
-increments every second. Both timers are declared in `live/config.json`.
-The Markdown card in that folder shows you exactly which line to edit to
+Two artboards driven by auto-refresh: a digital clock showing HH:MM:SS at a
+1 s tick and an auto-incrementing counter that visibly increments every
+second. Each timer is declared in the asset's own co-located config file
+(`clock.config.json`, `counter.config.json`, each `{ "autoRefresh": 1000 }`).
+The Markdown card in that folder shows you exactly which value to edit to
 change the tick interval (try `100` for fast, `5000` for slow).
 
 ---

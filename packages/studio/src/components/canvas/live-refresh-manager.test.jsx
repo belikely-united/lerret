@@ -1,12 +1,17 @@
-// live-refresh-manager.test.js (liveRefresh timer-driven re-rendering)
+// live-refresh-manager.test.js (auto-refresh timer-driven re-rendering)
+//
+// Per ADR-003 the refresh interval is per-asset: each component reads its own
+// `Name.config.json` `autoRefresh` (ms), surfaced via the `getAssetConfig`
+// accessor (`assetPath => config`). No folder cascade, no name-matching, no
+// null/false "explicit off" sentinel.
 //
 // Tests cover:
-// (a) a listed asset with a valid interval fires notifyChange on schedule.
-// (b) multiple listed assets each fire on their own interval.
-// (c) unlisted assets get no timer.
-// (d) invalid entries (non-existent asset, non-positive / non-numeric interval)
-// are ignored with a console.warn, valid entries still take effect.
-// (e) timer is cleared on unmount / page switch / removal from cascade list.
+// (a) an asset with a valid interval fires notifyChange on schedule.
+// (b) multiple assets each fire on their own interval.
+// (c) an asset with no config gets no timer.
+// (d) invalid intervals (non-numeric / sub-frame / non-positive) are ignored
+// with a console.warn; valid entries still take effect.
+// (e) timer is cleared on unmount / page switch / removal from config.
 
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -46,6 +51,15 @@ function makePage(path, assets, groups = []) {
  return createPageNode({ name: path.split('/').pop(), path, assets, groups });
 }
 
+/**
+ * Build a per-asset `getAssetConfig` accessor from a plain map of
+ * `{ assetPath: config }`. Returns `{}` for any path not in the map, mirroring
+ * `useAssetConfig()` (see asset-config-context.jsx).
+ */
+function makeGetAssetConfig(byPath) {
+ return (assetPath) => byPath[assetPath] || {};
+}
+
 /** A minimal runtime stub with a spied `notifyChange`. */
 function makeRuntime() {
  return {
@@ -75,8 +89,8 @@ afterEach(() => {
 });
 
 /** A minimal component that invokes `useLiveRefresh` with the given props. */
-function LiveRefreshHarness({ page, getConfigFor, runtime }) {
- useLiveRefresh(page, getConfigFor, runtime);
+function LiveRefreshHarness({ page, getAssetConfig, runtime }) {
+ useLiveRefresh(page, getAssetConfig, runtime);
  return null;
 }
 
@@ -99,38 +113,40 @@ function rerender(element) {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('buildIntervalMap', () => {
- it('returns an empty map when no liveRefresh config exists', () => {
+ it('returns an empty map when no asset has an autoRefresh config', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({});
- const map = buildIntervalMap(page, getConfigFor);
+ const getAssetConfig = () => ({});
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(0);
  });
 
- it('maps a valid asset name + interval to the asset path', () => {
+ it('maps an asset with a valid autoRefresh to its path', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = (p) =>
- p === '/.lerret/ui' ? { liveRefresh: { Clock: 1000 } } : {};
- const map = buildIntervalMap(page, getConfigFor);
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ });
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(1);
  expect(map.get('/.lerret/ui/Clock.jsx')).toBe(1000);
  });
 
- it('maps multiple valid assets from the same config block', () => {
+ it('maps multiple assets, each from its own config', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const countdown = makeAsset('/.lerret/ui', 'Countdown');
  const page = makePage('/.lerret/ui', [clock, countdown]);
- const getConfigFor = () => ({
- liveRefresh: { Clock: 1000, Countdown: 500 },
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ '/.lerret/ui/Countdown.jsx': { autoRefresh: 500 },
  });
- const map = buildIntervalMap(page, getConfigFor);
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(2);
  expect(map.get('/.lerret/ui/Clock.jsx')).toBe(1000);
  expect(map.get('/.lerret/ui/Countdown.jsx')).toBe(500);
  });
 
- it('walks into child groups to find liveRefresh config', () => {
+ it('walks into child groups to find each asset\'s config', () => {
  const clock = makeAsset('/.lerret/ui/live', 'Clock');
  const group = createGroupNode({
  name: 'live',
@@ -138,45 +154,62 @@ describe('buildIntervalMap', () => {
  assets: [clock],
  });
  const page = makePage('/.lerret/ui', [], [group]);
- const getConfigFor = (p) =>
- p === '/.lerret/ui/live' ? { liveRefresh: { Clock: 200 } } : {};
- const map = buildIntervalMap(page, getConfigFor);
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/live/Clock.jsx': { autoRefresh: 200 },
+ });
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.get('/.lerret/ui/live/Clock.jsx')).toBe(200);
  });
 
- it('ignores a non-existent asset name with a console.warn', () => {
+ it('an asset with no config (or no autoRefresh) is simply off — no warning', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({
- liveRefresh: { Ghost: 1000, Clock: 500 },
- });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
- const map = buildIntervalMap(page, getConfigFor);
- expect(map.size).toBe(1);
- expect(map.has('/.lerret/ui/Clock.jsx')).toBe(true);
- expect(warn).toHaveBeenCalledOnce();
- expect(warn.mock.calls[0][0]).toContain('Ghost');
+ // Config object exists but has no autoRefresh key.
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { presentation: { background: '#fff' } },
+ });
+ const map = buildIntervalMap(page, getAssetConfig);
+ expect(map.size).toBe(0);
+ expect(warn).not.toHaveBeenCalled();
+ warn.mockRestore();
+ });
+
+ it('treats a null autoRefresh as off — no timer, no warning', () => {
+ const clock = makeAsset('/.lerret/ui', 'Clock');
+ const page = makePage('/.lerret/ui', [clock]);
+ const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: null },
+ });
+ const map = buildIntervalMap(page, getAssetConfig);
+ expect(map.size).toBe(0);
+ expect(warn).not.toHaveBeenCalled();
  warn.mockRestore();
  });
 
  it('ignores a non-positive interval (0) with a console.warn', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: 0 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 0 },
+ });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
- const map = buildIntervalMap(page, getConfigFor);
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(0);
  expect(warn).toHaveBeenCalledOnce();
- expect(warn.mock.calls[0][0]).toContain('Clock');
+ expect(warn.mock.calls[0][0]).toContain('/.lerret/ui/Clock.jsx');
  warn.mockRestore();
  });
 
  it('ignores a negative interval with a console.warn', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: -500 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: -500 },
+ });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
- const map = buildIntervalMap(page, getConfigFor);
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(0);
  expect(warn).toHaveBeenCalled();
  warn.mockRestore();
@@ -185,9 +218,11 @@ describe('buildIntervalMap', () => {
  it('ignores a non-numeric interval (string) with a console.warn', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: 'fast' } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 'fast' },
+ });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
- const map = buildIntervalMap(page, getConfigFor);
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(0);
  expect(warn).toHaveBeenCalledOnce();
  warn.mockRestore();
@@ -196,26 +231,37 @@ describe('buildIntervalMap', () => {
  it('ignores sub-16ms intervals (below one animation frame) with a console.warn', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: 10 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 10 },
+ });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
- const map = buildIntervalMap(page, getConfigFor);
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(0);
  expect(warn).toHaveBeenCalledOnce();
  warn.mockRestore();
  });
 
- it('valid entries still take effect when some entries are invalid', () => {
+ it('valid assets still take effect when another asset is invalid', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
- const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({
- liveRefresh: { Ghost: 1000, Clock: 500, Zombie: 'bad' },
+ const broken = makeAsset('/.lerret/ui', 'Broken');
+ const page = makePage('/.lerret/ui', [clock, broken]);
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 500 },
+ '/.lerret/ui/Broken.jsx': { autoRefresh: 'bad' },
  });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
- const map = buildIntervalMap(page, getConfigFor);
+ const map = buildIntervalMap(page, getAssetConfig);
  expect(map.size).toBe(1);
  expect(map.get('/.lerret/ui/Clock.jsx')).toBe(500);
- expect(warn).toHaveBeenCalledTimes(2);
+ expect(warn).toHaveBeenCalledOnce();
  warn.mockRestore();
+ });
+
+ it('returns an empty map when getAssetConfig is not a function', () => {
+ const clock = makeAsset('/.lerret/ui', 'Clock');
+ const page = makePage('/.lerret/ui', [clock]);
+ const map = buildIntervalMap(page, undefined);
+ expect(map.size).toBe(0);
  });
 });
 
@@ -232,14 +278,16 @@ describe('useLiveRefresh hook', () => {
  vi.useRealTimers();
  });
 
- // (a) A listed asset with a valid interval fires notifyChange on schedule.
- it('(a) fires notifyChange for a listed asset on its configured interval', () => {
+ // (a) An asset with a valid interval fires notifyChange on schedule.
+ it('(a) fires notifyChange for an asset on its configured interval', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: 1000 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ });
  const runtime = makeRuntime();
 
- mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={page} getAssetConfig={getAssetConfig} runtime={runtime} />);
 
  // No calls before the interval elapses.
  expect(runtime.notifyChange).not.toHaveBeenCalled();
@@ -252,17 +300,18 @@ describe('useLiveRefresh hook', () => {
  expect(runtime.notifyChange).toHaveBeenCalledTimes(2);
  });
 
- // (b) Multiple listed assets each fire on their own interval.
+ // (b) Multiple assets each fire on their own interval.
  it('(b) multiple assets fire independently on their own intervals', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const countdown = makeAsset('/.lerret/ui', 'Countdown');
  const page = makePage('/.lerret/ui', [clock, countdown]);
- const getConfigFor = () => ({
- liveRefresh: { Clock: 1000, Countdown: 500 },
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ '/.lerret/ui/Countdown.jsx': { autoRefresh: 500 },
  });
  const runtime = makeRuntime();
 
- mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={page} getAssetConfig={getAssetConfig} runtime={runtime} />);
 
  act(() => vi.advanceTimersByTime(500));
  // Countdown fired once, Clock not yet.
@@ -277,16 +326,18 @@ describe('useLiveRefresh hook', () => {
  expect(calls1000.filter((p) => p.includes('Clock'))).toHaveLength(1);
  });
 
- // (c) Unlisted assets get no timer.
- it('(c) unlisted assets get no timer — notifyChange is never called for them', () => {
+ // (c) An asset with no config gets no timer.
+ it('(c) an asset with no config gets no timer — notifyChange is never called for it', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const hero = makeAsset('/.lerret/ui', 'Hero');
  const page = makePage('/.lerret/ui', [clock, hero]);
- // Only Clock is listed.
- const getConfigFor = () => ({ liveRefresh: { Clock: 1000 } });
+ // Only Clock has a config.
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ });
  const runtime = makeRuntime();
 
- mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={page} getAssetConfig={getAssetConfig} runtime={runtime} />);
 
  act(() => vi.advanceTimersByTime(3000));
 
@@ -296,21 +347,23 @@ describe('useLiveRefresh hook', () => {
  });
 
  // (d) Invalid entries are ignored + warned; valid entries still run.
- it('(d) ignores invalid entries (warns) while valid entries still fire', () => {
+ it('(d) ignores an invalid interval (warns) while valid entries still fire', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
- const page = makePage('/.lerret/ui', [clock]);
- // Ghost does not exist; BadInterval is not a positive number; Clock is valid.
- const getConfigFor = () => ({
- liveRefresh: { Ghost: 1000, BadInterval: -5, Clock: 500 },
+ const broken = makeAsset('/.lerret/ui', 'Broken');
+ const page = makePage('/.lerret/ui', [clock, broken]);
+ // Broken's interval is not a positive number; Clock is valid.
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 500 },
+ '/.lerret/ui/Broken.jsx': { autoRefresh: -5 },
  });
  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
  const runtime = makeRuntime();
 
- mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={page} getAssetConfig={getAssetConfig} runtime={runtime} />);
 
  act(() => vi.advanceTimersByTime(500));
  expect(runtime.notifyChange).toHaveBeenCalledWith('/.lerret/ui/Clock.jsx');
- expect(warn).toHaveBeenCalledTimes(2); // Ghost + BadInterval
+ expect(warn).toHaveBeenCalledOnce(); // Broken
  warn.mockRestore();
  });
 
@@ -318,11 +371,13 @@ describe('useLiveRefresh hook', () => {
  it('(e) clears all timers on unmount — notifyChange stops firing', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: 1000 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ });
  const runtime = makeRuntime();
 
  const { root } = mount(
- <LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />,
+ <LiveRefreshHarness page={page} getAssetConfig={getAssetConfig} runtime={runtime} />,
  );
 
  act(() => vi.advanceTimersByTime(1000));
@@ -337,25 +392,22 @@ describe('useLiveRefresh hook', () => {
  expect(runtime.notifyChange).not.toHaveBeenCalled();
  });
 
- // (e) Timer is cleared when liveRefresh is removed from config (cascade change).
- it('(e) clears timer when liveRefresh is removed from config (cascade change)', () => {
+ // (e) Timer is cleared when the asset's autoRefresh is removed (config change).
+ it('(e) clears timer when autoRefresh is removed from the asset config', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
  const runtime = makeRuntime();
 
- // Start with Clock listed.
- let cfgWithClock = { liveRefresh: { Clock: 1000 } };
- const getConfigFor = (p) => (p === '/.lerret/ui' ? cfgWithClock : {});
-
- mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+ // Start with Clock configured.
+ const onConfig = makeGetAssetConfig({ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 } });
+ mount(<LiveRefreshHarness page={page} getAssetConfig={onConfig} runtime={runtime} />);
 
  act(() => vi.advanceTimersByTime(1000));
  expect(runtime.notifyChange).toHaveBeenCalledTimes(1);
 
- // Remove liveRefresh from config → re-render with empty config.
- cfgWithClock = {};
- // Force re-render by re-mounting with a new getConfigFor reference.
- rerender(<LiveRefreshHarness page={page} getConfigFor={(p) => (p === '/.lerret/ui' ? cfgWithClock : {})} runtime={runtime} />);
+ // Remove autoRefresh → re-render with a new (empty) accessor reference.
+ const offConfig = makeGetAssetConfig({});
+ rerender(<LiveRefreshHarness page={page} getAssetConfig={offConfig} runtime={runtime} />);
 
  runtime.notifyChange.mockClear();
  act(() => vi.advanceTimersByTime(5000));
@@ -367,16 +419,18 @@ describe('useLiveRefresh hook', () => {
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const pageA = makePage('/.lerret/ui', [clock]);
  const pageB = makePage('/.lerret/about', []);
- const getConfigFor = () => ({ liveRefresh: { Clock: 1000 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ });
  const runtime = makeRuntime();
 
- mount(<LiveRefreshHarness page={pageA} getConfigFor={getConfigFor} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={pageA} getAssetConfig={getAssetConfig} runtime={runtime} />);
 
  act(() => vi.advanceTimersByTime(1000));
  expect(runtime.notifyChange).toHaveBeenCalledTimes(1);
 
- // Switch to pageB — no assets, no liveRefresh.
- rerender(<LiveRefreshHarness page={pageB} getConfigFor={() => ({})} runtime={runtime} />);
+ // Switch to pageB — no assets.
+ rerender(<LiveRefreshHarness page={pageB} getAssetConfig={makeGetAssetConfig({})} runtime={runtime} />);
 
  runtime.notifyChange.mockClear();
  act(() => vi.advanceTimersByTime(5000));
@@ -386,21 +440,23 @@ describe('useLiveRefresh hook', () => {
  // Null page → no timers started.
  it('does nothing when page is null', () => {
  const runtime = makeRuntime();
- mount(<LiveRefreshHarness page={null} getConfigFor={() => ({})} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={null} getAssetConfig={() => ({})} runtime={runtime} />);
  act(() => vi.advanceTimersByTime(5000));
  expect(runtime.notifyChange).not.toHaveBeenCalled();
  });
 
  // Suspension: while a modal dialog is open, ticks skip notifyChange so the
  // background reload doesn't dismiss the dialog's native <select> popups.
- it('skips notifyChange while liveRefresh is suspended, resumes after release', () => {
+ it('skips notifyChange while live refresh is suspended, resumes after release', () => {
  __resetLiveRefreshSuspendForTests();
  const clock = makeAsset('/.lerret/ui', 'Clock');
  const page = makePage('/.lerret/ui', [clock]);
- const getConfigFor = () => ({ liveRefresh: { Clock: 1000 } });
+ const getAssetConfig = makeGetAssetConfig({
+ '/.lerret/ui/Clock.jsx': { autoRefresh: 1000 },
+ });
  const runtime = makeRuntime();
 
- mount(<LiveRefreshHarness page={page} getConfigFor={getConfigFor} runtime={runtime} />);
+ mount(<LiveRefreshHarness page={page} getAssetConfig={getAssetConfig} runtime={runtime} />);
 
  // Baseline: one tick fires normally.
  act(() => vi.advanceTimersByTime(1000));

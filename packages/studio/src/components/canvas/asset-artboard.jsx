@@ -98,13 +98,13 @@ export function artboardForEntry(entry, opts = {}) {
  // per subsequent live re-load.
  const cueKey = opts.cueKey;
 
- // `getConfigFor` (cascade-context lookup) is passed in by the caller —
+ // `getAssetConfig` (per-asset config lookup) is passed in by the caller —
  // it can't be acquired here because `artboardForEntry` is a plain function,
- // not a React component. Used solely to detect whether this entry has a
- // `liveRefresh` mapping so the ANIM export button can render on the
+ // not a React component. Used solely to detect whether this entry has an
+ // `autoRefresh` interval so the ANIM export button can render on the
  // right-edge cluster (gating done in `DCArtboardFrame` via `hasLiveRefresh`).
- const hasLiveRefresh = opts.getConfigFor
- ? typeof liveRefreshIntervalFor(entry, opts.getConfigFor) === 'number'
+ const hasLiveRefresh = opts.getAssetConfig
+ ? typeof liveRefreshIntervalFor(entry, opts.getAssetConfig) === 'number'
  : false;
 
  // derive the asset's owning folder path from its file path so

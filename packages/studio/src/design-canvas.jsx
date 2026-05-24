@@ -804,7 +804,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  // the button (Bug B). Kept narrow to the kebab/popover surface to match
  // the spec's "minimum surgical fix" boundary; broader `button` exclusion
  // was considered but is over-broad for the actual root cause.
- if (e.target.closest('.lm-kebab-trigger, .lm-menu-popover')) return;
+ if (e.target.closest('.lm-kebab-trigger, .lm-menu-popover, .lm-live-pop, .lm-live-badge')) return;
  // `.dc-section-cta` marks in-canvas interactive content that isn't an
  // artboard slot (e.g. the empty-group "+ Add asset" placeholder). Without
  // this, a pointerdown there counts as "background", the viewport captures
