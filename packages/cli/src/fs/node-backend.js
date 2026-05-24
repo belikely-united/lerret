@@ -742,11 +742,10 @@ export async function tryReadConfig(configNative) {
  *   • `sourcePath` is the asset/file/folder being moved.
  *   • `toFolderPath` is the destination folder (must already exist on disk and
  *      already be validated to be inside `.lerret/` by the middleware).
- *   • `opts.carryLiveRefresh` (optional, default `false`) — when `true`, the
- *      asset's `liveRefresh` key (if present in the source folder's
- *      `config.json`) is carried over to the destination's `config.json`. When
- *      `false` we still STRIP the key from the source's config.json so the old
- *      parent does not retain an orphan ticker.
+ *
+ * The asset's own `Name.config.json` (auto-refresh etc.) travels as a companion
+ * (see `discoverCompanions`) — there is no folder-level `liveRefresh` block to
+ * strip or carry anymore (ADR-003).
  *
  * Semantics:
  *   1. Refuse cycles — moving a folder into itself or into one of its own
@@ -756,38 +755,22 @@ export async function tryReadConfig(configNative) {
  *      a copy; auto-suffix would surprise the user.)
  *   3. Refuse missing-source — if `sourcePath` does not exist, return a
  *      `missing-source` error.
- *   4. liveRefresh strip + optional carry-over:
- *       a. Read the source folder's `config.json`. If it has `liveRefresh.<stem>`,
- *          strip it (and write the new config atomically).
- *       b. If `carryLiveRefresh === true`, read the destination folder's
- *          `config.json`. If that file is MALFORMED, REFUSE THE MOVE with
- *          `malformed-dest-config` (we cannot safely inject without risking the
- *          user's edits). Otherwise, inject the key under `liveRefresh.<stem>`.
- *       c. If the SOURCE config.json is malformed and we'd be stripping, skip
- *          the strip (we don't want to overwrite the user's broken JSON), but
- *          still proceed with the move. Surface `skipped-malformed`.
- *   5. Move the asset with `fsp.rename`. On `EXDEV`, fall back to
+ *   4. Move the asset with `fsp.rename`. On `EXDEV`, fall back to
  *      `fsp.cp(..., recursive) + fsp.rm(..., recursive)` after verifying the
  *      destination exists.
- *   6. Move every companion the same way. Any companion failure rolls the
+ *   5. Move every companion the same way. Any companion failure rolls the
  *      asset BACK to its original path so disk state is consistent.
  *
  * @param {string} sourcePath        Contract-level (forward-slash) source path.
  * @param {string} toFolderPath      Contract-level destination folder path.
- * @param {{ carryLiveRefresh?: boolean }} [opts]
- * @returns {Promise<{
- *   path: string,
- *   rewroteLiveRefresh: 'stripped' | 'carried-over' | 'none' | 'skipped-malformed',
- * }>}
- *   The destination path (LerretPath form), plus a tag describing the
- *   liveRefresh side-effect for the caller's success toast.
+ * @returns {Promise<{ path: string }>}
+ *   The destination path (LerretPath form).
  *
  *   Throws:
  *     • `Error` with `code: 'cycle'`              — cycle move refused.
  *     • `Error` with `code: 'missing-source'`     — source path does not exist.
  *     • `Error` with `code: 'missing-dest'`       — destination folder does not exist.
  *     • `Error` with `code: 'collision'`          — destination already has an entry of that name.
- *     • `Error` with `code: 'malformed-dest-config'` — `carryLiveRefresh` with malformed dest config.
  *     • `Error` (no code)                          — bubble-up of fs errors.
  */
 async function moveEntry(sourcePath, toFolderPath) {

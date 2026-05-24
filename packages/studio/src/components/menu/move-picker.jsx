@@ -6,9 +6,8 @@
 // container — same trick as `animated-export-dialog.jsx`. Inside it lists every
 // folder reachable from the cascade map; the current parent of the source,
 // the source itself (if it's a folder), and any descendant of the source are
-// rendered disabled with a reason. The user picks one, optionally toggles
-// "Carry liveRefresh setting", and clicks Confirm. The caller handles the
-// actual `moveProjectFile` call.
+// rendered disabled with a reason. The user picks one and clicks Confirm. The
+// caller handles the actual `moveProjectFile` call.
 //
 // ── Shape ─────────────────────────────────────────────────────────────────
 // Props (see JSDoc on `MovePicker` below). The picker is intentionally
@@ -103,16 +102,6 @@ const buttonSecondary = {
  cursor: 'pointer',
 };
 
-const checkboxRowStyle = {
- display: 'flex',
- alignItems: 'center',
- gap: 8,
- fontSize: 12,
- color: 'var(--lm-text-primary, #1A1714)',
- cursor: 'pointer',
- padding: '4px 0',
-};
-
 const errorRowStyle = {
  fontSize: 12,
  color: '#B85B33',
@@ -182,7 +171,7 @@ function isInsideSource(candidate, sourcePath) {
  *   Called when the picker should close — Esc, click outside, Cancel, or
  *   after a successful Confirm. The parent is expected to unmount the
  *   picker (controlled-style).
- * @param {(args: { toFolderPath: string, carryLiveRefresh: boolean }) => Promise<void>} props.onConfirm
+ * @param {(args: { toFolderPath: string }) => Promise<void>} props.onConfirm
  *   Invoked when the user picks a destination and clicks Confirm. The picker
  *   awaits this so it can show inline pending / error state.
  * @param {string} props.sourcePath
@@ -197,11 +186,6 @@ function isInsideSource(candidate, sourcePath) {
  * @param {Array<[string, unknown]>} [props.cascadeEntries]
  *   Serialized cascade entries — when provided, the picker derives
  *   destinations from them via {@link destinationsFromCascadeEntries}.
- * @param {string} [props.liveRefreshKey]
- *   The asset's basename (without extension) when the source folder has a
- *   `liveRefresh` entry for it. Controls whether to render the carry-over
- *   checkbox. When omitted (no liveRefresh on this asset), the checkbox is
- *   not rendered at all.
  * @returns {React.ReactElement | null}
  */
 export function MovePicker({
@@ -211,7 +195,6 @@ export function MovePicker({
  currentParentPath,
  destinations: destinationsProp,
  cascadeEntries,
- liveRefreshKey,
 }) {
  const destinations = React.useMemo(() => {
  if (Array.isArray(destinationsProp)) return destinationsProp;
@@ -241,7 +224,6 @@ export function MovePicker({
  }, [destinations, currentParentPath, sourcePath]);
 
  const [selectedPath, setSelectedPath] = React.useState(null);
- const [carryLiveRefresh, setCarryLiveRefresh] = React.useState(false);
  const [pending, setPending] = React.useState(false);
  const [errorMsg, setErrorMsg] = React.useState(null);
  const dialogRef = React.useRef(null);
@@ -267,7 +249,7 @@ export function MovePicker({
  setErrorMsg(null);
  setPending(true);
  try {
- await onConfirm({ toFolderPath: selectedPath, carryLiveRefresh });
+ await onConfirm({ toFolderPath: selectedPath });
  // Caller is expected to unmount us; if they don't, close ourselves.
  onClose();
  } catch (err) {
@@ -275,7 +257,7 @@ export function MovePicker({
  } finally {
  setPending(false);
  }
- }, [selectedPath, pending, onConfirm, carryLiveRefresh, onClose]);
+ }, [selectedPath, pending, onConfirm, onClose]);
 
  if (typeof document === 'undefined') return null;
 
@@ -368,21 +350,6 @@ export function MovePicker({
  );
  })}
  </ul>
- )}
-
- {typeof liveRefreshKey === 'string' && liveRefreshKey.length > 0 && (
- <label style={checkboxRowStyle}>
- <input
- type="checkbox"
- checked={carryLiveRefresh}
- onChange={(e) => setCarryLiveRefresh(e.target.checked)}
- data-testid="lm-move-picker-carry-checkbox"
- />
- <span>
- Carry liveRefresh setting for <code>{liveRefreshKey}</code> to the destination
- folder
- </span>
- </label>
  )}
 
  {errorMsg && <div style={errorRowStyle}>{errorMsg}</div>}

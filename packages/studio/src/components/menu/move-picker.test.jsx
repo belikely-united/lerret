@@ -8,10 +8,8 @@
 //   2. Lists every destination, disables source-self, current parent, and
 //      descendants of the source (cycle prevention parity with the backend).
 //   3. Confirm button is gated until a row is picked, then wires onConfirm
-//      with { toFolderPath, carryLiveRefresh }.
-//   4. The carry-liveRefresh checkbox renders ONLY when liveRefreshKey is
-//      provided, defaults to UNCHECKED, and toggles onConfirm payload.
-//   5. Cancel + Esc invoke onClose without calling onConfirm.
+//      with { toFolderPath }.
+//   4. Cancel + Esc invoke onClose without calling onConfirm.
 
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -122,34 +120,6 @@ describe('MovePicker — render shape', () => {
  cleanup();
  });
 
- it('renders the carry-liveRefresh checkbox ONLY when liveRefreshKey is provided', () => {
- const { cleanup, update } = renderToDom(
- <MovePicker
- onClose={vi.fn()}
- onConfirm={vi.fn()}
- sourcePath="/proj/.lerret/social/og-card.jsx"
- currentParentPath="/proj/.lerret/social"
- destinations={sampleDestinations}
- />,
- );
- expect(document.querySelector('[data-testid="lm-move-picker-carry-checkbox"]')).toBeNull();
- update(
- <MovePicker
- onClose={vi.fn()}
- onConfirm={vi.fn()}
- sourcePath="/proj/.lerret/social/og-card.jsx"
- currentParentPath="/proj/.lerret/social"
- destinations={sampleDestinations}
- liveRefreshKey="og-card"
- />,
- );
- const cb = document.querySelector('[data-testid="lm-move-picker-carry-checkbox"]');
- expect(cb).toBeTruthy();
- // Default UNCHECKED per the spec design note.
- expect(cb.checked).toBe(false);
- cleanup();
- });
-
  it('falls back to cascadeEntries when destinations is not provided', () => {
  const { cleanup } = renderToDom(
  <MovePicker
@@ -208,7 +178,7 @@ describe('MovePicker — interaction', () => {
  cleanup();
  });
 
- it('calls onConfirm with { toFolderPath, carryLiveRefresh: false } by default', async () => {
+ it('calls onConfirm with { toFolderPath } when a destination is confirmed', async () => {
  const onConfirm = vi.fn().mockResolvedValue(undefined);
  const onClose = vi.fn();
  const { cleanup } = renderToDom(
@@ -218,7 +188,6 @@ describe('MovePicker — interaction', () => {
  sourcePath="/proj/.lerret/social/og-card.jsx"
  currentParentPath="/proj/.lerret/social"
  destinations={sampleDestinations}
- liveRefreshKey="og-card"
  />,
  );
  const landing = document.querySelector('[data-testid="lm-move-picker-row-/proj/.lerret/landing"]');
@@ -228,34 +197,9 @@ describe('MovePicker — interaction', () => {
  expect(onConfirm).toHaveBeenCalledOnce();
  expect(onConfirm.mock.calls[0][0]).toEqual({
  toFolderPath: '/proj/.lerret/landing',
- carryLiveRefresh: false,
  });
  // onClose is called after a successful confirm so the parent can unmount.
  expect(onClose).toHaveBeenCalled();
- cleanup();
- });
-
- it('passes carryLiveRefresh: true when the checkbox is toggled before confirming', async () => {
- const onConfirm = vi.fn().mockResolvedValue(undefined);
- const { cleanup } = renderToDom(
- <MovePicker
- onClose={vi.fn()}
- onConfirm={onConfirm}
- sourcePath="/proj/.lerret/social/og-card.jsx"
- currentParentPath="/proj/.lerret/social"
- destinations={sampleDestinations}
- liveRefreshKey="og-card"
- />,
- );
- const landing = document.querySelector('[data-testid="lm-move-picker-row-/proj/.lerret/landing"]');
- act(() => landing.click());
- const cb = document.querySelector('[data-testid="lm-move-picker-carry-checkbox"]');
- act(() => {
- cb.click();
- });
- const confirm = document.querySelector('[data-testid="lm-move-picker-confirm"]');
- await act(async () => { confirm.click(); });
- expect(onConfirm.mock.calls[0][0].carryLiveRefresh).toBe(true);
  cleanup();
  });
 

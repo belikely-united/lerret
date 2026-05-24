@@ -377,15 +377,7 @@ export async function duplicate(path) {
  * @param {string} fromPath The asset / folder being moved.
  * @param {string} toFolderPath The destination parent folder's LerretPath.
  * @param {object} [opts]
- * @param {boolean} [opts.carryLiveRefresh]
- *   When `true`, carry the source folder's `liveRefresh[<basename>]` entry
- *   over to the destination folder's `config.json`.
- * @returns {Promise<{
- *   ok: boolean,
- *   newPath?: string,
- *   rewroteLiveRefresh?: 'stripped'|'carried-over'|'none'|'skipped-malformed',
- *   error?: string,
- * }>}
+ * @returns {Promise<{ ok: boolean, newPath?: string, error?: string }>}
  */
 export async function move(fromPath, toFolderPath, opts = {}) {
  const result = await moveProjectFile(fromPath, toFolderPath, opts);
@@ -394,17 +386,8 @@ export async function move(fromPath, toFolderPath, opts = {}) {
  return result;
  }
  // The studio has no toast surface (yet). Log a calm success line so the
- // user has SOME signal in devtools — and surface the liveRefresh-strip
- // side effect per AC7 of the spec.
- const liveRefreshNote =
- result.rewroteLiveRefresh === 'stripped'
- ? '; removed liveRefresh entry from source folder'
- : result.rewroteLiveRefresh === 'carried-over'
- ? '; carried liveRefresh entry to destination'
- : result.rewroteLiveRefresh === 'skipped-malformed'
- ? '; warning: source config.json was malformed, liveRefresh untouched'
- : '';
- console.log(`[lerret] Moved to ${result.newPath || toFolderPath}${liveRefreshNote}`);
+ // user has SOME signal in devtools.
+ console.log(`[lerret] Moved to ${result.newPath || toFolderPath}`);
  return result;
 }
 

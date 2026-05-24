@@ -1009,18 +1009,6 @@ describe('createMoveMiddleware', () => {
     expect(result.body.error).toContain('toFolderPath');
   });
 
-  it('rejects when carryLiveRefresh is non-boolean', async () => {
-    const lerretDir = asLerretPath(lerretAbs);
-    const mw = createMoveMiddleware({ lerretDir });
-    const result = await call(mw, {
-      fromPath: `${lerretDir}/x.jsx`,
-      toFolderPath: `${lerretDir}/y`,
-      carryLiveRefresh: 'sure',
-    });
-    expect(result.status).toBe(400);
-    expect(result.body.error).toContain('carryLiveRefresh');
-  });
-
   it('rejects non-POST methods with 405', async () => {
     const lerretDir = asLerretPath(lerretAbs);
     const mw = createMoveMiddleware({ lerretDir });

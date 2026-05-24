@@ -78,21 +78,6 @@ function parentFolderOf(assetPath) {
  return slash === -1 ? '' : assetPath.slice(0, slash);
 }
 
-/**
- * Derive the asset basename (stem, without extension) — used to look up
- * a `liveRefresh` key in the source folder's config.
- *
- * @param {string | undefined | null} assetPath
- * @returns {string}
- */
-function assetBasename(assetPath) {
- if (typeof assetPath !== 'string') return '';
- const slash = assetPath.lastIndexOf('/');
- const tail = slash === -1 ? assetPath : assetPath.slice(slash + 1);
- const dot = tail.lastIndexOf('.');
- return dot === -1 ? tail : tail.slice(0, dot);
-}
-
 function findArtboardElement(slotId) {
  if (typeof document === 'undefined' || !slotId) return null;
  const escaped = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(slotId) : String(slotId).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -551,14 +536,6 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  // picker shows its empty-state.
  const sourcePath = entry?.asset?.path || '';
  const parentPath = parentFolderOf(sourcePath);
- const basename = assetBasename(sourcePath);
- const sourceLiveRefresh = React.useMemo(() => {
- if (!parentPath) return undefined;
- const cfg = getConfigFor(parentPath);
- const lr = cfg && typeof cfg === 'object' ? cfg.liveRefresh : undefined;
- if (!lr || typeof lr !== 'object') return undefined;
- return basename in lr ? basename : undefined;
- }, [getConfigFor, parentPath, basename]);
 
  const destinations = React.useMemo(() => {
  if (!moveOpen) return [];
@@ -568,13 +545,13 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  }, [moveOpen, getConfigFor]);
 
  const onConfirmMove = React.useCallback(
- async ({ toFolderPath, carryLiveRefresh }) => {
+ async ({ toFolderPath }) => {
  if (!sourcePath || !toFolderPath) return;
  // `move()` resolves with `{ ok, error }` rather than throwing. Re-throw on
  // `!ok` so MovePicker's catch surfaces the error inline (otherwise the
  // picker would close silently on 400 cycle / 409 collision / 500 fs-fail,
  // breaking the spec's AC4 / AC5 / AC6 user-visible-error promise).
- const result = await move(sourcePath, toFolderPath, { carryLiveRefresh });
+ const result = await move(sourcePath, toFolderPath);
  if (!result?.ok) throw new Error(result?.error || 'Move failed');
  // Watcher → loader patcher → canvas re-renders automatically.
  },
@@ -627,7 +604,6 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  sourcePath={sourcePath}
  currentParentPath={parentPath}
  destinations={destinations}
- liveRefreshKey={sourceLiveRefresh}
  />
  )}
  </div>
@@ -742,18 +718,9 @@ export function MarkdownCardKebab({ entry, children }) {
  </div>
  );
 
- // Move-picker destinations & liveRefresh detection — same shape as
- // ComponentArtboardKebab.
+ // Move-picker destinations — same shape as ComponentArtboardKebab.
  const sourcePath = entry?.asset?.path || '';
  const parentPath = parentFolderOf(sourcePath);
- const basename = assetBasename(sourcePath);
- const sourceLiveRefresh = React.useMemo(() => {
- if (!parentPath) return undefined;
- const cfg = getConfigFor(parentPath);
- const lr = cfg && typeof cfg === 'object' ? cfg.liveRefresh : undefined;
- if (!lr || typeof lr !== 'object') return undefined;
- return basename in lr ? basename : undefined;
- }, [getConfigFor, parentPath, basename]);
  const destinations = React.useMemo(() => {
  if (!moveOpen) return [];
  const knownFolders =
@@ -762,12 +729,12 @@ export function MarkdownCardKebab({ entry, children }) {
  }, [moveOpen, getConfigFor]);
 
  const onConfirmMove = React.useCallback(
- async ({ toFolderPath, carryLiveRefresh }) => {
+ async ({ toFolderPath }) => {
  if (!sourcePath || !toFolderPath) return;
  // `move()` resolves with `{ ok, error }` rather than throwing. Re-throw on
  // `!ok` so MovePicker's catch surfaces the error inline (otherwise the
  // picker would close silently on 400/409/500). See artboard-kebab fix above.
- const result = await move(sourcePath, toFolderPath, { carryLiveRefresh });
+ const result = await move(sourcePath, toFolderPath);
  if (!result?.ok) throw new Error(result?.error || 'Move failed');
  },
  [sourcePath],
@@ -786,7 +753,6 @@ export function MarkdownCardKebab({ entry, children }) {
  sourcePath={sourcePath}
  currentParentPath={parentPath}
  destinations={destinations}
- liveRefreshKey={sourceLiveRefresh}
  />
  )}
  </div>

@@ -436,12 +436,12 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  }, [moveOpen, getConfigFor]);
 
  const onConfirmMove = React.useCallback(
- async ({ toFolderPath, carryLiveRefresh }) => {
+ async ({ toFolderPath }) => {
  if (!sectionId || !toFolderPath) return;
  // `move()` resolves with `{ ok, error }` rather than throwing. Re-throw on
  // `!ok` so MovePicker's catch surfaces the error inline (otherwise the
  // picker would close silently on 400 cycle / 409 collision / 500 fs-fail).
- const result = await move(sectionId, toFolderPath, { carryLiveRefresh });
+ const result = await move(sectionId, toFolderPath);
  if (!result?.ok) throw new Error(result?.error || 'Move failed');
  },
  [sectionId],

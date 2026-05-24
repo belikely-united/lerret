@@ -1102,7 +1102,7 @@ export function createDuplicateMiddleware(opts) {
 
 /**
  * `POST /__lerret/move` — body
- *   `{ fromPath: LerretPath, toFolderPath: LerretPath, carryLiveRefresh?: boolean }`.
+ *   `{ fromPath: LerretPath, toFolderPath: LerretPath }`.
  *
  * Moves a file or folder from `fromPath` into the destination folder
  * `toFolderPath` (keeping the source's basename — collisions are refused with
@@ -1111,13 +1111,13 @@ export function createDuplicateMiddleware(opts) {
  * `400` (not `500`) so the picker can surface them inline.
  *
  * The handler delegates to {@link moveEntry} for the actual filesystem dance:
- * companion-file discovery, EXDEV fallback, atomic rollback on partial
- * failure, and optional liveRefresh carry-over.
+ * companion-file discovery (including the asset's `Name.config.json`), EXDEV
+ * fallback, and atomic rollback on partial failure.
  *
  * Response shape (always JSON):
- *   • 200 `{ ok: true, newPath: <LerretPath>, rewroteLiveRefresh: <tag> }`
+ *   • 200 `{ ok: true, newPath: <LerretPath> }`
  *   • 400 `{ ok: false, error: <message> }` — cycle / missing source /
- *         outside .lerret/ / malformed dest config when carrying.
+ *         outside .lerret/.
  *   • 409 `{ ok: false, error: <message> }` — destination collision.
  *   • 500 `{ ok: false, error: <message> }` — unrecognized fs failure.
  *
@@ -1128,17 +1128,13 @@ export function createDuplicateMiddleware(opts) {
 export function createMoveMiddleware(opts) {
   return withJsonBody(async (_req, res, body) => {
     const lerretDir = resolveLerretDir(opts);
-    const { fromPath, toFolderPath, carryLiveRefresh } = body;
+    const { fromPath, toFolderPath } = body;
     if (typeof fromPath !== 'string') {
       sendJson(res, 400, { ok: false, error: 'fromPath must be a string' });
       return;
     }
     if (typeof toFolderPath !== 'string') {
       sendJson(res, 400, { ok: false, error: 'toFolderPath must be a string' });
-      return;
-    }
-    if (carryLiveRefresh !== undefined && typeof carryLiveRefresh !== 'boolean') {
-      sendJson(res, 400, { ok: false, error: 'carryLiveRefresh must be a boolean' });
       return;
     }
     const fromCheck = checkWritePath(fromPath, lerretDir);
@@ -1156,18 +1152,15 @@ export function createMoveMiddleware(opts) {
       return;
     }
     try {
-      const result = await moveEntry(fromCheck.normalized, toCheck.normalized, {
-        carryLiveRefresh: carryLiveRefresh === true,
-      });
+      const result = await moveEntry(fromCheck.normalized, toCheck.normalized);
       sendJson(res, 200, {
         ok: true,
         newPath: result.path,
-        rewroteLiveRefresh: result.rewroteLiveRefresh,
       });
     } catch (err) {
       const code = err && err.code;
       const message = err instanceof Error ? err.message : String(err);
-      if (code === 'cycle' || code === 'missing-source' || code === 'missing-dest' || code === 'malformed-dest-config') {
+      if (code === 'cycle' || code === 'missing-source' || code === 'missing-dest') {
         sendJson(res, 400, { ok: false, error: message });
         return;
       }

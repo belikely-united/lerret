@@ -213,16 +213,15 @@ describe('moveProjectFile', () => {
  vi.restoreAllMocks();
  });
 
- it('posts { fromPath, toFolderPath } to the move endpoint and returns newPath + rewroteLiveRefresh', async () => {
+ it('posts { fromPath, toFolderPath } to the move endpoint and returns newPath', async () => {
  const fetchMock = vi.fn().mockResolvedValue({
  ok: true, status: 200,
- json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx', rewroteLiveRefresh: 'stripped' }),
+ json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx' }),
  });
  const result = await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', { fetch: fetchMock });
  expect(result).toEqual({
  ok: true,
  newPath: '/x/.lerret/landing/og-card.jsx',
- rewroteLiveRefresh: 'stripped',
  });
  const [url, init] = fetchMock.mock.calls[0];
  expect(url).toBe(MOVE_ENDPOINT);
@@ -232,37 +231,6 @@ describe('moveProjectFile', () => {
  fromPath: '/x/.lerret/social/og-card.jsx',
  toFolderPath: '/x/.lerret/landing',
  });
- });
-
- it('includes carryLiveRefresh in the body when the option is true', async () => {
- const fetchMock = vi.fn().mockResolvedValue({
- ok: true, status: 200,
- json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx', rewroteLiveRefresh: 'carried-over' }),
- });
- await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', {
- fetch: fetchMock,
- carryLiveRefresh: true,
- });
- const [, init] = fetchMock.mock.calls[0];
- expect(JSON.parse(init.body)).toEqual({
- fromPath: '/x/.lerret/social/og-card.jsx',
- toFolderPath: '/x/.lerret/landing',
- carryLiveRefresh: true,
- });
- });
-
- it('omits carryLiveRefresh from the body when option is false / absent', async () => {
- const fetchMock = vi.fn().mockResolvedValue({
- ok: true, status: 200,
- json: async () => ({ ok: true, newPath: '/x/.lerret/landing/og-card.jsx', rewroteLiveRefresh: 'none' }),
- });
- await moveProjectFile('/x/.lerret/social/og-card.jsx', '/x/.lerret/landing', {
- fetch: fetchMock,
- carryLiveRefresh: false,
- });
- const [, init] = fetchMock.mock.calls[0];
- const body = JSON.parse(init.body);
- expect(body).not.toHaveProperty('carryLiveRefresh');
  });
 
  it('returns ok:false with the server-supplied error on cycle refusal (400)', async () => {
