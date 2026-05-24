@@ -1,5 +1,10 @@
 {
   "presets": {
+    "acme": {
+      "dir": "template-presets/acme",
+      "label": "Brand starter kit",
+      "description": "A polished three-page brand kit — business card (with validation + variants), social cards (OG + tweet), and a pricing page whose tiers are named-export variants. A clean, real-content starting point."
+    },
     "appstore": {
       "dir": "template-presets/appstore",
       "label": "App Store screenshot kit",

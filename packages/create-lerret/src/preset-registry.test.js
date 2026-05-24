@@ -4,7 +4,7 @@
 // themed preset's directory (relative to the package root). For each preset
 // the test asserts:
 //
-//   • The expected six preset names are present — no more, no fewer.
+//   • The expected seven preset names are present — no more, no fewer.
 //   • The `dir` exists on disk relative to the package root.
 //   • The preset's `.lerret/config.json` parses as JSON.
 //   • The preset's `_meta.preset` value is `<name>-v1`.
@@ -21,6 +21,7 @@ const PACKAGE_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const REGISTRY_PATH = join(PACKAGE_ROOT, 'presets.json');
 
 const EXPECTED_PRESETS = [
+  'acme',
   'appstore',
   'producthunt',
   'social-media',
@@ -50,7 +51,7 @@ describe('preset registry (presets.json)', () => {
     expect(registry.presets).not.toBeNull();
   });
 
-  it('lists exactly the six expected preset names and no others', () => {
+  it('lists exactly the seven expected preset names and no others', () => {
     const names = Object.keys(registry.presets).sort();
     const expected = [...EXPECTED_PRESETS].sort();
     expect(names).toEqual(expected);

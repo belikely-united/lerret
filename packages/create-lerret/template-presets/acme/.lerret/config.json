@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "preset": "acme-v1"
+  },
+  "vars": {
+    "brand": "Acme",
+    "accent": "#B85B33"
+  }
+}

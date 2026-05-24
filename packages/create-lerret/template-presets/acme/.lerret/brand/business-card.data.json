@@ -1,0 +1,12 @@
+{
+  "default": {
+    "title": "maker",
+    "email": "hello@acme.com"
+  },
+  "Complete": {
+    "name": "Ada Lovelace",
+    "title": "designer of designs",
+    "email": "ada@acme.com",
+    "location": "London / 1843"
+  }
+}
