@@ -1,112 +1,230 @@
 ---
 title: The Studio
-description: The Lerret studio — canvas navigation, in-place editors, validation, and export.
+description: The Lerret studio — canvas, in-place editors, right-click menus, project switching, validation, and export.
 ---
 
 # The Studio
 
-The Lerret studio is a **desktop-first React app**. It mounts a `.lerret/` folder, scans the project model, renders every asset as an artboard on a pan-and-zoom canvas, and watches the folder for changes. Same UI in all three [deploy modes](/deploy/).
+The Lerret studio is a **desktop-first React app**. It connects to a `.lerret/`
+folder, scans the project model, renders every asset as an artboard on a
+pan-and-zoom canvas, and watches the folder for changes. The same UI runs in all
+three [deploy modes](/deploy/).
 
-## Mounting a folder
+![The Lerret studio canvas — a page of artboards with the dock, mini-map, and zoom controls](/studio/canvas-overview.png)
 
-The first thing the studio shows depends on the mode:
+The screenshot above is the whole studio at a glance: a **page** (`brand`) holding
+three artboards — two variants of one business-card component (the left one
+showing a **⚠️ validation badge**) and a Markdown card — on a warm section
+background, with the **dock** along the bottom and wayfinding chrome in the
+corners.
+
+## Connecting a project
+
+What you see first depends on the mode:
 
 | Mode | First screen |
 |---|---|
-| **CLI** (`@lerret/cli dev`) | The canvas, with the resolved project loaded. |
-| **Hosted** (browser, no folder picked yet) | The **open-folder empty state** — one button, "Open a Lerret folder", that calls `showDirectoryPicker()`. |
-| **Hosted** (browser, unsupported) | The **unsupported-browser guidance** screen — Safari / Firefox / non-Chromium. |
+| **CLI** (`@lerret/cli dev <path>`) | The canvas, with the resolved project loaded. |
+| **CLI** (launched with no project) | The **connect screen** — paste a folder path or pick a recent project. |
+| **Hosted** (browser) | The **open-folder** screen — one button that calls `showDirectoryPicker()`. |
 
-When you pick a folder that does **not** contain a `.lerret/` directory, the studio shows an in-place "Not a Lerret project" message with a "Pick another folder" action and a hint about `npx create-lerret@latest`. You never get a blank or broken screen.
+In CLI mode the studio is a long-lived server you **point at folders**. With no
+project connected, the connect screen lets you open one without touching the
+terminal:
 
-The first time you open a given folder (hosted mode), the studio shows a one-time **trust acknowledgement** dialog before running any of your code. The acknowledgement is persisted in IndexedDB, never written into your project folder.
+![The connect-a-project screen with a folder path field and a Recent Projects list](/studio/connect-screen.png)
+
+- Type or paste an absolute folder path and press **Connect** (the local CLI
+  walks up to find the `.lerret/`).
+- Or click a **Recent project** to reopen it in one click — the list is
+  remembered across sessions.
+
+When you pick a folder that does **not** contain a `.lerret/`, you get a calm
+inline "no project found" message, never a blank screen. In hosted mode the
+first open of a folder shows a one-time **trust acknowledgement** before any of
+your code runs (persisted in the browser, never written into your folder).
+
+> Already inside a project and want a different one? Use **Switch project…** in
+> the brand menu — see [Switching projects](#switching-projects).
 
 ## The canvas
 
-Each asset in your project becomes one or more **artboards** on a single scrollable canvas. Artboards are organized by their position in the folder tree — pages at the top level, groups nested inside, assets inside those.
+Each asset becomes one or more **artboards** on a single infinite canvas,
+arranged to mirror the folder tree — pages at the top level, groups nested
+inside, assets inside those.
 
 Each artboard:
 
-- Renders at its declared `meta.dimensions` (or the studio's default size if absent).
-- Has its own **error boundary**: one broken artboard fails alone with an error card; the rest of the canvas keeps rendering.
-- Updates in place when the underlying file changes — sub-second, courtesy of Vite's React Fast Refresh.
-- Has a stable **artboard id**: `<assetPath>` for the primary, `<assetPath>#<variantName>` for named variants.
+- Renders at its declared `meta.dimensions` (or a default size if absent).
+- Has its own **error boundary** — one broken artboard fails alone with an
+  error card; the rest of the canvas keeps rendering.
+- Updates **in place** when its file changes (see [Live refresh](#live-refresh)).
 
-The folder structure is visible in the canvas layout — pages and groups are visually grouped, and the page picker switches between top-level pages.
+**Getting around:**
 
-## Creating pages, groups, and assets
+- **Pan** — drag the empty canvas, or middle-drag anywhere.
+- **Zoom** — scroll/pinch, or the bottom-right controls: `−` / `+`, the **%**
+  readout (click to reset to 100%, or <kbd>Shift</kbd>+<kbd>0</kbd>), and
+  **Fit** (frame everything, or <kbd>Shift</kbd>+<kbd>1</kbd>).
+- **Mini-map** — the overview in the bottom-left; click or drag it to jump
+  anywhere, so you're never lost in a large project.
 
-You can grow a project's structure from inside the studio — no dropping to the filesystem to add a folder or a first file. Every create flow routes through one small, consistent dialog.
+## Pages, groups & artboards
 
-### The "+ New" menu
+The folder tree *is* the structure. A top-level folder under `.lerret/` is a
+**page**; folders nested inside are **groups**; sub-groups nest visually inside
+their parent's frame. Switch between pages from the **page picker** in the dock:
 
-The dock's **+ New** menu is the always-available entry point, and it adapts to where you are:
+![The page picker dropdown listing the project's pages plus New page](/studio/page-picker.png)
 
-- **New page** — a top-level folder under `.lerret/`.
-- **New group in ‹page›** — a folder nested inside the current page.
-- **New asset in ‹page›** — a `.jsx` component or `.md` card in the current page.
+A group can set a `presentation.background` (and `presentation.color`) in its
+`config.json` to tint its section — that's the warm linen behind the `brand`
+page above. Pages, groups, and assets sort **alphabetically**; prefix names like
+`01-intro`, `02-pricing` to control order, or drag to reorder (below).
 
-![The dock's + New menu, open over an empty page](/studio/create-new-menu.png)
+### Variants — one file, many artboards
 
-With a brand-new, page-less project the menu offers only **New page**, so your first page is always one click away.
+A component file becomes **one artboard per component export**: the `default`
+export is the primary, and every additional named component export is its own
+variant. `meta` is shared across them; a co-located data file supplies each
+variant's props by name.
 
-### Per-section and empty-state shortcuts
+![The pricing page: a Markdown card plus a tiers group with Free, Pro, and Team variant artboards](/studio/variants-pricing.png)
 
-The same actions appear wherever they're useful, so you create where your eye already is:
+Here `pricing-tier.jsx` exports `default` (Free), `Pro`, and `Team` — three
+artboards from one file, sitting in a nested `tiers` group. Reach for
+**named-export variants** when variants differ in *structure*, and
+**data-file variants** (same component, different `.data.json` slice) when they
+differ only in *content*.
 
-- Every **section kebab** (the ⋮ above a page or group) leads with **Add asset…** and **Add group…**, creating inside that container.
-- A page with no assets yet shows **+ Add asset** and **+ Add group** right on the canvas.
-- A freshly-created **empty group** renders as a soft placeholder with a one-click **+ Add asset** — so it's visible and fillable instead of invisible.
+### Reordering
+
+- **Artboards** — grab the grip on an artboard's label row and drag, or focus it
+  and use <kbd>←</kbd> / <kbd>→</kbd>.
+- **Top-level groups** — grab a group's grip to drag it into a new order on the
+  page. Custom order is saved per page.
+
+## Creating pages, groups & assets
+
+You can grow a project from inside the studio — never drop to the filesystem to
+add a folder or a first file. The create affordances live wherever your eye
+already is:
+
+- **New page** — the page picker's **+ New page** (also offered on the empty
+  connect/no-pages state).
+- **In a page or group** — its **⋮** / right-click menu leads with **Add
+  asset…** and **Add group…**; a page also shows **+ Add asset** / **+ New
+  group** on the canvas.
+- **On the empty canvas** — right-click and choose **New group** or **New page**
+  (see [Right-click menus](#right-click-context-menus)).
+
+Every path opens the same dialog — a name field with live validation and, for
+assets, a **Component (.jsx)** / **Markdown (.md)** toggle. <kbd>Enter</kbd>
+creates, <kbd>Esc</kbd> cancels.
+
+![The create dialog with a name field and a Component / Markdown toggle](/studio/create-dialog.png)
+
+- **Names validate as you type** — empties, illegal characters, leading dots/
+  underscores, and OS-reserved names are refused with a calm hint.
+- **Collisions are caught instantly** and case-insensitively (`Landing` won't
+  shadow `landing`).
+- **New components render immediately** — a new `.jsx` is seeded with a minimal
+  valid component, so you get an artboard, not an error card.
+
+A freshly-created **empty group** renders as a soft placeholder with a one-click
+**+ Add asset**, so it's visible and fillable rather than invisible:
 
 ![An empty group rendered as a soft placeholder on the canvas](/studio/create-empty-group.png)
 
-### The create dialog
+Creating writes to disk, so it runs in **CLI mode** (`@lerret/cli dev`).
 
-Picking any of those opens the same dialog: a name field with live validation, and — for assets — a **Component (.jsx)** / **Markdown (.md)** toggle. Press **Enter** to create, **Esc** to cancel.
+## Right-click context menus
 
-![The create dialog with a Component/Markdown toggle](/studio/create-dialog.png)
+Right-click anywhere on the canvas for a menu at your cursor. It's a **faster
+path to the same actions** the `⋮` kebab offers — nothing new to learn. Three
+contexts, and the innermost target wins:
 
-A few details worth knowing:
+**An artboard** → its component or markdown actions:
 
-- **Names are validated as you type.** Empty names, slashes and other illegal characters, leading dots or underscores (reserved for folders), and OS-reserved names are refused with a calm inline hint.
-- **Collisions are caught instantly.** If a sibling with that name already exists you're told before you submit — the check is case-insensitive, so `Landing` won't quietly shadow `landing`.
-- **New components render immediately.** A new `.jsx` is seeded with a minimal, valid component, so the canvas shows the artboard right away — never an error card. Rename it and edit from there.
-- **Order is alphabetical.** Pages, groups, and assets sort by folder/file name (there's no separate ordering field) — prefix names like `01-intro`, `02-pricing` to control the order.
+![Right-click menu on an artboard: Edit data, Edit meta, Duplicate, Rename, Move, Delete, Export, Reveal](/studio/context-menu-artboard.png)
 
-Creating from the studio writes to your project on disk, so it runs in **CLI mode** (`@lerret/cli dev`); the dock and empty-state create affordances appear there.
+**A group or page** (its header / padding) → the section actions:
+
+![Right-click menu on a section: Add asset, Add group, Edit config, Rename, Move, Delete, Export, Reveal](/studio/context-menu-section.png)
+
+**The empty canvas** → create + navigation:
+
+![Right-click menu on the empty canvas: New group, New page, Fit to screen, Reset zoom](/studio/context-menu-canvas.png)
+
+The menu is fully keyboard-operable (arrows, <kbd>Enter</kbd>, <kbd>Esc</kbd>),
+dismisses on click-away or scroll, and clamps to stay on-screen near edges.
+Destructive actions ask for confirmation inline.
+
+## Per-entity actions
+
+Whether you open it from the **⋮** kebab or by right-clicking, each entity
+exposes the same set:
+
+- **Component artboard** — Edit data · Edit meta · Duplicate · Rename · Move to… ·
+  Delete · Export (PNG/JPG, and animated when live-refresh is configured) ·
+  Reveal in editor / file manager.
+- **Markdown card** — Edit · Duplicate · Rename · Move to… · Delete · Export ·
+  Reveal…
+- **Group / page** — Add asset… · Add group… · Edit config · Rename · Move to… ·
+  Delete · Export · Reveal…
+
+**Reveal** actions are CLI-only — they shell out to your OS, which the hosted
+File-System-Access sandbox can't do, so they show disabled-with-reason there.
 
 ## In-place editors
 
-The studio includes typed editors for the on-disk artifacts that feed an asset. Edits write back to the file on disk — the studio is a true read-write tool, not a viewer.
+The studio includes typed editors for the on-disk artifacts behind an asset.
+Edits write back to the file — this is a true read-write tool.
 
 | Editor | Edits | File written |
 |---|---|---|
 | **Data editor** | An asset's props | `<Name>.data.json` |
-| **Config editor** | A folder's `config.json` | The folder's `config.json` |
+| **Config editor** | A folder's settings | The folder's `config.json` |
 | **Meta editor** | An asset's `meta` (label, tags, dimensions) | The asset source file |
 | **Markdown editor** | A `.md` asset's raw text | The `.md` file |
 
-The **data editor** is schema-driven: when an asset declares `meta.propsSchema`, the editor generates a typed form (string inputs, booleans, selects, etc.) from it. When no schema is declared, the editor falls back to free-form key/value editing.
+The **data editor** is schema-driven: when an asset declares `meta.propsSchema`,
+it generates a typed form (text, boolean, select, …); without a schema it falls
+back to free-form key/value editing.
 
-Edits flow through the same four-tier prop resolution that controls rendering, so what you see in the editor is what the canvas renders.
+![The schema-driven data editor for the business card](/studio/data-editor.png)
+
+The **config editor** edits a folder's presentation (background / foreground
+color) and custom `vars`, with a **+** to add your own properties:
+
+![The config editor for a group's config.json](/studio/config-editor.png)
+
+The **markdown editor** is a **Source ⇄ Preview** toggle — author the raw text,
+flip to Preview to see it rendered (the same renderer the card uses). Writes are
+debounced as you type, so dismissing the sheet never loses work:
+
+![The markdown editor with a Source / Preview toggle](/studio/markdown-editor.png)
+
+Edits flow through the same four-tier prop resolution that drives rendering, so
+the editor and the canvas always agree.
 
 ## Validation
 
-When an asset declares `meta.propsSchema` with `required` fields or constrained types, the studio runs a **props validator** on every artboard render. Failures surface as a small `⚠️` badge on the artboard — non-blocking; the artboard still renders with whatever values it has.
+When an asset declares `meta.propsSchema` with `required` fields or constrained
+types, the studio validates **every artboard render**. Failures surface as a
+small **⚠️ badge** (the orange *Validation* pill in the
+[overview](#the-studio)) — non-blocking; the artboard still renders. Click the
+badge to jump straight into the data editor with the offending field focused
+("click to fix"). Validation is **lenient by design** — Lerret always tries to
+render; the badge is a hint, not a gate.
 
-Validation behaviour is **lenient by design** — Lerret always tries to render. The badge is a hint ("you might want to set this field"), not a gate.
+## Moving things
 
-## Per-artboard actions
+**Move to…** opens a picker of every folder in the project; choose a destination
+and the studio reparents the file (and its companions — data file, prefixed
+images) atomically, carrying or stripping any `liveRefresh` entry as you choose.
 
-Each artboard has a kebab menu with actions appropriate to its kind:
-
-- **Export to image** — captures this single artboard to PNG or JPG. Same rendering path as `@lerret/cli export`.
-- **Edit data** — opens the data editor.
-- **Edit meta** — opens the meta editor.
-- **Reveal in editor** (CLI mode) — opens the source file in your default editor via OS handlers.
-- **Reveal in Finder / Explorer** (CLI mode) — opens the containing folder.
-
-Reveal actions are CLI-only — they require shelling out to the OS and are not available in pure hosted mode (the File System Access API sandbox has no OS-reveal capability).
+![The Move-to picker listing destination folders](/studio/move-picker.png)
 
 ## Export from the studio
 
@@ -114,40 +232,71 @@ Three scopes:
 
 | Scope | What it captures |
 |---|---|
-| **Single artboard** | One artboard → one image. |
-| **Page or group** | Every artboard in that branch → image files. |
-| **Whole project** | Every artboard in the project → a structured ZIP archive. |
+| **Single artboard** | One artboard → one image (the artboard's **↓ PNG / ↓ JPG**, or its menu's Export). |
+| **Page or group** | Every artboard in that branch (the section's Export, with a PNG/JPG × structured/flat picker). |
+| **Whole project** | Every artboard → one structured ZIP (the brand menu's **Export ZIP**). |
 
-The bulk-export panel lets you choose:
+The whole-project panel lives in the **brand menu** (the `Lerret` lockup,
+top-left), where you choose scope (whole project / this page), format (PNG/JPG),
+and run the export:
 
-- **Format** — PNG or JPG.
-- **Output style** — structured (folders mirror page/group hierarchy) or flat (all images at one level).
+![The brand menu: Brand kit, Project switch/close, and the Export ZIP panel](/studio/brand-menu.png)
 
-Studio exports use the **exact same** `captureArtboard` function as `@lerret/cli export` (the CLI runs it inside a headless Chromium via Playwright). Output is pixel-faithful between the two; you can use either path interchangeably.
+Studio exports use the **exact same** `captureArtboard` as `@lerret/cli export`
+(the CLI runs it in a headless Chromium), so output is pixel-faithful between the
+two — use either interchangeably.
 
 ## Live refresh
 
-A file change on disk re-renders the affected artboard in under a second.
+A file change on disk re-renders the affected artboard in well under a second.
 
-- **CLI mode** — chokidar watches your `.lerret/` and emits change events; Vite's React Fast Refresh swaps the module.
-- **Hosted / self-host mode** — directory-handle polling produces the same normalized events; the in-browser transformer rebuilds the module and the service worker serves the new version.
+- **CLI mode** — chokidar watches your `.lerret/` and emits change events; the
+  studio cache-busts and re-imports the changed module in place.
+- **Hosted / self-host** — directory-handle polling produces the same normalized
+  events; the in-browser transformer rebuilds the module.
 
-Both backends emit identical `{ type: 'add' | 'change' | 'remove', path }` events that feed the same incremental model patcher in `@lerret/core`. The studio re-renders the relevant artboard without disturbing the others.
+Both backends emit identical `{ type, path }` events into the same incremental
+model patcher in `@lerret/core`, so add / remove / rename of files and folders
+show up on the canvas — no full reload, no lost viewport.
+
+## Switching projects
+
+In CLI mode you can re-point the studio at a **different folder without
+restarting the CLI**. Open the brand menu and choose **Switch project…**:
+
+![The Switch project dialog: a folder path field and recent projects](/studio/switch-project-dialog.png)
+
+Paste a path or pick a recent — the canvas swaps to the new project with **no
+page reload** (your work auto-saves continuously, so there's nothing to lose).
+**Close project** returns you to the [connect screen](#connecting-a-project).
 
 ## Focus mode
 
-Focus mode shows a single artboard fullscreen, with the rest of the canvas dimmed. Useful for:
+Focus mode shows a single artboard fullscreen with the rest of the canvas
+dimmed — for precision work, a clean screenshot, or reviewing at exact pixel
+dimensions. Open it from an artboard's expand control; <kbd>←</kbd> / <kbd>→</kbd>
+move between artboards and <kbd>Esc</kbd> exits.
 
-- Precision work on one component without scrolling distractions.
-- Sharing a screenshot of a single artboard.
-- Reviewing at exact pixel dimensions on a small viewport.
+![An artboard open in fullscreen focus mode](/studio/focus-mode.png)
 
-## Keyboard / mouse model
+## Keyboard & mouse
 
-The studio is a **desktop application** — mouse + keyboard. Mobile, touch surfaces, and responsive layouts are explicitly out of scope. The platform's hard constraint is browser support (File System Access API → Chromium-only for hosted/self-host).
+The studio is a **desktop application** — mouse + keyboard. Handy shortcuts:
+
+| Action | Shortcut |
+|---|---|
+| Fit everything to screen | <kbd>Shift</kbd>+<kbd>1</kbd> |
+| Reset zoom to 100% | <kbd>Shift</kbd>+<kbd>0</kbd> |
+| Open any entity's menu | **Right-click** the artboard / group / canvas |
+| Move a focused artboard | <kbd>←</kbd> / <kbd>→</kbd> |
+| Confirm / cancel a dialog | <kbd>Enter</kbd> / <kbd>Esc</kbd> |
+
+Mobile, touch, and responsive layouts are out of scope; the hard platform
+constraint is browser support (File System Access API → Chromium-only for
+hosted/self-host).
 
 ## What's next
 
-- **[Authoring Assets](/authoring/)** — how to write components, schemas, data files, and fonts.
+- **[Authoring Assets](/authoring/)** — components, schemas, data files, fonts.
 - **[CLI Reference](/cli/)** — `@lerret/cli dev` and `@lerret/cli export`.
 - **[Deployment](/deploy/)** — the three deploy modes in detail.
