@@ -25,6 +25,7 @@ import React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { exportArtboard } from './export/single.js';
+import { ContextMenu, useContextMenu } from './components/menu/context-menu.jsx';
 
 // Keep the brownfield font-embed helper (which reads `window.htmlToImage`)
 // working unchanged after the move off the UMD script tag.
@@ -235,7 +236,7 @@ function dcTriggerDownload(dataUrl, filename) {
 const DC_STATE_FILE = '.design-canvas.state.json';
 const DC_LS_KEY = 'lerret-studio:state:' + (typeof location !== 'undefined' ? location.pathname : '/');
 
-export function DesignCanvas({ children, orderKey, minScale, maxScale, style }) {
+export function DesignCanvas({ children, orderKey, minScale, maxScale, style, canvasMenuItems }) {
  // `sections` holds per-section artboard order/titles/labels; `order` holds the
  // user's custom TOP-LEVEL group order, keyed by page (`orderKey`), so groups
  // can be arranged beyond their default alphabetical order. `focus` is ephemeral.
@@ -389,7 +390,7 @@ export function DesignCanvas({ children, orderKey, minScale, maxScale, style }) 
 
  return (
  <DCCtx.Provider value={api}>
- <DCViewport minScale={minScale} maxScale={maxScale} style={style}>{ready && orderedChildren}</DCViewport>
+ <DCViewport minScale={minScale} maxScale={maxScale} style={style} canvasMenuItems={canvasMenuItems}>{ready && orderedChildren}</DCViewport>
  {state.focus && registry[state.focus] && (
  <DCFocusOverlay entry={registry[state.focus]} sectionMeta={sectionMeta} sectionOrder={sectionOrder} />
  )}
@@ -582,7 +583,7 @@ function btnStyle(active) {
 // (translate3d + will-change) so wheel ticks don't go through React —
 // keeps pans at 60fps on dense canvases.
 // ─────────────────────────────────────────────────────────────
-function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
+function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvasMenuItems = [] }) {
  const vpRef = React.useRef(null);
  const worldRef = React.useRef(null);
  const tf = React.useRef({ x: 0, y: 0, scale: 1 });
@@ -590,6 +591,9 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  // throttled rAF so the pan/zoom hot path never re-renders the canvas world.
  const listenersRef = React.useRef(new Set());
  const publishRafRef = React.useRef(0);
+
+ // Right-click on the empty canvas (the void) opens a small context menu.
+ const ctx = useContextMenu();
 
  const apply = React.useCallback(() => {
  const { x, y, scale } = tf.current;
@@ -861,6 +865,18 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  panToLocal,
  }), [getContentBounds, measureCards, getViewportSize, fit, reset100, zoomBy, setZoom, panToLocal]);
 
+ // Canvas-void context-menu items: any injected project actions (New page /
+ // New group, supplied by project-canvas) plus the navigation the canvas owns.
+ const voidItems = React.useMemo(() => {
+ const nav = [
+ { kind: 'item', id: 'ctx-fit', label: 'Fit to screen', onSelect: () => api.fit() },
+ { kind: 'item', id: 'ctx-reset', label: 'Reset zoom to 100%', onSelect: () => api.reset100() },
+ ];
+ return (canvasMenuItems && canvasMenuItems.length)
+ ? [...canvasMenuItems, { kind: 'separator', id: 'ctx-void-sep' }, ...nav]
+ : nav;
+ }, [canvasMenuItems, api]);
+
  // Auto-frame on mount (and on page switch — the canvas remounts per page):
  // fit to width, top-aligned, once the cards have laid out. The canvas gates
  // its children behind a short async "ready" read, so poll until content
@@ -900,6 +916,13 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  ref={vpRef}
  className="design-canvas"
  data-tour="canvas"
+ onContextMenu={(e) => {
+ // Section / artboard right-clicks open their own menus (they
+ // stopPropagation), so this only fires on the empty canvas. Guard
+ // defensively against any unwrapped section/slot.
+ if (e.target && e.target.closest && e.target.closest('[data-dc-section], [data-dc-slot]')) return;
+ ctx.openAt(e);
+ }}
  style={{
  height: '100vh', width: '100vw',
  background: DC.bg,
@@ -932,6 +955,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {} }) {
  cluster (bottom-right) for explicit control + a "you're never lost" exit. */}
  <DCMiniMap api={api} />
  <DCZoomControls api={api} />
+ {ctx.open && <ContextMenu point={ctx.point} items={voidItems} onClose={ctx.close} />}
  </React.Fragment>
  );
 }

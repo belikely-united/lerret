@@ -36,6 +36,7 @@ import { resolveProps, resolveVariantData, validateProps } from '@lerret/core';
 
 import { ValidationBadge } from '../badge/validation-badge.jsx';
 import {
+ ContextMenu,
  EntityKebab,
  ComponentEditorHost,
  MarkdownEditorHost,
@@ -48,6 +49,7 @@ import {
  inCliMode,
  move,
  reveal,
+ useContextMenu,
 } from '../menu/index.js';
 import { AnimatedExportDialog } from '../export/animated-export-dialog.jsx';
 import { useCascadedConfig } from './cascade-context.jsx';
@@ -475,6 +477,9 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 
  const ariaLabel = `Actions for ${entry?.label || entry?.asset?.name || 'this asset'}`;
 
+ // Right-click anywhere on the artboard opens the SAME action set as the kebab.
+ const ctx = useContextMenu();
+
  // Locate the brownfield label row to portal the kebab into. Walks up from
  // our host to the data-dc-slot wrapper, then finds the .dc-labelrow inside.
  // useLayoutEffect runs synchronously after DOM mutations so the portal
@@ -529,7 +534,8 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  );
 
  return (
- <div ref={hostRef} className="lm-artboard-kebab-host">
+ <div ref={hostRef} className="lm-artboard-kebab-host" onContextMenu={ctx.openAt}>
+ {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
  {renderComponent(resolvedProps)}
  {children}
  <ValidationBadge
@@ -661,6 +667,9 @@ export function MarkdownCardKebab({ entry, children }) {
 
  const ariaLabel = `Actions for ${entry?.label || entry?.asset?.name || 'this markdown asset'}`;
 
+ // Right-click anywhere on the card opens the SAME action set as the kebab.
+ const ctx = useContextMenu();
+
  // Portal the kebab into the markdown card's brownfield label row (same
  // pattern as ComponentArtboardKebab above).
  const hostRef = React.useRef(null);
@@ -707,7 +716,8 @@ export function MarkdownCardKebab({ entry, children }) {
  );
 
  return (
- <div ref={hostRef} className="lm-artboard-kebab-host">
+ <div ref={hostRef} className="lm-artboard-kebab-host" onContextMenu={ctx.openAt}>
+ {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
  {children}
  {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}
  <MarkdownEditorHost open={open} onClose={() => setOpen(false)} entry={entry} />

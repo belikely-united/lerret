@@ -20,6 +20,7 @@
 import React from 'react';
 
 import {
+ ContextMenu,
  CreateEntryDialog,
  EntityKebab,
  MovePicker,
@@ -31,6 +32,7 @@ import {
  inCliMode,
  move,
  reveal,
+ useContextMenu,
 } from '../menu/index.js';
 import { runBulkExport, triggerBulkDownload } from '../../export/bulk.js';
 import { useCascadedConfig } from './cascade-context.jsx';
@@ -418,6 +420,10 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
 
  const ariaLabel = `Actions for ${sectionTitle || 'this section'}`;
 
+ // Right-click on the section's own area (header / padding, not a child artboard
+ // or sub-group — those stopPropagation) opens the same actions as the kebab.
+ const ctx = useContextMenu();
+
  // Compute destinations from the cascade map when the picker is open. The
  // picker's internal isInsideSource() check disables the section itself and
  // any descendant of it — server-side cycle prevention is a backstop.
@@ -442,7 +448,8 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  );
 
  return (
- <div className="lm-section-kebab-host">
+ <div className="lm-section-kebab-host" onContextMenu={ctx.openAt}>
+ {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
  <div className="lm-section-kebab" data-testid="lm-section-kebab">
  <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-start" />
  {exportOpen && (

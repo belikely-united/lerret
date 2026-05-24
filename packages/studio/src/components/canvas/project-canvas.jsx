@@ -663,9 +663,40 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // canvas keeps it after the (reorderable) group cards. It creates a top-level
  // group on this page; new groups append, and can then be dragged into place.
  const pageChildNamesForAdd = sectionChildNames(project, page.path);
+ // Right-click the empty canvas → create here. "New group" targets this page;
+ // "New page" targets the project root. CLI-only (creation writes to disk);
+ // reuses the same create flow as the PageAddBar + empty-state CTAs.
+ const canvasMenuItems = cliMode
+ ? [
+ {
+ kind: 'item',
+ id: 'canvas-new-group',
+ label: 'New group',
+ onSelect: () =>
+ setCreateState({
+ kind: 'group',
+ parentPath: page.path,
+ parentLabel: page.name,
+ existingNames: pageChildNamesForAdd,
+ }),
+ },
+ {
+ kind: 'item',
+ id: 'canvas-new-page',
+ label: 'New page',
+ onSelect: () =>
+ setCreateState({
+ kind: 'page',
+ parentPath: project.path,
+ parentLabel: null,
+ existingNames: (project.pages || []).map((p) => p.name),
+ }),
+ },
+ ]
+ : [];
  return (
  <>
- <DesignCanvas key={page.path} orderKey={page.path}>
+ <DesignCanvas key={page.path} orderKey={page.path} canvasMenuItems={canvasMenuItems}>
  {roots.map((node) => renderSection(node))}
  {cliMode && (
  <PageAddBar
