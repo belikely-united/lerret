@@ -254,15 +254,27 @@ export function AnimatedExportDialog({
         });
     }, [settings.format, assetName, isBulk]);
 
-    // Suspend the studio's liveRefresh reload timer while this dialog is open.
-    // Without this, a liveRefresh tick on the asset being exported (e.g. a
-    // clock on the `live` page) reloads its artboard subtree mid-interaction
-    // and dismisses any open native `<select>` popup — the user can't pick a
-    // Format/FPS/Duration on a live page. The asset's own animation keeps
-    // ticking and the capture pipeline drives its own frame timing, so
-    // suspending the studio reload timer doesn't freeze the asset or affect
-    // capture. Released on unmount (dialog close).
-    React.useEffect(() => suspendLiveRefresh(), []);
+    // Suspend the studio's auto-refresh timer while the dialog is IDLE. Without
+    // this, an auto-refresh tick on the asset being exported reloads its
+    // artboard subtree mid-interaction and dismisses any open native `<select>`
+    // popup — the user can't pick a Format/FPS/Duration on a live page.
+    //
+    // BUT the suspend must be LIFTED during capture: 'now' mode snapshots the
+    // LIVE asset over the chosen duration, so if the asset's only motion comes
+    // from auto-refresh (the common case — a clock/countdown with no internal
+    // timer), a held suspend freezes it and the export is a still frame at the
+    // correct length. So `handleCapture` releases this and re-acquires it after.
+    // Stored in a ref so the capture path can toggle it. Released on unmount.
+    const suspendReleaseRef = React.useRef(null);
+    React.useEffect(() => {
+        suspendReleaseRef.current = suspendLiveRefresh();
+        return () => {
+            if (suspendReleaseRef.current) {
+                suspendReleaseRef.current();
+                suspendReleaseRef.current = null;
+            }
+        };
+    }, []);
 
     // Lazy-import @lerret/animation. The single dynamic-import call-site for
     // the studio per the boundary invariant.
@@ -307,6 +319,14 @@ export function AnimatedExportDialog({
         setProgressText('Preparing…');
         setPhase('capturing');
         abortRef.current = new AbortController();
+        // Lift the idle-suspend so auto-refresh re-renders the asset DURING
+        // capture — otherwise 'now' mode records a frozen frame for assets whose
+        // motion is auto-refresh-driven. No dropdown is open during capture, so
+        // the reason the suspend exists doesn't apply here. Re-acquired below.
+        if (suspendReleaseRef.current) {
+            suspendReleaseRef.current();
+            suspendReleaseRef.current = null;
+        }
         try {
             if (isBulk) {
                 await runBulkAnimatedExport({
@@ -342,6 +362,13 @@ export function AnimatedExportDialog({
             }
             setErrorMsg(err && err.message ? err.message : String(err));
             setPhase('failed');
+        } finally {
+            // Re-suspend while the dialog stays open (done/failed/cancelled all
+            // keep it open or close shortly after) so idle dropdown protection
+            // is restored. On a successful close the unmount cleanup releases it.
+            if (!suspendReleaseRef.current) {
+                suspendReleaseRef.current = suspendLiveRefresh();
+            }
         }
     };
 
