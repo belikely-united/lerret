@@ -36,6 +36,7 @@
   ],
   "scripts": {
     "test": "vitest run",
+    "test:smoke": "pnpm build && LERRET_SMOKE=1 vitest run src/dist-studio-live-edit.smoke.test.js",
     "build": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js",
     "prepublishOnly": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js"
   },

@@ -33,3 +33,12 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # Pre-built-bundle browser smoke: guards that live edit (save re-render,
+      # create, rename, move) survives `vite build` in the `dist-studio` bundle
+      # the published CLI serves. `test:smoke` builds the bundle, then runs the
+      # smoke with LERRET_SMOKE=1 (a missing bundle or browser is a hard FAIL).
+      # The ubuntu-latest runner image ships Google Chrome, which
+      # `launchHeadlessBrowser` picks up via `playwright-core` channel:chrome.
+      - name: Smoke (pre-built dist-studio live edit)
+        run: pnpm --filter @lerret/cli test:smoke

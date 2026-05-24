@@ -52,6 +52,7 @@ import {
 import { AnimatedExportDialog } from '../export/animated-export-dialog.jsx';
 import { useCascadedConfig } from './cascade-context.jsx';
 import { bindOneShotRename } from './use-inline-rename.js';
+import { onLerretChange } from '../../runtime/cli-hmr.js';
 
 /**
  * Derive the parent folder LerretPath for an asset path. Strips the file
@@ -326,15 +327,14 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  if (!cancelled) setDataValue(value);
  };
  reload();
- let unsubscribe = () => {};
- if (typeof import.meta !== 'undefined' && import.meta.hot) {
- const handler = (payload) => {
+ // Re-fetch this asset's `.data.json` when the CLI watcher reports it
+ // changed. Subscribed via `onLerretChange` (not `import.meta.hot`) so live
+ // data edits keep working from the pre-built `dist-studio` bundle the
+ // published CLI serves — see `runtime/cli-hmr.js`.
+ const unsubscribe = onLerretChange((payload) => {
  if (!payload || !payload.event || typeof payload.event.path !== 'string') return;
  if (payload.event.path === dataPath) reload();
- };
- import.meta.hot.on('lerret:change', handler);
- unsubscribe = () => { cancelled = true; };
- }
+ });
  return () => {
  cancelled = true;
  unsubscribe();
