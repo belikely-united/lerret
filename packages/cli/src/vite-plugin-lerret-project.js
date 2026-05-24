@@ -666,12 +666,39 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
         }
       }
 
+      // ── Reusable: drop the cached virtual module so the NEXT load() is fresh ─
+      // Live updates ride the `lerret:change` broadcast (below), but that only
+      // patches the running studio's React state — it does NOT re-run `load()`.
+      // Without invalidation a full browser reload would re-serve the cached
+      // boot-time snapshot, losing any model/cascade/asset-config change made
+      // since boot (e.g. a `Name.config.json` created at runtime → auto-refresh
+      // silently gone after a reload). Invalidating the virtual module makes a
+      // subsequent reload re-run `load()` against the live in-memory state. It
+      // does NOT itself trigger a reload (the `hotUpdate` hook returns `[]`).
+      function invalidateProjectModule() {
+        try {
+          const graph =
+            (server.environments &&
+              server.environments.client &&
+              server.environments.client.moduleGraph) ||
+            server.moduleGraph;
+          if (!graph || typeof graph.getModuleById !== 'function') return;
+          const mod = graph.getModuleById(RESOLVED_VIRTUAL_MODULE_ID);
+          if (mod) graph.invalidateModule(mod);
+        } catch {
+          // The module graph can be torn down mid-shutdown — ignore.
+        }
+      }
+
       // ── Reusable: broadcast the current model over the HMR channel ─────────
       // `server.hot.send` is Vite's HMR custom-events channel — the studio
       // listens on `lerret:change` and bridges into the runtime. The payload
       // also carries `epoch` + `assetBaseUrl` so a folder switch can cache-bust
       // asset imports and flip the connected/no-project UI in one message.
       function broadcastChange(event) {
+        // Keep the cached virtual module in step with what we are about to
+        // broadcast, so a later reload re-serves this same state, not boot's.
+        invalidateProjectModule();
         try {
           server.hot.send(HMR_CHANGE_EVENT, {
             event,
