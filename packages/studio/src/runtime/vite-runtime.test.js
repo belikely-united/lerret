@@ -122,6 +122,27 @@ describe('assetModuleUrl', () => {
  '/@fixture-lerret/ui/Card.jsx?t=7',
  );
  });
+
+ it('appends the switch epoch as ?v= when > 0', () => {
+ const asset = componentAsset('ui/Card.jsx');
+ expect(assetModuleUrl(asset, project, '/@fixture-lerret', undefined, 2)).toBe(
+ '/@fixture-lerret/ui/Card.jsx?v=2',
+ );
+ });
+
+ it('omits the epoch query at epoch 0 (boot — keeps URLs cacheable)', () => {
+ const asset = componentAsset('ui/Card.jsx');
+ expect(assetModuleUrl(asset, project, '/@fixture-lerret', undefined, 0)).toBe(
+ '/@fixture-lerret/ui/Card.jsx',
+ );
+ });
+
+ it('combines epoch and reload token (?v= then ?t=)', () => {
+ const asset = componentAsset('ui/Card.jsx');
+ expect(assetModuleUrl(asset, project, '/@fixture-lerret', 7, 2)).toBe(
+ '/@fixture-lerret/ui/Card.jsx?v=2&t=7',
+ );
+ });
 });
 
 // ---------------------------------------------------------------------------

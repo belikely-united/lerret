@@ -20,12 +20,13 @@ import {
   realpathSync,
   watch as watchNative,
 } from 'node:fs';
-import { tmpdir, platform } from 'node:os';
+import { homedir, tmpdir, platform } from 'node:os';
 import {
   basename,
   dirname,
   extname,
   join as joinNative,
+  resolve as resolveNative,
   sep as nativeSep,
 } from 'node:path';
 
@@ -1224,4 +1225,77 @@ export { renameEntry, duplicateEntry, deleteEntry, revealEntry, moveEntry, creat
  */
 export async function readTextFile(absPath) {
   return fsp.readFile(toNativePath(absPath), 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
+// Recent-projects list (host-level config — NOT project data)
+// ---------------------------------------------------------------------------
+//
+// The studio's connect screen offers one-click re-open of folders the user has
+// connected before. The list lives at `~/.lerret/recent-projects.json` (or
+// `$LERRET_CONFIG_DIR/recent-projects.json`) — a Lerret-app config in the user's
+// home, NOT inside any project's `.lerret/`, so NFR13 ("never write into the
+// user's project") is untouched. This fs access lives HERE because node-backend
+// is the only file permitted to import `fs`. Every read/write is best-effort: a
+// missing or malformed file simply yields an empty list, never a thrown error.
+
+/** Max recent-project entries kept; older entries fall off the end. */
+const RECENTS_MAX = 8;
+
+/** The Lerret host-config directory: `$LERRET_CONFIG_DIR` or `~/.lerret`. */
+function lerretConfigDir() {
+  const override = process.env.LERRET_CONFIG_DIR;
+  return override ? resolveNative(override) : joinNative(homedir(), '.lerret');
+}
+
+/** Absolute path of the recents file under the host-config dir. */
+function recentsFilePath() {
+  return joinNative(lerretConfigDir(), 'recent-projects.json');
+}
+
+/** The basename of a folder path (its display name). */
+function folderDisplayName(p) {
+  const parts = String(p).replace(/[/\\]+$/, '').split(/[/\\]/);
+  return parts[parts.length - 1] || String(p);
+}
+
+/**
+ * Read the recent-projects list (most-recent-first). Returns `[]` on any error
+ * (missing / malformed file).
+ *
+ * @returns {Promise<Array<{ path: string, name: string }>>}
+ */
+export async function readRecentProjects() {
+  try {
+    const raw = await fsp.readFile(recentsFilePath(), 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((e) => e && typeof e.path === 'string')
+      .map((e) => ({ path: e.path, name: typeof e.name === 'string' ? e.name : folderDisplayName(e.path) }))
+      .slice(0, RECENTS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Record `projectRoot` at the front of the recents list (de-duplicated, capped).
+ * Best-effort — a write failure is logged but never thrown.
+ *
+ * @param {string} projectRoot
+ * @returns {Promise<Array<{ path: string, name: string }>>}  The updated list.
+ */
+export async function recordRecentProject(projectRoot) {
+  if (!projectRoot) return readRecentProjects();
+  const entry = { path: projectRoot, name: folderDisplayName(projectRoot) };
+  const existing = await readRecentProjects();
+  const next = [entry, ...existing.filter((e) => e.path !== projectRoot)].slice(0, RECENTS_MAX);
+  try {
+    await fsp.mkdir(lerretConfigDir(), { recursive: true });
+    await fsp.writeFile(recentsFilePath(), JSON.stringify(next, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('[lerret] could not save recent projects:', err && err.message ? err.message : err);
+  }
+  return next;
 }

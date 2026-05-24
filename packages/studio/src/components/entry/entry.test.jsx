@@ -284,15 +284,17 @@ describe('<OpenFolder>', () => {
 
  // ── 2.6 CLI mode ─────────────────────────────────────────────────────────
 
- it('renders in cliMode without crashing and shows the entry screen', () => {
+ it('renders the connect-a-project screen in cliMode', () => {
  const { container, cleanup } = renderToDom(<OpenFolder cliMode />);
 
- const screen = container.querySelector('[data-testid="open-folder-screen"]');
+ // CLI mode is the runtime "connect a project" surface (POST switch-folder),
+ // not the hosted FSA picker.
+ const screen = container.querySelector('[data-testid="cli-connect-screen"]');
  expect(screen).toBeTruthy();
 
- // Should have a primary button ("How to open" in cli mode).
- const btn = container.querySelector('[data-testid="open-folder-button"]');
- expect(btn).toBeTruthy();
+ // A folder-path field + a Connect button drive the switch.
+ expect(container.querySelector('[data-testid="cli-connect-input"]')).toBeTruthy();
+ expect(container.querySelector('[data-testid="cli-connect-button"]')).toBeTruthy();
 
  cleanup();
  });

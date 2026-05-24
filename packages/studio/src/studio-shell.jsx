@@ -27,6 +27,8 @@ import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
+import { inCliMode, switchProject } from './runtime/write-client.js';
+import { ConnectProjectDialog } from './components/entry/connect-project-dialog.jsx';
 // Import the extracted walkthrough overlay and offer.
 // The overlay and its step sequence now live in components/walkthrough/.
 import {
@@ -157,6 +159,8 @@ function StudioBrandMenu({
  menuRef,
  onDownloadLogo,
  onTakeTour,
+ onSwitchProject,
+ onCloseProject,
  canExport = false,
  exportFormat = 'png',
  onExportFormatChange,
@@ -245,6 +249,17 @@ function StudioBrandMenu({
  }}>
  <div style={sectionLabel}>Brand kit</div>
  {item('Lerret logo', 'PNG · 256 × 256', onDownloadLogo)}
+
+ {/* Project — connect a different folder, or close the current one, without
+ restarting the CLI. CLI mode only (the server re-points the dev binding). */}
+ {(onSwitchProject || onCloseProject) && (
+ <React.Fragment>
+ <div style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+ <div style={sectionLabel}>Project</div>
+ {onSwitchProject && item('Switch project…', 'Connect a different folder', onSwitchProject)}
+ {onCloseProject && item('Close project', 'Return to the connect screen', onCloseProject)}
+ </React.Fragment>
+ )}
 
  {/* Export project — a deliberately low-frequency action, tucked here
  rather than in the dock's prime row. Per-page / per-group / per-artboard
@@ -369,6 +384,11 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  // Brand menu — popover above the lockup. Holds the Brand kit download
  // (and anything else brand-adjacent we add later).
  const [brandOpen, setBrandOpen] = React.useState(false);
+ // The "Switch project" connect dialog (CLI mode). Opened from the brand menu.
+ const [connectOpen, setConnectOpen] = React.useState(false);
+ // Folder switching is a CLI-only capability (the server re-points its dev
+ // binding); the global flag is the same one write-client reads.
+ const cliMode = inCliMode();
  const brandRef = React.useRef(null);
  // The brand menu is portaled to <body>, so an "outside" click must also spare
  // the menu itself — otherwise clicking the format toggle / Export closes it.
@@ -516,6 +536,8 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  menuRef={brandMenuRef}
  onDownloadLogo={() => { triggerDownload('/assets/lerret-logo.png', 'lerret-logo.png'); setBrandOpen(false); }}
  onTakeTour={() => { setBrandOpen(false); onHelp && onHelp(); }}
+ onSwitchProject={cliMode ? () => { setBrandOpen(false); setConnectOpen(true); } : undefined}
+ onCloseProject={cliMode && projectModel ? () => { setBrandOpen(false); switchProject(null); } : undefined}
  canExport={!!projectModel}
  exportFormat={exportFormat}
  onExportFormatChange={setExportFormat}
@@ -528,6 +550,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  onDismissNotice={() => setExportNotice(null)}
  />
  )}
+ {connectOpen && <ConnectProjectDialog onClose={() => setConnectOpen(false)} />}
  </span>
 
  <StudioDockSeparator />

@@ -84,9 +84,13 @@ import {
  * @param {string} [assetBaseUrl] Base URL the project's files are served
  * under (no trailing slash), or unset for an already-absolute asset path.
  * @param {string | number} [reloadToken] Cache-bust token; omit on first load.
+ * @param {number} [epoch] Folder-switch epoch. When > 0, appended as `?v=`
+ * so a runtime folder switch never serves a stale cached module for an asset
+ * whose relative path collides with one from the previous folder. The CLI
+ * plugin's `resolveId` strips this query before resolving the file.
  * @returns {string} A URL string suitable for a dynamic `import()`.
  */
-export function assetModuleUrl(asset, project, assetBaseUrl, reloadToken) {
+export function assetModuleUrl(asset, project, assetBaseUrl, reloadToken, epoch) {
  let url;
  if (assetBaseUrl) {
  const root = (project && project.path) || '';
@@ -101,6 +105,12 @@ export function assetModuleUrl(asset, project, assetBaseUrl, reloadToken) {
  } else {
  // No base URL: the asset path is itself the URL the server serves.
  url = asset.path;
+ }
+ // Switch-epoch first (stable for the whole connection), then the per-edit
+ // reload token (changes on each save). Both are queries the dev server's
+ // resolveId strips before hitting disk.
+ if (epoch !== undefined && epoch !== null && Number(epoch) > 0) {
+ url += (url.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(String(epoch));
  }
  if (reloadToken !== undefined && reloadToken !== null) {
  url += (url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(String(reloadToken));
@@ -147,7 +157,7 @@ export function assetModuleUrl(asset, project, assetBaseUrl, reloadToken) {
  * `'error'` array on failure.
  */
 async function loadAssetModule(asset, project, ctx) {
- const url = assetModuleUrl(asset, project, ctx.assetBaseUrl, ctx.reloadToken);
+ const url = assetModuleUrl(asset, project, ctx.assetBaseUrl, ctx.reloadToken, ctx.epoch);
 
  let mod;
  try {
@@ -218,7 +228,7 @@ async function loadAssetModule(asset, project, ctx) {
  */
 async function loadMarkdownAsset(asset, project, ctx) {
  // Base URL first, then the `?raw` query so Vite serves the file's text.
- const base = assetModuleUrl(asset, project, ctx.assetBaseUrl, ctx.reloadToken);
+ const base = assetModuleUrl(asset, project, ctx.assetBaseUrl, ctx.reloadToken, ctx.epoch);
  const url = base + (base.includes('?') ? '&raw' : '?raw');
 
  let mod;
@@ -268,6 +278,12 @@ async function loadMarkdownAsset(asset, project, ctx) {
  */
 export function createViteRuntime(project, options = {}) {
  const assetBaseUrl = options.assetBaseUrl;
+ // Folder-switch epoch (0 at boot). Appended as `?v=<epoch>` to every asset
+ // URL so a switch re-fetches modules even when the new folder reuses a
+ // relative path from the previous one. A fresh runtime is created per switch
+ // (cli-project-source keys the runtime on the epoch), so this is constant for
+ // this runtime's lifetime.
+ const epoch = options.epoch;
  // A real dynamic `import()`, wrapped so Vite cannot statically analyze the
  // specifier (the URL is computed at runtime — there is no module list to
  // pre-bundle). Tests pass their own `importModule` instead.
@@ -331,9 +347,9 @@ export function createViteRuntime(project, options = {}) {
  // ; a component (`.jsx`/`.tsx`) asset is imported as a
  // module and rendered as 1..N artboards.
  if (asset.assetKind === 'markdown') {
- return loadMarkdownAsset(asset, project, { assetBaseUrl, importModule, reloadToken });
+ return loadMarkdownAsset(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });
  }
- return loadAssetModule(asset, project, { assetBaseUrl, importModule, reloadToken });
+ return loadAssetModule(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });
  },
 
  /**

@@ -11,16 +11,20 @@ import {
  DELETE_ENDPOINT,
  DUPLICATE_ENDPOINT,
  MOVE_ENDPOINT,
+ RECENT_PROJECTS_ENDPOINT,
  RENAME_ENDPOINT,
  REVEAL_ENDPOINT,
+ SWITCH_FOLDER_ENDPOINT,
  WRITE_ENDPOINT,
  createProjectEntry,
  deleteProjectFile,
  duplicateProjectFile,
+ fetchRecentProjects,
  inCliMode,
  moveProjectFile,
  renameProjectFile,
  revealProjectFile,
+ switchProject,
  writeProjectFile,
 } from './write-client.js';
 
@@ -458,5 +462,97 @@ describe('createProjectEntry', () => {
  const result = await createProjectEntry('/x/.lerret', 'landing', 'folder');
  expect(result.ok).toBe(false);
  expect(result.error).toMatch(/standalone/);
+ });
+});
+
+describe('switchProject', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { folder } and returns the server payload (project metadata)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, projectRoot: '/p/two', lerretDir: '/p/two/.lerret', epoch: 4 }),
+ });
+ const result = await switchProject('/p/two', { fetch: fetchMock });
+ expect(result).toMatchObject({ ok: true, projectRoot: '/p/two', epoch: 4 });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(SWITCH_FOLDER_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(JSON.parse(init.body)).toEqual({ folder: '/p/two' });
+ });
+
+ it('posts { folder: null } to close the project', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, projectRoot: null, lerretDir: null, epoch: 5 }),
+ });
+ const result = await switchProject(null, { fetch: fetchMock });
+ expect(result.ok).toBe(true);
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ folder: null });
+ });
+
+ it('surfaces a server rejection (no .lerret/ at target)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 400,
+ json: async () => ({ ok: false, error: 'no .lerret/ project found at or above "/tmp"' }),
+ });
+ const result = await switchProject('/tmp', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('no .lerret/');
+ });
+
+ it('rejects an empty-string folder before fetching', async () => {
+ const fetchMock = vi.fn();
+ const result = await switchProject('', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('is a no-op in standalone mode', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const fetchMock = vi.fn();
+ const result = await switchProject('/p/two', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('fetchRecentProjects', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('GETs the recents endpoint and returns the list', async () => {
+ const recent = [{ path: '/p/one', name: 'one' }, { path: '/p/two', name: 'two' }];
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200, json: async () => ({ ok: true, recent }),
+ });
+ const result = await fetchRecentProjects({ fetch: fetchMock });
+ expect(result).toEqual(recent);
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(RECENT_PROJECTS_ENDPOINT);
+ expect(init.method).toBe('GET');
+ });
+
+ it('returns [] on a network error (never throws)', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new Error('boom'));
+ expect(await fetchRecentProjects({ fetch: fetchMock })).toEqual([]);
+ });
+
+ it('returns [] in standalone mode without fetching', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const fetchMock = vi.fn();
+ expect(await fetchRecentProjects({ fetch: fetchMock })).toEqual([]);
+ expect(fetchMock).not.toHaveBeenCalled();
  });
 });

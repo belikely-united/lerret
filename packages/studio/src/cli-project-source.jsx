@@ -44,9 +44,11 @@ import {
  project as INITIAL_PROJECT,
  assetBaseUrl as INITIAL_ASSET_BASE_URL,
  cascadeEntries as INITIAL_CASCADE_ENTRIES,
+ epoch as INITIAL_EPOCH,
 } from 'virtual:lerret-project';
 
 import { createViteRuntime } from './runtime/vite-runtime.js';
+import { onLerretChange } from './runtime/cli-hmr.js';
 import { ProjectStudio } from './project-studio.jsx';
 import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx';
 
@@ -108,15 +110,6 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * The custom HMR event name the CLI plugin sends. Kept in lock-step with the
- * `HMR_CHANGE_EVENT` constant in `packages/cli/src/vite-plugin-lerret-
- * project.js`. If you change one, change the other.
- *
- * @type {string}
- */
-const HMR_CHANGE_EVENT = 'lerret:change';
-
-/**
  * The CLI-mode project source. Mounted by `main.jsx` when CLI mode is
  * detected (the `__LERRET_CLI_MODE__` flag the plugin injects into the
  * served HTML).
@@ -124,38 +117,49 @@ const HMR_CHANGE_EVENT = 'lerret:change';
  * @returns {React.ReactElement}
  */
 export function CliProjectSource() {
- // Pull the initial state out of the virtual module. The plugin freezes
- // this into a JSON snapshot at module-load time; subsequent updates come
- // through the HMR event below.
- const initialProject = INITIAL_PROJECT;
- const assetBaseUrl = INITIAL_ASSET_BASE_URL;
-
- // The currently-mounted project. Replaced (with the new snapshot from the
- // server) on every `lerret:change` event so add/remove/rename are
- // reflected on the canvas without a full reload.
- const [project, setProject] = React.useState(initialProject);
+ // Initial state from the virtual module (a frozen snapshot at module-load).
+ // Everything after boot arrives over the `lerret:change` HMR event — including
+ // a wholesale folder SWITCH (POST /__lerret/switch-folder), which carries a
+ // new project, a bumped `epoch`, and a possibly-changed `assetBaseUrl`.
+ const [project, setProject] = React.useState(INITIAL_PROJECT);
+ const [assetBaseUrl, setAssetBaseUrl] = React.useState(INITIAL_ASSET_BASE_URL);
 
  // The serialized cascade entries — updated on every `lerret:change` event
- // that carries a new cascade (i.e. after a config.json edit). The
+ // that carries a new cascade (config.json edit, or a switch). The
  // `CascadedConfigProvider` rehydrates these into a Map so descendant
  // components can look up any folder's effective config instantly.
  const [cascadeEntries, setCascadeEntries] = React.useState(
  INITIAL_CASCADE_ENTRIES || [],
  );
 
- // The CLI-mode runtime. Bound to the *initial* project — the runtime's
- // change-signal API handles content edits without needing a
- // new runtime. For structural model updates we just hand a new `project`
- // prop down to `<ProjectStudio>`; the runtime is reused because its
- // contract is shaped around per-asset paths, not the whole tree.
- //
- // (Re-creating the runtime on every project update would also reset its
- // listener set + per-asset cache-bust tokens, which is the opposite of
- // what we want.)
+ // `epoch` bumps on every folder switch. It (a) cache-busts asset imports via
+ // `?v=<epoch>` and (b) keys the runtime memo so a fresh runtime is built per
+ // switch (binding it to the new folder's project).
+ const [epoch, setEpoch] = React.useState(INITIAL_EPOCH || 0);
+
+ // Latest project mirrored to a ref so the epoch-keyed runtime memo can read
+ // the post-switch project WITHOUT listing `project` as a dep — which would
+ // rebuild the runtime (resetting its per-asset cache tokens) on every routine
+ // live-edit model swap, the opposite of what we want.
+ const projectRef = React.useRef(project);
+ projectRef.current = project;
+
+ // The CLI-mode runtime. Rebuilt ONLY when a switch changes the epoch (or the
+ // asset base URL flips, e.g. connecting from the no-project state) — never on
+ // a routine live-edit project swap. Bound to the just-switched project (read
+ // from the ref) and the new epoch, so its asset URLs carry `?v=<epoch>` and
+ // re-fetch the new folder's modules.
  const runtime = React.useMemo(() => {
- if (!initialProject) return null;
- return createViteRuntime(initialProject, { assetBaseUrl });
- }, [initialProject, assetBaseUrl]);
+ const p = projectRef.current;
+ if (!p || !assetBaseUrl) return null;
+ return createViteRuntime(p, { assetBaseUrl, epoch });
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [epoch, assetBaseUrl]);
+
+ // Mirror the live runtime to a ref so the once-installed HMR subscriber can
+ // call notifyChange on the CURRENT runtime without re-subscribing each rebuild.
+ const runtimeRef = React.useRef(runtime);
+ runtimeRef.current = runtime;
 
  // Dispose the runtime on unmount. The studio is a long-lived SPA but this
  // matters for tests + hot-module replacement on this very file.
@@ -164,63 +168,63 @@ export function CliProjectSource() {
  return () => runtime.dispose();
  }, [runtime]);
 
- // The HMR bridge — the CLI watcher → runtime + project-model live update.
+ // The HMR bridge — installed ONCE. Handles both incremental live edits and
+ // wholesale folder switches. Subscribes via `onLerretChange` (not
+ // `import.meta.hot`) so the listener SURVIVES `vite build`: the published CLI
+ // serves the pre-built `dist-studio` bundle, where an `import.meta.hot`-gated
+ // block would be tree-shaken away (taking live edit with it). See
+ // `runtime/cli-hmr.js`.
  React.useEffect(() => {
- if (!runtime) return undefined;
- if (typeof import.meta === 'undefined' || !import.meta.hot) return undefined;
-
- const hot = import.meta.hot;
  /**
  * Handler for the `lerret:change` HMR custom event.
  *
- * Payload shape (from `vite-plugin-lerret-project.js`):
- * { event: { type: 'add' | 'change' | 'remove', path }, project }
+ * Payload (from `vite-plugin-lerret-project.js`):
+ *   { event: { type: 'add'|'change'|'remove'|'switch', path },
+ *     project, cascadeEntries, epoch, assetBaseUrl }
  *
- * @param {{ event: { type: string, path: string }, project: object | null }} payload
+ * @param {{ event?: { type: string, path: string }, project?: object|null,
+ *   cascadeEntries?: Array, epoch?: number, assetBaseUrl?: string|null }} payload
  */
  const onChange = (payload) => {
  if (!payload || typeof payload !== 'object') return;
 
- // 1. Cache-bust the runtime for this path. This is the content-edit
- // live-edit loop's `notifyChange` API.
- if (payload.event && typeof payload.event.path === 'string') {
- runtime.notifyChange(payload.event.path);
+ const isSwitch = payload.event && payload.event.type === 'switch';
+
+ // 1. Content-edit cache-bust — NOT for a switch (the epoch handles that,
+ // and a switch has no single changed path). Read the CURRENT runtime
+ // from the ref so this once-installed handler always targets the live one.
+ const rt = runtimeRef.current;
+ if (rt && !isSwitch && payload.event && typeof payload.event.path === 'string') {
+ rt.notifyChange(payload.event.path);
  }
 
- // 2. Swap in the new project snapshot. `applyWatchEvent` ran on the
- // server, so this snapshot is the model AFTER the change. The
- // canvas's section-walk re-runs off the new prop and add/remove/
- // rename appears without a full reload. A no-op change (e.g. an
- // edit to a non-asset file like a `config.json`) just returns the
- // same model; React diffs and renders nothing new.
- if ('project' in payload) {
- setProject(payload.project);
- }
+ // 2. Switch metadata applied BEFORE the project so the epoch-keyed runtime
+ // memo recomputes against the new epoch on the next render. A bumped epoch
+ // rebuilds the runtime; a changed assetBaseUrl flips connected/no-project.
+ if (typeof payload.epoch === 'number') setEpoch(payload.epoch);
+ if ('assetBaseUrl' in payload) setAssetBaseUrl(payload.assetBaseUrl);
 
- // 3. Update the cascade when the server sends a fresh one (happens on
- // every watcher event — see `vite-plugin-lerret-project.js`). A
- // config.json edit causes the cascade to recompute server-side and
- // the new entries arrive here, making `CascadedConfigProvider`
- // update the context so sections re-render with the new bg color
- // without a full reload (FR18 live update).
+ // 3. The new model snapshot (or null on "close project"). `applyWatchEvent`
+ // ran on the server, so this is the model AFTER the change; the canvas
+ // re-walks off the new prop with no full reload. A no-op edit returns the
+ // same model and React renders nothing new.
+ if ('project' in payload) setProject(payload.project);
+
+ // 4. The recomputed cascade (section bg/fg colors), live per FR18.
  if ('cascadeEntries' in payload && Array.isArray(payload.cascadeEntries)) {
  setCascadeEntries(payload.cascadeEntries);
  }
  };
 
- hot.on(HMR_CHANGE_EVENT, onChange);
- // No `hot.off` is exposed for custom events in Vite 8 — the listener is
- // bound to this module's HMR boundary and is cleared when the module
- // reloads. That's fine for our single long-lived mount.
- return undefined;
- }, [runtime]);
+ return onLerretChange(onChange);
+ // Installed once for the studio's lifetime — it reads live state via refs +
+ // setState, so it never needs to re-subscribe.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
 
- // No-folder path: the CLI was invoked outside any `.lerret/` project.
- // render the real open-folder empty state in cliMode so the
- // entry surface is consistent across hosted and CLI modes (UX-DR13).
- // In CLI mode the picker action shows guidance toward `@lerret/cli dev <path>`
- // rather than routing through the FSA picker flow — the simplest path per
- // the story's "pick the simpler one" guidance.
+ // No-folder path: the CLI was launched outside a project, OR the user chose
+ // "Close project". Render the connect screen so a folder can be opened without
+ // restarting the CLI — it POSTs /__lerret/switch-folder (UX-DR13).
  if (!project) {
  return <OpenFolder cliMode />;
  }

@@ -56,6 +56,8 @@ export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
 export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
+export const SWITCH_FOLDER_ENDPOINT = '/__lerret/switch-folder';
+export const RECENT_PROJECTS_ENDPOINT = '/__lerret/recent-projects';
 
 /**
  * Detect CLI mode from the same flag the CLI's plugin injects in
@@ -445,6 +447,50 @@ export async function revealProjectFile(path, target, opts = {}) {
  }
  const result = await callLifecycleEndpoint(REVEAL_ENDPOINT, { path, target }, opts);
  return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+/**
+ * Switch the studio to a different project folder — or close the current one —
+ * WITHOUT restarting the CLI. POSTs `{ folder }` to the switch endpoint; the
+ * server re-points, re-scans, restarts the watcher, and broadcasts the new
+ * model over `lerret:change` (which `cli-project-source` applies). This call
+ * resolves once the server acknowledges, carrying the new project metadata.
+ *
+ * @param {string | null} folder
+ *   An absolute folder path to connect (the server walks up to find `.lerret/`),
+ *   or `null` to close the current project and return to the connect screen.
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, projectRoot?: string|null, lerretDir?: string|null, epoch?: number, recent?: Array<{path:string,name:string}>, error?: string }>}
+ */
+export async function switchProject(folder, opts = {}) {
+ if (folder !== null && (typeof folder !== 'string' || folder.length === 0)) {
+ return { ok: false, error: 'switchProject: folder must be a non-empty path or null' };
+ }
+ return callLifecycleEndpoint(SWITCH_FOLDER_ENDPOINT, { folder }, opts);
+}
+
+/**
+ * Fetch the recent-projects list (most-recent-first) for the connect screen.
+ * Always resolves with an array — `[]` on any failure or in standalone mode,
+ * so the caller never has to try/catch.
+ *
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<Array<{ path: string, name: string }>>}
+ */
+export async function fetchRecentProjects(opts = {}) {
+ if (!isCliMode()) return [];
+ const fetchImpl = opts.fetch || (typeof globalThis !== 'undefined' ? globalThis.fetch : undefined);
+ if (typeof fetchImpl !== 'function') return [];
+ try {
+ const response = await fetchImpl(RECENT_PROJECTS_ENDPOINT, { method: 'GET' });
+ const parsed = await response.json();
+ if (parsed && parsed.ok === true && Array.isArray(parsed.recent)) return parsed.recent;
+ } catch {
+ // No recents available (network error / non-JSON) — fall through to [].
+ }
+ return [];
 }
 
 /**

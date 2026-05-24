@@ -43,6 +43,8 @@
 
 import React from 'react';
 
+import { switchProject, fetchRecentProjects } from '../../runtime/write-client.js';
+
 // ---------------------------------------------------------------------------
 // Internal: validate that a directory handle contains a .lerret/ subdirectory
 // ---------------------------------------------------------------------------
@@ -208,6 +210,204 @@ function FolderIcon() {
 }
 
 // ---------------------------------------------------------------------------
+// CliConnectScreen — CLI-mode "connect a project folder" (runtime switch)
+// ---------------------------------------------------------------------------
+//
+// In CLI mode the studio is a long-lived server you point at folders. With no
+// project connected (fresh launch outside a project, or after "Close project"),
+// this screen lets the user CONNECT one — by pasting a folder path or picking a
+// recent — without ever touching the terminal. It POSTs to
+// `/__lerret/switch-folder`; on success the server broadcasts the new model over
+// `lerret:change` and `cli-project-source` swaps it in (unmounting this screen).
+//
+// Why a typed path and not the FSA picker: the browser FSA picker yields an
+// opaque handle, NOT an absolute filesystem path, and the local CLI needs a real
+// path to resolve. A path field + recents is the honest, reliable CLI affordance.
+
+/** @type {React.CSSProperties} */
+const connectInputStyle = {
+ flex: 1,
+ minWidth: 0,
+ padding: 'var(--lm-space-3, 12px) var(--lm-space-4, 16px)',
+ fontSize: 'var(--lm-size-body, 13px)',
+ fontFamily: 'var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace)',
+ color: 'var(--lm-text-primary, #1A1714)',
+ background: 'var(--lm-bg-primary, #FAF8F2)',
+ border: '1px solid var(--lm-border, #DDD7CA)',
+ borderRadius: 'var(--lm-radius-md, 8px)',
+ outline: 'none',
+ boxSizing: 'border-box',
+};
+
+/** @type {React.CSSProperties} */
+const recentItemStyle = {
+ display: 'flex',
+ flexDirection: 'column',
+ alignItems: 'flex-start',
+ gap: '2px',
+ width: '100%',
+ padding: 'var(--lm-space-2, 8px) var(--lm-space-3, 12px)',
+ background: 'var(--lm-bg-primary, #FAF8F2)',
+ border: '1px solid var(--lm-border, #DDD7CA)',
+ borderRadius: 'var(--lm-radius-md, 8px)',
+ cursor: 'pointer',
+ textAlign: 'left',
+ fontFamily: 'inherit',
+ transition: 'border-color var(--lm-duration-fast, 120ms)',
+};
+
+/**
+ * The CLI-mode connect-a-project screen.
+ *
+ * @returns {React.ReactElement}
+ */
+function CliConnectScreen() {
+ const [folderInput, setFolderInput] = React.useState('');
+ const [connecting, setConnecting] = React.useState(false);
+ const [connectError, setConnectError] = React.useState(null);
+ const [recents, setRecents] = React.useState([]);
+ const [primaryHover, setPrimaryHover] = React.useState(false);
+
+ // Load the recent-projects list once.
+ React.useEffect(() => {
+ let cancelled = false;
+ fetchRecentProjects().then((list) => {
+ if (!cancelled) setRecents(Array.isArray(list) ? list : []);
+ });
+ return () => {
+ cancelled = true;
+ };
+ }, []);
+
+ const connect = React.useCallback(async (folder) => {
+ const target = (folder || '').trim();
+ if (!target) {
+ setConnectError('Enter a folder path to connect.');
+ return;
+ }
+ setConnecting(true);
+ setConnectError(null);
+ const result = await switchProject(target);
+ if (!result.ok) {
+ setConnectError(result.error || 'Could not connect to that folder.');
+ setConnecting(false);
+ }
+ // On success the `lerret:change` broadcast swaps in the project and this
+ // screen unmounts — no success branch is needed here.
+ }, []);
+
+ const onSubmit = (e) => {
+ e.preventDefault();
+ connect(folderInput);
+ };
+
+ return (
+ <main style={wrapperStyle} aria-label="Connect a Lerret project" data-testid="cli-connect-screen">
+ <div style={cardStyle}>
+ <FolderIcon />
+
+ <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--lm-space-3, 12px)', alignItems: 'center' }}>
+ <p style={eyebrowStyle} aria-hidden="true">Lerret</p>
+ <h1 style={headingStyle}>Connect a project</h1>
+ <p style={bodyStyle}>
+ Point the studio at a folder that contains a <code>.lerret/</code> project.
+ Your files stay on your machine.
+ </p>
+ </div>
+
+ <form
+ style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--lm-space-3, 12px)' }}
+ onSubmit={onSubmit}
+ >
+ <div style={{ display: 'flex', gap: 'var(--lm-space-2, 8px)', width: '100%' }}>
+ <input
+ type="text"
+ style={connectInputStyle}
+ placeholder="/path/to/your/project"
+ value={folderInput}
+ onChange={(e) => setFolderInput(e.target.value)}
+ disabled={connecting}
+ aria-label="Project folder path"
+ data-testid="cli-connect-input"
+ autoFocus
+ />
+ <button
+ type="submit"
+ style={{
+ ...primaryButtonStyle,
+ ...(primaryHover && !connecting ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
+ ...(connecting ? { opacity: 0.7, cursor: 'wait' } : {}),
+ }}
+ disabled={connecting}
+ onMouseEnter={() => setPrimaryHover(true)}
+ onMouseLeave={() => setPrimaryHover(false)}
+ data-testid="cli-connect-button"
+ >
+ {connecting ? 'Connecting…' : 'Connect'}
+ </button>
+ </div>
+
+ {connectError && (
+ <p
+ role="alert"
+ style={{ ...errorBodyStyle, color: 'var(--lm-error, #A8412B)', alignSelf: 'flex-start' }}
+ data-testid="cli-connect-error"
+ >
+ {connectError}
+ </p>
+ )}
+ </form>
+
+ {recents.length > 0 && (
+ <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--lm-space-2, 8px)' }}>
+ <p style={{ ...eyebrowStyle, alignSelf: 'flex-start' }}>Recent projects</p>
+ <ul
+ style={{ listStyle: 'none', margin: 0, padding: 0, width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--lm-space-1, 4px)' }}
+ data-testid="cli-recent-projects"
+ >
+ {recents.map((r) => (
+ <li key={r.path}>
+ <button
+ type="button"
+ style={recentItemStyle}
+ onClick={() => connect(r.path)}
+ disabled={connecting}
+ data-testid="cli-recent-project"
+ >
+ <span style={{ fontWeight: 'var(--lm-weight-semibold, 600)', fontSize: 'var(--lm-size-body, 13px)', color: 'var(--lm-text-primary, #1A1714)' }}>
+ {r.name}
+ </span>
+ <span style={{ fontSize: 'var(--lm-size-hint, 10px)', fontFamily: 'var(--lm-font-mono, monospace)', color: 'var(--lm-text-muted, #B8B3A8)' }}>
+ {r.path}
+ </span>
+ </button>
+ </li>
+ ))}
+ </ul>
+ </div>
+ )}
+
+ <p style={{ ...errorBodyStyle, fontSize: 'var(--lm-size-body-sm, 12px)', color: 'var(--lm-text-tertiary, #6E6960)' }}>
+ Tip: you can also launch directly with <code>@lerret/cli dev --folder ./my-project</code>.
+ </p>
+ </div>
+
+ <style>{`
+ [data-testid="cli-connect-input"]:focus-visible,
+ [data-testid="cli-connect-button"]:focus-visible,
+ [data-testid="cli-recent-project"]:focus-visible {
+ outline: none;
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20));
+ }
+ [data-testid="cli-recent-project"]:hover {
+ border-color: var(--lm-accent, #B85B33);
+ }
+ `}</style>
+ </main>
+ );
+}
+
+// ---------------------------------------------------------------------------
 // OpenFolder — the exported component
 // ---------------------------------------------------------------------------
 
@@ -240,7 +440,7 @@ function FolderIcon() {
  * @param {OpenFolderProps} props
  * @returns {React.ReactElement}
  */
-export function OpenFolder({ onFolderPicked, cliMode = false }) {
+function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  // 'idle' | 'picking' | 'not-lerret-project' | 'cli-guide'
  const [state, setState] = React.useState('idle');
  // The handle we tried but that lacked .lerret/ — kept so we can offer
@@ -498,6 +698,26 @@ export function OpenFolder({ onFolderPicked, cliMode = false }) {
  `}</style>
  </main>
  );
+}
+
+/**
+ * The studio's no-project entry screen.
+ *
+ * - **CLI mode** (`cliMode`): the runtime "connect a project" screen — paste a
+ *   folder path or pick a recent, and the studio switches to it without a CLI
+ *   restart (POST `/__lerret/switch-folder`). Also the destination of the brand
+ *   menu's "Close project".
+ * - **Hosted mode**: the File-System-Access picker flow (pick a local folder
+ *   with a `.lerret/`, validate, hand the handle to `onFolderPicked`).
+ *
+ * Split into a thin branch so each path keeps its hooks unconditional.
+ *
+ * @param {OpenFolderProps} props
+ * @returns {React.ReactElement}
+ */
+export function OpenFolder({ onFolderPicked, cliMode = false }) {
+ if (cliMode) return <CliConnectScreen />;
+ return <HostedOpenFolderImpl onFolderPicked={onFolderPicked} />;
 }
 
 export default OpenFolder;

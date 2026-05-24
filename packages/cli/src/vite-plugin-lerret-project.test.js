@@ -23,15 +23,21 @@ import {
   WRITE_ENDPOINT,
   buildChangeEvent,
   checkWritePath,
+  classifySwitchFolder,
   createCreateMiddleware,
   createDeleteMiddleware,
   createDuplicateMiddleware,
   createMoveMiddleware,
+  createProjectAssetMiddleware,
   createReadConfigMiddleware,
+  createRecentProjectsMiddleware,
   createRenameMiddleware,
   createRevealMiddleware,
+  createSwitchFolderMiddleware,
   createWriteMiddleware,
   lerretProjectPlugin,
+  readRecentProjects,
+  recordRecentProject,
 } from './vite-plugin-lerret-project.js';
 import { LERRET_DIR_NAME } from './resolve-project.js';
 
@@ -77,6 +83,45 @@ function makeFakeServer() {
   };
 }
 
+/**
+ * Drive a Connect-style middleware with a fake req/res, returning the captured
+ * `{ status, body }`. Module-level twin of the write-describe's `callMiddleware`
+ * so the switch/recents suites can share it. Emits the body AFTER the
+ * middleware wires its listeners (matching `readRequestBody`'s timing).
+ */
+async function callJsonMiddleware(middleware, { method = 'POST', body = '' } = {}) {
+  const { EventEmitter } = await import('node:events');
+  const req = new EventEmitter();
+  req.method = method;
+  req.destroy = () => {};
+
+  const captured = { headers: {} };
+  const res = {
+    get statusCode() { return captured.status; },
+    set statusCode(v) { captured.status = v; },
+    setHeader(name, value) { captured.headers[name] = value; },
+    end(payload) {
+      captured.body = payload;
+      captured.done = true;
+    },
+  };
+
+  middleware(req, res, () => {});
+  await new Promise((r) => setImmediate(r));
+  if (body) req.emit('data', Buffer.from(body, 'utf-8'));
+  req.emit('end');
+
+  const deadline = Date.now() + 5000;
+  while (!captured.done && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  return {
+    status: captured.status,
+    body: captured.body ? JSON.parse(captured.body) : null,
+    headers: captured.headers,
+  };
+}
+
 describe('virtual module — resolveId / load', () => {
   it('exposes virtual:lerret-project with the expected exports', () => {
     const projectRoot = asLerretPath(workDir);
@@ -119,40 +164,50 @@ describe('virtual module — resolveId / load', () => {
   });
 });
 
-describe('config() — server.fs.allow and alias', () => {
-  it('adds the project root to fs.allow and aliases the asset base URL to .lerret/', () => {
+describe('config() — dynamic asset resolution + fs', () => {
+  it('relaxes server.fs.strict (switch targets are unknown at boot) and sets no static alias', () => {
     const projectRoot = asLerretPath(workDir);
     const lerretDir = `${projectRoot}/${LERRET_DIR_NAME}`;
     const plugin = lerretProjectPlugin({ projectRoot, lerretDir });
 
     const config = plugin.config();
-    // fs.allow is the *project* root (we may need to serve files outside
-    // `.lerret/` — e.g. a `../assets/logo.png` import from an asset).
-    expect(config.server.fs.allow).toContain(projectRoot);
-    // The alias rebases the asset base URL onto the scan root (`.lerret/`).
-    // The asset-runtime's `assetModuleUrl` strips `project.path`
-    // (= scan root) from each asset path, so the relative URL it emits is
-    // resolved through this alias to the real file on disk.
-    expect(config.resolve.alias[PROJECT_ASSET_BASE_URL]).toBe(lerretDir);
+    // The static `/@lerret-project` alias is GONE — resolution is now dynamic
+    // (see the resolveId block below) so it can follow runtime folder switches.
+    // A static alias could only ever point at the boot-time folder.
+    expect(config.resolve).toBeUndefined();
+    // fs.strict is disabled: the studio can be pointed at any folder at runtime,
+    // and this is a local tool serving the user's own files.
+    expect(config.server.fs.strict).toBe(false);
   });
 
-  it('merges into an existing fs.allow rather than overwriting it', () => {
+  it('relaxes fs even in no-project mode so a folder can be connected later', () => {
+    const plugin = lerretProjectPlugin({ projectRoot: null, lerretDir: null });
+    expect(plugin.config().server.fs.strict).toBe(false);
+  });
+});
+
+describe('resolveId — dynamic /@lerret-project rebasing', () => {
+  it('rebases the asset base URL onto the connected .lerret/, preserving sub-path + query', () => {
     const projectRoot = asLerretPath(workDir);
     const lerretDir = `${projectRoot}/${LERRET_DIR_NAME}`;
     const plugin = lerretProjectPlugin({ projectRoot, lerretDir });
 
-    // Simulate dev.js's inline config: `dev.js` sets fs.allow itself, then
-    // each plugin's `config()` hook is invoked with the merged user config.
-    // The plugin must extend, not replace, that list.
-    const config = plugin.config({
-      server: { fs: { allow: ['/dev-js-set-this'] } },
-    });
-    expect(config.server.fs.allow).toEqual(['/dev-js-set-this', projectRoot]);
+    expect(plugin.resolveId(`${PROJECT_ASSET_BASE_URL}/brand/card.jsx`)).toBe(
+      `${lerretDir}/brand/card.jsx`,
+    );
+    // The query suffix (live-reload `?t=`, switch-epoch `?v=`, markdown `?raw`)
+    // must survive so Vite re-transforms / serves-raw correctly.
+    expect(plugin.resolveId(`${PROJECT_ASSET_BASE_URL}/notes.md?raw`)).toBe(
+      `${lerretDir}/notes.md?raw`,
+    );
+    expect(plugin.resolveId(`${PROJECT_ASSET_BASE_URL}/a.jsx?v=3`)).toBe(
+      `${lerretDir}/a.jsx?v=3`,
+    );
   });
 
-  it('returns no extra config in no-project mode', () => {
+  it('does not rebase when no project is connected', () => {
     const plugin = lerretProjectPlugin({ projectRoot: null, lerretDir: null });
-    expect(plugin.config()).toEqual({});
+    expect(plugin.resolveId(`${PROJECT_ASSET_BASE_URL}/x.jsx`)).toBeNull();
   });
 });
 
@@ -1270,5 +1325,246 @@ describe('createReadConfigMiddleware', () => {
     const mw = createReadConfigMiddleware({ lerretDir });
     const result = await call(mw, { path: '/etc/passwd' });
     expect(result.status).toBe(400);
+  });
+});
+
+// ── Runtime folder switching ──────────────────────────────────────────────────
+
+describe('classifySwitchFolder — switch-intent parsing', () => {
+  it('treats null / undefined / empty string as "close"', () => {
+    expect(classifySwitchFolder(null).kind).toBe('close');
+    expect(classifySwitchFolder(undefined).kind).toBe('close');
+    expect(classifySwitchFolder('').kind).toBe('close');
+  });
+
+  it('treats a string path as "connect"', () => {
+    expect(classifySwitchFolder('/some/folder')).toEqual({ kind: 'connect', folder: '/some/folder' });
+  });
+
+  it('treats a non-string, non-null value as "error"', () => {
+    expect(classifySwitchFolder(42).kind).toBe('error');
+    expect(classifySwitchFolder({}).kind).toBe('error');
+  });
+});
+
+describe('recent-projects — persistence + endpoint', () => {
+  let configDir;
+  let prevEnv;
+
+  beforeEach(async () => {
+    configDir = await fsp.mkdtemp(join(tmpdir(), 'lerret-cfg-'));
+    prevEnv = process.env.LERRET_CONFIG_DIR;
+    // Redirect the recents file to a tmp dir so tests never touch the real home.
+    process.env.LERRET_CONFIG_DIR = configDir;
+  });
+
+  afterEach(async () => {
+    if (prevEnv === undefined) delete process.env.LERRET_CONFIG_DIR;
+    else process.env.LERRET_CONFIG_DIR = prevEnv;
+    await fsp.rm(configDir, { recursive: true, force: true });
+  });
+
+  it('returns [] when no recents file exists yet', async () => {
+    expect(await readRecentProjects()).toEqual([]);
+  });
+
+  it('records projects most-recent-first, de-duplicated', async () => {
+    await recordRecentProject('/p/alpha');
+    await recordRecentProject('/p/beta');
+    await recordRecentProject('/p/alpha'); // re-record → moves to front, no dupe
+    const list = await readRecentProjects();
+    expect(list.map((e) => e.path)).toEqual(['/p/alpha', '/p/beta']);
+    expect(list[0]).toEqual({ path: '/p/alpha', name: 'alpha' });
+  });
+
+  it('GET endpoint returns the list; a non-GET method → 405', async () => {
+    await recordRecentProject('/p/gamma');
+    const mw = createRecentProjectsMiddleware();
+
+    const ok = await callJsonMiddleware(mw, { method: 'GET' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.ok).toBe(true);
+    expect(ok.body.recent.map((e) => e.path)).toContain('/p/gamma');
+
+    const bad = await callJsonMiddleware(mw, { method: 'POST', body: '{}' });
+    expect(bad.status).toBe(405);
+  });
+});
+
+describe('createSwitchFolderMiddleware — runtime folder switch', () => {
+  let configDir;
+  let prevEnv;
+  let projectDir;
+
+  beforeEach(async () => {
+    configDir = await fsp.mkdtemp(join(tmpdir(), 'lerret-cfg-'));
+    prevEnv = process.env.LERRET_CONFIG_DIR;
+    process.env.LERRET_CONFIG_DIR = configDir;
+    projectDir = await fsp.mkdtemp(join(tmpdir(), 'lerret-proj-'));
+    await fsp.mkdir(join(projectDir, LERRET_DIR_NAME), { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (prevEnv === undefined) delete process.env.LERRET_CONFIG_DIR;
+    else process.env.LERRET_CONFIG_DIR = prevEnv;
+    await fsp.rm(configDir, { recursive: true, force: true });
+    await fsp.rm(projectDir, { recursive: true, force: true });
+  });
+
+  function makeDeps(state) {
+    const calls = { rescan: 0, restartWatcher: 0, broadcasts: [] };
+    const deps = {
+      state,
+      rescan: async () => { calls.rescan += 1; },
+      restartWatcher: async () => { calls.restartWatcher += 1; },
+      broadcast: (ev) => calls.broadcasts.push(ev),
+    };
+    return { deps, calls };
+  }
+
+  it('connects a real project: re-points state, rescans, restarts watcher, broadcasts, bumps epoch, records recent', async () => {
+    const state = { projectRoot: null, lerretDir: null, epoch: 0 };
+    const { deps, calls } = makeDeps(state);
+    const mw = createSwitchFolderMiddleware(deps);
+
+    const res = await callJsonMiddleware(mw, { body: JSON.stringify({ folder: projectDir }) });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.lerretDir).toBe(`${asLerretPath(projectDir)}/${LERRET_DIR_NAME}`);
+    expect(state.lerretDir).toBe(`${asLerretPath(projectDir)}/${LERRET_DIR_NAME}`);
+    expect(state.epoch).toBe(1);
+    expect(calls.rescan).toBe(1);
+    expect(calls.restartWatcher).toBe(1);
+    expect(calls.broadcasts).toHaveLength(1);
+    expect(calls.broadcasts[0].type).toBe('switch');
+    expect((await readRecentProjects()).map((e) => e.path)).toContain(asLerretPath(projectDir));
+  });
+
+  it('rejects a folder with no .lerret/ (400) and leaves state untouched', async () => {
+    const noLerret = await fsp.mkdtemp(join(tmpdir(), 'lerret-none-'));
+    const state = { projectRoot: null, lerretDir: null, epoch: 0 };
+    const { deps, calls } = makeDeps(state);
+    const mw = createSwitchFolderMiddleware(deps);
+
+    const res = await callJsonMiddleware(mw, { body: JSON.stringify({ folder: noLerret }) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain('no .lerret/');
+    expect(state.lerretDir).toBeNull();
+    expect(calls.rescan).toBe(0);
+    expect(calls.restartWatcher).toBe(0);
+
+    await fsp.rm(noLerret, { recursive: true, force: true });
+  });
+
+  it('closes the project on folder:null (state cleared, epoch bumped)', async () => {
+    const state = { projectRoot: '/old', lerretDir: '/old/.lerret', epoch: 5 };
+    const { deps, calls } = makeDeps(state);
+    const mw = createSwitchFolderMiddleware(deps);
+
+    const res = await callJsonMiddleware(mw, { body: JSON.stringify({ folder: null }) });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, projectRoot: null, lerretDir: null });
+    expect(state.lerretDir).toBeNull();
+    expect(state.projectRoot).toBeNull();
+    expect(state.epoch).toBe(6);
+    expect(calls.rescan).toBe(1);
+    expect(calls.restartWatcher).toBe(1);
+  });
+
+  it('rejects a non-string, non-null folder with 400', async () => {
+    const state = { projectRoot: null, lerretDir: null, epoch: 0 };
+    const { deps } = makeDeps(state);
+    const mw = createSwitchFolderMiddleware(deps);
+
+    const res = await callJsonMiddleware(mw, { body: JSON.stringify({ folder: 42 }) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('must be a string');
+  });
+});
+
+describe('live getLerretDir — lifecycle middlewares follow a runtime switch', () => {
+  it('a write middleware built with getLerretDir gates against the CURRENT folder', async () => {
+    const a = await fsp.mkdtemp(join(tmpdir(), 'lerret-a-'));
+    const b = await fsp.mkdtemp(join(tmpdir(), 'lerret-b-'));
+    await fsp.mkdir(join(a, LERRET_DIR_NAME), { recursive: true });
+    await fsp.mkdir(join(b, LERRET_DIR_NAME), { recursive: true });
+
+    let current = `${asLerretPath(a)}/${LERRET_DIR_NAME}`;
+    const mw = createWriteMiddleware({ getLerretDir: () => current });
+
+    // Write under A → ok.
+    const r1 = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${current}/x.json`, content: '1' }),
+    });
+    expect(r1.status).toBe(200);
+
+    // "Switch" the live getter to B. The SAME middleware instance must now
+    // treat an A-path as outside-tree and accept a B-path.
+    const aDir = `${asLerretPath(a)}/${LERRET_DIR_NAME}`;
+    current = `${asLerretPath(b)}/${LERRET_DIR_NAME}`;
+
+    const r2 = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${aDir}/y.json`, content: '2' }),
+    });
+    expect(r2.status).toBe(400);
+    expect(r2.body.error).toContain('outside the project');
+
+    const r3 = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${current}/z.json`, content: '3' }),
+    });
+    expect(r3.status).toBe(200);
+
+    await fsp.rm(a, { recursive: true, force: true });
+    await fsp.rm(b, { recursive: true, force: true });
+  });
+});
+
+describe('createProjectAssetMiddleware — dynamic /@lerret-project serving', () => {
+  function run(getLerretDir, url) {
+    const mw = createProjectAssetMiddleware({ getLerretDir });
+    const req = { url };
+    let nexted = false;
+    mw(req, {}, () => { nexted = true; });
+    return { url: req.url, nexted };
+  }
+
+  it('rewrites a /@lerret-project asset GET to Vite /@fs of the current folder', () => {
+    const out = run(() => '/p/.lerret', `${PROJECT_ASSET_BASE_URL}/_fonts/x.woff2`);
+    expect(out.url).toBe('/@fs/p/.lerret/_fonts/x.woff2');
+    expect(out.nexted).toBe(true);
+  });
+
+  it('preserves the query string (epoch / reload / raw)', () => {
+    const out = run(() => '/p/.lerret', `${PROJECT_ASSET_BASE_URL}/brand/card.jsx?v=2&t=9`);
+    expect(out.url).toBe('/@fs/p/.lerret/brand/card.jsx?v=2&t=9');
+  });
+
+  it('follows a runtime folder switch (reads the getter each request)', () => {
+    let dir = '/a/.lerret';
+    const mw = createProjectAssetMiddleware({ getLerretDir: () => dir });
+    const r1 = { url: `${PROJECT_ASSET_BASE_URL}/f.woff2` };
+    mw(r1, {}, () => {});
+    expect(r1.url).toBe('/@fs/a/.lerret/f.woff2');
+    dir = '/b/.lerret';
+    const r2 = { url: `${PROJECT_ASSET_BASE_URL}/f.woff2` };
+    mw(r2, {}, () => {});
+    expect(r2.url).toBe('/@fs/b/.lerret/f.woff2');
+  });
+
+  it('passes through unrelated URLs untouched', () => {
+    const out = run(() => '/p/.lerret', '/node_modules/.vite/deps/react.js');
+    expect(out.url).toBe('/node_modules/.vite/deps/react.js');
+    expect(out.nexted).toBe(true);
+  });
+
+  it('passes through (no rewrite) when no project is connected', () => {
+    const out = run(() => null, `${PROJECT_ASSET_BASE_URL}/_fonts/x.woff2`);
+    expect(out.url).toBe(`${PROJECT_ASSET_BASE_URL}/_fonts/x.woff2`);
+    expect(out.nexted).toBe(true);
   });
 });
