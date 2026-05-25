@@ -62,52 +62,33 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  display: flex;
  flex-direction: column;
  gap: var(--lm-space-3, 12px);
- min-height: 420px;
- /* Fill the EditorSheet body but never overflow it. */
+ /* Fill the full-screen EditorSheet body; inner panes own their scroll. */
+ flex: 1;
+ min-height: 0;
  overflow: hidden;
 }
 
-/* ── Source / Preview toggle ───────────────────────────────────────── */
-.lm-md-editor__toolbar {
- display: inline-flex;
- gap: 3px;
- padding: 3px;
- align-self: flex-start;
- background: var(--lm-bg-secondary, #F2EEE6);
- border-radius: var(--lm-radius-md, 8px);
+/* ── Split: source (left) + live preview (right) ──────────────────── */
+.lm-md-editor__split {
+ flex: 1;
+ min-height: 0;
+ display: flex;
+ flex-direction: row;
+ gap: var(--lm-space-4, 16px);
 }
-.lm-md-editor__tab {
- appearance: none;
- border: none;
- background: transparent;
- padding: 6px 18px;
- border-radius: var(--lm-radius-sm, 6px);
- font: var(--lm-weight-semibold, 600) var(--lm-size-body-sm, 12px)/1 var(--lm-font-sans, sans-serif);
- color: var(--lm-text-tertiary, #6E6960);
- cursor: pointer;
- transition: background var(--lm-duration-fast, 120ms) var(--lm-ease),
- color var(--lm-duration-fast, 120ms) var(--lm-ease);
-}
-.lm-md-editor__tab:hover:not([data-active]) {
- color: var(--lm-text-primary, #1A1714);
-}
-.lm-md-editor__tab[data-active] {
- background: var(--lm-bg-primary, #FAF8F2);
- color: var(--lm-text-primary, #1A1714);
- box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-}
-.lm-md-editor__tab:focus-visible {
- box-shadow: var(--lm-focus-ring);
- outline: none;
+/* Stack the panes on a narrow viewport so each still gets usable height. */
+@media (max-width: 720px) {
+ .lm-md-editor__split { flex-direction: column; gap: var(--lm-space-3, 12px); }
 }
 
 /* ── Left pane: raw textarea ─────────────────────────────────────── */
 .lm-md-editor__input-pane {
- flex: 1;
+ flex: 1 1 50%;
  display: flex;
  flex-direction: column;
  gap: var(--lm-space-2, 8px);
  min-width: 0;
+ min-height: 0;
 }
 .lm-md-editor__pane-label {
  font: var(--lm-weight-semibold, 600) var(--lm-size-hint, 10px)/1 var(--lm-font-sans, sans-serif);
@@ -119,7 +100,7 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
 .lm-md-editor__textarea {
  flex: 1;
  width: 100%;
- min-height: 320px;
+ min-height: 0;
  box-sizing: border-box;
  padding: var(--lm-space-3, 12px);
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, "Cascadia Code", monospace);
@@ -130,7 +111,8 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  border: none;
  border-radius: var(--lm-radius-sm, 6px);
  outline: none;
- resize: vertical;
+ resize: none;
+ overflow: auto;
  transition: box-shadow var(--lm-duration-fast, 120ms) var(--lm-ease);
 }
 .lm-md-editor__textarea:focus {
@@ -139,15 +121,17 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
 
 /* ── Right pane: live preview ─────────────────────────────────────── */
 .lm-md-editor__preview-pane {
- flex: 1;
+ flex: 1 1 50%;
  display: flex;
  flex-direction: column;
  gap: var(--lm-space-2, 8px);
  min-width: 0;
+ min-height: 0;
  overflow: hidden;
 }
 .lm-md-editor__preview-scroll {
  flex: 1;
+ min-height: 0;
  overflow-y: auto;
  overflow-x: hidden;
  background: var(--lm-bg-secondary, #F2EEE6);
@@ -262,9 +246,6 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
  const [writeError, setWriteError] = React.useState(null);
  // `reducedMotion` — cached at mount so preview transitions can be suppressed.
  const [reducedMotion] = React.useState(() => prefersReducedMotion());
- // `view` — which pane is shown. Source and Preview each get the full width
- // (a toggle, not a cramped side-by-side); default to editing.
- const [view, setView] = React.useState('source');
 
  // ── Refs ─────────────────────────────────────────────────────────────────────
  // Debounce timer ID.
@@ -351,19 +332,6 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
  performWrite(pendingTextRef.current);
  }, [performWrite]);
 
- // ── View toggle ──────────────────────────────────────────────────────────────
- const showSource = React.useCallback(() => setView('source'), []);
- // Switching to Preview unmounts the textarea (no blur fires on unmount), so
- // flush any pending debounced edit first to keep the preview + disk in sync.
- const showPreview = React.useCallback(() => {
- if (debounceRef.current) {
- clearTimeout(debounceRef.current);
- debounceRef.current = null;
- performWrite(pendingTextRef.current);
- }
- setView('preview');
- }, [performWrite]);
-
  // ── Sheet title ──────────────────────────────────────────────────────────────
  const title = `Markdown · ${label}`;
 
@@ -399,48 +367,16 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
 
  // ── Render ───────────────────────────────────────────────────────────────────
  return (
- <EditorSheet open={open} onClose={onClose} title={title} dirty={false} footer={footer}>
+ <EditorSheet open={open} onClose={onClose} title={title} dirty={false} footer={footer} fullScreen>
  <div className="lm-md-editor" data-testid="lm-md-editor">
  {/* File path hint */}
  {filePath && <p className="lm-md-editor__path">{filePath}</p>}
 
- {/* Source / Preview toggle — each pane gets the full width. */}
- <div className="lm-md-editor__toolbar" role="tablist" aria-label="Markdown view">
- <button
- type="button"
- role="tab"
- id="lm-md-tab-source"
- aria-selected={view === 'source'}
- aria-controls="lm-md-panel-source"
- data-active={view === 'source' ? '' : undefined}
- className="lm-md-editor__tab"
- onClick={showSource}
- data-testid="lm-md-editor-tab-source"
- >
- Source
- </button>
- <button
- type="button"
- role="tab"
- id="lm-md-tab-preview"
- aria-selected={view === 'preview'}
- aria-controls="lm-md-panel-preview"
- data-active={view === 'preview' ? '' : undefined}
- className="lm-md-editor__tab"
- onClick={showPreview}
- data-testid="lm-md-editor-tab-preview"
- >
- Preview
- </button>
- </div>
-
- {view === 'source' ? (
- <div
- className="lm-md-editor__input-pane"
- role="tabpanel"
- id="lm-md-panel-source"
- aria-labelledby="lm-md-tab-source"
- >
+ {/* Source (left) + live preview (right). Each pane scrolls on its own,
+ and the split stacks vertically on a narrow viewport. */}
+ <div className="lm-md-editor__split">
+ <div className="lm-md-editor__input-pane">
+ <span className="lm-md-editor__pane-label">Source</span>
  <textarea
  className="lm-md-editor__textarea"
  value={text}
@@ -453,13 +389,8 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
  autoCapitalize="off"
  />
  </div>
- ) : (
- <div
- className="lm-md-editor__preview-pane"
- role="tabpanel"
- id="lm-md-panel-preview"
- aria-labelledby="lm-md-tab-preview"
- >
+ <div className="lm-md-editor__preview-pane">
+ <span className="lm-md-editor__pane-label">Preview</span>
  <div
  className="lm-md-editor__preview-scroll lm-md-doc"
  data-testid="lm-md-editor-preview"
@@ -482,7 +413,7 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
  )}
  </div>
  </div>
- )}
+ </div>
  </div>
  </EditorSheet>
  );

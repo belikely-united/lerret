@@ -181,6 +181,29 @@ if (typeof document !== 'undefined' && !document.getElementById('editor-sheet-st
  gap: var(--lm-space-3, 12px);
 }
 
+/* Full-screen variant (opt-in via the fullScreen prop) — used by the Markdown
+   editor so source + preview get real room. The body becomes a non-scrolling
+   flex column; the inner panes own their own scroll. */
+.es-dialog[data-fullscreen] {
+ width: calc(100vw - var(--lm-space-6, 24px) * 2);
+ height: calc(100vh - var(--lm-space-6, 24px) * 2);
+ max-width: none;
+ max-height: none;
+}
+.es-body[data-fullscreen] {
+ display: flex;
+ flex-direction: column;
+ overflow: hidden;
+ padding: var(--lm-space-5, 20px);
+}
+@media (max-width: 640px) {
+ .es-dialog[data-fullscreen] {
+ width: calc(100vw - var(--lm-space-3, 12px) * 2);
+ height: calc(100vh - var(--lm-space-3, 12px) * 2);
+ }
+ .es-body[data-fullscreen] { padding: var(--lm-space-3, 12px); }
+}
+
 /* Keyframes */
 @keyframes es-backdrop-in { from { opacity: 0 } to { opacity: 1 } }
 @keyframes es-backdrop-out { from { opacity: 1 } to { opacity: 0 } }
@@ -217,7 +240,7 @@ if (typeof document !== 'undefined' && !document.getElementById('editor-sheet-st
  * @param {React.ReactNode} props.children - Body content.
  * @param {React.ReactNode} [props.footer] - Optional footer content.
  */
-export function EditorSheet({ open, onClose, title, dirty = false, children, footer }) {
+export function EditorSheet({ open, onClose, title, dirty = false, children, footer, fullScreen = false }) {
  // Internal closing state — entered before actual unmount for exit animation.
  const [closing, setClosing] = React.useState(false);
 
@@ -373,6 +396,7 @@ export function EditorSheet({ open, onClose, title, dirty = false, children, foo
  aria-modal="true"
  aria-labelledby={titleId}
  data-closing={closingAttr}
+ data-fullscreen={fullScreen ? '' : undefined}
  className="es-dialog"
  onClick={(e) => e.stopPropagation()}
  onAnimationEnd={onAnimationEnd}
@@ -413,7 +437,7 @@ export function EditorSheet({ open, onClose, title, dirty = false, children, foo
  </div>
 
  {/* Body */}
- <div className="es-body">{children}</div>
+ <div className="es-body" data-fullscreen={fullScreen ? '' : undefined}>{children}</div>
 
  {/* Footer (optional) */}
  {footer && <div className="es-footer">{footer}</div>}
