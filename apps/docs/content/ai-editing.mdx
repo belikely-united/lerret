@@ -30,21 +30,17 @@ Two mutually exclusive flags let you control which AI-tool surfaces ship.
 
 Skip all AI-tool files entirely. The scaffolded project contains only `.lerret/`. Use this when you don't use AI coding tools or want a clean slate to add them manually later.
 
-```bash
-npx create-lerret@latest my-project --no-ai-rules
-```
+<PM cmd="npx create-lerret@latest my-project --no-ai-rules" />
 
 ### `--ai-tools=<list>`
 
 Comma-separated list of AI tools to install. Default: all four. Valid values: `claude`, `cursor`, `copilot`, `agents`. Unknown values produce a clear error naming the offending value and listing the valid options.
 
-```bash
-# Just Claude + Cursor:
+<PM cmd={`# Just Claude + Cursor:
 npx create-lerret@latest my-project --ai-tools=claude,cursor
 
 # Just the cross-tool AGENTS.md (works for Codex, Antigravity, Aider, Cline):
-npx create-lerret@latest my-project --ai-tools=agents
-```
+npx create-lerret@latest my-project --ai-tools=agents`} />
 
 `--no-ai-rules` and `--ai-tools=...` are mutually exclusive — passing both together exits with a clear error.
 
@@ -56,8 +52,7 @@ npx create-lerret@latest my-project --ai-tools=agents
 
 If your Lerret project predates the bundled AI-tool files — or you're adding Lerret to a repo that was not scaffolded by `create-lerret` — render a fresh set with `create-lerret` and copy the files you want into your project.
 
-```bash
-# From the root of your existing project (the folder that contains `.lerret/`):
+<PM cmd={`# From the root of your existing project (the folder that contains \`.lerret/\`):
 npx create-lerret@latest /tmp/lerret-scratch --no-samples
 
 # Copy whichever AI-tool integrations you want into your project:
@@ -66,18 +61,15 @@ cp -r /tmp/lerret-scratch/.cursor .
 mkdir -p .github && cp /tmp/lerret-scratch/.github/copilot-instructions.md .github/
 cp /tmp/lerret-scratch/AGENTS.md .
 
-rm -rf /tmp/lerret-scratch
-```
+rm -rf /tmp/lerret-scratch`} />
 
 The `--no-samples` flag keeps the scratch project minimal — it skips the sample assets but still ships every AI-tool integration. If you only want a subset, pair it with `--ai-tools=...` so the scratch project itself only contains the files you intend to copy:
 
-```bash
-# Only Cursor + AGENTS.md:
+<PM cmd={`# Only Cursor + AGENTS.md:
 npx create-lerret@latest /tmp/lerret-scratch --no-samples --ai-tools=cursor,agents
 cp -r /tmp/lerret-scratch/.cursor .
 cp /tmp/lerret-scratch/AGENTS.md .
-rm -rf /tmp/lerret-scratch
-```
+rm -rf /tmp/lerret-scratch`} />
 
 This is the canonical path because the integration files are rendered fresh from a single content source inside `create-lerret` — there are no static copies to fetch directly. Commit the resulting files alongside `.lerret/` so every collaborator gets the same AI behavior in whichever tool they prefer.
 

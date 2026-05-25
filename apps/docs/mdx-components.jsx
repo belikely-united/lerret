@@ -3,12 +3,14 @@
 // page wrapper that renders the TOC + breadcrumbs, etc).
 
 import { useMDXComponents as getDocsMDXComponents } from 'nextra-theme-docs';
+import { PM } from './components/pm.jsx';
 
 const docsComponents = getDocsMDXComponents();
 
 export function useMDXComponents(components) {
   return {
     ...docsComponents,
+    PM,
     ...components,
   };
 }

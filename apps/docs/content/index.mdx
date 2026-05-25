@@ -9,13 +9,13 @@ description: An open-source design canvas where a folder of plain React componen
 
 Lerret turns a project folder of `.jsx`/`.tsx` components into a live, navigable canvas — pan-and-zoom artboards, hot-reload on save, headless export. No proprietary file format, no vendor lock-in, no account required. The components stay portable; Lerret only *renders* them.
 
+They're **real React** components — same JSX, same Vite + esbuild tooling you already use. Nothing to learn, nothing to port: anything that runs in React runs here.
+
 ## Try it now
 
-```bash
-npx create-lerret@latest my-canvas
+<PM cmd={`npx create-lerret@latest my-canvas
 cd my-canvas
-npx @lerret/cli@latest dev
-```
+npx @lerret/cli@latest dev`} />
 
 The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the canvas re-renders in under a second.
 

@@ -12,11 +12,10 @@ three [deploy modes](/deploy/).
 
 ![The Lerret studio canvas — a page of artboards with the dock, mini-map, and zoom controls](/studio/canvas-overview.png)
 
-The screenshot above is the whole studio at a glance: a **page** (`brand`) holding
-three artboards — two variants of one business-card component (the left one
-showing a **⚠️ validation badge**) and a Markdown card — on a warm section
-background, with the **dock** along the bottom and wayfinding chrome in the
-corners.
+The screenshot above is the whole studio at a glance: the **`ui-components`**
+page holding a row of artboards — badge variants, a vars-driven brand card, a
+live clock, a font specimen, a hero banner, a pricing tile — with the **dock**
+along the bottom and the **mini-map** and **zoom** controls in the corners.
 
 ## Connecting a project
 
@@ -78,9 +77,10 @@ their parent's frame. Switch between pages from the **page picker** in the dock:
 ![The page picker dropdown listing the project's pages plus New page](/studio/page-picker.png)
 
 A group can set a `presentation.background` (and `presentation.color`) in its
-`config.json` to tint its section — that's the warm linen behind the `brand`
-page above. Pages, groups, and assets sort **alphabetically**; prefix names like
-`01-intro`, `02-pricing` to control order, or drag to reorder (below).
+`config.json` to tint its section, and expose custom `vars` — like the
+`--brandColor` the Brand Card above reads. Pages, groups, and assets sort
+**alphabetically**; prefix names like `01-intro`, `02-pricing` to control order,
+or drag to reorder (below).
 
 ### Variants — one file, many artboards
 
@@ -89,13 +89,12 @@ export is the primary, and every additional named component export is its own
 variant. `meta` is shared across them; a co-located data file supplies each
 variant's props by name.
 
-![The pricing page: a Markdown card plus a tiers group with Free, Pro, and Team variant artboards](/studio/variants-pricing.png)
+![BadgeVariants: one component file rendered as Default, Ghost, Outline, and Solid artboards](/studio/variants-pricing.png)
 
-Here `pricing-tier.jsx` exports `default` (Free), `Pro`, and `Team` — three
-artboards from one file, sitting in a nested `tiers` group. Reach for
-**named-export variants** when variants differ in *structure*, and
-**data-file variants** (same component, different `.data.json` slice) when they
-differ only in *content*.
+Here `BadgeVariants.jsx` exports `default` (Default) plus `Ghost`, `Outline`, and
+`Solid` — four artboards from one file. Reach for **named-export variants** when
+variants differ in *structure*, and **data-file variants** (same component,
+different `.data.json` slice) when they differ only in *content*.
 
 ### Reordering
 
@@ -192,7 +191,7 @@ The **data editor** is schema-driven: when an asset declares `meta.propsSchema`,
 it generates a typed form (text, boolean, select, …); without a schema it falls
 back to free-form key/value editing.
 
-![The schema-driven data editor for the business card](/studio/data-editor.png)
+![The schema-driven data editor for the hero banner](/studio/data-editor.png)
 
 The **config editor** edits a folder's presentation (background / foreground
 color) and custom `vars`, with a **+** to add your own properties:
@@ -212,9 +211,9 @@ the editor and the canvas always agree.
 
 When an asset declares `meta.propsSchema` with `required` fields or constrained
 types, the studio validates **every artboard render**. Failures surface as a
-small **⚠️ badge** (the orange *Validation* pill in the
-[overview](#the-studio)) — non-blocking; the artboard still renders. Click the
-badge to jump straight into the data editor with the offending field focused
+small **⚠️ badge** on the artboard's label row — non-blocking; the artboard
+still renders. Click the badge to jump straight into the data editor with the
+offending field focused
 ("click to fix"). Validation is **lenient by design** — Lerret always tries to
 render; the badge is a hint, not a gate.
 

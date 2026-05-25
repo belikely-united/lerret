@@ -298,4 +298,4 @@ Lerret never writes outside `.lerret/`. Edits made in the studio (data values, c
 
 The inverse also holds: your components never need to import anything from Lerret. They are plain React. The default export is a component; named exports are extra variants; the `meta` export is parsed as metadata. That is the entire contract.
 
-Result: you can `git rm -rf .lerret/` tomorrow and still have a fully working set of React components. The tool is removable; your work is not.
+Result: uninstall Lerret tomorrow (`pnpm remove @lerret/cli`) and `.lerret/` is still a folder of plain React components and Markdown you own — import them anywhere, no Lerret runtime required. The tool is removable; your work is not.
