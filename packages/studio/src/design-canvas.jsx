@@ -1477,7 +1477,7 @@ export function DCArtboard() { return null; }
 function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus }) {
  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {},
  // Per-artboard export wiring props
- assetName, variantName, isError, hasLiveRefresh, isMarkdown } = artboard.props;
+ assetName, variantName, isError, hasLiveRefresh, isMarkdown, assetPath } = artboard.props;
  const id = rawId ?? rawLabel;
  const ref = React.useRef(null);
  const cardRef = React.useRef(null);
@@ -1506,7 +1506,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  setCaptureError(null);
  try {
  const result = fmt === 'pdf'
- ? await exportArtboardPdf(cardRef.current, { assetName, variantName })
+ ? await exportArtboardPdf({ assetPath, assetName, variantName })
  : await exportArtboard(cardRef.current, { format: fmt, assetName, variantName });
  if (!result.ok) {
  // Capture failed — surface calm inline message, no file download.

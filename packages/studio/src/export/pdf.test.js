@@ -1,45 +1,32 @@
-// pdf.test.js — Single-artboard PDF export (one-click, raster).
+// pdf.test.js — Markdown PDF export (fetches the CLI's /__lerret/export-pdf
+// endpoint and downloads the returned vector PDF).
 //
 // Test matrix:
-// (a) success: capture resolves → ok:true, .pdf download triggered, jsPDF used.
+// (a) success: endpoint 200 + PDF blob → ok:true, .pdf download triggered.
 // (b) filename follows <ComponentName>-<purpose>.pdf and uses the variant name.
-// (c) capture failure → ok:false with an error, no download.
-// (d) the capture goes through the shared pipeline as PNG (matches PNG/JPG).
-//
-// The capture module and jsPDF are mocked so the test runs without
-// html-to-image or a real PDF engine; `Image` is stubbed because jsdom never
-// fires `img.onload` for a data URL.
+// (c) missing assetPath → ok:false, no request made.
+// (d) the request POSTs { assetPath } to EXPORT_PDF_ENDPOINT.
+// (e) endpoint error (non-2xx JSON) → ok:false surfacing the server message.
+// (f) network failure (fetch rejects) → ok:false, no download.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// ─── Mocks (must be hoisted before importing pdf.js) ─────────────────────────
-
-vi.mock('./capture.js', () => ({
- captureArtboard: vi.fn(),
-}));
-
-vi.mock('jspdf', () => ({
- jsPDF: vi.fn(function jsPDF() {
- this.internal = { pageSize: { getWidth: () => 240, getHeight: () => 800 } };
- this.addImage = vi.fn();
- this.output = vi.fn(() => new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: 'application/pdf' }));
- }),
-}));
-
 import { exportArtboardPdf } from './pdf.js';
-import { captureArtboard } from './capture.js';
-import { jsPDF } from 'jspdf';
+import { EXPORT_PDF_ENDPOINT } from '../runtime/write-client.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function makeEl() {
- const el = document.createElement('div');
- document.body.appendChild(el);
- return el;
+function pdfBlob() {
+ return new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: 'application/pdf' });
 }
 
-function pngBlob() {
- return new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' });
+/** A fake `fetch` that resolves to a PDF response. */
+function okFetch() {
+ return vi.fn(async () => ({
+ ok: true,
+ status: 200,
+ blob: async () => pdfBlob(),
+ }));
 }
 
 // ─── Global setup ─────────────────────────────────────────────────────────────
@@ -54,17 +41,6 @@ beforeEach(() => {
  vi.stubGlobal('URL', {
  createObjectURL: vi.fn(() => 'blob:stub-url'),
  revokeObjectURL: vi.fn(),
- });
-
- // jsdom never loads images — stub Image so onload fires with known dims.
- vi.stubGlobal('Image', class FakeImage {
- set src(v) {
- this._src = v;
- this.naturalWidth = 480;
- this.naturalHeight = 1600;
- if (typeof this.onload === 'function') setTimeout(() => this.onload(), 0);
- }
- get src() { return this._src; }
  });
 
  vi.spyOn(document, 'createElement').mockImplementation((tag, ...rest) => {
@@ -83,45 +59,32 @@ afterEach(() => {
  vi.unstubAllGlobals();
 });
 
-// ─── Suite A: success path ────────────────────────────────────────────────────
+// ─── Suite A/D: success path ──────────────────────────────────────────────────
 
 describe('exportArtboardPdf — success path', () => {
- it('(a) returns ok:true, triggers a .pdf download, and builds a PDF', async () => {
- captureArtboard.mockResolvedValue({ blob: pngBlob(), unembeddedFonts: [] });
- const el = makeEl();
-
- const result = await exportArtboardPdf(el, { assetName: 'Notes' });
+ it('(a) returns ok:true and triggers a .pdf download', async () => {
+ const fetch = okFetch();
+ const result = await exportArtboardPdf({
+ assetPath: '/proj/.lerret/demo/Notes.md',
+ assetName: 'Notes',
+ fetch,
+ });
 
  expect(result.ok).toBe(true);
  expect(result.error).toBeNull();
  expect(clickedAnchors).toHaveLength(1);
  expect(clickedAnchors[0].download).toBe('Notes-default.pdf');
- // The PDF engine was driven: one doc, one image placed, one blob output.
- expect(jsPDF).toHaveBeenCalledOnce();
- const instance = jsPDF.mock.instances[0];
- expect(instance.addImage).toHaveBeenCalledOnce();
- expect(instance.output).toHaveBeenCalledWith('blob');
  });
 
- it('(d) captures through the shared pipeline as PNG (matches PNG/JPG export)', async () => {
- captureArtboard.mockResolvedValue({ blob: pngBlob(), unembeddedFonts: [] });
- const el = makeEl();
+ it('(d) POSTs { assetPath } to the export-pdf endpoint', async () => {
+ const fetch = okFetch();
+ await exportArtboardPdf({ assetPath: '/proj/.lerret/demo/Notes.md', assetName: 'Notes', fetch });
 
- await exportArtboardPdf(el, { assetName: 'Notes' });
-
- expect(captureArtboard).toHaveBeenCalledOnce();
- const [, opts] = captureArtboard.mock.calls[0];
- expect(opts.format).toBe('png');
- });
-
- it('(g) surfaces unembedded fonts on success', async () => {
- captureArtboard.mockResolvedValue({ blob: pngBlob(), unembeddedFonts: ['Space Grotesk'] });
- const el = makeEl();
-
- const result = await exportArtboardPdf(el, { assetName: 'Notes' });
-
- expect(result.ok).toBe(true);
- expect(result.unembeddedFonts).toEqual(['Space Grotesk']);
+ expect(fetch).toHaveBeenCalledOnce();
+ const [url, init] = fetch.mock.calls[0];
+ expect(url).toBe(EXPORT_PDF_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(JSON.parse(init.body)).toEqual({ assetPath: '/proj/.lerret/demo/Notes.md' });
  });
 });
 
@@ -129,46 +92,64 @@ describe('exportArtboardPdf — success path', () => {
 
 describe('exportArtboardPdf — filename', () => {
  it('(b) default purpose → <assetName>-default.pdf', async () => {
- captureArtboard.mockResolvedValue({ blob: pngBlob(), unembeddedFonts: [] });
- const el = makeEl();
-
- const result = await exportArtboardPdf(el, { assetName: 'ReadMe' });
-
+ const result = await exportArtboardPdf({
+ assetPath: '/p/.lerret/x/ReadMe.md',
+ assetName: 'ReadMe',
+ fetch: okFetch(),
+ });
  expect(result.filename).toBe('ReadMe-default.pdf');
  });
 
  it('(b) named variant → <assetName>-<variantName>.pdf', async () => {
- captureArtboard.mockResolvedValue({ blob: pngBlob(), unembeddedFonts: [] });
- const el = makeEl();
-
- const result = await exportArtboardPdf(el, { assetName: 'Spec', variantName: 'V2' });
-
+ const result = await exportArtboardPdf({
+ assetPath: '/p/.lerret/x/Spec.md',
+ assetName: 'Spec',
+ variantName: 'V2',
+ fetch: okFetch(),
+ });
  expect(result.filename).toBe('Spec-V2.pdf');
  });
 });
 
-// ─── Suite C: capture failure ─────────────────────────────────────────────────
+// ─── Suite C: guard ───────────────────────────────────────────────────────────
 
-describe('exportArtboardPdf — capture failure', () => {
- it('(c) capture rejection → ok:false with an error, no download', async () => {
- captureArtboard.mockRejectedValue(new Error('html-to-image exploded'));
- const el = makeEl();
-
- const result = await exportArtboardPdf(el, { assetName: 'Broken' });
+describe('exportArtboardPdf — missing assetPath', () => {
+ it('(c) returns ok:false and never calls fetch', async () => {
+ const fetch = okFetch();
+ const result = await exportArtboardPdf({ assetName: 'Notes', fetch });
 
  expect(result.ok).toBe(false);
  expect(result.error).toBeInstanceOf(Error);
- expect(result.error.message).toMatch(/html-to-image/i);
+ expect(fetch).not.toHaveBeenCalled();
+ expect(clickedAnchors).toHaveLength(0);
+ });
+});
+
+// ─── Suite E/F: failures ──────────────────────────────────────────────────────
+
+describe('exportArtboardPdf — failures', () => {
+ it('(e) endpoint error → ok:false with the server message, no download', async () => {
+ const fetch = vi.fn(async () => ({
+ ok: false,
+ status: 500,
+ json: async () => ({ ok: false, error: 'PDF export failed: no Chrome' }),
+ }));
+ const result = await exportArtboardPdf({ assetPath: '/p/.lerret/x/A.md', assetName: 'A', fetch });
+
+ expect(result.ok).toBe(false);
+ expect(result.error.message).toMatch(/no Chrome/i);
  expect(clickedAnchors).toHaveLength(0);
  });
 
- it('(c) does not throw on capture failure; filename still set', async () => {
- captureArtboard.mockRejectedValue(new Error('boom'));
- const el = makeEl();
-
- const result = await exportArtboardPdf(el, { assetName: 'Widget' });
+ it('(f) network failure → ok:false, does not throw, no download', async () => {
+ const fetch = vi.fn(async () => {
+ throw new Error('network down');
+ });
+ const result = await exportArtboardPdf({ assetPath: '/p/.lerret/x/A.md', assetName: 'A', fetch });
 
  expect(result).toMatchObject({ ok: false });
- expect(result.filename).toBe('Widget-default.pdf');
+ expect(result.error.message).toMatch(/network down/i);
+ expect(result.filename).toBe('A-default.pdf');
+ expect(clickedAnchors).toHaveLength(0);
  });
 });

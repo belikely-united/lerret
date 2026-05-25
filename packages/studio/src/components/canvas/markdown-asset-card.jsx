@@ -37,7 +37,7 @@ import ReactMarkdown from 'react-markdown';
 
 const MD_STYLE_ID = 'lerret-md-card-styles';
 
-function ensureMarkdownCardStyles() {
+export function ensureMarkdownCardStyles() {
  if (typeof document === 'undefined') return;
  if (document.getElementById(MD_STYLE_ID)) return;
  const style = document.createElement('style');

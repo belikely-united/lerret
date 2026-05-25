@@ -85,6 +85,7 @@ import {
 } from './fs/node-backend.js';
 import { startWatcher } from './watcher.js';
 import { resolveProject } from './resolve-project.js';
+import { renderAssetPdf } from './pdf-render.js';
 
 // Re-export the recents helpers so the plugin stays the single import surface
 // for its tests and the studio-facing endpoints.
@@ -210,6 +211,7 @@ export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
 export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
+export const EXPORT_PDF_ENDPOINT = '/__lerret/export-pdf';
 
 /**
  * Runtime folder-switch endpoint. `POST` `{ folder: <os path> | null }`:
@@ -781,6 +783,7 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       server.middlewares.use(DELETE_ENDPOINT, createDeleteMiddleware({ getLerretDir }));
       server.middlewares.use(REVEAL_ENDPOINT, createRevealMiddleware({ getLerretDir }));
       server.middlewares.use(READ_CONFIG_ENDPOINT, createReadConfigMiddleware({ getLerretDir }));
+      server.middlewares.use(EXPORT_PDF_ENDPOINT, createExportPdfMiddleware({ getLerretDir }));
 
       // Recent-projects list (persisted under the user's home) — read by the
       // studio's connect screen so re-opening a folder is one click.
@@ -1444,6 +1447,58 @@ export function createCreateMiddleware(opts) {
       }
       console.error('[lerret] create failed:', message);
       sendJson(res, 500, { ok: false, error: `create failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/export-pdf` — body `{ assetPath: LerretPath }`.
+ *
+ * Renders a Markdown asset to a TRUE-VECTOR PDF: drives a headless Chromium
+ * (reusing the export pipeline's launcher) to this same dev server's
+ * `?lerretPdf=<assetPath>` render mode, then `page.pdf()`. Responds with the
+ * raw `application/pdf` bytes on success (NOT JSON), or a JSON error otherwise.
+ * Markdown-only — components keep their PNG/JPG raster exports.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createExportPdfMiddleware(opts) {
+  return withJsonBody(async (req, res, body) => {
+    const lerretDir = resolveLerretDir(opts);
+    if (!lerretDir) {
+      sendJson(res, 400, { ok: false, error: 'no project is loaded — PDF export is not available' });
+      return;
+    }
+    const { assetPath } = body;
+    if (typeof assetPath !== 'string' || assetPath.length === 0) {
+      sendJson(res, 400, { ok: false, error: 'assetPath must be a non-empty string' });
+      return;
+    }
+    // Must live inside the project's `.lerret/` tree and be a Markdown file.
+    const check = validateMoveDest(assetPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: `assetPath: ${check.error}` });
+      return;
+    }
+    if (!/\.mdx?$/i.test(check.normalized)) {
+      sendJson(res, 400, { ok: false, error: 'PDF export is only available for Markdown assets' });
+      return;
+    }
+    // The headless page navigates back to THIS running dev server.
+    const host = req.headers && req.headers.host ? req.headers.host : '127.0.0.1';
+    try {
+      const pdf = await renderAssetPdf({ baseUrl: `http://${host}`, assetPath: check.normalized });
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', String(pdf.length));
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(pdf);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[lerret] export-pdf failed:', message);
+      sendJson(res, 500, { ok: false, error: `PDF export failed: ${message}` });
     }
   });
 }

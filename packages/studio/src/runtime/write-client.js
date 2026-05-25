@@ -56,6 +56,7 @@ export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
 export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
+export const EXPORT_PDF_ENDPOINT = '/__lerret/export-pdf';
 export const SWITCH_FOLDER_ENDPOINT = '/__lerret/switch-folder';
 export const RECENT_PROJECTS_ENDPOINT = '/__lerret/recent-projects';
 

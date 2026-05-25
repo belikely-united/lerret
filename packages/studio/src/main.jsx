@@ -82,6 +82,19 @@ async function boot() {
  // `lerretSelfHostPlugin` (vite.config.js) copies `module-sw.js` to the root
  // of the dist/ output as a stable top-level asset. The other two modes
  // never touch hosted-mode code.
+
+ // PDF render mode (headless) — the CLI's /__lerret/export-pdf endpoint drives a
+ // headless Chromium to this URL with ?lerretPdf=<assetPath>, renders ONLY the
+ // asset's document, and calls page.pdf(). Short-circuit the studio in this mode.
+ if (typeof window !== 'undefined') {
+ const pdfAsset = new URLSearchParams(window.location.search).get('lerretPdf');
+ if (pdfAsset) {
+ const { PdfDocView } = await import('./pdf-doc-view.jsx');
+ createRoot(document.getElementById('root')).render(<PdfDocView assetPath={pdfAsset} />);
+ return;
+ }
+ }
+
  let element;
  if (isCliMode()) {
  const { CliProjectSource } = await import('./cli-project-source.jsx');
