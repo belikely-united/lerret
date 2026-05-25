@@ -668,7 +668,10 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (!b || !r) return;
  const t = tf.current;
  const s = t.scale;
- const BM = 120; // how much empty canvas may show past an edge
+ // How much empty canvas may show past an edge — the pannable "slack". Kept
+ // generous so the user can always tuck content up / to the side, clear of the
+ // fixed bottom-left overview map and the bottom toolbar, when content overflows.
+ const BM = 320;
  const clampAxis = (pos, originLocal, sizeLocal, viewport) => {
  const origin = originLocal * s;
  const size = sizeLocal * s;
@@ -1054,6 +1057,18 @@ function DCMiniMap({ api }) {
  const vpSize = api.getViewportSize();
  // Nothing to map (no content) — hide entirely.
  if (!bounds || bounds.width <= 0 || bounds.height <= 0 || !cards.length) return null;
+ // Hide when the whole project already fits the viewport at the current zoom —
+ // there is nothing to navigate to, so the overview is pure chrome AND it would
+ // otherwise sit on top of the page's "+ New group / + Add asset" buttons in a
+ // small project. It reappears the moment content overflows (zoom in / grow).
+ const scaleNow = t.scale || 1;
+ const FIT_SLACK = 4; // px tolerance so we don't flicker right at the boundary
+ if (
+  bounds.width * scaleNow <= vpSize.width + FIT_SLACK &&
+  bounds.height * scaleNow <= vpSize.height + FIT_SLACK
+ ) {
+  return null;
+ }
 
  const PAD = 10;
  const innerW = DC_MINIMAP_W - PAD * 2;
