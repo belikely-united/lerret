@@ -77,10 +77,13 @@ export function buildFilename(assetName, variantName, extension) {
 /**
  * Trigger a browser file download from a `Blob`.
  *
+ * Exported so sibling export routes (e.g. the PDF route in `pdf.js`) reuse the
+ * exact same anchor-click + delayed-revoke behavior.
+ *
  * @param {Blob} blob
  * @param {string} filename
  */
-function triggerDownload(blob, filename) {
+export function triggerDownload(blob, filename) {
  const url = URL.createObjectURL(blob);
  const a = document.createElement('a');
  a.href = url;

@@ -171,6 +171,7 @@ export function artboardForEntry(entry, opts = {}) {
  height="auto"
  assetName={assetName}
  variantName={entry.variantName}
+ isMarkdown
  style={{
  height: 'auto',
  overflow: 'visible',

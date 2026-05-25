@@ -25,6 +25,7 @@ import React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { exportArtboard } from './export/single.js';
+import { exportArtboardPdf } from './export/pdf.js';
 import { ContextMenu, useContextMenu } from './components/menu/context-menu.jsx';
 
 // Keep the brownfield font-embed helper (which reads `window.htmlToImage`)
@@ -91,6 +92,8 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-dl-png{right:calc(var(--dc-cluster-w, 26px) + 34px)}',
  '.dc-dl-jpg{right:calc(var(--dc-cluster-w, 26px) + 78px)}',
  '.dc-dl-animated{right:calc(var(--dc-cluster-w, 26px) + 122px)}',
+ // markdown export: PDF sits in the third slot (markdown has no ANIM).
+ '.dc-dl-pdf{right:calc(var(--dc-cluster-w, 26px) + 122px)}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');
@@ -1455,7 +1458,7 @@ export function DCArtboard() { return null; }
 function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus }) {
  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {},
  // Per-artboard export wiring props
- assetName, variantName, isError, hasLiveRefresh } = artboard.props;
+ assetName, variantName, isError, hasLiveRefresh, isMarkdown } = artboard.props;
  const id = rawId ?? rawLabel;
  const ref = React.useRef(null);
  const cardRef = React.useRef(null);
@@ -1483,11 +1486,9 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  setBusy(fmt);
  setCaptureError(null);
  try {
- const result = await exportArtboard(cardRef.current, {
- format: fmt,
- assetName,
- variantName,
- });
+ const result = fmt === 'pdf'
+ ? await exportArtboardPdf(cardRef.current, { assetName, variantName })
+ : await exportArtboard(cardRef.current, { format: fmt, assetName, variantName });
  if (!result.ok) {
  // Capture failed — surface calm inline message, no file download.
  setCaptureError(fmt);
@@ -1647,6 +1648,19 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  title={isError ? "Can't export — this artboard has an error" : 'Export as animated (WebP / GIF / APNG / MP4)'}
  aria-label={isError ? "Can't export — this artboard has an error" : 'Export as animated'}
  >ANIM</button>
+ ) : null}
+ {/* PDF export — markdown only. A document wants a PDF; component artboards
+ keep PNG/JPG. One-click raster: the bitmap on a page sized to the card. */}
+ {isMarkdown ? (
+ <button
+ className="dc-dl dc-dl-pdf"
+ onClick={() => download('pdf')}
+ onPointerDown={(e) => e.stopPropagation()}
+ disabled={!!busy || isError}
+ data-dc-error-disabled={isError ? 'true' : undefined}
+ title={isError ? "Can't export — this artboard has an error" : captureError === 'pdf' ? 'Export failed — try again' : 'Download as PDF'}
+ aria-label={isError ? "Can't export — this artboard has an error" : 'Download as PDF'}
+ >{busy === 'pdf' ? '…' : 'PDF'}</button>
  ) : null}
  <div ref={cardRef} className="dc-card"
  style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: '#fff', ...style }}>
