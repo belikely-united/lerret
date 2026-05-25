@@ -6,9 +6,10 @@
 // FR9) inside an auto-height "document card" that is deliberately distinct
 // from the component artboards around it:
 //
-// - a paper surface with a soft border + page-edge accent stripe, where a
+// - a calm paper surface with a soft border (no heavy chrome), where a
 // component artboard is a plain white framed card;
-// - a small "Markdown" eyebrow so the card reads as a document at a glance;
+// - a single low-contrast "md" tag so the card reads as a document at a
+// glance, without a filled header bar or page-edge stripe;
 // - auto height — the card grows with its content instead of being clipped
 // to a declared width × height.
 //
@@ -47,26 +48,22 @@ function ensureMarkdownCardStyles() {
  width:100%;
  background:var(--lm-bg-primary,#FAF8F2);
  border:1px solid var(--lm-border,#DDD7CA);
- border-left:3px solid var(--lm-accent,#B85B33);
  border-radius:var(--lm-radius-lg,12px);
  box-shadow:var(--lm-shadow-sm,0 1px 3px rgba(26,23,20,.10));
  font-family:var(--lm-font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
  color:var(--lm-text-secondary,#3A3530);
  overflow:hidden;
 }
-.lm-md-card__eyebrow{
- display:flex;align-items:center;gap:var(--lm-space-2,8px);
- padding:var(--lm-space-3,12px) var(--lm-space-5,20px);
- border-bottom:1px solid var(--lm-border-light,#E8E2D4);
- background:var(--lm-bg-secondary,#F2EEE6);
+.lm-md-card__tag{
+ display:inline-flex;align-items:center;gap:var(--lm-space-1,5px);
+ margin-bottom:var(--lm-space-4,16px);
  font:var(--lm-weight-semibold,600) var(--lm-size-hint,10px)/1 var(--lm-font-sans,sans-serif);
  letter-spacing:var(--lm-tracking-caps,0.5px);
- text-transform:uppercase;
- color:var(--lm-text-tertiary,#6E6960);
+ color:var(--lm-text-muted,#B8B3A8);
 }
-.lm-md-card__eyebrow svg{flex:none;color:var(--lm-accent,#B85B33);}
+.lm-md-card__tag svg{flex:none;}
 .lm-md-card__body{
- padding:var(--lm-space-5,20px) var(--lm-space-6,24px) var(--lm-space-6,24px);
+ padding:var(--lm-space-6,24px);
  font-size:var(--lm-size-body,13px);
  line-height:var(--lm-lh-relaxed,1.6);
 }
@@ -159,7 +156,7 @@ function ensureMarkdownCardStyles() {
  document.head.appendChild(style);
 }
 
-// A small document glyph for the card eyebrow.
+// A small document glyph for the card's quiet "md" tag.
 function MarkdownGlyph() {
  return (
  <svg width="11" height="13" viewBox="0 0 11 13" fill="none" aria-hidden="true">
@@ -204,11 +201,11 @@ export function MarkdownAssetCard({ text }) {
 
  return (
  <div className="lm-md-card" data-asset-kind="markdown">
- <div className="lm-md-card__eyebrow">
- <MarkdownGlyph />
- <span>Markdown</span>
- </div>
  <div className="lm-md-card__body">
+ <div className="lm-md-card__tag">
+ <MarkdownGlyph />
+ <span>md</span>
+ </div>
  {isEmpty ? (
  <div className="lm-md-card__empty">Empty document</div>
  ) : (

@@ -33,14 +33,18 @@ function renderToDom(element) {
 }
 
 describe('MarkdownAssetCard', () => {
- it('renders as a document card with a "Markdown" eyebrow', () => {
+ it('renders as a document card with a quiet "md" tag (no filled header bar)', () => {
  const { container, cleanup } = renderToDom(
  React.createElement(MarkdownAssetCard, { text: '# Doc' }),
  );
  const card = container.querySelector('[data-asset-kind="markdown"]');
  expect(card).toBeTruthy();
  expect(card.className).toContain('lm-md-card');
- expect(container.textContent).toMatch(/markdown/i); // the eyebrow label
+ // The minimal redesign drops the filled eyebrow bar for one low-contrast tag.
+ const tag = container.querySelector('.lm-md-card__tag');
+ expect(tag).toBeTruthy();
+ expect(tag.textContent).toMatch(/md/i);
+ expect(container.querySelector('.lm-md-card__eyebrow')).toBeNull();
  cleanup();
  });
 
