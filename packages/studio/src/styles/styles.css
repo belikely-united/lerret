@@ -4,6 +4,53 @@
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--lm-font-sans); }
 
+/* Flat aesthetic: neutralize the browser's default control chrome. Removing a
+   border from a <button> must NOT fall back to the UA default (a button's
+   2px outset border), which is invisible on a <div> but reappears on controls.
+   Components opt into any border/ring via their own inline or class styles,
+   which both win over this element-level reset. */
+button,
+input,
+select,
+textarea { border: none; }
+
+/* ================================================
+ FOCUS RING UTILITIES
+ Many studio-chrome controls are styled with inline `style={}` objects, which
+ can't express :focus-visible. Without it they fall back to the UA focus outline
+ (bright blue) on keyboard / programmatic focus, clashing with the flat sienna
+ aesthetic. Opt a control in with one of these classes to get the design-system
+ sienna ring instead. Outline is only ever set to `none` together with a visible
+ box-shadow ring — never bare. (NFR14, WCAG 2.1 §2.4.7.)
+
+   .lm-focusable        outer ring — standalone controls with room around them
+                        (dialog CTAs, the walkthrough cards, canvas notices).
+   .lm-focusable-inset  inset ring — controls inside a clipping container: the
+                        dock (overflow:auto) and scrollable popovers / listboxes.
+   .lm-seg / .lm-seg--on  segmented pill. Pills carry their active-state inset
+                        box-shadow inline, which would block a box-shadow focus
+                        ring; these move it to CSS so active + focus compose.
+================================================ */
+.lm-focusable:focus-visible {
+ outline: none;
+ box-shadow: var(--lm-focus-ring);
+}
+.lm-focusable-inset:focus-visible {
+ outline: none;
+ box-shadow: var(--lm-focus-ring-inset);
+}
+.lm-seg:focus-visible {
+ outline: none;
+ box-shadow: var(--lm-focus-ring);
+}
+.lm-seg--on {
+ box-shadow: inset 0 0 0 1.5px var(--lm-accent);
+}
+.lm-seg--on:focus-visible {
+ outline: none;
+ box-shadow: inset 0 0 0 1.5px var(--lm-accent), var(--lm-focus-ring);
+}
+
 /* ================================================
  ARTBOARD BASE
 ================================================ */

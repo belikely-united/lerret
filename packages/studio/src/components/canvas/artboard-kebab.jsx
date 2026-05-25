@@ -131,6 +131,7 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
     [ANIM*][JPG][PNG][expand][kebab]. */
  display: inline-flex;
  align-items: center;
+ gap: 6px;
  margin-left: auto;
  z-index: 5;
 }

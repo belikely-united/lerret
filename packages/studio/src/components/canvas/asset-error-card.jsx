@@ -97,7 +97,6 @@ export function AssetErrorCard({ error, filePath }) {
  padding: 'var(--lm-space-4, 16px)',
  // Error status tokens (calm warm red range from colors_and_type.css).
  background: 'var(--lm-error-light)',
- border: '1px solid var(--lm-error-border)',
  borderRadius: 'var(--lm-radius-sm, 6px)',
  // Layout.
  display: 'flex',

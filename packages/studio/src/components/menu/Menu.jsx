@@ -93,6 +93,11 @@ function nextEnabled(enabled, currentFlatIdx, delta) {
  return enabled[next];
 }
 
+/** Keep the popover at least this far from any viewport edge when clamping. */
+const EDGE_MARGIN = 8;
+/** Gap between the trigger and the popover along the open axis. */
+const MENU_GAP = 8;
+
 // ─── MenuItem ───────────────────────────────────────────────────────────────
 
 /**
@@ -177,23 +182,37 @@ function MenuPopover({
  onMouseEnterItem,
  idPrefix,
 }) {
- // Build the position style from the trigger rect + alignment.
- const posStyle = React.useMemo(() => {
- if (!coords) return { top: 0, left: 0 };
- const { top, bottom, left, right } = coords;
+ // Anchor to the trigger rect per `align`, then CLAMP into the viewport so the
+ // popover can never open off-screen — even when the trigger is panned/zoomed to
+ // a canvas edge and its rect sits partly or fully outside the viewport (the
+ // off-screen-menu bug). Mirrors context-menu.jsx's measure-then-clamp; the docs
+ // promise menus "clamp to stay on-screen near edges". We measure the rendered
+ // popover with offsetWidth/Height (transform-independent, so the open animation
+ // doesn't skew it) in a layout effect, so the clamp lands before paint — the
+ // `ready` flag hides the popover for that single measuring frame (no jump).
+ const [pos, setPos] = React.useState({ left: 0, top: 0, ready: false });
 
- switch (align) {
- case 'top-start':
- return { bottom: window.innerHeight - top + 8, left };
- case 'top-end':
- return { bottom: window.innerHeight - top + 8, right: window.innerWidth - right };
- case 'bottom-end':
- return { top: bottom + 8, right: window.innerWidth - right };
- case 'bottom-start':
- default:
- return { top: bottom + 8, left };
- }
- }, [coords, align]);
+ React.useLayoutEffect(() => {
+ const node = menuRef.current;
+ if (!node || !coords) return;
+ const { top, bottom, left, right } = coords;
+ const mw = node.offsetWidth;
+ const mh = node.offsetHeight;
+ const vw = window.innerWidth;
+ const vh = window.innerHeight;
+ // Desired top-left from the alignment (an `end` align pins the popover's far
+ // edge to the trigger's; a `top` align opens upward, above the trigger).
+ const wantLeft = align === 'bottom-end' || align === 'top-end' ? right - mw : left;
+ const wantTop = align === 'top-start' || align === 'top-end' ? top - MENU_GAP - mh : bottom + MENU_GAP;
+ // Clamp each axis; if the popover is larger than the viewport on an axis, pin
+ // it to the near edge so its start stays reachable (then it scrolls — the
+ // popover is overflow-y:auto, capped at max-height in menu.css).
+ const clamp = (want, size, viewport) =>
+ size + EDGE_MARGIN * 2 >= viewport
+ ? EDGE_MARGIN
+ : Math.max(EDGE_MARGIN, Math.min(want, viewport - size - EDGE_MARGIN));
+ setPos({ left: clamp(wantLeft, mw, vw), top: clamp(wantTop, mh, vh), ready: true });
+ }, [coords, align, menuRef, items.length]);
 
  const optionId = (idx) => `${idPrefix}-item-${idx}`;
  const activeId = activeIdx >= 0 ? optionId(activeIdx) : undefined;
@@ -205,7 +224,7 @@ function MenuPopover({
  tabIndex={-1}
  className="lm-menu-popover"
  aria-activedescendant={activeId}
- style={{ ...posStyle, position: 'fixed' }}
+ style={{ position: 'fixed', left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
  >
  {items.map((item, idx) => {
  if (item.kind === 'separator') {

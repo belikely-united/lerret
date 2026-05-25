@@ -143,9 +143,9 @@ const secondaryButtonStyle = {
  alignItems: 'center',
  gap: 'var(--lm-space-2, 8px)',
  padding: 'var(--lm-space-3, 12px) var(--lm-space-6, 24px)',
- background: 'transparent',
+ background: 'var(--lm-accent-light, rgba(184,91,51,0.10))',
  color: 'var(--lm-accent-text, #92421E)',
- border: '1px solid var(--lm-accent-border, rgba(184,91,51,0.20))',
+ border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  fontSize: 'var(--lm-size-body-lg, 14px)',
  fontWeight: 'var(--lm-weight-semibold, 600)',
@@ -157,7 +157,6 @@ const secondaryButtonStyle = {
 /** @type {React.CSSProperties} */
 const notLerretBoxStyle = {
  background: 'var(--lm-bg-primary, #FAF8F2)',
- border: '1px solid var(--lm-border, #DDD7CA)',
  borderRadius: 'var(--lm-radius-lg, 12px)',
  padding: 'var(--lm-space-6, 24px)',
  maxWidth: '40ch',
@@ -165,6 +164,7 @@ const notLerretBoxStyle = {
  flexDirection: 'column',
  gap: 'var(--lm-space-4, 16px)',
  alignItems: 'center',
+ boxShadow: 'var(--lm-shadow-sm, 0 2px 8px rgba(26,23,20,0.08))',
 };
 
 /** @type {React.CSSProperties} */
@@ -232,11 +232,12 @@ const connectInputStyle = {
  fontSize: 'var(--lm-size-body, 13px)',
  fontFamily: 'var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace)',
  color: 'var(--lm-text-primary, #1A1714)',
- background: 'var(--lm-bg-primary, #FAF8F2)',
- border: '1px solid var(--lm-border, #DDD7CA)',
+ background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  outline: 'none',
  boxSizing: 'border-box',
+ transition: 'box-shadow var(--lm-duration-fast, 120ms)',
 };
 
 /** @type {React.CSSProperties} */
@@ -247,13 +248,13 @@ const recentItemStyle = {
  gap: '2px',
  width: '100%',
  padding: 'var(--lm-space-2, 8px) var(--lm-space-3, 12px)',
- background: 'var(--lm-bg-primary, #FAF8F2)',
- border: '1px solid var(--lm-border, #DDD7CA)',
+ background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  cursor: 'pointer',
  textAlign: 'left',
  fontFamily: 'inherit',
- transition: 'border-color var(--lm-duration-fast, 120ms)',
+ transition: 'background var(--lm-duration-fast, 120ms)',
 };
 
 /**
@@ -399,8 +400,11 @@ function CliConnectScreen() {
  outline: none;
  box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20));
  }
+ [data-testid="cli-connect-input"]:focus {
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20));
+ }
  [data-testid="cli-recent-project"]:hover {
- border-color: var(--lm-accent, #B85B33);
+ background: var(--lm-bg-secondary, #F2EEE6);
  }
  `}</style>
  </main>

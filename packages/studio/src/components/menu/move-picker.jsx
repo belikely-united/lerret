@@ -46,7 +46,7 @@ const sheetStyle = {
  minWidth: 380,
  maxWidth: 520,
  maxHeight: '80vh',
- boxShadow: '0 24px 64px rgba(15,23,42,0.28)',
+ boxShadow: 'var(--lm-shadow-popup, 0 24px 64px rgba(15,23,42,0.28))',
  display: 'flex',
  flexDirection: 'column',
  gap: 14,
@@ -76,7 +76,7 @@ const listStyle = {
  margin: 0,
  overflowY: 'auto',
  maxHeight: '52vh',
- border: '1px solid var(--lm-border, rgba(26,23,20,0.10))',
+ background: 'var(--lm-bg-secondary)',
  borderRadius: 8,
 };
 
@@ -92,9 +92,9 @@ const buttonPrimary = {
 };
 
 const buttonSecondary = {
- background: 'transparent',
+ background: 'var(--lm-bg-tertiary)',
  color: 'inherit',
- border: '1px solid var(--lm-border, rgba(26,23,20,0.18))',
+ border: 'none',
  borderRadius: 8,
  padding: '8px 16px',
  fontSize: 13,
@@ -294,7 +294,7 @@ export function MovePicker({
  color: 'var(--lm-text-secondary, #6E6960)',
  padding: 16,
  textAlign: 'center',
- border: '1px solid var(--lm-border, rgba(26,23,20,0.10))',
+ background: 'var(--lm-bg-secondary)',
  borderRadius: 8,
  }}
  >
@@ -308,6 +308,7 @@ export function MovePicker({
  <li key={d.path}>
  <button
  type="button"
+ className="lm-focusable-inset"
  onClick={() => {
  if (!d.disabled) setSelectedPath(d.path);
  }}
@@ -322,11 +323,12 @@ export function MovePicker({
  alignItems: 'flex-start',
  width: '100%',
  padding: '8px 12px',
- background: isSelected ? 'rgba(184,91,51,0.10)' : 'transparent',
+ background: isSelected ? 'var(--lm-accent-light, rgba(184,91,51,0.10))' : 'transparent',
  border: 'none',
- borderBottom: '1px solid rgba(26,23,20,0.06)',
  textAlign: 'left',
- color: d.disabled
+ color: isSelected
+ ? 'var(--lm-accent-text, #B85B33)'
+ : d.disabled
  ? 'var(--lm-text-tertiary, #9C968A)'
  : 'var(--lm-text-primary, #1A1714)',
  cursor: d.disabled ? 'not-allowed' : 'pointer',
@@ -357,6 +359,7 @@ export function MovePicker({
  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
  <button
  type="button"
+ className="lm-focusable"
  style={buttonSecondary}
  onClick={onClose}
  disabled={pending}
@@ -366,6 +369,7 @@ export function MovePicker({
  </button>
  <button
  type="button"
+ className="lm-focusable"
  style={{
  ...buttonPrimary,
  opacity: !selectedPath || pending ? 0.6 : 1,

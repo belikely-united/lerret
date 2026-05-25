@@ -36,7 +36,7 @@ const sheetStyle = {
   padding: 24,
   width: 380,
   maxWidth: '90vw',
-  boxShadow: '0 24px 64px rgba(15,23,42,0.28)',
+  boxShadow: 'var(--lm-shadow-popup, 0 24px 64px rgba(15,23,42,0.28))',
   display: 'flex',
   flexDirection: 'column',
   gap: 14,
@@ -76,9 +76,9 @@ const buttonPrimary = {
 };
 
 const buttonSecondary = {
-  background: 'transparent',
+  background: 'var(--lm-bg-tertiary)',
   color: 'inherit',
-  border: '1px solid var(--lm-border, rgba(26,23,20,0.18))',
+  border: 'none',
   borderRadius: 8,
   padding: '8px 16px',
   fontSize: 13,
@@ -95,10 +95,9 @@ function segStyle(active) {
     flex: 1,
     padding: '7px 0',
     borderRadius: 8,
-    border: '1px solid',
-    borderColor: active ? 'var(--lm-accent, #B85B33)' : 'var(--lm-border, rgba(26,23,20,0.16))',
-    background: active ? 'rgba(184,91,51,0.10)' : 'transparent',
-    color: active ? 'var(--lm-accent, #B85B33)' : 'var(--lm-text-secondary, #3A3530)',
+    border: 'none',
+    background: active ? 'var(--lm-accent-light, rgba(184,91,51,0.10))' : 'var(--lm-bg-tertiary)',
+    color: active ? 'var(--lm-accent-text, #B85B33)' : 'var(--lm-text-secondary, #3A3530)',
     fontFamily: 'inherit',
     fontSize: 12,
     fontWeight: 600,
@@ -116,12 +115,16 @@ function inputStyle(hasError) {
     boxSizing: 'border-box',
     padding: '10px 12px',
     borderRadius: 8,
-    border: `1px solid ${hasError ? '#B85B33' : 'var(--lm-border, rgba(26,23,20,0.18))'}`,
-    background: 'var(--lm-bg-secondary, #fff)',
+    border: 'none',
+    background: 'var(--lm-bg-tertiary)',
     color: 'var(--lm-text-primary, #1A1714)',
     fontFamily: 'inherit',
     fontSize: 14,
     outline: 'none',
+    boxShadow: hasError
+      ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B)'
+      : 'none',
+    transition: 'box-shadow 120ms ease',
   };
 }
 
@@ -284,6 +287,7 @@ export function CreateEntryDialog({
                 <button
                   key={val}
                   type="button"
+                  className={'lm-seg' + (active ? ' lm-seg--on' : '')}
                   onClick={() => setAssetKind(val)}
                   aria-pressed={active}
                   data-testid={`lm-create-type-${val}`}
@@ -303,6 +307,16 @@ export function CreateEntryDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={onInputKeyDown}
+            onFocus={(e) => {
+              e.currentTarget.style.boxShadow = inlineError
+                ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B), var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'
+                : 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.boxShadow = inlineError
+                ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B)'
+                : 'none';
+            }}
             placeholder={copy.placeholder}
             spellCheck={false}
             autoComplete="off"
@@ -329,6 +343,7 @@ export function CreateEntryDialog({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
             type="button"
+            className="lm-focusable"
             style={buttonSecondary}
             onClick={onClose}
             disabled={pending}
@@ -338,6 +353,7 @@ export function CreateEntryDialog({
           </button>
           <button
             type="button"
+            className="lm-focusable"
             style={{
               ...buttonPrimary,
               opacity: canCreate ? 1 : 0.5,

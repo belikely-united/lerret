@@ -109,7 +109,6 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
 .td-dialog {
  position: relative;
  background: var(--lm-bg-primary, #FAF8F2);
- border: 1px solid var(--lm-border, #DDD7CA);
  border-radius: var(--lm-radius-xl, 14px);
  box-shadow: var(--lm-shadow-popup, 0 18px 48px rgba(26, 23, 20, 0.22));
  width: min(480px, calc(100vw - var(--lm-space-8, 32px) * 2));
@@ -128,7 +127,6 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
  align-items: center;
  gap: var(--lm-space-3, 12px);
  padding: var(--lm-space-5, 20px) var(--lm-space-6, 24px) var(--lm-space-4, 16px);
- border-bottom: 1px solid var(--lm-border-light, #E8E2D4);
 }
 .td-title {
  flex: 1;
@@ -187,7 +185,6 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 .td-footer {
- border-top: 1px solid var(--lm-border-light, #E8E2D4);
  padding: var(--lm-space-4, 16px) var(--lm-space-6, 24px);
  display: flex;
  align-items: center;
@@ -205,7 +202,7 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
  height: 34px;
  font: var(--lm-weight-medium, 500) var(--lm-size-body, 13px)/1 var(--lm-font-sans, -apple-system, BlinkMacSystemFont, sans-serif);
  cursor: pointer;
- transition: background var(--lm-duration-fast, 120ms), border-color var(--lm-duration-fast, 120ms), color var(--lm-duration-fast, 120ms);
+ transition: background var(--lm-duration-fast, 120ms), color var(--lm-duration-fast, 120ms);
  white-space: nowrap;
 }
 .td-btn:focus-visible {
@@ -215,7 +212,7 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
 .td-btn-primary {
  background: var(--lm-accent, #B85B33);
  color: #fff;
- border: 1px solid transparent;
+ border: none;
 }
 .td-btn-primary:hover {
  background: var(--lm-accent-hover, #92421E);
@@ -225,14 +222,13 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
  cursor: not-allowed;
 }
 .td-btn-secondary {
- background: transparent;
+ background: var(--lm-bg-tertiary, #E8E2D4);
  color: var(--lm-text-secondary, #3A3530);
- border: 1px solid var(--lm-border, #DDD7CA);
+ border: none;
 }
 .td-btn-secondary:hover {
- background: var(--lm-bg-tertiary, #E8E2D4);
+ background: var(--lm-bg-secondary, #F2EEE6);
  color: var(--lm-text-primary, #1A1714);
- border-color: var(--lm-border, #DDD7CA);
 }
 
 /* ── Keyframes ───────────────────────────────────────────────────────────── */

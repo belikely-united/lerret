@@ -74,7 +74,6 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  padding: 3px;
  align-self: flex-start;
  background: var(--lm-bg-secondary, #F2EEE6);
- border: 1px solid var(--lm-border, #DDD7CA);
  border-radius: var(--lm-radius-md, 8px);
 }
 .lm-md-editor__tab {
@@ -127,15 +126,14 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  font-size: var(--lm-size-body, 13px);
  line-height: var(--lm-lh-body, 1.45);
  color: var(--lm-text-primary, #1A1714);
- background: var(--lm-bg-primary, #FAF8F2);
- border: 1px solid var(--lm-border, #DDD7CA);
+ background: var(--lm-bg-tertiary, #E8E2D4);
+ border: none;
  border-radius: var(--lm-radius-sm, 6px);
  outline: none;
  resize: vertical;
- transition: border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ transition: box-shadow var(--lm-duration-fast, 120ms) var(--lm-ease);
 }
 .lm-md-editor__textarea:focus {
- border-color: var(--lm-accent, #B85B33);
  box-shadow: var(--lm-focus-ring);
 }
 
@@ -153,11 +151,10 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  overflow-y: auto;
  overflow-x: hidden;
  background: var(--lm-bg-secondary, #F2EEE6);
- border: 1px solid var(--lm-border, #DDD7CA);
  border-radius: var(--lm-radius-sm, 6px);
  padding: var(--lm-space-3, 12px) var(--lm-space-4, 16px);
  scrollbar-width: thin;
- scrollbar-color: var(--lm-border, #DDD7CA) transparent;
+ scrollbar-color: var(--lm-bg-tertiary, #E8E2D4) transparent;
 
  /* Preview transitions: fade when motion is allowed, instant otherwise. */
  transition: opacity var(--lm-duration-fast, 120ms) var(--lm-ease);
@@ -182,8 +179,7 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  align-items: flex-start;
  gap: var(--lm-space-2, 8px);
  padding: var(--lm-space-2, 8px) var(--lm-space-3, 12px);
- background: var(--lm-bg-tertiary, #E8E2D4);
- border: 1px solid var(--lm-border, #DDD7CA);
+ background: var(--lm-error-light);
  border-radius: var(--lm-radius-sm, 6px);
  font-size: var(--lm-size-body-sm, 12px);
  color: var(--lm-text-primary, #1A1714);

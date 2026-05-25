@@ -76,7 +76,6 @@ const bodyStyle = {
 /** @type {React.CSSProperties} */
 const listSectionStyle = {
  background: 'var(--lm-bg-primary, #FAF8F2)',
- border: '1px solid var(--lm-border, #DDD7CA)',
  borderRadius: 'var(--lm-radius-lg, 12px)',
  padding: 'var(--lm-space-6, 24px)',
  width: '100%',
@@ -84,6 +83,7 @@ const listSectionStyle = {
  display: 'flex',
  flexDirection: 'column',
  gap: 'var(--lm-space-4, 16px)',
+ boxShadow: 'var(--lm-shadow-sm, 0 2px 8px rgba(26,23,20,0.08))',
 };
 
 /** @type {React.CSSProperties} */
@@ -246,14 +246,8 @@ export function UnsupportedBrowser({ className } = {}) {
  </ul>
  </div>
 
- {/* Divider */}
- <hr
- style={{
- border: 'none',
- borderTop: '1px solid var(--lm-border, #DDD7CA)',
- margin: 0,
- }}
- />
+ {/* Divider — replaced by spacing only; listSectionStyle gap provides separation */}
+ <div style={{ height: 'var(--lm-space-1, 4px)' }} />
 
  {/* Option B — CLI */}
  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--lm-space-3, 12px)' }}>
@@ -303,6 +297,7 @@ export function UnsupportedBrowser({ className } = {}) {
  >
  Lerret is open-source — no account or signup required.{' '}
  <a
+ className="lm-focusable"
  href="https://github.com/belikely-united/lerret"
  target="_blank"
  rel="noopener noreferrer"

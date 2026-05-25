@@ -140,10 +140,9 @@ function WalkthroughCaptionCard({
  ...captionPos,
  width: 320,
  background: 'var(--lm-surface, #FAF8F2)',
- border: '1px solid rgba(26,23,20,0.10)',
  borderRadius: 12,
  padding: '18px 20px 16px',
- boxShadow: '0 18px 48px rgba(15,23,42,0.30)',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
  color: 'var(--lm-text-primary, #1A1714)',
  pointerEvents: 'auto',
  // No transition when prefers-reduced-motion
@@ -173,18 +172,21 @@ function WalkthroughCaptionCard({
  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
  <button
  type="button"
+ className="lm-focusable"
  onClick={onSkip}
  style={{ ...tourBtnGhost, marginRight: 'auto' }}
  >Skip</button>
  {!isFirst && (
  <button
  type="button"
+ className="lm-focusable"
  onClick={onBack}
  style={tourBtnGhost}
  >← Back</button>
  )}
  <button
  type="button"
+ className="lm-focusable"
  onClick={onNext}
  style={tourBtnPrimary}
  data-testid="walkthrough-next"
@@ -231,10 +233,9 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  transform: 'translate(-50%, -50%)',
  width: 420,
  background: 'var(--lm-surface, #FAF8F2)',
- border: '1px solid rgba(26,23,20,0.10)',
  borderRadius: 16,
  padding: '28px 28px 24px',
- boxShadow: '0 30px 80px rgba(15,23,42,0.40)',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
  color: 'var(--lm-text-primary, #1A1714)',
  pointerEvents: 'auto',
  outline: 'none',
@@ -261,8 +262,7 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  Export single artboards or the whole project as a ZIP from the dock.
  </div>
  <div style={{
- background: 'rgba(184,91,51,0.07)',
- border: '1px solid rgba(184,91,51,0.18)',
+ background: 'var(--lm-accent-light, rgba(184,91,51,0.10))',
  borderRadius: 8,
  padding: '10px 14px',
  fontSize: 13,
@@ -271,6 +271,7 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  }}>
  Read the docs at{' '}
  <a
+ className="lm-focusable"
  href="https://lerret.belikely.com/docs"
  target="_blank"
  rel="noopener noreferrer"
@@ -280,9 +281,10 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  </a>
  </div>
  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
- <button type="button" onClick={onBack} style={{ ...tourBtnGhost, marginRight: 'auto' }}>← Back</button>
+ <button type="button" className="lm-focusable" onClick={onBack} style={{ ...tourBtnGhost, marginRight: 'auto' }}>← Back</button>
  <button
  type="button"
+ className="lm-focusable"
  onClick={onClose}
  style={tourBtnPrimary}
  data-testid="walkthrough-done"
@@ -442,17 +444,16 @@ export function StudioWalkthroughOverlay({ onClose }) {
  <div style={spotlightStyle({ position: 'absolute', top: rect.top + rect.height + PAD, left: 0, right: 0, bottom: 0, background: dim, pointerEvents: 'auto' })} onClick={advance} />
  <div style={spotlightStyle({ position: 'absolute', top: rect.top - PAD, left: 0, width: Math.max(0, rect.left - PAD), height: rect.height + PAD * 2, background: dim, pointerEvents: 'auto' })} onClick={advance} />
  <div style={spotlightStyle({ position: 'absolute', top: rect.top - PAD, left: rect.left + rect.width + PAD, right: 0, height: rect.height + PAD * 2, background: dim, pointerEvents: 'auto' })} onClick={advance} />
- {/* Dashed sienna spotlight frame — visual only, no pointer events. */}
+ {/* Sienna spotlight ring — flat: an accent glow ring (box-shadow), no border. Visual only, no pointer events. */}
  <div style={{
  position: 'absolute',
  top: rect.top - PAD,
  left: rect.left - PAD,
  width: rect.width + PAD * 2,
  height: rect.height + PAD * 2,
- border: '2px dashed var(--lm-accent, #B85B33)',
  borderRadius: 10,
  pointerEvents: 'none',
- boxShadow: '0 0 0 1px rgba(184,91,51,0.10), 0 0 24px rgba(184,91,51,0.32)',
+ boxShadow: '0 0 0 2px var(--lm-accent, #B85B33), 0 0 0 6px rgba(184,91,51,0.18), 0 0 28px rgba(184,91,51,0.32)',
  transition: prefersReducedMotion ? 'none' : 'top 120ms ease, left 120ms ease, width 120ms ease, height 120ms ease',
  }} />
  </React.Fragment>
@@ -529,10 +530,9 @@ export function WalkthroughOffer({ onAccept, onDecline }) {
  background: 'var(--lm-surface, rgba(255,255,255,0.95))',
  backdropFilter: 'blur(14px) saturate(120%)',
  WebkitBackdropFilter: 'blur(14px) saturate(120%)',
- border: '1px solid rgba(26,23,20,0.12)',
  borderRadius: 12,
  padding: '12px 16px',
- boxShadow: '0 8px 24px rgba(15,23,42,0.14)',
+ boxShadow: 'var(--lm-shadow-lg, 0 8px 24px rgba(26,23,20,0.16))',
  display: 'flex',
  alignItems: 'center',
  gap: 12,
@@ -545,12 +545,14 @@ export function WalkthroughOffer({ onAccept, onDecline }) {
  </span>
  <button
  type="button"
+ className="lm-focusable"
  data-testid="offer-yes"
  onClick={onAccept}
  style={tourBtnPrimary}
  >Yes, show me</button>
  <button
  type="button"
+ className="lm-focusable"
  data-testid="offer-no"
  onClick={onDecline}
  style={tourBtnGhost}

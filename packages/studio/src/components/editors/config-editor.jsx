@@ -74,7 +74,6 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  letter-spacing: 0.04em;
  margin: 0;
  padding: 0 0 var(--lm-space-1, 4px);
- border-bottom: 1px solid var(--lm-border-light, #E8E2D4);
 }
 .lm-config-editor__path {
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
@@ -89,8 +88,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  flex-direction: column;
  gap: var(--lm-space-3, 12px);
  padding: var(--lm-space-4, 16px);
- background: var(--lm-bg-secondary, #F2EEE6);
- border: 1px dashed var(--lm-border, #DDD7CA);
+ background: var(--lm-accent-light, rgba(184,91,51,0.07));
  border-radius: var(--lm-radius-sm, 6px);
 }
 .lm-config-editor__create-msg {
@@ -115,7 +113,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  letter-spacing: 0.04em;
  color: var(--lm-text-primary, #1A1714);
  background: var(--lm-bg-primary, #FAF8F2);
- border: 1px solid var(--lm-border, #DDD7CA);
+ border: none;
  border-radius: var(--lm-radius-sm, 6px);
  cursor: pointer;
  transition: background var(--lm-duration-fast, 120ms);
@@ -162,19 +160,19 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  font-size: var(--lm-size-body, 13px);
  line-height: var(--lm-lh-body, 1.45);
  color: var(--lm-text-primary, #1A1714);
- background: var(--lm-bg-primary, #FAF8F2);
- border: 1px solid var(--lm-border, #DDD7CA);
+ background: var(--lm-bg-tertiary, #E8E2D4);
+ border: none;
  border-radius: var(--lm-radius-sm, 6px);
  outline: none;
  resize: vertical;
- transition: border-color var(--lm-duration-fast, 120ms) var(--lm-ease);
+ transition: box-shadow var(--lm-duration-fast, 120ms) var(--lm-ease);
 }
 .lm-config-editor__json:focus {
- border-color: var(--lm-accent, #B85B33);
  box-shadow: var(--lm-focus-ring);
 }
 .lm-config-editor__json--invalid {
- border-color: var(--lm-error, #A8412B);
+ background: var(--lm-error-light);
+ box-shadow: inset 0 0 0 1.5px var(--lm-error-border);
 }
 .lm-config-editor__json-error {
  display: flex;
@@ -208,8 +206,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  align-items: flex-start;
  gap: var(--lm-space-2, 8px);
  padding: var(--lm-space-2, 8px) var(--lm-space-3, 12px);
- background: var(--lm-bg-tertiary, #E8E2D4);
- border: 1px solid var(--lm-border, #DDD7CA);
+ background: var(--lm-error-light);
  border-radius: var(--lm-radius-sm, 6px);
  font-size: var(--lm-size-body-sm, 12px);
  color: var(--lm-text-primary, #1A1714);

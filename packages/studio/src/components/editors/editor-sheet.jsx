@@ -99,7 +99,6 @@ if (typeof document !== 'undefined' && !document.getElementById('editor-sheet-st
 .es-dialog {
  position: relative;
  background: var(--lm-bg-primary, #FAF8F2);
- border: 1px solid var(--lm-border, #DDD7CA);
  border-radius: var(--lm-radius-xl, 14px);
  box-shadow: var(--lm-shadow-popup, 0 18px 48px rgba(26, 23, 20, 0.22));
  width: min(640px, calc(100vw - var(--lm-space-8, 32px) * 2));
@@ -119,7 +118,7 @@ if (typeof document !== 'undefined' && !document.getElementById('editor-sheet-st
  align-items: center;
  gap: var(--lm-space-3, 12px);
  padding: var(--lm-space-5, 20px) var(--lm-space-6, 24px) var(--lm-space-4, 16px);
- border-bottom: 1px solid var(--lm-border-light, #E8E2D4);
+ background: var(--lm-bg-secondary, #F2EEE6);
  flex-shrink: 0;
 }
 .es-title {
@@ -168,12 +167,12 @@ if (typeof document !== 'undefined' && !document.getElementById('editor-sheet-st
  overflow-y: auto;
  padding: var(--lm-space-6, 24px);
  scrollbar-width: thin;
- scrollbar-color: var(--lm-border, #DDD7CA) transparent;
+ scrollbar-color: var(--lm-bg-tertiary, #E8E2D4) transparent;
 }
 
 /* Footer */
 .es-footer {
- border-top: 1px solid var(--lm-border-light, #E8E2D4);
+ background: var(--lm-bg-secondary, #F2EEE6);
  padding: var(--lm-space-4, 16px) var(--lm-space-6, 24px);
  flex-shrink: 0;
  display: flex;

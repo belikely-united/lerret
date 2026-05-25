@@ -753,6 +753,7 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  >
  <button
  type="button"
+ className="lm-focusable"
  onClick={onAddGroup}
  data-testid="page-add-group"
  style={{
@@ -761,9 +762,8 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  gap: 7,
  padding: '12px 20px',
  borderRadius: 12,
- border: '1.5px dashed var(--lm-accent-border, rgba(184,91,51,0.35))',
  background: 'var(--lm-accent-light, rgba(184,91,51,0.06))',
- color: 'var(--lm-accent, #B85B33)',
+ color: 'var(--lm-accent-text, #B85B33)',
  fontFamily: 'inherit',
  fontSize: 14,
  fontWeight: 600,
@@ -774,6 +774,7 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  </button>
  <button
  type="button"
+ className="lm-focusable"
  onClick={onAddAsset}
  data-testid="page-add-asset"
  style={{
@@ -782,9 +783,8 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  gap: 6,
  padding: '12px 16px',
  borderRadius: 12,
- border: '1px dashed var(--lm-border, rgba(26,23,20,0.22))',
- background: 'transparent',
- color: 'var(--lm-text-tertiary, #6e6960)',
+ background: 'var(--lm-bg-secondary, #F2EEE6)',
+ color: 'var(--lm-text-secondary, #3a3530)',
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: 600,
@@ -880,12 +880,13 @@ function NoticeButton({ label, onClick, primary }) {
  return (
  <button
  type="button"
+ className="lm-focusable"
  onClick={onClick}
  data-testid="lm-notice-button"
  style={{
  padding: '8px 16px',
  borderRadius: 8,
- border: primary ? 'none' : '1px solid var(--lm-border, rgba(26,23,20,0.18))',
+ border: 'none',
  background: primary ? 'var(--lm-accent, #B85B33)' : 'transparent',
  color: primary ? '#fff' : 'var(--lm-text-primary, #1a1714)',
  fontFamily: 'inherit',
@@ -935,8 +936,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  gap: 5,
  padding: '6px 12px',
  borderRadius: 8,
- border: '1px dashed var(--lm-border, rgba(26,23,20,0.28))',
- background: 'transparent',
+ background: 'var(--lm-bg-secondary, #F2EEE6)',
  color: 'var(--lm-text-secondary, #6e6960)',
  fontFamily: 'inherit',
  fontSize: 12,
@@ -949,10 +949,10 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  data-testid="section-add-bar"
  style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
  >
- <button type="button" onClick={onAddAsset} data-testid="section-add-asset" style={btnStyle}>
+ <button type="button" className="lm-focusable" onClick={onAddAsset} data-testid="section-add-asset" style={btnStyle}>
  + Asset
  </button>
- <button type="button" onClick={onAddGroup} data-testid="section-add-group" style={btnStyle}>
+ <button type="button" className="lm-focusable" onClick={onAddGroup} data-testid="section-add-group" style={btnStyle}>
  + Group
  </button>
  </div>

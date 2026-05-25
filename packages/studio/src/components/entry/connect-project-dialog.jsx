@@ -82,11 +82,12 @@ export function ConnectProjectDialog({ onClose }) {
  fontSize: 13,
  fontFamily: 'var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace)',
  color: '#1A1714',
- background: '#FAF8F2',
- border: '1px solid #DDD7CA',
+ background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ border: 'none',
  borderRadius: 8,
  outline: 'none',
  boxSizing: 'border-box',
+ transition: 'box-shadow var(--lm-duration-fast, 120ms)',
  };
  const primaryBtn = {
  padding: '10px 18px',
@@ -127,9 +128,8 @@ export function ConnectProjectDialog({ onClose }) {
  width: '100%',
  maxWidth: 460,
  background: '#FAF8F2',
- border: '1px solid #DDD7CA',
  borderRadius: 14,
- boxShadow: '0 24px 60px rgba(15,23,42,0.28)',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
  padding: 22,
  display: 'flex',
  flexDirection: 'column',
@@ -153,11 +153,13 @@ export function ConnectProjectDialog({ onClose }) {
  placeholder="/path/to/your/project"
  value={folderInput}
  onChange={(e) => setFolderInput(e.target.value)}
+ onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+ onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
  disabled={connecting}
  aria-label="Project folder path"
  data-testid="connect-dialog-input"
  />
- <button type="submit" style={primaryBtn} disabled={connecting} data-testid="connect-dialog-connect">
+ <button type="submit" className="lm-focusable" style={primaryBtn} disabled={connecting} data-testid="connect-dialog-connect">
  {connecting ? 'Connecting…' : 'Connect'}
  </button>
  </div>
@@ -178,17 +180,19 @@ export function ConnectProjectDialog({ onClose }) {
  <li key={r.path}>
  <button
  type="button"
+ className="lm-focusable-inset"
  onClick={() => connect(r.path)}
  disabled={connecting}
  data-testid="connect-dialog-recent"
  style={{
  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
  width: '100%', padding: '8px 12px', textAlign: 'left',
- background: '#fff', border: '1px solid #DDD7CA', borderRadius: 8,
+ background: 'var(--lm-bg-tertiary, #E8E2D4)', border: 'none', borderRadius: 8,
  cursor: connecting ? 'default' : 'pointer', fontFamily: 'inherit',
+ transition: 'background var(--lm-duration-fast, 120ms)',
  }}
- onMouseEnter={(e) => { if (!connecting) e.currentTarget.style.borderColor = '#B85B33'; }}
- onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#DDD7CA'; }}
+ onMouseEnter={(e) => { if (!connecting) e.currentTarget.style.background = 'var(--lm-bg-secondary, #F2EEE6)'; }}
+ onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--lm-bg-tertiary, #E8E2D4)'; }}
  >
  <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1714' }}>{r.name}</span>
  <span style={{ fontSize: 10, fontFamily: 'var(--lm-font-mono, monospace)', color: '#B8B3A8' }}>{r.path}</span>
@@ -202,11 +206,12 @@ export function ConnectProjectDialog({ onClose }) {
  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
  <button
  type="button"
+ className="lm-focusable"
  onClick={onClose}
  data-testid="connect-dialog-cancel"
  style={{
  padding: '8px 16px', borderRadius: 8,
- border: '1px solid rgba(26,23,20,0.14)', background: 'transparent',
+ border: 'none', background: 'var(--lm-bg-tertiary, #E8E2D4)',
  color: '#3A3530', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer',
  }}
  >

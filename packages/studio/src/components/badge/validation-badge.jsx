@@ -59,7 +59,6 @@ if (typeof document !== 'undefined' && !document.getElementById('validation-badg
  /* Warning-amber (calm, never error-red) */
  color: var(--lm-warning, #B07B1F);
  background: var(--lm-warning-light, rgba(176, 123, 31, 0.10));
- border: 1px solid var(--lm-warning-border, rgba(176, 123, 31, 0.20));
  border-radius: var(--lm-radius-sm, 6px);
  box-shadow: var(--lm-shadow-xs, 0 1px 2px rgba(26, 23, 20, 0.05));
  cursor: pointer;

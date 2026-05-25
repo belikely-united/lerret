@@ -103,7 +103,7 @@ function StudioComingSoon({ label }) {
 // Layout (left → right): logo · page nav · global download · brand kit · ?
 // ───────────────────────────────────────────
 function StudioDockSeparator() {
- return <div style={{ width: 1, height: 24, background: 'rgba(60,50,40,0.14)', alignSelf: 'center' }} />;
+ return <div style={{ width: 1, height: 24, background: 'var(--lm-bg-tertiary, #E8E2D4)', alignSelf: 'center' }} />;
 }
 
 function StudioDockButton({
@@ -112,6 +112,7 @@ function StudioDockButton({
  return (
  <button
  type="button"
+ className="lm-focusable-inset"
  disabled={disabled}
  onClick={() => !disabled && onClick && onClick()}
  title={title || label}
@@ -195,6 +196,7 @@ function StudioBrandMenu({
  const item = (label, hint, onClick) => (
  <button
  type="button"
+ className="lm-focusable-inset"
  onClick={onClick}
  style={{
  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
@@ -223,11 +225,11 @@ function StudioBrandMenu({
  flex: 1,
  padding: '6px 0',
  borderRadius: 8,
- border: `1px solid ${on ? '#B85B33' : 'rgba(26,23,20,0.14)'}`,
- background: on ? '#B85B33' : 'transparent',
+ border: 'none',
+ background: on ? '#B85B33' : 'var(--lm-bg-tertiary, #E8E2D4)',
  color: on ? '#FAF8F2' : '#3A3530',
  fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
- cursor: 'pointer', transition: 'background .12s, border-color .12s',
+ cursor: 'pointer', transition: 'background .12s',
  });
  if (!coords) return null;
  return ReactDOM.createPortal(
@@ -239,10 +241,9 @@ function StudioBrandMenu({
  background: 'rgba(255,255,255,0.97)',
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
- border: '1px solid rgba(26,23,20,0.10)',
  borderRadius: 12,
  padding: 6,
- boxShadow: '0 12px 32px rgba(15,23,42,0.18), 0 1px 3px rgba(15,23,42,0.06)',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
  display: 'flex', flexDirection: 'column', gap: 2,
  zIndex: 90,
  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
@@ -254,7 +255,7 @@ function StudioBrandMenu({
  restarting the CLI. CLI mode only (the server re-points the dev binding). */}
  {(onSwitchProject || onCloseProject) && (
  <React.Fragment>
- <div style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+ <div style={{ height: 'var(--lm-space-1, 4px)' }} />
  <div style={sectionLabel}>Project</div>
  {onSwitchProject && item('Switch project…', 'Connect a different folder', onSwitchProject)}
  {onCloseProject && item('Close project', 'Return to the connect screen', onCloseProject)}
@@ -266,7 +267,7 @@ function StudioBrandMenu({
  export already live in their ⋯ kebabs. */}
  {canExport && (
  <React.Fragment>
- <div style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+ <div style={{ height: 'var(--lm-space-1, 4px)' }} />
  <div style={sectionLabel}>Export</div>
  <div style={{ padding: '2px 14px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
  <span style={{ fontSize: 11, color: '#6E6960', lineHeight: 1.45 }}>
@@ -285,6 +286,7 @@ function StudioBrandMenu({
  aria-checked={on}
  data-testid={`dock-export-scope-${val}`}
  onClick={() => onExportScopeChange && onExportScopeChange(val)}
+ className="lm-seg"
  style={segStyle(on)}
  >
  {label}
@@ -302,6 +304,7 @@ function StudioBrandMenu({
  role="radio"
  aria-checked={on}
  onClick={() => onExportFormatChange && onExportFormatChange(f)}
+ className="lm-seg"
  style={segStyle(on)}
  >
  {f.toUpperCase()}
@@ -311,6 +314,7 @@ function StudioBrandMenu({
  </div>
  <button
  type="button"
+ className="lm-focusable-inset"
  data-testid="dock-export-project"
  disabled={exportBusy}
  onClick={() => onExportProject && onExportProject(exportFormat, exportScope)}
@@ -339,6 +343,7 @@ function StudioBrandMenu({
  {exportNotice}
  <button
  type="button"
+ className="lm-focusable-inset"
  onClick={onDismissNotice}
  style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 11, padding: 0, fontFamily: 'inherit' }}
  title="Dismiss"
@@ -353,7 +358,7 @@ function StudioBrandMenu({
  not in the dock's prime row where it competed with everyday controls. */}
  {onTakeTour && (
  <React.Fragment>
- <div style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+ <div style={{ height: 'var(--lm-space-1, 4px)' }} />
  {item('Take a tour', 'A quick walkthrough of the studio', onTakeTour)}
  </React.Fragment>
  )}
@@ -498,6 +503,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  <span ref={brandRef} data-tour="dock-brand" style={{ position: 'relative', display: 'inline-flex' }}>
  <button
  type="button"
+ className="lm-focusable-inset"
  onClick={() => setBrandOpen((o) => !o)}
  style={{
  display: 'inline-flex', alignItems: 'center', gap: 8,

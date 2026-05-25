@@ -25,9 +25,8 @@ if (typeof document !== 'undefined' && !document.getElementById('variant-tabs-st
 .lm-variant-tabs {
  display: flex;
  flex-direction: row;
- align-items: stretch;
- gap: 0;
- border-bottom: 1px solid var(--lm-border, #DDD7CA);
+ align-items: center;
+ gap: var(--lm-space-1, 4px);
  margin-bottom: var(--lm-space-4, 16px);
  /* Horizontal scroll for very many variants. */
  overflow-x: auto;
@@ -36,30 +35,27 @@ if (typeof document !== 'undefined' && !document.getElementById('variant-tabs-st
  display: inline-flex;
  align-items: center;
  gap: var(--lm-space-1, 4px);
- padding: var(--lm-space-2, 8px) var(--lm-space-3, 12px);
+ padding: var(--lm-space-1, 4px) var(--lm-space-3, 12px);
  font: var(--lm-weight-regular, 400) var(--lm-size-body, 13px)/var(--lm-lh-body, 1.45) var(--lm-font-sans, ui-sans-serif);
- color: var(--lm-text-secondary, #3A3530);
- background: none;
+ color: var(--lm-text-tertiary, #6E6960);
+ background: transparent;
  border: none;
- border-bottom: 2px solid transparent;
+ border-radius: var(--lm-radius-pill, 999px);
  cursor: pointer;
  white-space: nowrap;
  transition:
- color var(--lm-duration-fast, 120ms) var(--lm-ease, ease),
- border-color var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
+ background var(--lm-duration-fast, 120ms) var(--lm-ease, ease),
+ color var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
  outline: none;
- /* Seat the border BELOW the list border, aligned flush. */
- margin-bottom: -1px;
- position: relative;
 }
 .lm-variant-tab:focus-visible {
  box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
- border-radius: var(--lm-radius-sm, 4px) var(--lm-radius-sm, 4px) 0 0;
+ border-radius: var(--lm-radius-pill, 999px);
 }
 .lm-variant-tab[aria-selected="true"] {
  font-weight: var(--lm-weight-medium, 600);
- color: var(--lm-text-primary, #1A1714);
- border-bottom-color: var(--lm-accent, #B85B33);
+ color: var(--lm-accent-text, #B85B33);
+ background: var(--lm-accent-light, rgba(184,91,51,0.10));
 }
 .lm-variant-tab__dot {
  width: 6px;

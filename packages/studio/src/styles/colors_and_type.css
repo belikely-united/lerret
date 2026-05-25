@@ -67,9 +67,13 @@
  --lm-bg-secondary: #F2EEE6; /* linen */
  --lm-bg-tertiary: #E8E2D4; /* canvas (deeper warm tone) */
 
- /* Borders */
- --lm-border: #DDD7CA; /* edge */
- --lm-border-light: #E8E2D4;
+ /* Borders — flat aesthetic.
+ Hairline borders are removed studio-wide; separation now comes from the
+ surface tiers above, the shadow scale below, and spacing. Tokens are kept
+ (transparent) so every `border: 1px solid var(--lm-border)` call site
+ renders no line without needing a per-call edit. */
+ --lm-border: transparent;
+ --lm-border-light: transparent;
 
  /* Text — four tiers (warm near-blacks, never #000) */
  --lm-text-primary: #1A1714; /* ink */
@@ -162,7 +166,7 @@
  /* Popover surface tokens — used by the menu popover (, 3.11).
  Kept here so no inline rgba survives outside the token file. */
  --lm-popover-bg: rgba(255, 255, 255, 0.97);
- --lm-popover-border: rgba(26, 23, 20, 0.10);
+ --lm-popover-border: transparent; /* flat: popovers float on --lm-shadow-popup */
 
  /* Warning hover state — Mist-warning hover (, 3.11). */
  --lm-warning-hover: rgba(176, 123, 31, 0.16);
@@ -174,8 +178,8 @@
  --lm-bg-secondary: #2A2723; /* gallery-soft */
  --lm-bg-tertiary: #3A3530;
 
- --lm-border: #3A3530;
- --lm-border-light: #4A4540;
+ --lm-border: transparent;
+ --lm-border-light: transparent;
 
  --lm-text-primary: #ECE7DC;
  --lm-text-secondary: #C4BFB4;
@@ -244,8 +248,7 @@
  font: var(--lm-weight-semibold) var(--lm-size-hint)/1 var(--lm-font-mono);
  background: var(--lm-bg-tertiary);
  color: var(--lm-text-secondary);
- border: 1px solid var(--lm-border);
- border-bottom-width: 2px;
+ box-shadow: var(--lm-shadow-xs);
  border-radius: var(--lm-radius-xs);
  padding: 2px 5px;
  display: inline-block;

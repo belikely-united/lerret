@@ -152,8 +152,7 @@ if (typeof document !== 'undefined' && !document.getElementById('meta-editor-sty
  align-items: flex-start;
  gap: var(--lm-space-2, 8px);
  padding: var(--lm-space-2, 8px) var(--lm-space-3, 12px);
- background: var(--lm-bg-tertiary, #E8E2D4);
- border: 1px solid var(--lm-border, #DDD7CA);
+ background: var(--lm-error-light);
  border-radius: var(--lm-radius-sm, 6px);
  font-size: var(--lm-size-body-sm, 12px);
  color: var(--lm-text-primary, #1A1714);
@@ -166,8 +165,7 @@ if (typeof document !== 'undefined' && !document.getElementById('meta-editor-sty
  flex-direction: column;
  gap: var(--lm-space-2, 8px);
  padding: var(--lm-space-3, 12px) var(--lm-space-4, 16px);
- background: var(--lm-bg-secondary, #F2EEE6);
- border: 1px dashed var(--lm-border, #DDD7CA);
+ background: var(--lm-accent-light, rgba(184,91,51,0.07));
  border-radius: var(--lm-radius-sm, 6px);
 }
 .lm-meta-editor__guidance-title {

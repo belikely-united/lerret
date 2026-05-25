@@ -548,7 +548,7 @@ function sectionBtnStyle(active) {
  height: 28,
  padding: '0 12px',
  borderRadius: 6,
- border: '1px solid rgba(60,50,40,0.16)',
+ border: 'none',
  background: active ? '#2a251f' : 'rgba(255,255,255,0.6)',
  color: active ? '#fff' : '#3a3530',
  font: '600 11px/1 -apple-system, BlinkMacSystemFont, sans-serif',
@@ -558,7 +558,7 @@ function sectionBtnStyle(active) {
  display: 'inline-flex',
  alignItems: 'center',
  gap: 4,
- transition: 'background .12s, border-color .12s',
+ transition: 'background .12s',
  };
 }
 
@@ -567,7 +567,7 @@ function btnStyle(active) {
  height: 32,
  padding: '0 14px',
  borderRadius: 8,
- border: '1px solid rgba(15,23,42,0.12)',
+ border: 'none',
  background: active ? '#0f172a' : '#fff',
  color: active ? '#fff' : '#0f172a',
  font: '600 12px/1 -apple-system, BlinkMacSystemFont, sans-serif',
@@ -1155,7 +1155,7 @@ function DCMiniMap({ api }) {
  background: 'rgba(255,255,255,0.82)',
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
- border: '1px solid rgba(26,23,20,0.10)',
+ // border removed (rule 2)
  borderRadius: 12,
  boxShadow: '0 4px 18px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)',
  cursor: 'pointer',
@@ -1380,7 +1380,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  (~36px) so they stay inside the border. A nested sub-group gets a
  lighter dashed frame so the containment hierarchy is legible. */}
  <div style={{
- border: `1px ${nested ? 'dashed' : 'solid'} rgba(60,50,40,0.13)`,
+ // border removed (rule 2/7)
  borderRadius: 16,
  padding: nested ? '18px 22px 22px' : '24px 32px 32px',
  background: frameBg,
@@ -1682,7 +1682,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  >{busy === 'pdf' ? '…' : 'PDF'}</button>
  ) : null}
  <div ref={cardRef} className="dc-card"
- style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: '#fff', ...style }}>
+ style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: 'var(--lm-bg-primary, #FDFCFA)', ...style }}>
  {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}
  </div>
  {/* Calm inline capture-failure message — overlaid on the slot
@@ -1813,10 +1813,17 @@ function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
  return () => document.removeEventListener('keydown', k);
  });
 
- const { width = 260, height = 480, children } = artboard.props;
+ const { width = 260, height = 480, children, isMarkdown } = artboard.props;
  const [vp, setVp] = React.useState({ w: window.innerWidth, h: window.innerHeight });
  React.useEffect(() => { const r = () => setVp({ w: window.innerWidth, h: window.innerHeight }); window.addEventListener('resize', r); return () => window.removeEventListener('resize', r); }, []);
- const scale = Math.max(0.1, Math.min((vp.w - 200) / width, (vp.h - 260) / height, 2));
+ // A Markdown asset is a document (auto-height), not a fixed-dimension
+ // artboard: it reads top-to-bottom, so focus view presents it as a
+ // scrollable page (below) rather than scaling a fixed box to fit. `scale`
+ // is only meaningful for a component artboard — for a `height: 'auto'`
+ // markdown card the fit math would be NaN.
+ const scale = isMarkdown
+ ? 1
+ : Math.max(0.1, Math.min((vp.w - 200) / width, (vp.h - 260) / height, 2));
 
  const [ddOpen, setDd] = React.useState(false);
  const Arrow = ({ dir, onClick, label: ariaLabel }) => (
@@ -1892,6 +1899,26 @@ function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
  {/* card centered, label + index below — only the card itself stops
  propagation so any backdrop click (including the margins around
  the card) exits focus */}
+ {isMarkdown ? (
+ // Document focus view — a readable page that fills the available height
+ // and scrolls when the content runs longer than the viewport (which also
+ // makes focus view usable on short screens).
+ <div
+ style={{ position: 'absolute', top: 64, bottom: 56, left: 100, right: 100, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+ <div
+ onClick={(e) => e.stopPropagation()}
+ onWheel={(e) => e.stopPropagation()}
+ style={{ flex: '1 1 auto', minHeight: 0, width: '100%', maxWidth: 720, overflowY: 'auto' }}>
+ <div style={{ borderRadius: 'var(--lm-radius-lg, 12px)', boxShadow: '0 20px 80px rgba(0,0,0,.4)' }}>
+ {children}
+ </div>
+ </div>
+ <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', marginTop: 16, fontSize: 14, fontWeight: 500, opacity: .85, textAlign: 'center' }}>
+ {(sec.labels || {})[aid] ?? artboard.props.label}
+ <span style={{ opacity: .5, marginLeft: 10, fontVariantNumeric: 'tabular-nums' }}>{idx + 1} / {peers.length}</span>
+ </div>
+ </div>
+ ) : (
  <div
  style={{ position: 'absolute', top: 64, bottom: 56, left: 100, right: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
  <div onClick={(e) => e.stopPropagation()} style={{ width: width * scale, height: height * scale, position: 'relative' }}>
@@ -1905,6 +1932,7 @@ function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
  <span style={{ opacity: .5, marginLeft: 10, fontVariantNumeric: 'tabular-nums' }}>{idx + 1} / {peers.length}</span>
  </div>
  </div>
+ )}
 
  <Arrow dir="left" onClick={() => go(-1)} label="Previous artboard" />
  <Arrow dir="right" onClick={() => go(1)} label="Next artboard" />

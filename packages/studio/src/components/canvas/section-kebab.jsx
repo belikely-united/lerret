@@ -149,7 +149,6 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  background: 'rgba(255,255,255,0.97)',
  backdropFilter: 'blur(12px) saturate(120%)',
  WebkitBackdropFilter: 'blur(12px) saturate(120%)',
- border: '1px solid rgba(26,23,20,0.10)',
  borderRadius: 10,
  padding: '10px 12px',
  boxShadow: '0 8px 24px rgba(15,23,42,0.14), 0 1px 3px rgba(15,23,42,0.06)',
@@ -165,14 +164,14 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  <button
  key={f}
  type="button"
+ className="lm-seg"
  onClick={() => onFormatChange(f)}
  style={{
  flex: 1,
  padding: '4px 0',
  borderRadius: 6,
- border: '1px solid',
- borderColor: format === f ? '#B85B33' : 'rgba(26,23,20,0.14)',
- background: format === f ? '#B85B33' : 'transparent',
+ border: 'none',
+ background: format === f ? '#B85B33' : 'var(--lm-bg-secondary, #F2EEE6)',
  color: format === f ? '#FAF8F2' : '#3A3530',
  fontFamily: 'inherit',
  fontSize: 11,
@@ -199,6 +198,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  {/* Export button */}
  <button
  type="button"
+ className="lm-focusable"
  onClick={onExport}
  disabled={busy}
  style={{

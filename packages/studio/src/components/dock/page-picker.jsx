@@ -153,6 +153,7 @@ function PageManagerZero({ projectModel, onNavigate }) {
     <span data-tour="dock-pages" style={{ display: 'inline-flex' }}>
       <button
         type="button"
+        className="lm-focusable-inset"
         onClick={() => setOpen(true)}
         data-testid="page-picker-new-zero"
         style={triggerButtonStyle(false)}
@@ -389,6 +390,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
       <button
         ref={triggerRef}
         type="button"
+        className="lm-focusable-inset"
         onClick={() => (open ? closeList() : openList())}
         onKeyDown={onTriggerKeyDown}
         aria-haspopup="listbox"
@@ -432,10 +434,9 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
               background: 'rgba(255,255,255,0.97)',
               backdropFilter: 'blur(16px) saturate(120%)',
               WebkitBackdropFilter: 'blur(16px) saturate(120%)',
-              border: '1px solid rgba(26,23,20,0.10)',
               borderRadius: 12,
               padding: 6,
-              boxShadow: '0 12px 32px rgba(15,23,42,0.18), 0 1px 3px rgba(15,23,42,0.06)',
+              boxShadow: 'var(--lm-shadow-popup, 0 12px 32px rgba(15,23,42,0.18), 0 1px 3px rgba(15,23,42,0.06))',
               zIndex: 80,
               outline: 'none',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
@@ -496,6 +497,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                   {manage && (
                     <button
                       type="button"
+                      className="lm-focusable-inset"
                       title={`Delete page "${page.label}"`}
                       aria-label={`Delete page "${page.label}"`}
                       data-testid="page-picker-delete"
@@ -535,10 +537,11 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
             })}
             {manage && (
               <React.Fragment>
-                <li aria-hidden="true" style={{ height: 1, background: 'rgba(60,50,40,0.10)', margin: '6px 8px' }} />
+                <li aria-hidden="true" style={{ height: 4 }} />
                 <li style={{ listStyle: 'none' }}>
                   <button
                     type="button"
+                    className="lm-focusable-inset"
                     data-testid="page-picker-new"
                     onClick={() => setCreateOpen(true)}
                     style={{

@@ -28,7 +28,7 @@ const sheetStyle = {
   padding: 24,
   width: 400,
   maxWidth: '90vw',
-  boxShadow: '0 24px 64px rgba(15,23,42,0.28)',
+  boxShadow: 'var(--lm-shadow-popup, 0 24px 64px rgba(15,23,42,0.28))',
   display: 'flex',
   flexDirection: 'column',
   gap: 14,
@@ -49,9 +49,9 @@ const errorRowStyle = {
 };
 
 const buttonSecondary = {
-  background: 'transparent',
+  background: 'var(--lm-bg-tertiary)',
   color: 'inherit',
-  border: '1px solid var(--lm-border, rgba(26,23,20,0.18))',
+  border: 'none',
   borderRadius: 8,
   padding: '8px 16px',
   fontSize: 13,
@@ -159,6 +159,7 @@ export function ConfirmDialog({
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
             type="button"
+            className="lm-focusable"
             style={buttonSecondary}
             onClick={onClose}
             disabled={pending}
@@ -169,6 +170,7 @@ export function ConfirmDialog({
           <button
             ref={confirmRef}
             type="button"
+            className="lm-focusable"
             style={{
               ...(destructive ? buttonDestructive : buttonPrimary),
               opacity: pending ? 0.6 : 1,

@@ -84,7 +84,7 @@ const sheetStyle = {
     padding: 24,
     minWidth: 420,
     maxWidth: 520,
-    boxShadow: '0 24px 64px rgba(15,23,42,0.28)',
+    boxShadow: 'var(--lm-shadow-popup, 0 24px 64px rgba(15,23,42,0.28))',
     display: 'flex',
     flexDirection: 'column',
     gap: 16,
@@ -101,13 +101,16 @@ const labelStyle = {
 };
 
 const inputBase = {
-    border: '1px solid var(--lm-border, rgba(26,23,20,0.18))',
-    background: 'transparent',
+    border: 'none',
+    background: 'var(--lm-bg-tertiary)',
     borderRadius: 8,
     padding: '6px 10px',
     fontSize: 13,
     fontFamily: 'inherit',
     color: 'inherit',
+    outline: 'none',
+    boxShadow: 'none',
+    transition: 'box-shadow 120ms ease',
 };
 
 const segGroupStyle = { display: 'flex', gap: 6 };
@@ -120,15 +123,13 @@ function segButtonStyle(active) {
         padding: '8px 6px',
         borderRadius: 8,
         cursor: 'pointer',
-        border: active
-            ? '1px solid var(--lm-accent, #B85B33)'
-            : '1px solid var(--lm-border, rgba(26,23,20,0.18))',
-        background: active ? 'var(--lm-accent, #B85B33)' : 'transparent',
+        border: 'none',
+        background: active ? 'var(--lm-accent, #B85B33)' : 'var(--lm-bg-tertiary)',
         color: active ? '#fff' : 'inherit',
         fontSize: 13,
         fontWeight: active ? 600 : 500,
         fontFamily: 'inherit',
-        transition: 'background .12s, border-color .12s, color .12s',
+        transition: 'background .12s, color .12s',
     };
 }
 
@@ -152,9 +153,9 @@ const buttonPrimary = {
 };
 
 const buttonSecondary = {
-    background: 'transparent',
+    background: 'var(--lm-bg-tertiary)',
     color: 'inherit',
-    border: '1px solid var(--lm-border, rgba(26,23,20,0.18))',
+    border: 'none',
     borderRadius: 8,
     padding: '10px 18px',
     fontSize: 13,
@@ -425,6 +426,7 @@ export function AnimatedExportDialog({
                                         <button
                                             key={o.value}
                                             type="button"
+                                            className="lm-seg"
                                             aria-pressed={active}
                                             style={segButtonStyle(active)}
                                             onClick={() => setOne({ format: o.value })}
@@ -448,7 +450,8 @@ export function AnimatedExportDialog({
                                     list="lm-duration-presets"
                                     value={durationSecStr}
                                     onChange={(e) => onDurationInput(e.target.value)}
-                                    onBlur={onDurationBlur}
+                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+                                    onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; onDurationBlur(); }}
                                     style={{ ...inputBase, width: '100%' }}
                                     aria-label="Duration in seconds"
                                 />
@@ -467,7 +470,8 @@ export function AnimatedExportDialog({
                                     list="lm-fps-presets"
                                     value={fpsStr}
                                     onChange={(e) => onFpsInput(e.target.value)}
-                                    onBlur={onFpsBlur}
+                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+                                    onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; onFpsBlur(); }}
                                     style={{ ...inputBase, width: '100%' }}
                                     aria-label="Frames per second"
                                 />
@@ -499,6 +503,8 @@ export function AnimatedExportDialog({
                                     type="text"
                                     value={filename}
                                     onChange={(e) => setFilename(e.target.value)}
+                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+                                    onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
                                     style={{ ...inputBase, width: '100%' }}
                                 />
                             </Field>
@@ -522,12 +528,14 @@ export function AnimatedExportDialog({
                     {phase === 'capturing' ? (
                         <button
                             type="button"
+                            className="lm-focusable"
                             style={buttonSecondary}
                             onClick={() => abortRef.current?.abort()}
                         >Cancel</button>
                     ) : (
                         <button
                             type="button"
+                            className="lm-focusable"
                             style={buttonSecondary}
                             onClick={onClose}
                         >Close</button>
@@ -535,6 +543,7 @@ export function AnimatedExportDialog({
                     {!moduleError && (
                         <button
                             type="button"
+                            className="lm-focusable"
                             style={{
                                 ...buttonPrimary,
                                 opacity: phase === 'capturing' ? 0.6 : 1,
