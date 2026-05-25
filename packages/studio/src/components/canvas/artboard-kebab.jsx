@@ -591,6 +591,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 
  const kebab = (
  <div ref={clusterRef} className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
+ <ValidationBadge failedFields={failedFields} propsSchema={propsSchema} onClick={handleBadgeClick} />
  <SizeBadge width={metaDims.width} height={metaDims.height} onActivate={onEditSize} />
  {liveRefreshMs != null && (
  <LiveRefreshBadge rateMs={liveRefreshMs} onActivate={onLiveRefresh} />
@@ -633,11 +634,6 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
  {renderComponent(resolvedProps)}
  {children}
- <ValidationBadge
- failedFields={failedFields}
- propsSchema={propsSchema}
- onClick={handleBadgeClick}
- />
  {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}
  <ComponentEditorHost
  dataOpen={dataOpen}

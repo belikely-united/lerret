@@ -23,9 +23,10 @@
 // becomes empty — the badge disappears automatically without any extra logic.
 //
 // ── Placement ────────────────────────────────────────────────────────────────
-// Rendered in the top-left corner of the artboard's inner `div` (opposite the
-// "Edit data" trigger that sits top-right). Positioned `absolute` within the
-// artboard's `position: relative` host.
+// Rendered as an inline chip in the artboard's label-row cluster (studio chrome,
+// outside the card) — leading the size / auto-refresh / kebab chips, aligned
+// right. It is NOT inside the captured card, so it never appears in a PNG / JPG /
+// PDF export.
 //
 // ── CSS token note ───────────────────────────────────────────────────────────
 // Warning-amber tokens (`--lm-warning`, `--lm-warning-light`, etc.) already
@@ -40,12 +41,9 @@ if (typeof document !== 'undefined' && !document.getElementById('validation-badg
  s.textContent = `
 /* Validation badge */
 
-/* Wrapper button: positioned absolutely at the top-left of the artboard host. */
+/* Inline warning chip — lives in the artboard's label-row cluster (studio
+   chrome), NOT over the rendered asset, so it never bleeds into an export. */
 .lm-validation-badge {
- position: absolute;
- top: 6px;
- left: 6px;
- z-index: 10;
  display: inline-flex;
  align-items: center;
  gap: 4px;
