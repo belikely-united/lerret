@@ -1184,7 +1184,7 @@ export function sectionDepthBg(depth) {
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
-export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, kicker, sectionStyle }) {
+export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, kicker, sectionStyle, bare = false }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
  const all = React.Children.toArray(children);
@@ -1266,6 +1266,45 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  document.addEventListener('pointermove', move);
  document.addEventListener('pointerup', up);
  };
+
+ // Bare variant — a page's own loose assets sit directly on the canvas with no
+ // card chrome (no frame, no header, no in-card add bar), so they read as "on
+ // the page", not "in a group". Kept measurable (data-dc-section + depth) so
+ // bounds / minimap / reorder still see it; the per-artboard frames render
+ // exactly as inside a card.
+ if (bare) {
+ return (
+ <div
+ data-dc-section={sid}
+ data-dc-section-depth={depth}
+ data-dc-section-bare="true"
+ data-tour="section"
+ style={{
+ margin: '0 60px 48px 60px',
+ position: 'relative',
+ width: 'max-content',
+ // A page's presentation.background / color still applies — as a tint on
+ // the page's own region (no border/header), so the page-bg feature isn't
+ // lost when its assets render bare.
+ ...(cascadeBg ? { backgroundColor: cascadeBg, borderRadius: 16, padding: '8px 24px 20px' } : null),
+ ...(cascadeColor ? { color: cascadeColor } : null),
+ }}
+ >
+ {hasArtboards && (
+ <div style={{ display: 'flex', gap, paddingTop: 36, alignItems: 'flex-start', width: 'max-content' }}>
+ {order.map((k) => (
+ <DCArtboardFrame key={k} sectionId={sid} sectionTitle={sec.title ?? title} artboard={byId[k]} order={order}
+ label={(sec.labels || {})[k] ?? byId[k].props.label}
+ onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
+ onReorder={(next) => ctx && ctx.patchSection(sid, { order: next })}
+ onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
+ ))}
+ </div>
+ )}
+ {rest}
+ </div>
+ );
+ }
 
  return (
  <div

@@ -299,7 +299,7 @@ describe('ProjectCanvas — live-edit loop', () => {
  return container;
  }
 
- it('shows a per-section "+ Asset / + Group" add bar (CLI mode) that targets that section', async () => {
+ it('renders the page bare — page-level adds use the bottom PageAddBar, targeting the page (CLI mode)', async () => {
  globalThis.__LERRET_CLI_MODE__ = true;
  try {
  const { project, makeRuntime } = setup();
@@ -309,12 +309,14 @@ describe('ProjectCanvas — live-edit loop', () => {
  const container = await mount(<ProjectCanvas project={project} runtime={makeRuntime(importer)} />);
  await waitFor(() => container.querySelector('[data-card]'), { label: 'initial render' });
 
- // Every rendered section gets the in-canvas add bar.
- expect(document.querySelector('[data-testid="section-add-asset"]')).not.toBeNull();
- const addGroup = document.querySelector('[data-testid="section-add-group"]');
+ // The page renders bare (its own assets sit on the canvas, no group card),
+ // so page-level adds go through the bottom PageAddBar — not an in-card bar.
+ expect(document.querySelector('[data-dc-section-bare="true"]')).not.toBeNull();
+ expect(document.querySelector('[data-testid="page-add-asset"]')).not.toBeNull();
+ const addGroup = document.querySelector('[data-testid="page-add-group"]');
  expect(addGroup).not.toBeNull();
 
- // Clicking it opens the create dialog targeting THIS section ("home").
+ // Clicking "+ New group" opens the create dialog targeting the page ("home").
  act(() => { addGroup.click(); });
  const dialog = document.querySelector('[data-testid="lm-create-dialog"]');
  expect(dialog).not.toBeNull();

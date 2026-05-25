@@ -620,6 +620,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  kicker={s.kicker}
  subtitle={subtitle}
  sectionStyle={sectionStyle}
+ bare={sectionKind === 'page'}
  >
  {s.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),
@@ -629,6 +630,9 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  {/* In-canvas "add into THIS group" control — the spatially-explicit
  way to create a group/asset inside a specific container. Also serves
  as the empty-group affordance. */}
+ {/* Page-level adds go through the bottom PageAddBar, so a bare page section
+ omits the in-card add bar (it would otherwise read as a group's add bar). */}
+ {sectionKind !== 'page' && (
  <SectionAddBar
  isEmpty={isEmpty}
  cliMode={cliMode}
@@ -649,6 +653,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  })
  }
  />
+ )}
  </DCSection>
  </SectionKebab>
  );

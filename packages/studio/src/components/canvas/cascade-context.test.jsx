@@ -289,12 +289,11 @@ describe('ProjectCanvas — section background from cascade', () => {
 
  await waitFor(() => container.querySelector('[data-card]'), { label: 'card rendered' });
 
- // The cascade bg colors the section's frame (depth 0 has no depth-rail, so
- // the frame is the first child div). It overrides the per-depth default.
+ // The page renders bare, so its presentation.background tints the page's
+ // own region (the bare section wrapper) rather than a group-style frame.
  const section = container.querySelector('[data-dc-section]');
  expect(section).not.toBeNull();
- const frame = section.firstElementChild;
- expect(frame.style.backgroundColor).toBe('rgb(255, 0, 0)');
+ expect(section.style.backgroundColor).toBe('rgb(255, 0, 0)');
  });
 
  it('applies the cascade foreground color (presentation.color) to the section frame', async () => {
@@ -310,12 +309,11 @@ describe('ProjectCanvas — section background from cascade', () => {
 
  await waitFor(() => container.querySelector('[data-card]'), { label: 'card rendered' });
 
- // The cascade color sets the section frame's text color (depth 0 → frame is
- // the first child div). Title / subtitle inherit it.
+ // The page renders bare, so its presentation.color sets the text color on
+ // the page's own region (the bare section wrapper); labels inherit it.
  const section = container.querySelector('[data-dc-section]');
  expect(section).not.toBeNull();
- const frame = section.firstElementChild;
- expect(frame.style.color).toBe('rgb(0, 255, 0)');
+ expect(section.style.color).toBe('rgb(0, 255, 0)');
  });
 
  it('uses default styling (no backgroundColor) when the cascade has no bg', async () => {
