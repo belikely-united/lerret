@@ -603,11 +603,30 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  // Right-click on the empty canvas (the void) opens a small context menu.
  const ctx = useContextMenu();
 
+ // Settle timer for crisp-at-rest rendering. While panning/zooming we keep the
+ // world on the GPU fast path (translate3d + will-change), which promotes it to
+ // a fixed raster-scale layer — so zooming IN magnifies a cached texture and
+ // text goes blurry. When motion stops we drop to a 2D transform and release
+ // will-change, so the browser re-rasterizes the content sharp at the current
+ // zoom. Re-promoted the instant the next pan/zoom frame calls apply().
+ const settleRef = React.useRef(0);
+ const applySettled = React.useCallback(() => {
+ const { x, y, scale } = tf.current;
+ const el = worldRef.current;
+ if (!el) return;
+ el.style.willChange = 'auto';
+ el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+ }, []);
  const apply = React.useCallback(() => {
  const { x, y, scale } = tf.current;
  const el = worldRef.current;
- if (el) el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
- }, []);
+ if (el) {
+ el.style.willChange = 'transform';
+ el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+ }
+ if (settleRef.current) clearTimeout(settleRef.current);
+ settleRef.current = setTimeout(applySettled, 180);
+ }, [applySettled]);
 
  // Notify subscribers of the current transform (rAF-throttled).
  const publish = React.useCallback(() => {
