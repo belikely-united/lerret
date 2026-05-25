@@ -134,6 +134,12 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
  gap: 6px;
  margin-left: auto;
  z-index: 5;
+ /* Counter-scale with the canvas zoom so the chip cluster (validation / size /
+    auto-refresh / kebab) stays a constant screen size. --dc-inv (= 1/scale) is
+    published per-slot by DCArtboardFrame; right-bottom origin keeps it pinned to
+    the artboard's top-right corner. */
+ transform: scale(var(--dc-inv, 1));
+ transform-origin: right bottom;
 }
  `.trim();
  document.head.appendChild(s);

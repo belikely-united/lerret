@@ -60,19 +60,24 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-card *{scrollbar-width:none}',
  '.dc-card *::-webkit-scrollbar{display:none}',
  '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px}',
+ // Chrome stays a constant SCREEN size at any zoom: each group counter-scales by
+ // --dc-inv (= 1/canvas-scale, set per-slot in DCArtboardFrame) from its own
+ // corner, and offsets are ×--dc-inv so position holds too. Name anchors left,
+ // the export buttons + chip cluster anchor right.
+ '.dc-label-left{display:flex;align-items:center;gap:4px;transform:scale(var(--dc-inv, 1));transform-origin:left bottom}',
  '.dc-grip{cursor:grab;display:flex;align-items:center;padding:5px 4px;border-radius:4px;transition:background .12s}',
  '.dc-grip:hover{background:rgba(0,0,0,.08)}',
  '.dc-grip:active{cursor:grabbing}',
  '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
  '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;transition:background .12s}',
  '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
- '.dc-expand{position:absolute;bottom:100%;right:calc(var(--dc-cluster-w, 26px) + 6px);margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
+ '.dc-expand{position:absolute;bottom:100%;right:calc((var(--dc-cluster-w, 26px) + 6px) * var(--dc-inv, 1));margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
  ' background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center}',
  '.dc-expand:hover{background:rgba(0,0,0,.06);color:#2a251f}',
  '[data-dc-slot]:hover .dc-expand{opacity:1}',
  '.dc-expand:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
- '.dc-dl{position:absolute;bottom:100%;margin-bottom:5px;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
+ '.dc-dl{position:absolute;bottom:100%;margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' height:22px;padding:0 8px;border-radius:5px;border:none;cursor:pointer;',
  ' background:rgba(255,255,255,.85);color:#2a251f;font:600 10px/1 var(--lm-font-mono,monospace);',
  ' letter-spacing:.06em;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;',
@@ -89,11 +94,13 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // artboard-kebab.jsx. The hover buttons offset from it so they never overlap
  // the badge; unset (no badge) the fallback reproduces the original offsets
  // (26 + 6/34/78/122 = 32/60/104/148). Measured local px → zoom-safe.
- '.dc-dl-png{right:calc(var(--dc-cluster-w, 26px) + 34px)}',
- '.dc-dl-jpg{right:calc(var(--dc-cluster-w, 26px) + 78px)}',
- '.dc-dl-animated{right:calc(var(--dc-cluster-w, 26px) + 122px)}',
+ '.dc-dl-png{right:calc((var(--dc-cluster-w, 26px) + 34px) * var(--dc-inv, 1))}',
+ '.dc-dl-jpg{right:calc((var(--dc-cluster-w, 26px) + 78px) * var(--dc-inv, 1))}',
+ '.dc-dl-animated{right:calc((var(--dc-cluster-w, 26px) + 122px) * var(--dc-inv, 1))}',
  // markdown export: PDF sits in the third slot (markdown has no ANIM).
- '.dc-dl-pdf{right:calc(var(--dc-cluster-w, 26px) + 122px)}',
+ '.dc-dl-pdf{right:calc((var(--dc-cluster-w, 26px) + 122px) * var(--dc-inv, 1))}',
+ // markdown edit: EDIT sits in the fourth slot, left of PDF.
+ '.dc-dl-edit{right:calc((var(--dc-cluster-w, 26px) + 166px) * var(--dc-inv, 1))}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');
@@ -616,6 +623,9 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (!el) return;
  el.style.willChange = 'auto';
  el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+ // Publish 1/scale so the per-artboard chrome counter-scales to a constant
+ // screen size. Inherited by every slot/chrome element inside the world.
+ el.style.setProperty('--dc-inv', String(1 / (scale || 1)));
  }, []);
  const apply = React.useCallback(() => {
  const { x, y, scale } = tf.current;
@@ -623,6 +633,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (el) {
  el.style.willChange = 'transform';
  el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
+ el.style.setProperty('--dc-inv', String(1 / (scale || 1)));
  }
  if (settleRef.current) clearTimeout(settleRef.current);
  settleRef.current = setTimeout(applySettled, 180);
@@ -1594,7 +1605,8 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  The right-edge button cluster (ANIM/JPG/PNG/expand/kebab) is rendered
  as absolutely-positioned siblings below — they overlay the labelrow's
  right side but with explicit `right:N` offsets that step left from 0. */}
- <div className="dc-labelrow" style={{ position: 'absolute', bottom: '100%', left: -4, right: -4, marginBottom: 4, color: DC.label }}>
+ <div className="dc-labelrow" style={{ position: 'absolute', bottom: '100%', left: -4, right: -4, marginBottom: 'calc(4px * var(--dc-inv, 1))', color: DC.label }}>
+ <div className="dc-label-left">
  <button
  className="dc-grip"
  onPointerDown={onGripDown}
@@ -1622,6 +1634,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
  <DCEditable value={label} onChange={onRename} onClick={(e) => e.stopPropagation()}
  style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1 }} />
+ </div>
  </div>
  </div>
  <button className="dc-expand" onClick={onFocus} onPointerDown={(e) => e.stopPropagation()} title="Open in focus view" aria-label={`Open ${label || id} in focus view`}>
