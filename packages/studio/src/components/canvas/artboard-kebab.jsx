@@ -709,6 +709,19 @@ export function MarkdownCardKebab({ entry, children }) {
  const [moveOpen, setMoveOpen] = React.useState(false);
  const getConfigFor = useCascadedConfig();
 
+ // Bridge: the standalone EDIT button (rendered by design-canvas.jsx in the
+ // markdown card's right-edge cluster) dispatches a window event when clicked.
+ // Open this card's editor sheet if the event names our slot — same pattern as
+ // the ANIM bridge in ComponentArtboardKebab.
+ React.useEffect(() => {
+ if (typeof window === 'undefined') return undefined;
+ const slotId = entry?.id;
+ if (!slotId) return undefined;
+ const onOpen = (e) => { if (e?.detail?.slotId === slotId) setOpen(true); };
+ window.addEventListener('lerret:openMarkdownEditor', onOpen);
+ return () => window.removeEventListener('lerret:openMarkdownEditor', onOpen);
+ }, [entry?.id]);
+
  const onRename = React.useCallback(() => {
  if (typeof document === 'undefined') return;
  const slotId = entry?.id;

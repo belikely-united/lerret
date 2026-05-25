@@ -1694,6 +1694,22 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  aria-label={isError ? "Can't export — this artboard has an error" : 'Download as PDF'}
  >{busy === 'pdf' ? '…' : 'PDF'}</button>
  ) : null}
+ {/* Edit — markdown only. The primary action for a document, promoted out of
+ the kebab into the always-on-hover cluster. Dispatches a per-slot event the
+ markdown kebab listens for to open its editor sheet. */}
+ {isMarkdown ? (
+ <button
+ className="dc-dl dc-dl-edit"
+ onClick={() => {
+ if (typeof window !== 'undefined') {
+ window.dispatchEvent(new CustomEvent('lerret:openMarkdownEditor', { detail: { slotId: id } }));
+ }
+ }}
+ onPointerDown={(e) => e.stopPropagation()}
+ title="Edit Markdown"
+ aria-label={`Edit ${label || id}`}
+ >Edit</button>
+ ) : null}
  <div ref={cardRef} className="dc-card"
  style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: 'var(--lm-bg-primary, #FDFCFA)', ...style }}>
  {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}
