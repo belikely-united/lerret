@@ -63,7 +63,10 @@ import {
  formatRate,
 } from './live-refresh-control.jsx';
 import { suspendLiveRefresh } from './live-refresh-suspend.js';
+import { SizeBadge, SizePopover } from './size-control.jsx';
 import { writeProjectFile, deleteProjectFile } from '../../runtime/write-client.js';
+import { rewriteMetaExport } from '../editors/meta-source-rewriter.js';
+import { defaultReadAssetSource } from '../editors/meta-editor.jsx';
 
 /**
  * Derive the parent folder LerretPath for an asset path. Strips the file
@@ -463,6 +466,45 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  [entry, getAssetConfig],
  );
 
+ // ── Canvas size (on-artboard meta.dimensions control) ────────────────────────
+ // Dimensions live in `meta` (code) but are buried under "Edit meta". Surface
+ // them as a label-row chip + picker that writes back through the exact same
+ // source-rewrite the meta editor uses — dimensions stay source-of-truth.
+ const metaDims = entry?.meta?.dimensions || {};
+ const [sizeOpen, setSizeOpen] = React.useState(false);
+ const onEditSize = React.useCallback(() => setSizeOpen(true), []);
+
+ // Pause refresh ticks while the size picker is open (same as the rate picker).
+ React.useEffect(() => {
+ if (!sizeOpen) return undefined;
+ return suspendLiveRefresh();
+ }, [sizeOpen]);
+
+ const handleApplySize = React.useCallback(
+ async ({ width, height }) => {
+ const asset = entry?.asset;
+ const meta = entry?.meta || {};
+ if (!asset?.path) {
+ setSizeOpen(false);
+ return;
+ }
+ const read = await defaultReadAssetSource(asset.path);
+ if (read.ok && typeof read.source === 'string') {
+ // Change ONLY dimensions; pass the existing label/tags so they are
+ // preserved (undefined drops the key) and propsSchema stays verbatim —
+ // the same nextMeta contract the meta editor commits.
+ const rewrite = rewriteMetaExport(read.source, {
+ dimensions: { width, height },
+ label: meta.label,
+ tags: meta.tags,
+ });
+ if (rewrite.ok) await writeProjectFile(asset.path, rewrite.source);
+ }
+ setSizeOpen(false);
+ },
+ [entry],
+ );
+
  const onRevealEditor = React.useCallback(() => {
  if (entry?.asset?.path) reveal(entry.asset.path, 'editor');
  }, [entry]);
@@ -520,19 +562,19 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  setLabelRowEl(findLabelRow(hostRef.current));
  }, [entry?.id]);
 
- // Reserve room for the auto-refresh badge so the hover action buttons
- // (ANIM/JPG/PNG/expand) — absolutely positioned at fixed right offsets —
- // never overlap it. We publish the measured width of the always-visible
- // right cluster (kebab + badge) as `--dc-cluster-w` on the slot;
- // design-canvas offsets each hover button from it. `offsetWidth` is layout
- // px (transform-independent), so this stays correct at any zoom. Cleared
- // when there is no badge, falling back to the original offsets.
+ // Reserve room for the always-visible right cluster (size chip + auto-refresh
+ // badge + kebab) so the hover action buttons (ANIM/JPG/PNG/expand) — absolutely
+ // positioned at fixed right offsets — never overlap it. We publish the cluster's
+ // measured width as `--dc-cluster-w` on the slot; design-canvas offsets each
+ // hover button from it. `offsetWidth` is layout px (transform-independent), so
+ // this stays correct at any zoom. The size chip is always present, so we always
+ // measure; a ResizeObserver keeps it current as the badge/dims change width.
  React.useLayoutEffect(() => {
  const slot = hostRef.current ? hostRef.current.closest('[data-dc-slot]') : null;
  if (!slot) return undefined;
  const apply = () => {
  const cluster = clusterRef.current;
- if (cluster && liveRefreshMs != null) {
+ if (cluster) {
  slot.style.setProperty('--dc-cluster-w', `${cluster.offsetWidth}px`);
  } else {
  slot.style.removeProperty('--dc-cluster-w');
@@ -540,10 +582,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  };
  apply();
  const cluster = clusterRef.current;
- if (!cluster || liveRefreshMs == null || typeof ResizeObserver === 'undefined') {
- return undefined;
- }
- // Re-measure when the badge's width changes (rate edit, late font swap).
+ if (!cluster || typeof ResizeObserver === 'undefined') return undefined;
  const ro = new ResizeObserver(apply);
  ro.observe(cluster);
  return () => ro.disconnect();
@@ -551,6 +590,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 
  const kebab = (
  <div ref={clusterRef} className="lm-artboard-kebab" data-testid="lm-artboard-kebab">
+ <SizeBadge width={metaDims.width} height={metaDims.height} onActivate={onEditSize} />
  {liveRefreshMs != null && (
  <LiveRefreshBadge rateMs={liveRefreshMs} onActivate={onLiveRefresh} />
  )}
@@ -624,6 +664,17 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  disabledReason="Auto-refresh editing needs `@lerret/cli dev`."
  onSelect={handleSelectRate}
  onClose={() => setLiveRefreshOpen(false)}
+ />
+ )}
+ {sizeOpen && (
+ <SizePopover
+ anchorEl={clusterRef.current}
+ width={metaDims.width}
+ height={metaDims.height}
+ disabled={!cliMode}
+ disabledReason="Resizing needs `@lerret/cli dev`."
+ onSelect={handleApplySize}
+ onClose={() => setSizeOpen(false)}
  />
  )}
  {moveOpen && (

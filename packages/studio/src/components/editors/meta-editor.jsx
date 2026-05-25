@@ -47,10 +47,13 @@ import { rewriteMetaExport } from './meta-source-rewriter.js';
  * raw URL with `?raw` we get the file's source text (Vite's `raw` query is
  * stable across versions and used by other studio code paths).
  *
+ * Exported so other tool-managed meta edits (e.g. the label-row size chip)
+ * can reuse the exact same source read the meta editor uses.
+ *
  * @param {string} assetPath The asset file's {@link LerretPath}.
  * @returns {Promise<{ ok: boolean, source?: string, error?: string }>}
  */
-async function defaultReadAssetSource(assetPath) {
+export async function defaultReadAssetSource(assetPath) {
  if (typeof globalThis === 'undefined' || typeof globalThis.fetch !== 'function') {
  return { ok: false, error: 'no fetch implementation available' };
  }
