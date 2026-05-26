@@ -17,6 +17,18 @@ No. Figma is a **vector design tool** with a proprietary file format and a colla
 
 If your team's designs live in Figma and your job is to make production assets from them, Lerret is *complementary*: it gives you a canvas where the React components your app ships can also be the social card, the OG image, the release graphic. Lerret will not replace your designer's tool.
 
+## How is Lerret different from Penpot, CodePen, or other design/code tools?
+
+Two different comparisons come up here. Lerret overlaps with neither cleanly.
+
+**Design tools that export to code** — Penpot, Figma, Sketch, plus codegen plugins like Anima, Locofy, and Builder.io — start from a vector canvas. You draw, and the output is a design file that someone then re-implements in code, or that a plugin translates into best-guess JSX. The generated code is rarely what you would have hand-written, and round-tripping edits between the design file and the production codebase is painful.
+
+**Code playgrounds with design integrations** — CodePen, JSFiddle, and the Figma × CodePen embed flow — let you write a snippet and share it or embed it into a design file. Useful for demos and shareable prototypes; not a pipeline for production components, and not an asset export tool.
+
+Lerret runs differently from both. Your React components are the source of truth, and the canvas only renders what your code already produces. The output is a real component file that ships in your app, plus headless PNG / JPG / structured ZIP exports for asset use. There is no translation step, no codegen drift, no demo-vs-production split.
+
+If you already design in Penpot or sketch ideas in CodePen, Lerret does not replace them. If you want the React components your app ships to *also* be your social cards, OG images, and release graphics — that is what Lerret is for.
+
 ## Is Lerret a "no-code" tool?
 
 No. Every asset is a React component. If you don't write React, Lerret is not your day-one tool.
