@@ -5,11 +5,15 @@ description: An open-source design canvas where a folder of plain React componen
 
 # Lerret
 
-**A design canvas where a folder of plain React component files renders as a visual canvas.**
+**Your project is a folder of React components. Lerret renders it.**
 
-Lerret turns a project folder of `.jsx`/`.tsx` components into a live, navigable canvas — pan-and-zoom artboards, hot-reload on save, headless export. No proprietary file format, no vendor lock-in, no account required. The components stay portable; Lerret only *renders* them.
+Two architectural choices make Lerret different:
 
-They're **real React** components — same JSX, same Vite + esbuild tooling you already use. Nothing to learn, nothing to port: anything that runs in React runs here.
+**The folder is the project.** No save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
+
+**The format is React.** Because every asset is real React, every LLM already knows how to edit it — no plugin, no MCP, no design-tool SDK. Just files an AI was trained on millions of times over.
+
+Everything else — git-native versioning, AI-fluent editing, no vendor lock-in — falls out for free. Pan-and-zoom artboards, sub-second hot reload, headless PNG/JPG export.
 
 ## Try it now
 

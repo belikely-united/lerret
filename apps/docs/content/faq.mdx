@@ -7,9 +7,13 @@ description: Common questions about Lerret — what it is, what it isn't, browse
 
 ## What is Lerret, exactly?
 
-A design canvas that renders a folder of plain React component files as a visual canvas. Each `.jsx` / `.tsx` file in your project's `.lerret/` directory becomes an **artboard** with its own pan-and-zoom card on the canvas; saving the file re-renders the artboard in under a second. You can export every artboard to PNG or JPG headlessly — single asset, page group, or whole project as a structured ZIP.
+At its core, Lerret rests on two architectural choices:
 
-There is no proprietary file format, no backend, and no account. The components stay portable — they are just React.
+**Your project is a folder. Lerret renders it.** There is no save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
+
+**Because everything is React, every LLM already knows how to edit it.** No plugin, no MCP, no design-tool SDK — just files an AI was trained on millions of times over.
+
+Mechanically: each `.jsx` / `.tsx` file in `.lerret/` becomes an **artboard** with its own pan-and-zoom card on the canvas; saving the file re-renders the artboard in under a second. You can export every artboard to PNG or JPG headlessly — single asset, page group, or whole project as a structured ZIP. No backend, no account.
 
 ## Is Lerret a Figma replacement?
 

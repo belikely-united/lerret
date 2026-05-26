@@ -5,7 +5,7 @@
 <h1 align="center">Lerret</h1>
 
 <p align="center">
-  <em>A design canvas where a folder of plain React component files renders as a visual canvas.</em>
+  <em>A folder of React components, rendered as a canvas. The folder is the project. The format is React.</em>
 </p>
 
 <p align="center">
@@ -45,7 +45,13 @@ That's it. The studio opens. Save any `.jsx` under `.lerret/`. The canvas re-ren
 
 **Lerret turns a folder of React components into a visual canvas.** Each `.jsx`/`.tsx` file under `.lerret/` becomes a pan-and-zoom artboard. Save the file → the canvas updates. Export to PNG/JPG when you're done — single artboard, a whole page group, or the entire project as a structured ZIP.
 
-There's no proprietary file format. There's no backend. There's no account. **Your components are the source of truth** — Lerret only renders them, and you can `git rm -rf .lerret/` tomorrow and still have a fully working set of React components.
+Two architectural choices make Lerret different from every other "design tool":
+
+1. **Your project is a folder. Lerret renders it.** There is no save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
+
+2. **Because everything is React, every LLM already knows how to edit it.** No plugin, no MCP, no design-tool SDK — just files that AI agents were trained on millions of times over. Hand Claude / GPT / Gemini a `.lerret/` folder and they author and refactor with the same fluency they bring to any React codebase.
+
+Everything else — git-native versioning, AI-fluent editing, no vendor lock-in — falls out for free.
 
 ## Why it exists
 
