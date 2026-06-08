@@ -125,6 +125,99 @@ describe('captureBeforeImage', () => {
         expect(fs._files.has(blobAbs)).toBe(true);
     });
 
+    it('AC-21: snapshot blob is written BEFORE the worker writes the new content (call-order spy)', async () => {
+        const { fs, sandbox, manifest } = freshEnv();
+        seedFs(fs, {
+            [`${PROJECT_ROOT}/.lerret/asset.jsx`]: 'pre-content',
+        });
+        // Record the order of sandbox.writeFile calls. The first call must
+        // be the BLOB write (under .lerret/.state/history/blobs/); a
+        // subsequent simulated Worker write would be the file edit. AC-21:
+        // "snapshot is written BEFORE the mock-Worker's write call".
+        const callLog = [];
+        const originalWrite = sandbox.writeFile;
+        sandbox.writeFile = async (path, data, opts) => {
+            callLog.push(path);
+            return originalWrite(path, data, opts);
+        };
+
+        // Step 1: snapshot the pre-edit content (captureBeforeImage).
+        await captureBeforeImage({
+            projectRoot: PROJECT_ROOT,
+            fs,
+            sandbox,
+            manifest,
+            filePath: '.lerret/asset.jsx',
+            op: 'edit',
+        });
+
+        // Step 2: simulate the Worker writing the new content.
+        await sandbox.writeFile('.lerret/asset.jsx', 'NEW VALUE');
+
+        // The FIRST entry in callLog must be a blobs/ path (the snapshot);
+        // the file edit must come AFTER it. No call to the file edit happens
+        // before the blob is durably written.
+        expect(callLog.length).toBeGreaterThanOrEqual(2);
+        const blobWriteIdx = callLog.findIndex((p) => p.includes('/.state/history/blobs/'));
+        const fileWriteIdx = callLog.findIndex((p) => p.endsWith('asset.jsx'));
+        expect(blobWriteIdx).toBeGreaterThanOrEqual(0);
+        expect(fileWriteIdx).toBeGreaterThan(blobWriteIdx);
+    });
+
+    it('AC-21: content-addressed dedup across TWO separate turns produces ONE blob, both manifests share the snapshotKey', async () => {
+        const { fs, sandbox } = freshEnv();
+        seedFs(fs, {
+            [`${PROJECT_ROOT}/.lerret/asset.jsx`]: 'shared-pre-content',
+        });
+
+        // Turn 1: capture before-image then write NEW1.
+        let m1 = createManifest({
+            id: 't1',
+            prompt: 'p1',
+            provider: 'openai',
+            model: 'gpt-4o',
+            now: () => new Date('2026-06-07T01:00:00.000Z'),
+        });
+        m1 = await captureBeforeImage({
+            projectRoot: PROJECT_ROOT,
+            fs,
+            sandbox,
+            manifest: m1,
+            filePath: '.lerret/asset.jsx',
+            op: 'edit',
+        });
+        await sandbox.writeFile('.lerret/asset.jsx', 'NEW1');
+
+        // Restore pre-content so turn 2 captures the same content as turn 1.
+        await sandbox.writeFile('.lerret/asset.jsx', 'shared-pre-content');
+
+        // Turn 2: same pre-content → same sha256.
+        let m2 = createManifest({
+            id: 't2',
+            prompt: 'p2',
+            provider: 'openai',
+            model: 'gpt-4o',
+            now: () => new Date('2026-06-07T02:00:00.000Z'),
+        });
+        m2 = await captureBeforeImage({
+            projectRoot: PROJECT_ROOT,
+            fs,
+            sandbox,
+            manifest: m2,
+            filePath: '.lerret/asset.jsx',
+            op: 'edit',
+        });
+
+        // Both manifests carry the same snapshotKey.
+        expect(m1.files[0].snapshotKey).toBe(m2.files[0].snapshotKey);
+
+        // And the on-disk blob count is exactly one.
+        const blobFiles = [...fs._files.keys()].filter((k) =>
+            k.includes('/.state/history/blobs/'),
+        );
+        expect(blobFiles).toHaveLength(1);
+    });
+
     it('content-addressed dedup: two captures of same content produce ONE blob', async () => {
         const { fs, sandbox, manifest } = freshEnv();
         seedFs(fs, {

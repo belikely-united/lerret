@@ -254,7 +254,9 @@ describe('redoTurn', () => {
         await redoTurn({ projectRoot: PROJECT_ROOT, fs, sandbox, turnId: 't-redo' });
         expect(fs._files.get(`${PROJECT_ROOT}/.lerret/asset.jsx`).content).toBe('EDITED');
         const m = await readManifest({ projectRoot: PROJECT_ROOT, fs, turnId: 't-redo' });
-        expect(m.status).toBe('applied');
+        // AC-14: status flips to 'reverted-forward' (distinct from 'applied'),
+        // letting the revert-timeline UI surface the 'Reverted forward' state.
+        expect(m.status).toBe('reverted-forward');
     });
 
     it('refuses to redo a non-reverted turn', async () => {

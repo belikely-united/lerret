@@ -146,6 +146,60 @@ describe('runCleanup — count-bounded eviction', () => {
     });
 });
 
+describe('runCleanup — size-bounded eviction (AC-21 retention-by-size)', () => {
+    it('evicts oldest turns until blobs/ is under maxBlobsBytes; turn count may be < maxTurns', async () => {
+        const { fs, sandbox } = freshEnv();
+
+        // Write 5 turns, each with a UNIQUE 200-byte blob — total 1000 bytes.
+        // maxTurns is huge so only the size cap drives eviction.
+        for (let i = 0; i < 5; i++) {
+            const sha = `${i}`.padStart(64, '0');
+            const m = createManifest({
+                id: `t-${String(i).padStart(3, '0')}`,
+                prompt: `turn ${i}`,
+                provider: 'o',
+                model: 'm',
+                now: () => new Date(`2026-06-07T0${i}:00:00.000Z`),
+            });
+            const finalM = finalizeManifest(
+                addFileEntry(m, {
+                    path: `.lerret/a${i}.jsx`,
+                    op: 'edit',
+                    snapshotKey: sha,
+                    sha256: sha,
+                    encoding: 'utf-8',
+                }),
+                { status: 'applied' },
+            );
+            await writeManifest({ sandbox, manifest: finalM });
+            // 200-byte blob per turn.
+            await sandbox.writeFile(blobPath(sha), 'x'.repeat(200));
+        }
+
+        // Precondition: 5 manifests + 5 blobs totaling 1000 bytes.
+        expect(await computeBlobsBytes({ projectRoot: PROJECT_ROOT, fs })).toBe(1000);
+
+        // Cap: 500 bytes — must evict oldest until blobs/ ≤ 500 bytes.
+        // Eviction order: t-000 (200), t-001 (200), t-002 (200) → 3 evicted,
+        // leaves t-003 + t-004 with 400 bytes of blobs.
+        const result = await runCleanup({
+            projectRoot: PROJECT_ROOT,
+            fs,
+            sandbox,
+            config: { maxTurns: 100, maxBlobsBytes: 500 },
+        });
+
+        expect(result.evictedTurns).toBe(3);
+        expect(await computeBlobsBytes({ projectRoot: PROJECT_ROOT, fs })).toBeLessThanOrEqual(500);
+
+        // Two manifests survive — the 2 most recent.
+        const remainingManifests = [...fs._files.keys()].filter((k) =>
+            k.includes('/.state/history/manifests/'),
+        );
+        expect(remainingManifests).toHaveLength(2);
+    });
+});
+
 describe('runCleanup — orphan-blob deletion', () => {
     it('deletes blobs no retained manifest references', async () => {
         const { fs, sandbox } = freshEnv();
@@ -214,6 +268,43 @@ describe('runCleanup — shared-blob preservation', () => {
 
         // Shared blob MUST still be present.
         expect(fs._files.has(`${PROJECT_ROOT}/${blobPath(sharedHash)}`)).toBe(true);
+    });
+});
+
+describe('runCleanup — corruption safety (HARD invariant AC-20)', () => {
+    it('SKIPS orphan-blob deletion when listManifests cannot read a manifest', async () => {
+        const { fs, sandbox } = freshEnv();
+        // Set up 3 valid turns referencing 3 blobs.
+        await writeTurns({ fs, sandbox }, 3);
+        // Add a fourth manifest file that is INVALID JSON — simulating a
+        // partial-write crash or hand-edit corruption.
+        await fs.writeFile(
+            `${PROJECT_ROOT}/.lerret/.state/history/manifests/t-corrupt.json`,
+            '{not valid json',
+        );
+        // Add a 4th blob that the corrupt manifest WOULD have referenced.
+        const orphanLookingHash = 'aaaa'.padEnd(64, '0');
+        await sandbox.writeFile(blobPath(orphanLookingHash), 'might-not-be-orphan');
+
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+        const result = await runCleanup({
+            projectRoot: PROJECT_ROOT,
+            fs,
+            sandbox,
+            config: DEFAULT_CONFIG,
+        });
+
+        // The blob the corrupt manifest might have referenced is PRESERVED —
+        // we cannot prove it is orphaned, so we refuse to delete it.
+        expect(fs._files.has(`${PROJECT_ROOT}/${blobPath(orphanLookingHash)}`)).toBe(true);
+        expect(result.deletedBlobs).toBe(0);
+        // A warning was emitted naming the corrupt manifest.
+        const warns = warnSpy.mock.calls.map((c) => c[0]).join('\n');
+        expect(warns).toContain('t-corrupt');
+        warnSpy.mockRestore();
+        infoSpy.mockRestore();
     });
 });
 
