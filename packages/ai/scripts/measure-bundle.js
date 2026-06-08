@@ -7,8 +7,8 @@
 // Output is a Markdown-ready table the dev pastes into docs/architecture/
 // bundle-spike-YYYY-MM-DD.md.
 
-import { readFileSync, existsSync, statSync } from 'node:fs';
-import { gzipSync } from 'node:zlib';
+import { readFileSync, existsSync } from 'node:fs';
+import { gzipSync, constants as zlibConstants } from 'node:zlib';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -56,11 +56,13 @@ function readVisualizerTotal() {
 }
 
 // ── Reading 2: node:zlib gzipSync over the whole built file ──────────────────
-// This is the conservative measurement — closer to what HTTP gzip transfer
-// would actually produce.
+// Uses gzip level 6 — the default for nginx, Cloudflare, and most CDNs.
+// Earlier we used level 9 (smallest possible), but that's optimistic, not
+// conservative — real HTTP gzip transfer uses 1-6 typically, so a level-6
+// measurement is what a user's browser actually downloads.
 function readWholeFileGzip() {
     const buf = readFileSync(BUNDLE);
-    const gzipped = gzipSync(buf, { level: 9 });
+    const gzipped = gzipSync(buf, { level: zlibConstants.Z_DEFAULT_COMPRESSION });
     return { rawBytes: buf.length, gzipBytes: gzipped.length };
 }
 
@@ -140,9 +142,12 @@ function getEnvInfo() {
 }
 
 // ── Verdict logic (mechanical) ───────────────────────────────────────────────
+// Per Story 8.0 Dev Notes "round up — band boundaries are exclusive on the
+// lower edge": exactly-500 KB is Warn (not Pass), exactly-1024 KB is Fail
+// (not Warn). The strict `<` comparison enforces both edges.
 function applyVerdict(gzipKb) {
     if (gzipKb < PASS_MAX_KB) return { verdict: 'Pass', plan: 'A', followup: 'None.' };
-    if (gzipKb <= WARN_MAX_KB)
+    if (gzipKb < WARN_MAX_KB)
         return {
             verdict: 'Warn',
             plan: 'A',
@@ -167,9 +172,21 @@ const run1 = measure();
 const run2 = measure();
 
 const wholeDelta = Math.abs(run1.whole.gzipBytes - run2.whole.gzipBytes);
-const wholeDeltaPct = (wholeDelta / run1.whole.gzipBytes) * 100;
+const wholeDeltaPct = run1.whole.gzipBytes > 0 ? (wholeDelta / run1.whole.gzipBytes) * 100 : 0;
 const renderedDelta = Math.abs(run1.vis.totalRendered - run2.vis.totalRendered);
 const renderedDeltaPct = run1.vis.totalRendered > 0 ? (renderedDelta / run1.vis.totalRendered) * 100 : 0;
+
+// IMPORTANT — what this "reproducibility" check measures:
+//   This script reads the already-built dist/index.js twice and gzips it
+//   twice. Both reads return identical bytes; gzipSync is deterministic;
+//   the 0.000% delta is therefore MATHEMATICALLY GUARANTEED. The check
+//   verifies gzip determinism, not BUILD determinism.
+//   To verify build determinism (catch e.g. embedded timestamps), run:
+//     pnpm --filter @lerret/ai build && sha256sum dist/index.js > /tmp/a
+//     pnpm --filter @lerret/ai build && sha256sum dist/index.js > /tmp/b
+//     diff /tmp/a /tmp/b
+//   The story Dev Notes' AC-6 reproducibility intent is the latter; this
+//   script's same-file twice-read is the cheaper consistency sanity check.
 
 // Use the whole-file gzip as the authoritative verdict input. (In Vite 8 +
 // Rolldown, the visualizer's per-module gzipLength is 0; the whole-file gzip
@@ -236,4 +253,5 @@ console.log(lines.join('\n'));
 // downstream. CI can branch on this. The measurement itself always succeeds.
 if (verdict === 'Fail') {
     console.error(`\nFail verdict — apply Task 7 cleanup (remove LangGraph deps, preserve Plan-A skeleton on spike/langgraph-plan-a branch).`);
+    process.exit(1);
 }
