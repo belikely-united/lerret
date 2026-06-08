@@ -51,7 +51,13 @@ const FORBIDDEN_PATTERNS = [
     },
     {
         label: "require('node:fs') or require('fs')",
-        pattern: /\brequire\(\s*['"](?:node:)?fs(?:\/promises)?['"]\s*\)/,
+        // Allow whitespace between `require` and `(` — Prettier collapses it
+        // but hand-written code may carry it.
+        pattern: /\brequire\s*\(\s*['"](?:node:)?fs(?:\/promises)?['"]\s*\)/,
+    },
+    {
+        label: "dynamic import('node:fs') or import('fs') (bypass of static-import guard)",
+        pattern: /\bimport\s*\(\s*['"](?:node:)?fs(?:\/promises)?['"]\s*\)/,
     },
     {
         label: 'static import of node:child_process',
@@ -59,7 +65,11 @@ const FORBIDDEN_PATTERNS = [
     },
     {
         label: "require('node:child_process') or require('child_process')",
-        pattern: /\brequire\(\s*['"](?:node:)?child_process['"]\s*\)/,
+        pattern: /\brequire\s*\(\s*['"](?:node:)?child_process['"]\s*\)/,
+    },
+    {
+        label: "dynamic import('node:child_process') or import('child_process')",
+        pattern: /\bimport\s*\(\s*['"](?:node:)?child_process['"]\s*\)/,
     },
     {
         label: 'import of node:net / node:dgram / node:http / node:https',
@@ -67,7 +77,11 @@ const FORBIDDEN_PATTERNS = [
     },
     {
         label: "require('node:net' / 'node:dgram' / 'node:http' / 'node:https')",
-        pattern: /\brequire\(\s*['"]node:(?:net|dgram|http|https)['"]\s*\)/,
+        pattern: /\brequire\s*\(\s*['"]node:(?:net|dgram|http|https)['"]\s*\)/,
+    },
+    {
+        label: "dynamic import('node:net'/'node:dgram'/'node:http'/'node:https')",
+        pattern: /\bimport\s*\(\s*['"]node:(?:net|dgram|http|https)['"]\s*\)/,
     },
     // ── Indirect fs access ──────────────────────────────────────────────────
     {
@@ -75,12 +89,13 @@ const FORBIDDEN_PATTERNS = [
         pattern: /\bfs\.(?:writeFile|unlink|mkdir|rm|rmdir|rename|copyFile)\s*\(/,
     },
     {
-        label: 'direct child_process.spawn / child_process.exec call',
-        pattern: /\bchild_process\.(?:spawn|exec|execSync|fork)\s*\(/,
+        label: 'direct child_process.spawn / child_process.exec call (dot OR bracket access)',
+        // Catches `child_process.spawn(...)` AND `child_process['spawn'](...)`.
+        pattern: /\bchild_process\s*(?:\.(?:spawn|exec|execSync|fork)|\[\s*['"](?:spawn|exec|execSync|fork)['"]\s*\])\s*\(/,
     },
     {
-        label: 'process.exec (legacy Node API)',
-        pattern: /\bprocess\.exec\s*\(/,
+        label: 'process.exec (legacy Node API; dot OR bracket access)',
+        pattern: /\bprocess\s*(?:\.exec|\[\s*['"]exec['"]\s*\])\s*\(/,
     },
     // ── Network exfiltration surface ────────────────────────────────────────
     // Note: scoped to agents/ only — providers/ files legitimately call
@@ -98,12 +113,22 @@ const FORBIDDEN_PATTERNS = [
         pattern: /\bnew\s+WebSocket\s*\(/,
     },
     {
-        label: 'eval(',
+        label: 'direct eval( call',
         pattern: /\beval\s*\(/,
+    },
+    {
+        label: 'indirect eval via alias (const e = eval; or (0, eval)(...))',
+        // Catches `const X = eval;` / `let X = eval;` / `var X = eval;` /
+        // `something = eval;` AND `(0, eval)(...)`.
+        pattern: /(?:\b(?:const|let|var)\s+\w+\s*=\s*eval\b)|(?:\(\s*0\s*,\s*eval\s*\)\s*\()/,
     },
     {
         label: 'Function( (constructor form)',
         pattern: /\bnew\s+Function\s*\(/,
+    },
+    {
+        label: 'globalThis or process.binding bypass',
+        pattern: /\b(?:globalThis|process)\s*\.\s*binding\s*\(/,
     },
 ];
 
@@ -166,17 +191,29 @@ describe('Worker agents — no direct fs / network / shell surface', () => {
             ['static import bare fs', "import fs from 'fs';", "bare 'fs'"],
             ['static import node:fs/promises', "import { writeFile } from 'node:fs/promises';", 'node:fs'],
             ['require fs', "const fs = require('node:fs');", "require('node:fs') or require('fs')"],
+            ['require fs (whitespace before paren — bypass attempt)', "const fs = require ('node:fs');", "require('node:fs') or require('fs')"],
+            ['dynamic import node:fs (bypass via lazy import)', "const fs = await import('node:fs');", 'dynamic import'],
+            ['dynamic import node:fs/promises', "const { writeFile } = await import('node:fs/promises');", 'dynamic import'],
             ['static import node:child_process', "import cp from 'node:child_process';", 'node:child_process'],
+            ['dynamic import node:child_process', "const cp = await import('node:child_process');", 'dynamic import'],
             ['static import node:net', "import net from 'node:net';", 'node:net'],
             ['static import node:http', "import http from 'node:http';", 'node:http'],
+            ['dynamic import node:http', "const http = await import('node:http');", 'dynamic import'],
             ['fs.writeFile call', 'await fs.writeFile(path, data);', 'fs.writeFile'],
             ['fs.unlink call', 'await fs.unlink(path);', 'fs.unlink'],
             ['child_process.spawn call', 'child_process.spawn("ls");', 'child_process.spawn'],
+            ['child_process bracket access', "child_process['spawn']('ls');", 'child_process'],
+            ['process.exec (legacy)', 'process.exec("ls");', 'process.exec'],
+            ['process bracket access', "process['exec']('ls');", 'process.exec'],
             ['top-level fetch', "await fetch('http://evil.example/');", 'fetch'],
             ['XMLHttpRequest reference', 'const xhr = new XMLHttpRequest();', 'XMLHttpRequest'],
             ['new WebSocket', "const ws = new WebSocket('wss://evil/');", 'WebSocket'],
-            ['eval call', 'eval("alert(1)");', 'eval('],
+            ['direct eval call', 'eval("alert(1)");', 'direct eval'],
+            ['indirect eval via const alias', 'const ev = eval; ev("alert(1)");', 'indirect eval'],
+            ['indirect eval via (0, eval) trick', '(0, eval)("alert(1)");', 'indirect eval'],
             ['new Function', "const f = new Function('return 1');", 'Function('],
+            ['process.binding bypass', "const fs = process.binding('fs');", 'binding'],
+            ['globalThis.binding bypass', "const fs = globalThis.binding('fs');", 'binding'],
         ];
         for (const [name, body, expectedLabelSubstring] of positives) {
             const matched = FORBIDDEN_PATTERNS.find(({ pattern }) => pattern.test(body));
