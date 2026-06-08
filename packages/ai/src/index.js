@@ -100,3 +100,7 @@ export async function* runTurn(params = {}) {
  * the release script. Mirrors the convention from @lerret/animation.
  */
 export const VERSION = '0.1.0';
+
+// Snapshot subsystem (Story 8.5): per-turn manifests + content-addressed
+// blob store + revert/redo API + retention. Reached as `ai.snapshot.X`.
+export * as snapshot from './snapshot/index.js';
