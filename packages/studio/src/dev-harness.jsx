@@ -226,6 +226,15 @@ function makeFixtureFs() {
  watch() {
  return { close() {} };
  },
+ async deleteFile() {
+ throw new Error('fixture fs is read-only');
+ },
+ async mkdir() {
+ throw new Error('fixture fs is read-only');
+ },
+ async exists() {
+ return false;
+ },
  capabilities: { canWrite: false, canWatch: false, canReveal: false },
  };
 }

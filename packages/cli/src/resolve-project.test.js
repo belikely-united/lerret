@@ -141,6 +141,9 @@ describe('resolveProject — the walk stops at the filesystem root', () => {
       readFile: async () => '',
       writeFile: async () => {},
       watch: () => ({ close() {} }),
+      deleteFile: async () => {},
+      mkdir: async () => {},
+      exists: async () => false,
       capabilities: { canWrite: false, canWatch: false, canReveal: false },
     };
 
@@ -190,6 +193,9 @@ describe('resolveProject — argument handling', () => {
       readFile: async () => '',
       writeFile: async () => {},
       watch: () => ({ close() {} }),
+      deleteFile: async () => {},
+      mkdir: async () => {},
+      exists: async () => false,
       capabilities: { canWrite: false, canWatch: false, canReveal: false },
     };
 

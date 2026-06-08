@@ -270,6 +270,91 @@ async function writeFile(rootHandle, filePath, data, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// deleteFile / mkdir / exists
+// ---------------------------------------------------------------------------
+//
+// Added in Epic 8 (Story 8.5) for the snapshot store's bootstrap + revert
+// + cleanup paths. Story 8.4's sandbox routes its `deleteFile` / `mkdir` /
+// `exists` through these.
+
+/**
+ * Delete a single file via the parent directory handle's `removeEntry`.
+ * Throws if the path is missing or is a directory.
+ *
+ * @param {FileSystemDirectoryHandle} rootHandle
+ * @param {string} filePath A LerretPath (forward slashes).
+ * @returns {Promise<void>}
+ */
+async function deleteFile(rootHandle, filePath) {
+ const segments = splitPath(filePath);
+ const fileName = segments.pop();
+ if (!fileName) {
+ throw new Error(`fsa-backend: cannot delete an empty path: "${filePath}"`);
+ }
+ const dirHandle = await traverseDirs(rootHandle, segments);
+ await dirHandle.removeEntry(fileName);
+}
+
+/**
+ * Create a directory (and any missing parent directories) at `dirPath`.
+ * Idempotent — if the directory already exists, resolves successfully
+ * (the FSA API's `getDirectoryHandle({create:true})` is itself idempotent).
+ *
+ * @param {FileSystemDirectoryHandle} rootHandle
+ * @param {string} dirPath A LerretPath (forward slashes).
+ * @returns {Promise<void>}
+ */
+async function mkdir(rootHandle, dirPath) {
+ const segments = splitPath(dirPath);
+ await traverseDirs(rootHandle, segments, /* create */ true);
+}
+
+/**
+ * Test whether a file OR directory exists at `targetPath`. Tries a file
+ * handle first (the most common case); on `NotFoundError` falls back to a
+ * directory handle probe.
+ *
+ * @param {FileSystemDirectoryHandle} rootHandle
+ * @param {string} targetPath A LerretPath (forward slashes).
+ * @returns {Promise<boolean>}
+ */
+async function exists(rootHandle, targetPath) {
+ const segments = splitPath(targetPath);
+ const lastSeg = segments.pop();
+ if (!lastSeg) {
+ // Empty path or root — root always exists.
+ return true;
+ }
+ let parentHandle;
+ try {
+ parentHandle = await traverseDirs(rootHandle, segments);
+ } catch (err) {
+ if (err && err.name === 'NotFoundError') return false;
+ throw err;
+ }
+ try {
+ await parentHandle.getFileHandle(lastSeg);
+ return true;
+ } catch (err) {
+ if (err && err.name === 'TypeMismatchError') {
+ // Path exists but is a directory — still "exists".
+ return true;
+ }
+ if (err && err.name === 'NotFoundError') {
+ // Not a file — try directory.
+ try {
+ await parentHandle.getDirectoryHandle(lastSeg);
+ return true;
+ } catch (dirErr) {
+ if (dirErr && dirErr.name === 'NotFoundError') return false;
+ throw dirErr;
+ }
+ }
+ throw err;
+ }
+}
+
+// ---------------------------------------------------------------------------
 // watch — stub (replaces this with polling)
 // ---------------------------------------------------------------------------
 
@@ -348,6 +433,24 @@ export function createFsaBackend(rootHandle) {
  writeFile(filePath, data, options) {
  return ensurePermission(rootHandle).then(() =>
  writeFile(rootHandle, filePath, data, options),
+ );
+ },
+
+ deleteFile(filePath) {
+ return ensurePermission(rootHandle).then(() =>
+ deleteFile(rootHandle, filePath),
+ );
+ },
+
+ mkdir(dirPath) {
+ return ensurePermission(rootHandle).then(() =>
+ mkdir(rootHandle, dirPath),
+ );
+ },
+
+ exists(targetPath) {
+ return ensurePermission(rootHandle).then(() =>
+ exists(rootHandle, targetPath),
  );
  },
 

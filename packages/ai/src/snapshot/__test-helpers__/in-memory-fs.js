@@ -76,6 +76,21 @@ export function createInMemoryFs() {
         watch() {
             return { close() {} };
         },
+        // V1 contract extensions added in the Story 8.5 follow-up:
+        async deleteFile(path) {
+            files.delete(path);
+        },
+        async mkdir(_dirPath) {
+            // No-op for in-memory FS — directories implicit in file paths.
+            void _dirPath;
+        },
+        async exists(path) {
+            if (files.has(path)) return true;
+            for (const key of files.keys()) {
+                if (key.startsWith(path + '/')) return true;
+            }
+            return false;
+        },
         // Inspection hooks for tests:
         _files: files,
         _pathParent: pathParent,

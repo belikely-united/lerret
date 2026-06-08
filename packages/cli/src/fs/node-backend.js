@@ -250,6 +250,55 @@ async function writeJson(filePath, value) {
 }
 
 // ---------------------------------------------------------------------------
+// deleteFile / mkdir / exists
+// ---------------------------------------------------------------------------
+//
+// Added in Epic 8 (Story 8.5) to support the snapshot store's bootstrap +
+// revert + cleanup paths. Story 8.4's sandbox routes its `deleteFile` /
+// `mkdir` / `exists` through these.
+
+/**
+ * Delete a single file. Rejects if `filePath` is missing, is a directory, or
+ * permission is denied.
+ *
+ * @param {string} filePath A contract-level (forward-slash) file path.
+ * @returns {Promise<void>}
+ */
+async function deleteFile(filePath) {
+  await fsp.unlink(toNativePath(filePath));
+}
+
+/**
+ * Create a directory (and any missing parents) at `dirPath`. Idempotent — if
+ * the directory already exists, resolves successfully.
+ *
+ * @param {string} dirPath A contract-level (forward-slash) directory path.
+ * @returns {Promise<void>}
+ */
+async function mkdir(dirPath) {
+  await fsp.mkdir(toNativePath(dirPath), { recursive: true });
+}
+
+/**
+ * Test whether a file OR directory exists at `targetPath`. Resolves with
+ * `true` if anything is at the path, `false` otherwise. Genuine I/O errors
+ * (permission denied, etc.) re-reject so callers can distinguish 'absent'
+ * from 'inaccessible'.
+ *
+ * @param {string} targetPath A contract-level (forward-slash) path.
+ * @returns {Promise<boolean>}
+ */
+async function exists(targetPath) {
+  try {
+    await fsp.access(toNativePath(targetPath));
+    return true;
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return false;
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // watch
 // ---------------------------------------------------------------------------
 //
@@ -316,6 +365,9 @@ export function createNodeBackend() {
     readFile,
     writeFile,
     watch,
+    deleteFile,
+    mkdir,
+    exists,
     capabilities: NODE_CAPABILITIES,
   };
 

@@ -247,6 +247,30 @@
  *   not on whether the method exists. Synchronous: returns the handle
  *   immediately rather than a `Promise`, since there is nothing to await.
  *
+ * @property {(filePath: LerretPath) => Promise<void>} deleteFile
+ *   Delete a single file. Resolves once the unlink is durably reflected on
+ *   disk. Rejects if the path is missing, is a directory, or the backend
+ *   lacks write permission. Idempotent semantics are NOT promised — callers
+ *   who want "delete-if-exists" should first probe with {@link exists}.
+ *   Added in Epic 8 (Story 8.5) for the snapshot store's revert / cleanup
+ *   paths; Story 8.4's sandbox routes its `deleteFile` through here.
+ *
+ * @property {(dirPath: LerretPath) => Promise<void>} mkdir
+ *   Create a directory at `dirPath`. Idempotent — if the directory already
+ *   exists, resolves successfully (the contract guarantees this so callers
+ *   need not race-check). Creates any missing parent directories (recursive
+ *   behavior). Rejects only if the path refers to an existing FILE, or if
+ *   the backend cannot create directories. Added in Epic 8 (Story 8.5) for
+ *   the snapshot store's `.lerret/.state/history/` bootstrap.
+ *
+ * @property {(targetPath: LerretPath) => Promise<boolean>} exists
+ *   Check whether a file OR directory exists at `targetPath`. Resolves with
+ *   `true` if anything exists there, `false` otherwise. Distinguishing file
+ *   from directory is the caller's job (call `readDir` or `readFile` after
+ *   `exists` returns true). Never rejects on a missing path — only on
+ *   genuine I/O failures (permission denied, etc.). Added in Epic 8
+ *   (Story 8.5) for content-addressed blob dedup.
+ *
  * @property {FilesystemCapabilities} capabilities
  *   The backend's declared {@link FilesystemCapabilities}. A plain data
  *   object, read directly (not a method).
@@ -286,9 +310,19 @@ export function serializeJson(value) {
 
 /**
  * The method names every {@link FilesystemAccess} backend must implement.
+ * `deleteFile`, `mkdir`, and `exists` were added in Epic 8 (Story 8.5) for the
+ * snapshot store's bootstrap + revert + cleanup paths.
  * @type {readonly string[]}
  */
-const REQUIRED_METHODS = ['readDir', 'readFile', 'writeFile', 'watch'];
+const REQUIRED_METHODS = [
+  'readDir',
+  'readFile',
+  'writeFile',
+  'watch',
+  'deleteFile',
+  'mkdir',
+  'exists',
+];
 
 /**
  * The boolean flags every {@link FilesystemCapabilities} object must declare.

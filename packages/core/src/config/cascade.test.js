@@ -61,6 +61,15 @@ function makeMemoryFs(files) {
     watch() {
       return { close() {} };
     },
+    async deleteFile() {
+      throw new Error('deleteFile is not used by the cascade');
+    },
+    async mkdir() {
+      throw new Error('mkdir is not used by the cascade');
+    },
+    async exists() {
+      return false;
+    },
     capabilities: { canWrite: false, canWatch: false, canReveal: false },
   };
 }

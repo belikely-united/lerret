@@ -24,6 +24,9 @@ function makeConformingBackend() {
     readFile: async () => '',
     writeFile: async () => {},
     watch: () => ({ close() {} }),
+    deleteFile: async () => {},
+    mkdir: async () => {},
+    exists: async () => false,
     capabilities: { canWrite: true, canWatch: true, canReveal: false },
   };
 }
@@ -98,8 +101,9 @@ describe('findFilesystemContractViolations', () => {
 
   it('reports every problem at once, not just the first', () => {
     const problems = findFilesystemContractViolations({});
-    // 4 missing methods + 1 missing capabilities object.
-    expect(problems.length).toBe(5);
+    // 7 missing methods (readDir, readFile, writeFile, watch + the Epic 8
+    // additions deleteFile/mkdir/exists) + 1 missing capabilities object.
+    expect(problems.length).toBe(8);
   });
 });
 

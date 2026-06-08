@@ -73,6 +73,9 @@ function makeMemoryFs(rootPath, tree) {
     },
     async writeFile() {},
     watch() { return { close() {} }; },
+    async deleteFile() {},
+    async mkdir() {},
+    async exists() { return false; },
     capabilities: { canWrite: true, canWatch: false, canReveal: false },
   };
 }

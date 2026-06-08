@@ -67,6 +67,9 @@ function makeFs(files = {}) {
  return {
  capabilities: { canWrite: true, canWatch: false, canReveal: false },
  reads,
+ async deleteFile() {},
+ async mkdir() {},
+ async exists(p) { return p in files; },
  async readFile(filePath) {
  reads.push(filePath);
  if (filePath in files) return files[filePath];

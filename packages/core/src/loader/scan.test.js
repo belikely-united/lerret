@@ -94,6 +94,15 @@ function makeMemoryFs(rootPath, tree) {
     watch() {
       return { close() {} };
     },
+    async deleteFile() {
+      throw new Error('deleteFile is not used by the loader');
+    },
+    async mkdir() {
+      throw new Error('mkdir is not used by the loader');
+    },
+    async exists() {
+      return false;
+    },
     capabilities: { canWrite: false, canWatch: false, canReveal: false },
   };
 }
