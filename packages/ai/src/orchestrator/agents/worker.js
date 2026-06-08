@@ -45,6 +45,8 @@
  * `orchestrator/events.js`).
  *
  * @typedef {{ type: 'writing', file: string }
+ *           | { type: 'deleting', file: string }
+ *           | { type: 'mkdir', dir: string }
  *           | { type: 'error', error: string, op?: string }
  *          } WorkerEvent
  */
@@ -81,18 +83,41 @@ export function createWorker({ sandbox } = {}) {
          * @returns {AsyncGenerator<WorkerEvent>}
          */
         async *executeStep(step) {
+            // Guard step is an object — null / undefined / non-object input
+            // is a programming error in the orchestrator, but the Worker's
+            // discriminated-union event contract should still hold instead
+            // of throwing a raw TypeError.
+            if (step === null || step === undefined || typeof step !== 'object') {
+                yield { type: 'error', error: 'invalid-step', op: undefined };
+                return;
+            }
             switch (step.op) {
                 case 'write':
+                    // Guard: step.content must be a string or Uint8Array.
+                    // Passing undefined silently corrupts the file (Node writes
+                    // the literal 'undefined') or opaquely throws — neither
+                    // matches the Worker's event contract.
+                    if (
+                        typeof step.content !== 'string' &&
+                        !(step.content instanceof Uint8Array)
+                    ) {
+                        yield {
+                            type: 'error',
+                            error: 'invalid-content',
+                            op: 'write',
+                        };
+                        return;
+                    }
                     await sandbox.writeFile(step.path, step.content);
                     yield { type: 'writing', file: step.path };
                     return;
                 case 'delete':
                     await sandbox.deleteFile(step.path);
-                    yield { type: 'writing', file: step.path };
+                    yield { type: 'deleting', file: step.path };
                     return;
                 case 'mkdir':
                     await sandbox.mkdir(step.path);
-                    yield { type: 'writing', file: step.path };
+                    yield { type: 'mkdir', dir: step.path };
                     return;
                 default:
                     yield { type: 'error', error: 'unsupported-op', op: step.op };

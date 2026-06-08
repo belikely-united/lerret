@@ -83,7 +83,7 @@ describe('Worker executeStep dispatch', () => {
         expect(events).toEqual([{ type: 'writing', file: '.lerret/social/x.jsx' }]);
     });
 
-    it('delete step calls sandbox.deleteFile', async () => {
+    it('delete step calls sandbox.deleteFile and yields a deleting event (distinct from writing)', async () => {
         const sandbox = makeMockSandbox();
         const worker = createWorker({ sandbox });
         const events = await drain(
@@ -91,16 +91,34 @@ describe('Worker executeStep dispatch', () => {
         );
         expect(sandbox.deleteFile).toHaveBeenCalledTimes(1);
         expect(sandbox.deleteFile).toHaveBeenCalledWith('.lerret/old.jsx');
-        expect(events).toEqual([{ type: 'writing', file: '.lerret/old.jsx' }]);
+        // The deleting event is distinct from writing — the dock UI surfaces
+        // them differently per UX-delta §4.1 status pill states.
+        expect(events).toEqual([{ type: 'deleting', file: '.lerret/old.jsx' }]);
     });
 
-    it('mkdir step calls sandbox.mkdir', async () => {
+    it('mkdir step calls sandbox.mkdir and yields a mkdir event', async () => {
         const sandbox = makeMockSandbox();
         const worker = createWorker({ sandbox });
         const events = await drain(worker.executeStep({ op: 'mkdir', path: '.lerret/social' }));
         expect(sandbox.mkdir).toHaveBeenCalledTimes(1);
         expect(sandbox.mkdir).toHaveBeenCalledWith('.lerret/social');
-        expect(events).toEqual([{ type: 'writing', file: '.lerret/social' }]);
+        expect(events).toEqual([{ type: 'mkdir', dir: '.lerret/social' }]);
+    });
+
+    it('null step yields { type: error, error: invalid-step } instead of throwing TypeError', async () => {
+        const sandbox = makeMockSandbox();
+        const worker = createWorker({ sandbox });
+        const events = await drain(worker.executeStep(null));
+        expect(events).toEqual([{ type: 'error', error: 'invalid-step', op: undefined }]);
+        expect(sandbox.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('write op with no content yields { type: error, error: invalid-content }', async () => {
+        const sandbox = makeMockSandbox();
+        const worker = createWorker({ sandbox });
+        const events = await drain(worker.executeStep({ op: 'write', path: '.lerret/x.jsx' }));
+        expect(events).toEqual([{ type: 'error', error: 'invalid-content', op: 'write' }]);
+        expect(sandbox.writeFile).not.toHaveBeenCalled();
     });
 
     it('unsupported op yields { type: error, error: unsupported-op, op }', async () => {
