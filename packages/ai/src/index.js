@@ -78,15 +78,15 @@ const spikeGraph = new StateGraph(SpikeState)
 /**
  * Stub turn runner. Shape parity with the eventual public surface
  * (`runTurn({prompt, scope, signal, providerOverride?}) → AsyncIterable<TurnEvent>`),
- * minus all real behavior. Yields a single sentinel event so callers can
- * verify the iterable contract.
+ * minus all real behavior. Yields two sentinel events (`thinking`, then
+ * `done`) so callers can verify the iterable contract.
  *
  * @param {Object} [params]
  * @param {string} [params.prompt]
  * @param {Object} [params.scope]
  * @param {AbortSignal} [params.signal]
  * @param {Object} [params.providerOverride]
- * @returns {AsyncGenerator<{type: string}>}
+ * @returns {AsyncGenerator<{type: string, files?: Array<unknown>}>}
  */
 export async function* runTurn(params = {}) {
     void params;

@@ -148,12 +148,12 @@ When cutting a release that touches more than one workspace package, publish in 
 
 1. `@lerret/core` — no Lerret dependencies; safe to publish first.
 2. `@lerret/animation` — no Lerret dependencies; declared as an `optionalDependency` of `@lerret/cli` and `@lerret/studio`.
-3. `@lerret/ai` — no Lerret dependencies; declared as an `optionalDependency` of `@lerret/cli` and `@lerret/studio` (NEW with Epic 8).
-4. `@lerret/studio` — depends on `@lerret/core`; optional deps on `@lerret/animation` and `@lerret/ai`.
-5. `@lerret/cli` — depends on `@lerret/core`; optional deps on `@lerret/animation` and `@lerret/ai`. Bundles the built studio under `dist-studio/`.
+3. `@lerret/ai` — no Lerret dependencies; *will be* declared as an `optionalDependency` of `@lerret/cli` and `@lerret/studio` once Story 8.1/8.2 wires the studio's dynamic-import bridge. Story 8.0 publishes the package as a standalone spike; the optionalDependency entries land with the first consumer.
+4. `@lerret/studio` — depends on `@lerret/core`; optional dep on `@lerret/animation` (and `@lerret/ai` from 8.1/8.2 onwards).
+5. `@lerret/cli` — depends on `@lerret/core`; optional dep on `@lerret/animation` (and `@lerret/ai` from 8.1/8.2 onwards). Bundles the built studio under `dist-studio/`.
 6. `create-lerret` — no Lerret dependencies; published last so end users see the freshest version on registry refresh.
 
-Optional dependencies (`@lerret/animation`, `@lerret/ai`) must be on the registry **before** the packages that declare them optionally — otherwise `pnpm install` against a fresh registry cache fails to resolve the optional reference. The order above honors that constraint without exception.
+Optional dependencies (`@lerret/animation`, eventually `@lerret/ai`) must be on the registry **before** the packages that declare them optionally — otherwise `pnpm install` against a fresh registry cache fails to resolve the optional reference. The order above honors that constraint without exception.
 
 Use `pnpm publish` (not `npm publish`) — `pnpm` rewrites `workspace:^` specifiers into real version ranges in the published tarball, which `npm publish` does not.
 

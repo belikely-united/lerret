@@ -9,7 +9,8 @@ This package is the home for every byte of Lerret's AI code. The other Lerret pa
 This v0.1.0 release is the **bundle-spike skeleton** that gates Epic 8. The published surface is intentionally minimal:
 
 - A six-node LangGraph state graph (`Orchestrator`, `Memory`, `Planner`, `Worker`, `DSCurator`, `Inspector`) constructed at module-import time so the production build measures the full LangGraph payload faithfully
-- An empty `runTurn(...)` async-iterable stub for shape verification
+- An empty `runTurn(...)` async-iterable stub that yields two sentinel events (`thinking`, then `done`) for shape verification
+- An `AGENT_NODES` frozen array exporting the six node names
 - A `VERSION` constant
 
 The full multi-agent orchestrator, the provider implementations, the encrypted key vault, and the snapshot store all land in later Epic 8 stories (8.1–8.10). See [`architecture-epic-8.md`](https://github.com/belikely-united/lerret/blob/main/_bmad-output/planning-artifacts/architecture-epic-8.md) and [ADR-005](https://github.com/belikely-united/lerret/blob/main/_bmad-output/planning-artifacts/adr-005-in-studio-ai-architecture.md) for the architecture, and [`docs/architecture/`](../../docs/architecture/) for the bundle-spike report that informs the orchestrator's Plan A vs Plan B choice.
