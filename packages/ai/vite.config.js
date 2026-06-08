@@ -28,6 +28,15 @@ export default defineConfig({
         target: 'es2022',
         rollupOptions: {
             external: [], // bundle EVERYTHING — the spike's whole point
+            output: {
+                // Force a single chunk. Without this, a future LangGraph
+                // upgrade that adds a runtime `await import(...)` would
+                // emit additional dist/*.js chunks, and the measurement
+                // script (which reads only dist/index.js) would silently
+                // undercount the on-demand payload, possibly mis-classifying
+                // the verdict band.
+                inlineDynamicImports: true,
+            },
         },
         // Disable Vite's CSS code-splitting warning; we have no CSS
         cssCodeSplit: false,
