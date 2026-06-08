@@ -19,15 +19,22 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+// __dirname = .../public/packages/ai/src/ ; go up three to reach .../public/
+// (the workspace root that holds the `packages/` directory).
 const WORKSPACE_ROOT = join(__dirname, '..', '..', '..');
 
 const SCAN_PACKAGES = ['core', 'studio', 'cli', 'create-lerret'];
 const EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
+// Boundary patterns: static `import`, bare-side-effect `import`, `require`,
+// AND `export … from` (the re-export form silently bundles a dep into the
+// consumer's chunk just like a static import — defeating the dynamic-import
+// boundary).
 const STATIC_IMPORT_PATTERNS = [
     /^\s*import\s+[^;]*?\s+from\s+['"]@lerret\/ai['"]/m,
     /^\s*import\s+['"]@lerret\/ai['"]/m,
     /\brequire\s*\(\s*['"]@lerret\/ai['"]\s*\)/,
+    /^\s*export\s+[^;]*?\s+from\s+['"]@lerret\/ai['"]/m,
 ];
 
 function walkSource(dir, hits) {
@@ -67,7 +74,7 @@ describe('@lerret/ai dynamic-import boundary', () => {
     it('no static imports of @lerret/ai in core/, studio/, cli/, create-lerret/', () => {
         const offenders = [];
         for (const pkg of SCAN_PACKAGES) {
-            walkSource(join(WORKSPACE_ROOT, pkg, 'src'), offenders);
+            walkSource(join(WORKSPACE_ROOT, 'packages', pkg, 'src'), offenders);
         }
         expect(
             offenders,
@@ -85,6 +92,10 @@ describe('@lerret/ai dynamic-import boundary', () => {
             'import ai from "@lerret/ai";',
             "import '@lerret/ai';",
             "const lib = require('@lerret/ai');",
+            // Re-export from forces a static bundle into the consumer chunk just
+            // like a regular import — the pattern set must catch it.
+            "export { runTurn } from '@lerret/ai';",
+            'export * from "@lerret/ai";',
         ];
         const negatives = [
             "const ai = await import('@lerret/ai');",
