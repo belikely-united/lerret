@@ -18,6 +18,9 @@ const PROJECT_ROOT = '/Users/me/project';
  * Build a fresh `vi.fn()`-backed `FilesystemAccess` per test. Backed by
  * resolved promises so the sandbox's `await` succeeds in happy-path tests;
  * `mock.calls.length` lets each test assert "backend NOT called" on rejection.
+ *
+ * Includes the Epic 8 extensions (deleteFile/mkdir/exists) added to the
+ * FilesystemAccess contract via Story 8.5's follow-up.
  */
 function makeMockFs() {
     return {
@@ -25,6 +28,9 @@ function makeMockFs() {
         readFile: vi.fn().mockResolvedValue(''),
         writeFile: vi.fn().mockResolvedValue(undefined),
         watch: vi.fn().mockReturnValue({ close: vi.fn() }),
+        deleteFile: vi.fn().mockResolvedValue(undefined),
+        mkdir: vi.fn().mockResolvedValue(undefined),
+        exists: vi.fn().mockResolvedValue(false),
         capabilities: { canWrite: true, canWatch: true, canReveal: false },
     };
 }
@@ -77,37 +83,33 @@ describe('Happy path — paths inside .lerret/', () => {
         expect(fs.readFile).toHaveBeenCalledTimes(1);
     });
 
-    it('row 6: mkdir of .lerret/social/x is allowed (will throw v1-contract gap, that is a separate error)', async () => {
-        const { sandbox } = makeSandbox();
-        // The path validation passes; mkdir then throws the v1-contract-gap
-        // error (Story 8.5 will wire up the real mkdir). What matters here is
-        // that the SANDBOX did not throw a SandboxViolationError.
-        await expect(sandbox.mkdir('.lerret/social/x')).rejects.toThrow(
-            /FilesystemAccess\.mkdir is not yet part of the v1 contract/,
-        );
+    it('row 6: mkdir of .lerret/social/x delegates to backend', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.mkdir('.lerret/social/x');
+        expect(fs.mkdir).toHaveBeenCalledTimes(1);
+        expect(fs.mkdir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret/social/x`);
     });
 
     it('row 7: mkdir of .lerret itself is allowed (per AC-6 equality exception)', async () => {
-        const { sandbox } = makeSandbox();
-        await expect(sandbox.mkdir('.lerret')).rejects.toThrow(
-            /FilesystemAccess\.mkdir is not yet part of the v1 contract/,
-        );
-        // Critically — NOT a SandboxViolationError. The mkdir-equality path
-        // passes validation; only the v1-contract gap surfaces.
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.mkdir('.lerret');
+        expect(fs.mkdir).toHaveBeenCalledTimes(1);
+        expect(fs.mkdir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret`);
     });
 
-    it('row 8: deleteFile of .lerret/old.jsx passes validation (v1-contract gap surfaces after)', async () => {
-        const { sandbox } = makeSandbox();
-        await expect(sandbox.deleteFile('.lerret/old.jsx')).rejects.toThrow(
-            /FilesystemAccess\.deleteFile is not yet part of the v1 contract/,
-        );
+    it('row 8: deleteFile of .lerret/old.jsx delegates to backend', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.deleteFile('.lerret/old.jsx');
+        expect(fs.deleteFile).toHaveBeenCalledTimes(1);
+        expect(fs.deleteFile).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret/old.jsx`);
     });
 
-    it('row 9: exists("/.lerret/foo") passes validation (v1-contract gap surfaces after)', async () => {
-        const { sandbox } = makeSandbox();
-        await expect(sandbox.exists('.lerret/foo')).rejects.toThrow(
-            /FilesystemAccess\.exists is not yet part of the v1 contract/,
-        );
+    it('row 9: exists(".lerret/foo") returns the backend result', async () => {
+        const { sandbox, fs } = makeSandbox();
+        fs.exists.mockResolvedValue(true);
+        const out = await sandbox.exists('.lerret/foo');
+        expect(out).toBe(true);
+        expect(fs.exists).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret/foo`);
     });
 
     it('write under .lerret/ from a deeply-nested relative path normalizes correctly (row 17 sibling)', async () => {
@@ -186,11 +188,12 @@ describe('Traversal rejections', () => {
             code: 'OUTSIDE_PROJECT',
         });
         expect(fs.writeFile).not.toHaveBeenCalled();
-        // For mkdir, the same normalization is allowed (passes validation; v1
-        // contract gap surfaces separately):
-        await expect(sandbox.mkdir('./.lerret/foo/..')).rejects.toThrow(
-            /FilesystemAccess\.mkdir is not yet part of the v1 contract/,
-        );
+        // For mkdir, the same normalization is allowed — the path resolves
+        // to projectRoot/.lerret (the directory itself), which mkdir permits
+        // per AC-6's equality exception. The backend's idempotent mkdir is
+        // then called with the normalized absolute path.
+        await sandbox.mkdir('./.lerret/foo/..');
+        expect(fs.mkdir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret`);
     });
 
     it('row 17: mid-path .. — .lerret/foo/../bar.jsx normalizes inside (allowed)', async () => {

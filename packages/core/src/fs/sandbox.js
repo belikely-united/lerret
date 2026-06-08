@@ -213,22 +213,12 @@ export function createSandbox({ projectRoot, fs } = {}) {
         deleteFile: async (path) => {
             const normalized = normalizePath(projectRoot, path);
             validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ false);
-            // `FilesystemAccess` v1 contract has no `deleteFile` method yet.
-            // Story 8.5 extends the contract; for now the sandbox surfaces
-            // the gap honestly rather than silently failing.
-            throw new Error(
-                'FilesystemAccess.deleteFile is not yet part of the v1 contract; ' +
-                    'Story 8.5 will extend the contract.',
-            );
+            return fs.deleteFile(normalized);
         },
         mkdir: async (path) => {
             const normalized = normalizePath(projectRoot, path);
             validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ true);
-            // Same v1-contract gap — see deleteFile above.
-            throw new Error(
-                'FilesystemAccess.mkdir is not yet part of the v1 contract; ' +
-                    'Story 8.5 will extend the contract.',
-            );
+            return fs.mkdir(normalized);
         },
         readFile: async (path, options) => {
             const normalized = normalizePath(projectRoot, path);
@@ -238,11 +228,7 @@ export function createSandbox({ projectRoot, fs } = {}) {
         exists: async (path) => {
             const normalized = normalizePath(projectRoot, path);
             validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ true);
-            // Same v1-contract gap — see deleteFile above.
-            throw new Error(
-                'FilesystemAccess.exists is not yet part of the v1 contract; ' +
-                    'Story 8.5 will extend the contract.',
-            );
+            return fs.exists(normalized);
         },
     };
 }
