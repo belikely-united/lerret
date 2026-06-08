@@ -412,4 +412,43 @@ describe('createSandbox factory validation', () => {
             /projectRoot must be a non-empty string/,
         );
     });
+
+    it('trailing slash in projectRoot is stripped — boundary check still works', async () => {
+        // Self-review finding: without stripping, `/Users/me/proj/` would
+        // produce a `/Users/me/proj//.lerret/` boundary, and the validator
+        // would reject every otherwise-valid path. This test confirms the
+        // strip-trailing-slash fix.
+        const fs = makeMockFs();
+        const sandbox = createSandbox({ projectRoot: `${PROJECT_ROOT}/`, fs });
+        await sandbox.writeFile('.lerret/foo.jsx', 'x');
+        expect(fs.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_ROOT}/.lerret/foo.jsx`,
+            'x',
+            undefined,
+        );
+    });
+
+    it('multiple trailing slashes stripped', async () => {
+        const fs = makeMockFs();
+        const sandbox = createSandbox({ projectRoot: `${PROJECT_ROOT}///`, fs });
+        await sandbox.writeFile('.lerret/foo.jsx', 'x');
+        expect(fs.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_ROOT}/.lerret/foo.jsx`,
+            'x',
+            undefined,
+        );
+    });
+
+    it('filesystem-root projectRoot "/" is rejected (not a real use case)', () => {
+        expect(() => createSandbox({ projectRoot: '/', fs: makeMockFs() })).toThrow(
+            /must be a project directory, not the filesystem root/,
+        );
+    });
+
+    it('trailing-slash-only projectRoot "//" is also rejected', () => {
+        // Stripping reduces "//" → "/", which the next check rejects.
+        expect(() => createSandbox({ projectRoot: '//', fs: makeMockFs() })).toThrow(
+            /must be a project directory, not the filesystem root/,
+        );
+    });
 });

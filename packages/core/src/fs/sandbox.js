@@ -182,6 +182,26 @@ export function createSandbox({ projectRoot, fs } = {}) {
             `createSandbox: projectRoot must be POSIX-absolute (start with '/'); got '${projectRoot}'`,
         );
     }
+    // Strip any trailing slash(es). Without this, a caller passing
+    // `/Users/me/proj/` would produce `projectRoot + '/.lerret'` =
+    // `/Users/me/proj//.lerret`, and the boundary check (which compares
+    // against the literal `'/.lerret/'`) would reject every valid path as
+    // OUTSIDE_PROJECT.
+    let normalizedRoot = projectRoot;
+    while (normalizedRoot.length > 1 && normalizedRoot.endsWith('/')) {
+        normalizedRoot = normalizedRoot.slice(0, -1);
+    }
+    // Filesystem-root (`/`) is rejected: the boundary `projectRoot + '/.lerret'`
+    // would degenerate to `//.lerret` (double slash) and the validator's
+    // string-prefix check would reject every otherwise-valid path. Real
+    // callers always pass a project directory, never `/`.
+    if (normalizedRoot === '/' || normalizedRoot.length === 0) {
+        throw new Error(
+            `createSandbox: projectRoot must be a project directory, not the filesystem root; got '${projectRoot}'`,
+        );
+    }
+    projectRoot = normalizedRoot;
+
     assertFilesystemContract(fs, 'createSandbox.fs');
 
     return {
