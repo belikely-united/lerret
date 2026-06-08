@@ -1,0 +1,415 @@
+// Tests for `core/fs/sandbox.js` — path-sandboxing wrapper for AI-driven
+// writes (Story 8.4). Security-adjacent code; the test surface is
+// exhaustiveness-over-elegance per AC-15.
+//
+// The sandbox's contract is: every write/delete/mkdir/read path is normalized
+// and validated SYNCHRONOUSLY before the underlying `FilesystemAccess`
+// backend is touched. These tests verify both the validation logic and the
+// "never called the backend on rejection" invariant — the latter is what
+// makes the sandbox useful as a defense layer.
+
+import { describe, it, expect, vi } from 'vitest';
+
+import { createSandbox, SandboxViolationError } from './sandbox.js';
+
+const PROJECT_ROOT = '/Users/me/project';
+
+/**
+ * Build a fresh `vi.fn()`-backed `FilesystemAccess` per test. Backed by
+ * resolved promises so the sandbox's `await` succeeds in happy-path tests;
+ * `mock.calls.length` lets each test assert "backend NOT called" on rejection.
+ */
+function makeMockFs() {
+    return {
+        readDir: vi.fn().mockResolvedValue([]),
+        readFile: vi.fn().mockResolvedValue(''),
+        writeFile: vi.fn().mockResolvedValue(undefined),
+        watch: vi.fn().mockReturnValue({ close: vi.fn() }),
+        capabilities: { canWrite: true, canWatch: true, canReveal: false },
+    };
+}
+
+/**
+ * Build a fresh sandbox for tests. Reuses the mock fs constructor; returns
+ * both so individual tests can assert against the backend mock.
+ */
+function makeSandbox(overrides = {}) {
+    const fs = makeMockFs();
+    const sandbox = createSandbox({ projectRoot: PROJECT_ROOT, fs, ...overrides });
+    return { sandbox, fs };
+}
+
+describe('Happy path — paths inside .lerret/', () => {
+    it('row 1: write to .lerret/social/twitter-card.jsx', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.writeFile('.lerret/social/twitter-card.jsx', '<jsx/>');
+        expect(fs.writeFile).toHaveBeenCalledTimes(1);
+        expect(fs.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_ROOT}/.lerret/social/twitter-card.jsx`,
+            '<jsx/>',
+            undefined,
+        );
+    });
+
+    it('row 2: write to .lerret/.state/history/manifests/abc-123.json (Story 8.5 path)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.writeFile('.lerret/.state/history/manifests/abc-123.json', '{}');
+        expect(fs.writeFile).toHaveBeenCalledTimes(1);
+    });
+
+    it('row 3: write to .lerret/_brand/logo.svg (reserved underscore folder)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.writeFile('.lerret/_brand/logo.svg', '<svg/>');
+        expect(fs.writeFile).toHaveBeenCalledTimes(1);
+    });
+
+    it('row 4: write to .lerret/_design-system.md (FR53 reserved file)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.writeFile('.lerret/_design-system.md', '# brand');
+        expect(fs.writeFile).toHaveBeenCalledTimes(1);
+    });
+
+    it('row 5: read from .lerret/_context.md', async () => {
+        const { sandbox, fs } = makeSandbox();
+        fs.readFile.mockResolvedValue('# context');
+        const out = await sandbox.readFile('.lerret/_context.md');
+        expect(out).toBe('# context');
+        expect(fs.readFile).toHaveBeenCalledTimes(1);
+    });
+
+    it('row 6: mkdir of .lerret/social/x is allowed (will throw v1-contract gap, that is a separate error)', async () => {
+        const { sandbox } = makeSandbox();
+        // The path validation passes; mkdir then throws the v1-contract-gap
+        // error (Story 8.5 will wire up the real mkdir). What matters here is
+        // that the SANDBOX did not throw a SandboxViolationError.
+        await expect(sandbox.mkdir('.lerret/social/x')).rejects.toThrow(
+            /FilesystemAccess\.mkdir is not yet part of the v1 contract/,
+        );
+    });
+
+    it('row 7: mkdir of .lerret itself is allowed (per AC-6 equality exception)', async () => {
+        const { sandbox } = makeSandbox();
+        await expect(sandbox.mkdir('.lerret')).rejects.toThrow(
+            /FilesystemAccess\.mkdir is not yet part of the v1 contract/,
+        );
+        // Critically — NOT a SandboxViolationError. The mkdir-equality path
+        // passes validation; only the v1-contract gap surfaces.
+    });
+
+    it('row 8: deleteFile of .lerret/old.jsx passes validation (v1-contract gap surfaces after)', async () => {
+        const { sandbox } = makeSandbox();
+        await expect(sandbox.deleteFile('.lerret/old.jsx')).rejects.toThrow(
+            /FilesystemAccess\.deleteFile is not yet part of the v1 contract/,
+        );
+    });
+
+    it('row 9: exists("/.lerret/foo") passes validation (v1-contract gap surfaces after)', async () => {
+        const { sandbox } = makeSandbox();
+        await expect(sandbox.exists('.lerret/foo')).rejects.toThrow(
+            /FilesystemAccess\.exists is not yet part of the v1 contract/,
+        );
+    });
+
+    it('write under .lerret/ from a deeply-nested relative path normalizes correctly (row 17 sibling)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.writeFile('.lerret/foo/../bar.jsx', 'hi');
+        expect(fs.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_ROOT}/.lerret/bar.jsx`,
+            'hi',
+            undefined,
+        );
+    });
+});
+
+describe('Outside-project rejections', () => {
+    it('row 10: absolute path /etc/passwd → OUTSIDE_PROJECT', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('/etc/passwd', 'evil')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+            code: 'OUTSIDE_PROJECT',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 11: absolute path /tmp/escape.jsx → OUTSIDE_PROJECT', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('/tmp/escape.jsx', 'evil')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 12: inside project but outside .lerret/ — e.g. projectRoot/package.json', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('package.json', '{}')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        await expect(
+            sandbox.writeFile(`${PROJECT_ROOT}/package.json`, '{}'),
+        ).rejects.toMatchObject({ code: 'OUTSIDE_PROJECT' });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 13: substring-prefix that is not actually under .lerret/ (.lerret-evil/x)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('.lerret-evil/x.jsx', 'evil')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        await expect(
+            sandbox.writeFile(`${PROJECT_ROOT}/.lerret-evil/x.jsx`, 'evil'),
+        ).rejects.toMatchObject({ code: 'OUTSIDE_PROJECT' });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('Traversal rejections', () => {
+    it('row 14: relative ./../../etc/passwd → OUTSIDE_PROJECT after normalization', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('./../../etc/passwd', 'x')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 15: ./.lerret/../../escape.txt normalizes to outside-project', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('./.lerret/../../escape.txt', 'x')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 16: trailing .. — ./.lerret/foo/.. normalizes to .lerret (allowed for mkdir, rejected for writeFile)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        // For writeFile, equality with .lerret directory is NOT allowed:
+        await expect(sandbox.writeFile('./.lerret/foo/..', 'x')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+        // For mkdir, the same normalization is allowed (passes validation; v1
+        // contract gap surfaces separately):
+        await expect(sandbox.mkdir('./.lerret/foo/..')).rejects.toThrow(
+            /FilesystemAccess\.mkdir is not yet part of the v1 contract/,
+        );
+    });
+
+    it('row 17: mid-path .. — .lerret/foo/../bar.jsx normalizes inside (allowed)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.writeFile('.lerret/foo/../bar.jsx', 'hi');
+        expect(fs.writeFile).toHaveBeenCalledWith(
+            `${PROJECT_ROOT}/.lerret/bar.jsx`,
+            'hi',
+            undefined,
+        );
+    });
+
+    it('walking above the filesystem root throws TRAVERSAL_DETECTED', async () => {
+        const { sandbox, fs } = makeSandbox();
+        // Absolute path with too many `..` walks above `/`:
+        await expect(sandbox.writeFile('/../../../etc/passwd', 'x')).rejects.toMatchObject({
+            code: 'TRAVERSAL_DETECTED',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('Null-byte rejections', () => {
+    it('row 18: a single null byte → NULL_BYTE', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('\0', 'x')).rejects.toMatchObject({
+            code: 'NULL_BYTE',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 19: embedded null byte — .lerret/foo\\0bar.jsx → NULL_BYTE', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('.lerret/foo\0bar.jsx', 'x')).rejects.toMatchObject({
+            code: 'NULL_BYTE',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('Bad-input rejections', () => {
+    it('row 20: empty string "" → EMPTY_PATH', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('', 'x')).rejects.toMatchObject({
+            code: 'EMPTY_PATH',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 20b: whitespace-only "   " → EMPTY_PATH', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('   ', 'x')).rejects.toMatchObject({
+            code: 'EMPTY_PATH',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 21: null → NOT_A_STRING', async () => {
+        const { sandbox, fs } = makeSandbox();
+        // @ts-expect-error — intentionally bad input
+        await expect(sandbox.writeFile(null, 'x')).rejects.toMatchObject({
+            code: 'NOT_A_STRING',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 21b: undefined → NOT_A_STRING', async () => {
+        const { sandbox, fs } = makeSandbox();
+        // @ts-expect-error — intentionally bad input
+        await expect(sandbox.writeFile(undefined, 'x')).rejects.toMatchObject({
+            code: 'NOT_A_STRING',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 21c: number → NOT_A_STRING', async () => {
+        const { sandbox, fs } = makeSandbox();
+        // @ts-expect-error — intentionally bad input
+        await expect(sandbox.writeFile(42, 'x')).rejects.toMatchObject({
+            code: 'NOT_A_STRING',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('row 21d: plain object → NOT_A_STRING', async () => {
+        const { sandbox, fs } = makeSandbox();
+        // @ts-expect-error — intentionally bad input
+        await expect(sandbox.writeFile({ a: 1 }, 'x')).rejects.toMatchObject({
+            code: 'NOT_A_STRING',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('Case sensitivity', () => {
+    it('row 22: .LERRET/foo.jsx → OUTSIDE_PROJECT (sandbox is case-sensitive)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('.LERRET/foo.jsx', 'x')).rejects.toMatchObject({
+            code: 'OUTSIDE_PROJECT',
+        });
+        expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+});
+
+describe('Sandbox does not call backend on rejection (defense-in-depth)', () => {
+    it('row 23a: OUTSIDE_PROJECT rejection — backend.writeFile NOT called', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('/etc/passwd', 'x')).rejects.toBeInstanceOf(
+            SandboxViolationError,
+        );
+        expect(fs.writeFile.mock.calls.length).toBe(0);
+    });
+
+    it('row 23b: TRAVERSAL rejection — backend.writeFile NOT called', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('/../../../etc/passwd', 'x')).rejects.toBeInstanceOf(
+            SandboxViolationError,
+        );
+        expect(fs.writeFile.mock.calls.length).toBe(0);
+    });
+
+    it('row 23c: NULL_BYTE rejection — backend.writeFile NOT called', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.writeFile('.lerret/foo\0', 'x')).rejects.toBeInstanceOf(
+            SandboxViolationError,
+        );
+        expect(fs.writeFile.mock.calls.length).toBe(0);
+    });
+
+    it('readFile rejection also leaves backend.readFile unchanged', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.readFile('/etc/passwd')).rejects.toBeInstanceOf(
+            SandboxViolationError,
+        );
+        expect(fs.readFile.mock.calls.length).toBe(0);
+    });
+});
+
+describe('SandboxViolationError shape', () => {
+    it('row 24: violation instance is both SandboxViolationError and Error', async () => {
+        const { sandbox } = makeSandbox();
+        try {
+            await sandbox.writeFile('/etc/passwd', 'x');
+            throw new Error('expected SandboxViolationError to be thrown');
+        } catch (err) {
+            expect(err).toBeInstanceOf(SandboxViolationError);
+            expect(err).toBeInstanceOf(Error);
+            expect(err.name).toBe('SandboxViolationError');
+        }
+    });
+
+    it('row 25: OUTSIDE_PROJECT error carries attemptedPath + normalizedPath', async () => {
+        const { sandbox } = makeSandbox();
+        try {
+            await sandbox.writeFile('/etc/passwd', 'x');
+            throw new Error('expected throw');
+        } catch (err) {
+            expect(err.code).toBe('OUTSIDE_PROJECT');
+            expect(err.attemptedPath).toBe('/etc/passwd');
+            expect(err.normalizedPath).toBe('/etc/passwd');
+            expect(typeof err.message).toBe('string');
+            expect(err.message).toContain('/etc/passwd');
+        }
+    });
+
+    it('NOT_A_STRING / EMPTY_PATH / NULL_BYTE errors omit normalizedPath', async () => {
+        const { sandbox } = makeSandbox();
+        try {
+            // @ts-expect-error
+            await sandbox.writeFile(null, 'x');
+        } catch (err) {
+            expect(err.code).toBe('NOT_A_STRING');
+            expect(err.normalizedPath).toBeUndefined();
+        }
+        try {
+            await sandbox.writeFile('', 'x');
+        } catch (err) {
+            expect(err.code).toBe('EMPTY_PATH');
+            expect(err.normalizedPath).toBeUndefined();
+        }
+        try {
+            await sandbox.writeFile('\0', 'x');
+        } catch (err) {
+            expect(err.code).toBe('NULL_BYTE');
+            expect(err.normalizedPath).toBeUndefined();
+        }
+    });
+});
+
+describe('createSandbox factory validation', () => {
+    it('row 26: contract violation — fs is non-conforming', () => {
+        // assertFilesystemContract throws a regular Error (not a
+        // SandboxViolationError); the factory propagates it as-is.
+        expect(() =>
+            createSandbox({ projectRoot: PROJECT_ROOT, fs: /** @type {any} */ ({}) }),
+        ).toThrow(/does not satisfy the FilesystemAccess contract/);
+    });
+
+    it('row 27: empty projectRoot', () => {
+        expect(() =>
+            createSandbox({ projectRoot: '', fs: makeMockFs() }),
+        ).toThrow(/projectRoot must be a non-empty string/);
+    });
+
+    it('row 28: non-POSIX-absolute projectRoot', () => {
+        expect(() =>
+            createSandbox({ projectRoot: 'relative/path', fs: makeMockFs() }),
+        ).toThrow(/POSIX-absolute/);
+    });
+
+    it('missing args object → throws', () => {
+        // @ts-expect-error
+        expect(() => createSandbox()).toThrow();
+    });
+
+    it('non-string projectRoot → throws', () => {
+        // @ts-expect-error
+        expect(() => createSandbox({ projectRoot: 42, fs: makeMockFs() })).toThrow(
+            /projectRoot must be a non-empty string/,
+        );
+    });
+});

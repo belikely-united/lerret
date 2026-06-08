@@ -41,6 +41,22 @@ export {
 } from './fs/filesystem.js';
 
 // ---------------------------------------------------------------------------
+// Sandboxed file operations
+// ---------------------------------------------------------------------------
+//
+// The path-sandboxing wrapper that confines AI-driven writes to a project's
+// `.lerret/` directory. Wraps a `FilesystemAccess` backend with synchronous
+// path validation; violations throw `SandboxViolationError` before any
+// backend call. Lives in `core` because it operates only on the abstract
+// `FilesystemAccess` interface (no DOM, no Node built-ins, no `@lerret/ai`).
+// See Epic 8 / Story 8.4 for the architectural enactment of FR51.
+
+export {
+  createSandbox,
+  SandboxViolationError,
+} from './fs/sandbox.js';
+
+// ---------------------------------------------------------------------------
 // Project loader
 // ---------------------------------------------------------------------------
 //
