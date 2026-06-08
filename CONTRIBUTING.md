@@ -142,6 +142,21 @@ docs: clarify the .lerret JSON layer schema
 
 This unlocks automatic changelog generation and semver-based releases. Enforced via commitlint in CI.
 
+## Publishing order (workspace packages)
+
+When cutting a release that touches more than one workspace package, publish in this order:
+
+1. `@lerret/core` — no Lerret dependencies; safe to publish first.
+2. `@lerret/animation` — no Lerret dependencies; declared as an `optionalDependency` of `@lerret/cli` and `@lerret/studio`.
+3. `@lerret/ai` — no Lerret dependencies; declared as an `optionalDependency` of `@lerret/cli` and `@lerret/studio` (NEW with Epic 8).
+4. `@lerret/studio` — depends on `@lerret/core`; optional deps on `@lerret/animation` and `@lerret/ai`.
+5. `@lerret/cli` — depends on `@lerret/core`; optional deps on `@lerret/animation` and `@lerret/ai`. Bundles the built studio under `dist-studio/`.
+6. `create-lerret` — no Lerret dependencies; published last so end users see the freshest version on registry refresh.
+
+Optional dependencies (`@lerret/animation`, `@lerret/ai`) must be on the registry **before** the packages that declare them optionally — otherwise `pnpm install` against a fresh registry cache fails to resolve the optional reference. The order above honors that constraint without exception.
+
+Use `pnpm publish` (not `npm publish`) — `pnpm` rewrites `workspace:^` specifiers into real version ranges in the published tarball, which `npm publish` does not.
+
 ## Branch naming
 
 ```
