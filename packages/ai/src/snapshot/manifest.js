@@ -15,6 +15,7 @@ import {
     manifestPath,
     absoluteManifestPath,
     absoluteManifestsDir,
+    ensureHistoryDirs,
 } from './layout.js';
 import { SnapshotError } from './errors.js';
 
@@ -234,6 +235,12 @@ function assertWellFormed(m) {
  * @returns {Promise<void>}
  */
 export async function writeManifest({ sandbox, manifest }) {
+    // Bootstrap the history directory tree on first write — idempotent
+    // (sandbox.mkdir is contract-mandated to be a no-op if the dir exists).
+    // Calling this here means callers do not need to remember to bootstrap;
+    // the cost is two mkdir calls per write, which the v1 contract makes
+    // cheap (Node's fs.mkdir({recursive:true}) is ~microseconds).
+    await ensureHistoryDirs({ sandbox });
     await sandbox.writeFile(manifestPath(manifest.id), serializeJson(manifest));
 }
 
@@ -287,19 +294,38 @@ export async function listManifests({ projectRoot, fs }) {
         return [];
     }
     const manifests = [];
+    /** @type {string[]} */
+    const skipped = [];
     for (const entry of entries) {
         if (!entry.name || !entry.name.endsWith('.json')) continue;
         const turnId = entry.name.slice(0, -'.json'.length);
         try {
             const m = await readManifest({ projectRoot, fs, turnId });
             manifests.push(m);
-        } catch {
-            // Skip malformed or unreadable manifests rather than failing the
-            // whole listing — observability: the cleanup pass will log
-            // these, but listing should not throw on partial corruption.
+        } catch (err) {
+            // Surface corruption to observability — the silent-skip was
+            // dangerous because runCleanup uses listManifests to build the
+            // referenced-blobs set; a skipped manifest's blobs would then be
+            // wrongly deleted as orphans, violating AC-20.
+            skipped.push(turnId);
+            console.warn(
+                `[lerret-ai] listManifests — skipping malformed manifest '${turnId}': ` +
+                    (err instanceof Error ? err.message : String(err)),
+            );
         }
     }
     manifests.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    // Stash the skipped count on a non-enumerable property so callers that
+    // care (e.g. runCleanup) can refuse to orphan-delete; existing callers
+    // that just iterate the array see no behavior change.
+    Object.defineProperty(manifests, '_corruptCount', {
+        value: skipped.length,
+        enumerable: false,
+    });
+    Object.defineProperty(manifests, '_corruptIds', {
+        value: skipped,
+        enumerable: false,
+    });
     return manifests;
 }
 

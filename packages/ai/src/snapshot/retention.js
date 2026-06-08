@@ -80,10 +80,22 @@ export async function computeBlobsBytes({ projectRoot, fs }) {
     for (const entry of entries) {
         if (!entry.name) continue;
         try {
+            // Always read as binary — `Uint8Array.byteLength` is the true on-
+            // disk byte count, whereas a UTF-8 file read as a `string` returns
+            // a UTF-16 code-unit count (`.length`) which under-counts the
+            // actual bytes for any multi-byte content (e.g. a JSX file with
+            // emoji or non-ASCII characters). Reading binary keeps the size
+            // accounting truthful regardless of file encoding.
             const content = await fs.readFile(`${blobsDir}/${entry.name}`, {
                 encoding: 'binary',
             });
-            total += content instanceof Uint8Array ? content.byteLength : content.length;
+            if (content instanceof Uint8Array) {
+                total += content.byteLength;
+            } else {
+                // Backend ignored our encoding hint and returned a string —
+                // fall back to UTF-8 byte count rather than UTF-16 code-units.
+                total += new TextEncoder().encode(content).byteLength;
+            }
         } catch {
             // Skip unreadable entries — cleanup must not crash on transient
             // FS errors.
@@ -115,11 +127,68 @@ export async function runCleanup({ projectRoot, fs, sandbox, config }) {
 
     let manifests = await listManifests({ projectRoot, fs });
     let evictedTurns = 0;
+    let totalReclaimedBytes = 0;
+    let totalDeletedBlobs = 0;
+    const blobsDir = absoluteBlobsDir(projectRoot);
 
-    // Step 1: count-bounded eviction (oldest first). Only 'turn'-kind
-    // manifests count toward the limit — revert/redo are bookkeeping
-    // entries the user did not "spend" a turn on.
+    // Only 'turn'-kind manifests count toward the maxTurns limit — revert /
+    // redo are bookkeeping entries the user did not "spend" a turn on.
     const turnManifests = () => manifests.filter((m) => (m.kind ?? 'turn') === 'turn');
+
+    // Helper: delete every blob in blobs/ that no remaining manifest still
+    // references, and accumulate the reclaimed bytes. Returns the count +
+    // bytes for the caller to add to running totals. This is the orphan-
+    // delete primitive used by both the size-eviction loop (so eviction
+    // actually frees space) and the final cleanup pass below.
+    async function deleteOrphans() {
+        // Build the live set of referenced blob keys from remaining
+        // manifests.
+        const referenced = new Set();
+        for (const m of manifests) {
+            for (const f of m.files) {
+                if (f.snapshotKey) referenced.add(f.snapshotKey);
+                if (f.sha256) referenced.add(f.sha256);
+            }
+        }
+        let blobEntries;
+        try {
+            blobEntries = await fs.readDir(blobsDir);
+        } catch {
+            return { deleted: 0, bytes: 0 };
+        }
+        let deleted = 0;
+        let bytes = 0;
+        for (const entry of blobEntries) {
+            if (!entry.name) continue;
+            if (referenced.has(entry.name)) continue;
+            let size = 0;
+            try {
+                const content = await fs.readFile(`${blobsDir}/${entry.name}`, {
+                    encoding: 'binary',
+                });
+                if (content instanceof Uint8Array) {
+                    size = content.byteLength;
+                } else {
+                    size = new TextEncoder().encode(content).byteLength;
+                }
+            } catch {
+                // Skip; size stays 0.
+            }
+            try {
+                await sandbox.deleteFile(`${BLOBS_DIR}/${entry.name}`);
+                deleted += 1;
+                bytes += size;
+            } catch {
+                console.warn(
+                    `[lerret-ai] snapshot cleanup — could not delete blob '${entry.name}'`,
+                );
+            }
+        }
+        return { deleted, bytes };
+    }
+
+    // Step 1: count-bounded eviction. Evict the oldest 'turn' manifest until
+    // the remaining count is ≤ maxTurns.
     while (turnManifests().length > effective.maxTurns) {
         const oldest = turnManifests()[0];
         if (!oldest) break;
@@ -128,74 +197,62 @@ export async function runCleanup({ projectRoot, fs, sandbox, config }) {
         evictedTurns += 1;
     }
 
-    // Step 2: size-bounded eviction. Recompute blob size after each
-    // eviction (a removed manifest may release a chain of referenced
-    // blobs that the orphan-deletion step below picks up).
-    let blobsBytes = await computeBlobsBytes({ projectRoot, fs });
-    while (
-        blobsBytes > effective.maxBlobsBytes &&
-        turnManifests().length > 0
-    ) {
-        const oldest = turnManifests()[0];
-        if (!oldest) break;
-        await sandbox.deleteFile(manifestPath(oldest.id));
-        manifests = manifests.filter((m) => m.id !== oldest.id);
-        evictedTurns += 1;
-        blobsBytes = await computeBlobsBytes({ projectRoot, fs });
-    }
-
-    // Step 3: orphan-blob deletion. Build the set of all blob keys still
-    // referenced by remaining manifests, then iterate blobs/ and delete
-    // anything not in the set.
-    const referenced = new Set();
-    for (const m of manifests) {
-        for (const f of m.files) {
-            if (f.snapshotKey) referenced.add(f.snapshotKey);
-            if (f.sha256) referenced.add(f.sha256);
+    // Step 2: size-bounded eviction. Each iteration: evict the oldest
+    // manifest, immediately delete the blobs it uniquely held (orphans
+    // post-eviction), recompute blobsBytes. Without the interleaved orphan
+    // delete, the size cap is unreachable because evicting a manifest does
+    // not by itself remove its blobs.
+    const corruptCount = /** @type {any} */ (manifests)._corruptCount ?? 0;
+    if (corruptCount === 0) {
+        let blobsBytes = await computeBlobsBytes({ projectRoot, fs });
+        while (blobsBytes > effective.maxBlobsBytes && turnManifests().length > 0) {
+            const oldest = turnManifests()[0];
+            if (!oldest) break;
+            await sandbox.deleteFile(manifestPath(oldest.id));
+            manifests = manifests.filter((m) => m.id !== oldest.id);
+            evictedTurns += 1;
+            const { deleted, bytes } = await deleteOrphans();
+            totalDeletedBlobs += deleted;
+            totalReclaimedBytes += bytes;
+            blobsBytes = await computeBlobsBytes({ projectRoot, fs });
         }
     }
 
-    let deletedBlobs = 0;
-    let reclaimedBytes = 0;
-    const blobsDir = absoluteBlobsDir(projectRoot);
-    let blobEntries;
-    try {
-        blobEntries = await fs.readDir(blobsDir);
-    } catch {
-        blobEntries = [];
+    // Step 3: a final orphan-blob deletion pass to clean up any blobs not
+    // referenced by the (possibly count-evicted-only) remaining manifests.
+    //
+    // SAFETY GUARD: if listManifests skipped any malformed manifests
+    // (corrupt JSON, schema violation, partial-write crash), we CANNOT
+    // safely run orphan deletion — a corrupted manifest's blobs would be
+    // wrongly classified as orphans and deleted, violating AC-20's HARD
+    // invariant. Skip orphan deletion entirely; the next cleanup pass
+    // will retry once the corruption is repaired manually.
+    if (corruptCount > 0) {
+        console.warn(
+            `[lerret-ai] snapshot cleanup — skipping orphan-blob deletion: ` +
+                `${corruptCount} manifest(s) were unreadable. Manual repair needed; ` +
+                `next cleanup will retry.`,
+        );
+        console.info(
+            `[lerret-ai] snapshot cleanup — evicted ${evictedTurns} turn(s), ` +
+                `reclaimed 0 bytes (0 blobs; orphan-delete skipped due to ` +
+                `${corruptCount} corrupt manifest(s))`,
+        );
+        return { evictedTurns, reclaimedBytes: 0, deletedBlobs: 0 };
     }
-    for (const entry of blobEntries) {
-        if (!entry.name) continue;
-        if (referenced.has(entry.name)) continue;
-        // Orphan — measure size, then delete.
-        let size = 0;
-        try {
-            const content = await fs.readFile(`${blobsDir}/${entry.name}`, {
-                encoding: 'binary',
-            });
-            size = content instanceof Uint8Array ? content.byteLength : content.length;
-        } catch {
-            // Skip; size stays 0.
-        }
-        try {
-            // sandbox.deleteFile expects a project-relative path; use the
-            // pre-existing relative form (BLOBS_DIR + name).
-            await sandbox.deleteFile(`${BLOBS_DIR}/${entry.name}`);
-            deletedBlobs += 1;
-            reclaimedBytes += size;
-        } catch {
-            // Sandbox rejection on a blob path inside .lerret/ would be a
-            // bug; surface it as a log line but do not crash cleanup.
-            console.warn(
-                `[lerret-ai] snapshot cleanup — could not delete blob '${entry.name}'`,
-            );
-        }
-    }
+
+    const finalOrphan = await deleteOrphans();
+    totalDeletedBlobs += finalOrphan.deleted;
+    totalReclaimedBytes += finalOrphan.bytes;
 
     // Observability log — no user content, just counts.
     console.info(
-        `[lerret-ai] snapshot cleanup — evicted ${evictedTurns} turn(s), reclaimed ${reclaimedBytes} bytes (${deletedBlobs} blobs)`,
+        `[lerret-ai] snapshot cleanup — evicted ${evictedTurns} turn(s), reclaimed ${totalReclaimedBytes} bytes (${totalDeletedBlobs} blobs)`,
     );
 
-    return { evictedTurns, reclaimedBytes, deletedBlobs };
+    return {
+        evictedTurns,
+        reclaimedBytes: totalReclaimedBytes,
+        deletedBlobs: totalDeletedBlobs,
+    };
 }

@@ -176,8 +176,18 @@ export async function redoTurn({ projectRoot, fs, sandbox, turnId }) {
     redoManifest.status = 'applied';
     await writeManifest({ sandbox, manifest: redoManifest });
 
-    // The source turn flips back to applied — it has been "redone".
-    await updateManifestStatus({ projectRoot, fs, sandbox, turnId, status: 'applied' });
+    // The source turn flips to 'reverted-forward' per AC-14 — distinct from
+    // 'applied' (a fresh turn) so the revert-timeline UI (UX-delta §4.5) can
+    // render the status pill's `Reverted forward` state correctly. Status-
+    // pill state machine: applied → reverted → reverted-forward, with redo
+    // arrival landing at the third state.
+    await updateManifestStatus({
+        projectRoot,
+        fs,
+        sandbox,
+        turnId,
+        status: 'reverted-forward',
+    });
 }
 
 // ─── internal helpers ──────────────────────────────────────────────────────
@@ -194,6 +204,21 @@ export async function redoTurn({ projectRoot, fs, sandbox, turnId }) {
  *   entry: import('./manifest.js').FileEntry,
  * }} args
  */
+/**
+ * Validate that a snapshotKey / sha256 field on a manifest entry is the
+ * shape we wrote: a 64-character lowercase hex string. This guards against
+ * a maliciously-crafted manifest on disk attempting to redirect the blob
+ * read to an arbitrary path (e.g., `../../../../etc/passwd`) — the
+ * unwrapped fs.readFile bypasses the sandbox, so the integrity of the path
+ * we construct depends on the integrity of the manifest key.
+ *
+ * @param {unknown} hex
+ * @returns {boolean}
+ */
+function isValidBlobKey(hex) {
+    return typeof hex === 'string' && /^[0-9a-f]{64}$/.test(hex);
+}
+
 async function restoreEntry({ projectRoot, fs, sandbox, entry }) {
     const { path, op, snapshotKey, encoding = 'utf-8' } = entry;
     if (op === 'create') {
@@ -206,6 +231,18 @@ async function restoreEntry({ projectRoot, fs, sandbox, entry }) {
         throw new SnapshotError({
             code: 'BLOB_MISSING',
             message: `file '${path}' has op '${op}' but no snapshotKey; cannot restore`,
+        });
+    }
+    if (!isValidBlobKey(snapshotKey)) {
+        // Reject malformed snapshot keys before constructing a path with them
+        // — prevents path-traversal via a tampered manifest. The blob path is
+        // composed via string concatenation, so a `..`-containing key would
+        // escape `.lerret/.state/history/blobs/`.
+        throw new SnapshotError({
+            code: 'MALFORMED_BLOB_KEY',
+            message:
+                `file '${path}' has invalid snapshotKey shape — expected ` +
+                `64-char lowercase hex (sha256); got '${snapshotKey}'`,
         });
     }
     let content;
@@ -243,6 +280,14 @@ async function reapplyEntry({ projectRoot, fs, sandbox, entry }) {
         throw new SnapshotError({
             code: 'BLOB_MISSING',
             message: `file '${path}' has op '${op}' but no sha256 (post-turn key); cannot redo`,
+        });
+    }
+    if (!isValidBlobKey(sha256)) {
+        throw new SnapshotError({
+            code: 'MALFORMED_BLOB_KEY',
+            message:
+                `file '${path}' has invalid sha256 shape — expected 64-char ` +
+                `lowercase hex; got '${sha256}'`,
         });
     }
     let content;

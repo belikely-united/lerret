@@ -11,8 +11,9 @@
 // pre-edit content produce ONE blob. The retention pass MUST refuse to
 // delete a blob still referenced by any retained manifest.
 
-import { blobPath, absoluteBlobPath } from './layout.js';
+import { blobPath, absoluteBlobPath, ensureHistoryDirs } from './layout.js';
 import { addFileEntry } from './manifest.js';
+import { SnapshotError } from './errors.js';
 
 /**
  * Compute the SHA-256 hex digest of UTF-8 text or raw bytes. Cross-
@@ -72,12 +73,39 @@ export async function captureBeforeImage({
     }
 
     // op === 'edit' or op === 'delete' — read the current content as the
-    // before-image. `filePath` is project-relative; resolve to absolute
-    // for the unwrapped FS call.
-    const absolute = filePath.startsWith('/') ? filePath : `${projectRoot}/${filePath}`;
-    const content = await fs.readFile(absolute, { encoding });
+    // before-image. `filePath` MUST be project-relative (POSIX, no leading
+    // slash) per AC-3; reject absolute paths up front so a downstream
+    // manifest cannot mix relative and absolute paths into manifest.files[].
+    if (filePath.startsWith('/')) {
+        throw new SnapshotError({
+            code: 'INVALID_FILE_PATH',
+            message:
+                `captureBeforeImage: filePath must be project-relative ` +
+                `(POSIX, no leading slash) per AC-3; got '${filePath}'`,
+        });
+    }
+    const absolute = `${projectRoot}/${filePath}`;
+    let content;
+    try {
+        content = await fs.readFile(absolute, { encoding });
+    } catch (err) {
+        // Wrap raw backend errors in a typed SnapshotError so callers
+        // (Worker / orchestrator) can branch on the `code` field rather than
+        // parsing message strings — matches the contract used by readManifest
+        // / restoreEntry / etc.
+        throw new SnapshotError({
+            code: 'FILE_NOT_FOUND',
+            message:
+                `captureBeforeImage: cannot read pre-edit content for ` +
+                `'${filePath}' (op='${op}')`,
+            details: { cause: err instanceof Error ? err.message : String(err) },
+        });
+    }
     const sha256 = await computeSha256(content);
     const path = blobPath(sha256);
+
+    // Bootstrap blobs/ before the first write — idempotent.
+    await ensureHistoryDirs({ sandbox });
 
     // Content-addressed dedup: only write the blob if it does not already
     // exist. This is the cross-turn sharing mechanism — two turns with the
