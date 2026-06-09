@@ -25,8 +25,11 @@ const PROJECT_CONFIG_PATH = '.lerret/config.json';
  * @returns {Record<string, string>}
  */
 function parseDesignSystemTokens(md) {
+    // Null-prototype map so a `__proto__`/`constructor`/`prototype`-named token
+    // is stored as a real key (not a silent no-op write to the proto slot) and
+    // cannot pollute Object.prototype.
     /** @type {Record<string, string>} */
-    const tokens = {};
+    const tokens = Object.create(null);
     for (const raw of md.split('\n')) {
         const line = raw.replace(/^\s*[-*]\s*/, '').trim();
         const m = /^([A-Za-z][\w-]*)\s*:\s*(#[0-9a-fA-F]{3,8}|[^\s].*)$/.exec(line);
@@ -49,9 +52,9 @@ export function createDsCuratorNode({ sandbox, emit }) {
         if (state?.signal?.aborted) return { brandTokens: {} };
 
         /** @type {Record<string, string>} */
-        let primary = {};
+        let primary = Object.create(null);
         /** @type {Record<string, string>} */
-        let secondary = {};
+        const secondary = Object.create(null);
 
         try {
             if (await sandbox.exists(DESIGN_SYSTEM_PATH)) {

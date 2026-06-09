@@ -30,6 +30,11 @@ const SRC_ROOT = join(__dirname, '..');
 const SCAN_DIRS = [
     join(SRC_ROOT, 'providers'),
     join(SRC_ROOT, 'vault'),
+    // Story 8.3: the orchestrator's run-turn.js now decrypts the API key
+    // (binds it to `apiKey`) before handing it to the provider's configure().
+    // Scan orchestrator/ too so a `console.log(apiKey)` slip in the
+    // provider-handle resolution (or any orchestrator file) fails CI.
+    join(SRC_ROOT, 'orchestrator'),
 ];
 const EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 

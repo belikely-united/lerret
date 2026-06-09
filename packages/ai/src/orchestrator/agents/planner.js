@@ -63,8 +63,12 @@ export function parsePlan(content) {
     }
     const steps = Array.isArray(parsed) ? parsed : parsed?.steps;
     if (!Array.isArray(steps)) return [];
+    // Whitelist the op so a typo'd/unknown op surfaces as a visibly-empty plan
+    // (a no-op `done`) rather than silently being skipped step-by-step in the
+    // Worker. Path validity is enforced by the sandbox at write time.
+    const ALLOWED_OPS = new Set(['write', 'delete', 'mkdir']);
     return steps.filter(
-        (s) => s && typeof s.op === 'string' && typeof s.path === 'string',
+        (s) => s && typeof s.op === 'string' && ALLOWED_OPS.has(s.op) && typeof s.path === 'string',
     );
 }
 
@@ -98,6 +102,10 @@ export function createPlannerNode({ providerHandle, emit, requestVisionDecision 
             handle = await requestVisionDecision();
         }
 
+        // Re-check the signal immediately before the (expensive) LLM call — a
+        // stop that landed between the entry guard and here should not pay for
+        // the planning round-trip.
+        if (state?.signal?.aborted) return { plan: [] };
         const result = await handle.complete({
             messages: buildPlanningMessages(state),
             signal: state.signal,

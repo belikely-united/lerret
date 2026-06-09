@@ -189,13 +189,17 @@ export function createWorkerNode({ sandbox, fs, projectRoot, emit, snapshot }) {
                 // The in-flight write FINISHES even if `signal` fires now
                 // (NFR18) — the next step's pre-check is where the halt lands.
                 await sandbox.writeFile(step.path, step.content);
+                // Emit + record the write IMMEDIATELY after the project file
+                // lands, BEFORE the post-image capture — so the event stream +
+                // writtenFiles reflect on-disk reality even if capturePostImage
+                // (a second sandbox write, for redo) throws.
+                emit(writing(step.path));
+                writtenFiles.push({ path: step.path, op });
                 const { sha256 } = await snapshot.capturePostImage({
                     sandbox,
                     content: step.content,
                 });
                 manifest = snapshot.updateFileEntry(manifest, step.path, { sha256 });
-                emit(writing(step.path));
-                writtenFiles.push({ path: step.path, op });
             } else if (step.op === 'delete') {
                 const existed = await sandbox.exists(step.path);
                 if (existed && !snapshot.isAlreadyCapturedInTurn(manifest, step.path)) {

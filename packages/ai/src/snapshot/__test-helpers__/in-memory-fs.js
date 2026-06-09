@@ -6,10 +6,12 @@
 // Mirrors the v1 `FilesystemAccess` contract (readDir, readFile, writeFile,
 // watch, capabilities) plus Story 8.4's sandbox interface (writeFile,
 // deleteFile, mkdir, exists, readFile). The sandbox here is a full-featured
-// stand-in — the production sandbox.js currently stubs deleteFile/mkdir/
-// exists with "not yet in v1 contract" errors (v1 contract gap to be
-// addressed in a follow-up story). Story 8.5's tests verify the snapshot
-// LOGIC; runtime integration follows when the contract extends.
+// stand-in for the production `core/fs/sandbox.js`, whose contract was
+// extended (Batch 1, the "V1 contract extension") to implement
+// deleteFile/mkdir/exists for real — so this stand-in now mirrors a live
+// contract, not a stubbed one. Story 8.5's tests verify the snapshot LOGIC
+// against it; Story 8.3's orchestrator integration test exercises the same
+// shape end-to-end.
 
 /**
  * Create a minimal in-memory FilesystemAccess.
@@ -100,14 +102,14 @@ export function createInMemoryFs() {
 
 /**
  * Create a fully-functional sandbox over an in-memory FS. Validates the
- * `.lerret/` prefix the same way the production sandbox does, but
- * implements deleteFile / mkdir / exists for real (instead of the
- * production stubs from Story 8.4 that throw "not yet in v1 contract").
+ * `.lerret/` prefix the same way the production `core/fs/sandbox.js` does and
+ * implements deleteFile / mkdir / exists for real — matching the live v1
+ * contract after the Batch 1 extension (the production sandbox no longer
+ * throws "not yet in v1 contract" for these).
  *
- * This lets Story 8.5's tests validate the snapshot logic end-to-end.
- * When the v1 contract is extended (follow-up), the production sandbox
- * will delegate to the real backends instead of throwing, and runtime
- * integration with the real Worker / orchestrator becomes seamless.
+ * This lets Story 8.5's snapshot tests AND Story 8.3's orchestrator
+ * integration test drive the same sandbox shape end-to-end against an
+ * in-memory backend.
  */
 export function createMockSandbox(fs, projectRoot) {
     if (typeof projectRoot !== 'string' || !projectRoot.startsWith('/')) {

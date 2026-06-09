@@ -6,6 +6,15 @@
 // decouples their timing so a node mid-execution can push a `writing` event
 // that the consumer's `for await` sees immediately, without the node having to
 // return first. `close()` ends the iteration once the graph completes.
+//
+// On `fail()`: run-turn.js deliberately does NOT route graph errors through
+// the queue — it `close()`s the queue normally and surfaces the captured graph
+// error as a terminal `error` TurnEvent (so the consumer always sees a clean
+// end-of-stream + a structured error event, never a rejected `for await`).
+// `fail()` is therefore currently unused by the orchestrator; it is retained
+// as part of the queue's complete, self-consistent contract (a closable queue
+// that can also reject) for any future consumer that prefers a thrown stream.
+// Covered by async-queue.test.js so it cannot silently rot.
 
 /**
  * @template T

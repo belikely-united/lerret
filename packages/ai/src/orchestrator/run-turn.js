@@ -159,6 +159,20 @@ export async function* runTurn({
     const emit = (ev) => queue.push(ev);
     const activeResolver = resolver ?? createVaultResolver({ folderId });
 
+    // Internal abort controller, OR-ed with the caller's signal. The graph +
+    // every provider call read THIS signal. The caller's `signal` aborting it
+    // is the normal Stop path; aborting it ourselves on generator teardown
+    // (the consumer broke the `for await` early — Stop-via-break, unmount, or a
+    // thrown consumer body) lets the graph halt at the next safe point instead
+    // of running the whole turn to completion after the caller is gone.
+    const internalAbort = new AbortController();
+    const onCallerAbort = () => internalAbort.abort();
+    if (signal) {
+        if (signal.aborted) internalAbort.abort();
+        else signal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+    const effectiveSignal = internalAbort.signal;
+
     // 1. Resolve the active provider handle (or the whole-turn override).
     let providerHandle;
     let activeProviderName;
@@ -197,7 +211,9 @@ export async function* runTurn({
     // 3. Vision-fallback decision bridge (FR56 — logic only; UI is Story 8.7).
     const requestVisionDecision = async () => {
         const eligible = await activeResolver.enumerateVision({ exclude: activeProviderName });
-        emit(events.needsVisionFallback(eligible));
+        // AC-17: the no-eligible-provider case (State A) is error-only — do NOT
+        // emit `needs-vision-fallback` (which is State B's "offer an override"
+        // signal) when there is nothing to offer.
         if (eligible.length === 0) {
             throw new VisionUnavailable({
                 activeProvider: activeProviderName,
@@ -205,6 +221,7 @@ export async function* runTurn({
                 reason: 'no cloud vision-capable provider is configured',
             });
         }
+        emit(events.needsVisionFallback(eligible));
         const decision = onVisionDecision
             ? await onVisionDecision(events.needsVisionFallback(eligible))
             : null;
@@ -234,16 +251,17 @@ export async function* runTurn({
     let finalState;
     const driver = (async () => {
         try {
-            // `signal` is threaded into STATE (nodes check it cooperatively)
-            // — NOT into LangGraph's abort config, so an in-flight Worker
-            // write finishes before the next pre-check halts (NFR18, AC-13).
+            // `effectiveSignal` is threaded into STATE (nodes check it
+            // cooperatively) — NOT into LangGraph's abort config, so an
+            // in-flight Worker write finishes before the next pre-check halts
+            // (NFR18, AC-13).
             finalState = await graph.invoke({
                 prompt,
                 scope,
                 mode,
                 attachments,
                 providerHandle,
-                signal,
+                signal: effectiveSignal,
                 manifest,
             });
         } catch (err) {
@@ -253,42 +271,66 @@ export async function* runTurn({
         }
     })();
 
+    // Idempotent finalization: writes the FINAL in-memory manifest (with the
+    // Worker's accumulated file entries + blob keys) at its terminal status,
+    // then runs cleanup. Called from BOTH the normal-completion path and the
+    // teardown finally, so a consumer that breaks the `for await` early still
+    // finalizes the manifest + runs cleanup (AC-11 "ALWAYS finally").
+    let finalized = false;
+    let finalStatus;
+    const finalize = async () => {
+        if (finalized) return finalStatus;
+        finalized = true;
+        finalStatus = graphError
+            ? 'error'
+            : effectiveSignal.aborted
+              ? 'stopped-mid-turn'
+              : 'applied';
+        const finalManifest = finalState?.manifest ?? manifest;
+        try {
+            const fin = snapshot.finalizeManifest(finalManifest, { status: finalStatus });
+            await snapshot.writeManifest({ sandbox, manifest: fin });
+        } catch {
+            // Best-effort — a manifest-write failure does not block cleanup.
+        }
+        try {
+            await snapshot.runCleanup({ projectRoot, fs, sandbox });
+        } catch {
+            // Cleanup is best-effort.
+        }
+        return finalStatus;
+    };
+
     try {
+        // 4. Drain the out-of-band event queue to the consumer.
         for await (const ev of queue) {
             yield ev;
         }
-    } finally {
+        // 5. Normal completion: the graph has finished (queue closed by the
+        //    driver). Capture finalState/graphError, finalize, yield terminal.
         await driver;
-    }
-
-    // 5. Finalize. Order: error > aborted > applied. We write the FINAL
-    //    in-memory manifest (the one the Worker accumulated file entries +
-    //    blob keys onto) with its terminal status — not a re-read of the
-    //    initial on-disk manifest, which still has an empty files[] array.
-    //    This is what makes the turn revertible: the on-disk manifest ends
-    //    with the real file list + snapshot keys.
-    const aborted = Boolean(signal?.aborted);
-    const finalManifest = finalState?.manifest ?? manifest;
-    const status = graphError ? 'error' : aborted ? 'stopped-mid-turn' : 'applied';
-    try {
-        const finalized = snapshot.finalizeManifest(finalManifest, { status });
-        await snapshot.writeManifest({ sandbox, manifest: finalized });
-        if (graphError) {
+        const status = await finalize();
+        if (status === 'error') {
             // Snapshot stays intact — NO auto-revert (the user decides).
             yield events.error(graphError);
-        } else if (aborted) {
+        } else if (status === 'stopped-mid-turn') {
             yield events.stopped();
         } else {
             yield events.done(finalState?.writtenFiles ?? []);
         }
-    } catch (finalizeErr) {
-        yield events.error(finalizeErr);
     } finally {
-        // 6. Synchronous cleanup — part of the turn's logical completion (AC-11).
+        // 6. ALWAYS — including on consumer `.return()` (early break) or a
+        //    thrown consumer body. Abort the graph so it halts at the next
+        //    safe point rather than running to completion after the caller is
+        //    gone, wait for it to settle, then finalize (idempotent — a no-op
+        //    if the normal path already finalized).
+        internalAbort.abort();
         try {
-            await snapshot.runCleanup({ projectRoot, fs, sandbox });
+            await driver;
         } catch {
-            // Cleanup is best-effort; a cleanup failure does not fail the turn.
+            // driver never rejects (it catches into graphError), but guard anyway.
         }
+        await finalize();
+        if (signal) signal.removeEventListener('abort', onCallerAbort);
     }
 }
