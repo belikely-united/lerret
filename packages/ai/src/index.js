@@ -104,3 +104,13 @@ export const VERSION = '0.1.0';
 // Snapshot subsystem (Story 8.5): per-turn manifests + content-addressed
 // blob store + revert/redo API + retention. Reached as `ai.snapshot.X`.
 export * as snapshot from './snapshot/index.js';
+
+// Provider abstraction (Story 8.1): four AI providers (OpenAI / Anthropic /
+// OpenRouter — BYOK; Ollama — local) behind a single interface + capability
+// matrix + normalized error set. Reached as `ai.providers.X`.
+export * as providers from './providers/index.js';
+
+// Encrypted key vault (Story 8.1): Web Crypto AES-256-GCM wrappers, per-
+// session key lifecycle, IndexedDB CRUD for the three AI object stores.
+// Reached as `ai.vault.X`.
+export * as vault from './vault/index.js';
