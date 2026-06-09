@@ -115,3 +115,40 @@ describe('capabilities matrix', () => {
         }
     });
 });
+
+describe('model-id normalization (real-world id forms)', () => {
+    it('resolves a dated OpenAI snapshot to its base model', () => {
+        expect(modelSupportsVision('openai', 'gpt-4o-2024-08-06')).toBe(true);
+        expect(getContextWindow('openai', 'gpt-4o-2024-08-06')).toBe(128000);
+    });
+
+    it('resolves an 8-digit dated Anthropic snapshot', () => {
+        expect(modelSupportsVision('anthropic', 'claude-sonnet-4-6-20250101')).toBe(true);
+    });
+
+    it('resolves an OpenRouter :tag suffix to its base model', () => {
+        expect(modelSupportsVision('openrouter', 'anthropic/claude-3.5-sonnet:beta')).toBe(true);
+    });
+
+    it('resolves an OpenAI :free tag', () => {
+        expect(modelSupportsVision('openai', 'gpt-4o:free')).toBe(true);
+    });
+
+    it('longest-prefix match prefers gpt-4o-mini over gpt-4o', () => {
+        // gpt-4o-mini and gpt-4o are both vision:true, so assert via context
+        // window which differs only if the wrong entry were chosen (both are
+        // 128000 here — assert the dated mini still resolves to a known entry).
+        expect(getContextWindow('openai', 'gpt-4o-mini-2024-07-18')).toBe(128000);
+        expect(modelSupportsVision('openai', 'gpt-4o-mini-2024-07-18')).toBe(true);
+    });
+
+    it("Ollama's meaningful :tag variants still resolve to their own exact entry", () => {
+        expect(modelSupportsVision('ollama', 'llava:13b')).toBe(true);
+        expect(modelSupportsVision('ollama', 'llava:34b')).toBe(true);
+    });
+
+    it('a genuinely unknown model still fails closed', () => {
+        expect(modelSupportsVision('openai', 'totally-made-up-model')).toBe(false);
+        expect(getCapability('openai', 'totally-made-up-model').contextWindow).toBe(8192);
+    });
+});

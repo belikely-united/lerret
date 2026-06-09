@@ -62,8 +62,17 @@ describe('parseNDJSON', () => {
         expect(frames).toEqual([{ a: 1 }, { a: 2 }]);
     });
 
-    it('throws SyntaxError on malformed JSON line', async () => {
-        const body = '{"a":1}\nnot-json\n';
-        await expect(collect(parseNDJSON(makeBodyStream(body)))).rejects.toThrow(SyntaxError);
+    it('SKIPS a malformed JSON line and keeps the valid frames around it', async () => {
+        // A single un-parseable frame (keep-alive, partial line) must not
+        // abort the stream — the valid deltas before and after it survive.
+        const body = '{"a":1}\nnot-json\n{"a":3}\n';
+        const frames = await collect(parseNDJSON(makeBodyStream(body)));
+        expect(frames).toEqual([{ a: 1 }, { a: 3 }]);
+    });
+
+    it('SKIPS a truncated trailing frame (connection cut mid-line)', async () => {
+        const body = '{"a":1}\n{"a":2}\n{"partial":';
+        const frames = await collect(parseNDJSON(makeBodyStream(body)));
+        expect(frames).toEqual([{ a: 1 }, { a: 2 }]);
     });
 });

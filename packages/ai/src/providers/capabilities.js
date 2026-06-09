@@ -90,12 +90,68 @@ export function getCapability(provider, model) {
     }
     const perProvider = matrix[provider];
     if (!perProvider) return DEFAULT_CAPABILITY;
-    const entry = perProvider[model];
+    const entry = resolveEntry(perProvider, model);
     if (!entry) return DEFAULT_CAPABILITY;
     return Object.freeze({
         vision: Boolean(entry.vision),
         contextWindow: Number(entry.contextWindow) || DEFAULT_CAPABILITY.contextWindow,
     });
+}
+
+/**
+ * Resolve a matrix entry for a model id, tolerating the real-world id forms
+ * vendors emit that the canonical matrix keys do not list verbatim:
+ *   - dated snapshots:      `gpt-4o-2024-08-06`, `claude-sonnet-4-6-20250101`
+ *   - tag suffixes:         `anthropic/claude-3.5-sonnet:beta`, `gpt-4o:free`
+ *   - both combined.
+ *
+ * Strategy: exact match (fast path) → strip a trailing dated-snapshot and/or
+ * `:tag` suffix and retry exact → longest-prefix match against the matrix
+ * keys. A model that matches no known family still falls through to the
+ * fail-closed default (the caller treats `undefined` as DEFAULT_CAPABILITY).
+ *
+ * Note: exact match runs FIRST, so Ollama's meaningful `:tag` variants that
+ * ARE listed (e.g. `llava:13b`) resolve to their own entry; the tag-strip
+ * fallback only fires for unlisted tags.
+ *
+ * @param {Record<string, {vision: boolean, contextWindow: number}>} perProvider
+ * @param {string} model
+ * @returns {{vision: boolean, contextWindow: number} | undefined}
+ */
+function resolveEntry(perProvider, model) {
+    // 1. Exact match.
+    if (perProvider[model]) return perProvider[model];
+
+    // 2. Strip a trailing dated-snapshot suffix (-YYYY-MM-DD or -YYYYMMDD)
+    //    and/or a `:tag` suffix, then retry exact match.
+    const candidates = new Set();
+    const noTag = model.includes(':') ? model.slice(0, model.lastIndexOf(':')) : model;
+    candidates.add(noTag);
+    for (const base of [model, noTag]) {
+        const undated = base
+            .replace(/-\d{4}-\d{2}-\d{2}$/, '')
+            .replace(/-\d{8}$/, '');
+        candidates.add(undated);
+    }
+    for (const c of candidates) {
+        if (c !== model && perProvider[c]) return perProvider[c];
+    }
+
+    // 3. Longest-prefix match: a matrix key K is a prefix of `model` at a
+    //    natural boundary (`-`, `:`, or `@`). Pick the longest such K so
+    //    `gpt-4o-mini-2024-...` matches `gpt-4o-mini`, not `gpt-4o`.
+    let best;
+    for (const key of Object.keys(perProvider)) {
+        if (
+            model === key ||
+            model.startsWith(`${key}-`) ||
+            model.startsWith(`${key}:`) ||
+            model.startsWith(`${key}@`)
+        ) {
+            if (!best || key.length > best.length) best = key;
+        }
+    }
+    return best ? perProvider[best] : undefined;
 }
 
 /**

@@ -8,9 +8,12 @@
 //
 // Each helper accepts a `ReadableStream<Uint8Array>` (the body of a `fetch`
 // response with `body` set) and yields parsed records as an async iterable.
-// `AbortSignal` cancellation is handled by the caller — the reader is
-// released cleanly in the `finally` block so an aborted fetch does not
-// leak the connection.
+// On any early termination — the caller `break`s out of the `for await`, an
+// `[DONE]` sentinel returns, or an error throws — the `finally` block calls
+// `reader.cancel()` (which tears down the underlying fetch body so the TCP
+// connection is released) and then `releaseLock()`. Releasing the lock alone
+// would leave the body un-cancelled and the connection potentially hanging,
+// so cancellation is the load-bearing cleanup here.
 
 /**
  * Yield the `data:` payloads of a Server-Sent Events stream.
@@ -57,13 +60,25 @@ export async function* parseSSE(stream) {
                 // Other field names (id:, retry:) ignored.
             }
         }
+        // Flush any bytes the streaming decoder held back (an incomplete
+        // multi-byte UTF-8 sequence at the final chunk boundary) before
+        // draining the tail, so the last character is never dropped.
+        buffer += decoder.decode();
         // Drain any trailing line that did not end in \n.
         const tail = buffer.replace(/\r$/, '');
         if (tail.startsWith('data:')) {
             const data = tail.slice(5).trimStart();
+            // A truncated final frame (connection cut mid-frame) can be
+            // invalid JSON; the provider's own try/catch skips it, so emitting
+            // it here is safe and lets a clean final frame through.
             if (data !== '[DONE]') yield { data };
         }
     } finally {
+        try {
+            await reader.cancel();
+        } catch {
+            // cancel() can reject if the stream already errored — ignore.
+        }
         try {
             reader.releaseLock();
         } catch {
@@ -81,9 +96,11 @@ export async function* parseSSE(stream) {
  *   `<JSON object>\n`
  *   ...
  *
- * Malformed lines throw `SyntaxError` from `JSON.parse` — the caller
- * (Ollama provider) decides whether to surface them as an `Unknown`
- * ProviderError.
+ * Malformed / partial lines are SKIPPED (not thrown). Ollama streams can
+ * carry blank keep-alive lines, and a connection cut mid-frame leaves a
+ * partial trailing line; a single un-parseable frame must not abort the
+ * whole stream and discard the valid deltas that preceded it. This mirrors
+ * the SSE providers' skip-and-continue resilience.
  *
  * @param {ReadableStream<Uint8Array>} stream
  * @returns {AsyncGenerator<unknown>}
@@ -102,16 +119,42 @@ export async function* parseNDJSON(stream) {
                 const line = buffer.slice(0, nl).replace(/\r$/, '');
                 buffer = buffer.slice(nl + 1);
                 if (line.length === 0) continue;
-                yield JSON.parse(line);
+                const parsed = tryParseJson(line);
+                if (parsed !== undefined) yield parsed;
             }
         }
+        // Flush held-back multi-byte UTF-8 bytes before draining the tail.
+        buffer += decoder.decode();
         const tail = buffer.replace(/\r$/, '');
-        if (tail.length > 0) yield JSON.parse(tail);
+        if (tail.length > 0) {
+            const parsed = tryParseJson(tail);
+            if (parsed !== undefined) yield parsed;
+        }
     } finally {
+        try {
+            await reader.cancel();
+        } catch {
+            // cancel() can reject if the stream already errored — ignore.
+        }
         try {
             reader.releaseLock();
         } catch {
             // Reader may already be released.
         }
+    }
+}
+
+/**
+ * Parse a JSON line, returning `undefined` on failure instead of throwing.
+ * Used by parseNDJSON to skip malformed/partial frames.
+ *
+ * @param {string} line
+ * @returns {unknown | undefined}
+ */
+function tryParseJson(line) {
+    try {
+        return JSON.parse(line);
+    } catch {
+        return undefined;
     }
 }
