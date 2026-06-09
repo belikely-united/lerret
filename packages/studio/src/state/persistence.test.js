@@ -128,8 +128,10 @@ function buildFakeIdb() {
  req.result = db;
 
  // Fire onupgradeneeded when the db is first created (version bump).
+ // Real IndexedDB supplies `oldVersion` on the event — 0 for a brand-new
+ // DB — which the v1→v2 migration guard (`e.oldVersion < 2`) relies on.
  if (isNew && req.onupgradeneeded) {
- req.onupgradeneeded({ target: req });
+ req.onupgradeneeded({ target: req, oldVersion: 0, newVersion: version });
  }
 
  req.onsuccess?.({ target: req });
@@ -352,6 +354,45 @@ describe('persistence — cross-store consistency', () => {
  const h = makeHandle('proj');
  await recordTrust(h);
  await clearTrust(h);
+ await recordTrust(h);
+ expect(await isTrusted(h)).toBe(true);
+ });
+});
+
+describe('persistence — v1→v2 schema migration (Epic 8 / Story 8.1)', () => {
+ // The DB version bumped 1→2 to host the AI key-vault stores alongside the
+ // v1 trust/handles stores. @lerret/ai's vault/store.js opens the SAME DB
+ // at version 2; both must agree on the version + create the same three AI
+ // stores or whichever opens second throws a VersionError. These tests
+ // assert the studio-side onupgradeneeded creates all five stores and that
+ // the v1 stores keep working after the bump.
+
+ it('opening the DB creates all five stores (v1 trust/handles + 3 AI vault)', async () => {
+ // Trigger an open via any exported persistence call.
+ const h = makeHandle('proj');
+ await recordTrust(h);
+
+ // Inspect the fake DB's store map directly.
+ const storeMap = _databases.get('lerret-studio-state');
+ expect(storeMap.has('trust')).toBe(true);
+ expect(storeMap.has('handles')).toBe(true);
+ expect(storeMap.has('ai_provider_config')).toBe(true);
+ expect(storeMap.has('ai_keys')).toBe(true);
+ expect(storeMap.has('ai_disclosure_ack')).toBe(true);
+ });
+
+ it('the three AI vault stores use the compound [folderId, providerName] keyPath', async () => {
+ const h = makeHandle('proj');
+ await recordTrust(h);
+
+ const storeMap = _databases.get('lerret-studio-state');
+ for (const name of ['ai_provider_config', 'ai_keys', 'ai_disclosure_ack']) {
+ expect(storeMap.get(name).keyPath).toEqual(['folderId', 'providerName']);
+ }
+ });
+
+ it('v1 trust store still round-trips after the v2 migration', async () => {
+ const h = makeHandle('proj');
  await recordTrust(h);
  expect(await isTrusted(h)).toBe(true);
  });

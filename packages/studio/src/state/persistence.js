@@ -48,9 +48,23 @@
 // ─── DB bootstrap ────────────────────────────────────────────────────────────
 
 const DB_NAME = 'lerret-studio-state';
-const DB_VERSION = 1;
+// Bumped 1 → 2 for Epic 8 (Story 8.1): the AI key vault adds three stores to
+// this same database. `@lerret/ai`'s `vault/store.js` opens the SAME
+// 'lerret-studio-state' DB at version 2; both callers MUST agree on the
+// version or whichever opens second throws a VersionError. The migration body
+// below is byte-equivalent to `applyMigrationsV1ToV2` in vault/store.js —
+// duplicated rather than imported because `@lerret/studio` must NOT statically
+// import `@lerret/ai` (the dynamic-import boundary, enforced by
+// no-static-imports.test.js). Whichever module opens the DB first triggers
+// onupgradeneeded; the other connects normally.
+const DB_VERSION = 2;
 const STORE_TRUST = 'trust';
 const STORE_HANDLES = 'handles';
+// AI vault stores (Epic 8 / Story 8.1) — compound-keyed by (folderId,
+// providerName). Names + keyPaths MUST stay identical to vault/store.js.
+const STORE_AI_PROVIDER_CONFIG = 'ai_provider_config';
+const STORE_AI_KEYS = 'ai_keys';
+const STORE_AI_DISCLOSURE_ACK = 'ai_disclosure_ack';
 
 /**
  * Open (or upgrade) the IndexedDB database. Returns the IDBDatabase instance.
@@ -66,11 +80,34 @@ function openDb() {
  req.onupgradeneeded = (e) => {
  /** @type {IDBDatabase} */
  const db = e.target.result;
+ // v1 stores — created on a fresh DB and preserved across the v1→v2
+ // upgrade (the `contains` guard means an existing v1 DB keeps its
+ // trust/handles records; only the new AI stores are added).
  if (!db.objectStoreNames.contains(STORE_TRUST)) {
  db.createObjectStore(STORE_TRUST, { keyPath: 'folderId' });
  }
  if (!db.objectStoreNames.contains(STORE_HANDLES)) {
  db.createObjectStore(STORE_HANDLES, { keyPath: 'folderId' });
+ }
+ // v2 AI vault stores — added on the v1→v2 upgrade path. The
+ // `oldVersion < 2` guard mirrors vault/store.js; the `contains`
+ // guards make the whole block idempotent regardless of entry version.
+ if (e.oldVersion < 2) {
+ if (!db.objectStoreNames.contains(STORE_AI_PROVIDER_CONFIG)) {
+ db.createObjectStore(STORE_AI_PROVIDER_CONFIG, {
+ keyPath: ['folderId', 'providerName'],
+ });
+ }
+ if (!db.objectStoreNames.contains(STORE_AI_KEYS)) {
+ db.createObjectStore(STORE_AI_KEYS, {
+ keyPath: ['folderId', 'providerName'],
+ });
+ }
+ if (!db.objectStoreNames.contains(STORE_AI_DISCLOSURE_ACK)) {
+ db.createObjectStore(STORE_AI_DISCLOSURE_ACK, {
+ keyPath: ['folderId', 'providerName'],
+ });
+ }
  }
  };
 
