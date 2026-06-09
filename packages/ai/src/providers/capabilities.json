@@ -1,0 +1,40 @@
+{
+    "openai": {
+        "gpt-4o": { "vision": true, "contextWindow": 128000 },
+        "gpt-4o-mini": { "vision": true, "contextWindow": 128000 },
+        "gpt-4-turbo": { "vision": true, "contextWindow": 128000 },
+        "gpt-4": { "vision": false, "contextWindow": 8192 },
+        "gpt-3.5-turbo": { "vision": false, "contextWindow": 16385 }
+    },
+    "anthropic": {
+        "claude-opus-4-7": { "vision": true, "contextWindow": 200000 },
+        "claude-sonnet-4-6": { "vision": true, "contextWindow": 200000 },
+        "claude-haiku-4-5": { "vision": true, "contextWindow": 200000 },
+        "claude-3-5-haiku-latest": { "vision": false, "contextWindow": 200000 }
+    },
+    "openrouter": {
+        "openai/gpt-4o": { "vision": true, "contextWindow": 128000 },
+        "openai/gpt-4o-mini": { "vision": true, "contextWindow": 128000 },
+        "anthropic/claude-3.5-sonnet": { "vision": true, "contextWindow": 200000 },
+        "anthropic/claude-3-opus": { "vision": true, "contextWindow": 200000 },
+        "google/gemini-pro-1.5": { "vision": true, "contextWindow": 1000000 },
+        "google/gemini-flash-1.5": { "vision": true, "contextWindow": 1000000 },
+        "meta-llama/llama-3.1-405b-instruct": { "vision": false, "contextWindow": 131072 },
+        "meta-llama/llama-3.1-70b-instruct": { "vision": false, "contextWindow": 131072 },
+        "mistralai/mistral-large": { "vision": false, "contextWindow": 128000 },
+        "deepseek/deepseek-chat": { "vision": false, "contextWindow": 64000 }
+    },
+    "ollama": {
+        "llava": { "vision": true, "contextWindow": 4096 },
+        "llava:13b": { "vision": true, "contextWindow": 4096 },
+        "llava:34b": { "vision": true, "contextWindow": 4096 },
+        "bakllava": { "vision": true, "contextWindow": 4096 },
+        "llama3.2-vision": { "vision": true, "contextWindow": 128000 },
+        "codellama": { "vision": false, "contextWindow": 16384 },
+        "qwen2.5-coder": { "vision": false, "contextWindow": 32768 },
+        "llama3.2": { "vision": false, "contextWindow": 128000 },
+        "llama3.1": { "vision": false, "contextWindow": 128000 },
+        "mistral": { "vision": false, "contextWindow": 32768 },
+        "phi3.5": { "vision": false, "contextWindow": 128000 }
+    }
+}
