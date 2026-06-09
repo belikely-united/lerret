@@ -7,7 +7,14 @@
 //
 //   - `pagehide` event (browser tab close, navigation, bfcache eviction)
 //   - `beforeunload` event (legacy fallback for older browsers / iframes)
-//   - `visibilitychange: hidden` followed by 5 minutes of idle time
+//   - 5 minutes after `visibilitychange: hidden` (the tab is backgrounded)
+//
+// NOTE on the timing semantics: the 5-minute timer measures TIME SINCE THE TAB
+// WAS BACKGROUNDED, not 5 minutes of no user activity. A tab left open and
+// VISIBLE but unused (e.g. on a second monitor) holds the derived key in
+// memory until `pagehide`/`beforeunload`. True activity-tracked idle (resetting
+// on pointer/key events) is a deliberate non-goal for Epic 8 v1; do not
+// describe this as "5 minutes of inactivity."
 //
 // On clear, the cached `CryptoKey` reference is set to `null`; any in-flight
 // `getSessionKey(folderId)` promise that resolved BEFORE the clear remains
@@ -27,8 +34,10 @@
 import { deriveFolderKey } from './crypto.js';
 
 /**
- * Idle timeout: 5 minutes after `visibilitychange: hidden` before the key is
- * auto-cleared. Per ADR-005 §Decision 5 verbatim.
+ * Auto-clear timeout: 5 minutes after the tab is backgrounded
+ * (`visibilitychange: hidden`) before the cached key is cleared. Per ADR-005
+ * §Decision 5. (This is backgrounded-time, not activity-idle-time — see the
+ * file header.)
  *
  * @type {number}
  */

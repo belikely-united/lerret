@@ -54,9 +54,14 @@ const STORE_TRUST = 'trust';
 const STORE_HANDLES = 'handles';
 
 /**
- * Migration body shared with `packages/studio/src/state/persistence.js`. Both
- * files MUST keep this function byte-equivalent so the migration produces the
- * same schema regardless of which package opens the DB first.
+ * Migration body mirrored in `packages/studio/src/state/persistence.js`. Both
+ * files MUST keep this FUNCTIONALLY equivalent (same final schema) so the
+ * migration produces the same stores regardless of which package opens the DB
+ * first. The structures differ slightly (this gates the v1 stores under
+ * `oldVersion < 1`; persistence.js creates them unconditionally and gates only
+ * the AI stores under `oldVersion < 2`) but the per-store `contains()` guards
+ * make both idempotent and convergent. They are duplicated rather than shared
+ * because `@lerret/studio` cannot statically import `@lerret/ai`.
  *
  * @param {IDBDatabase} db
  * @param {number} oldVersion

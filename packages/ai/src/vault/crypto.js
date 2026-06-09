@@ -11,6 +11,31 @@
 //   - AES-GCM decryption that surfaces a typed `VaultDecryptError` on
 //     auth-tag failure (tamper / wrong key / wrong IV).
 //
+// ─── THREAT MODEL — read before assuming this is "encryption at rest" ────────
+//
+// Be honest about what this protects against. The PBKDF2 derivation has NO
+// SECRET INPUT: the only input is the folder identity (`folder:<name>:<uuid>`),
+// which is stored IN PLAINTEXT in the same IndexedDB database. An attacker who
+// can READ IndexedDB (local malware, a malicious browser extension, a
+// same-origin XSS that reaches `indexedDB`, a shared machine, a forensic disk
+// image) can re-derive the identical key and decrypt the stored ciphertext.
+// PBKDF2's 100k iterations buy NOTHING against such an attacker because there
+// is no secret to brute-force.
+//
+// What this vault DOES provide:
+//   1. The derived key is a NON-EXTRACTABLE CryptoKey — same-origin script
+//      cannot read its raw bytes (no `exportKey('raw')`, no leak via
+//      `JSON.stringify`). So a script that can call `encrypt`/`decrypt` still
+//      cannot exfiltrate the key MATERIAL itself, only use it transiently.
+//   2. Per-folder keys prevent cross-folder ciphertext reuse / rainbow tables.
+//   3. AES-GCM authenticated encryption detects tampering of the stored blob.
+//
+// What it explicitly does NOT provide: confidentiality of the API key against
+// an actor with IndexedDB read access. For that, the KDF would need a real
+// secret input (a user passphrase, or a WebAuthn/PRF-derived secret) — a
+// product decision deferred past Epic 8 v1 (see ADR-005 §Decision 5). Do not
+// describe this as "the key cannot be recovered from disk."
+//
 // ─── Plaintext rules (architecture invariant) ────────────────────────────────
 //
 // The decrypted API key NEVER leaves this module's call frame. The only place
