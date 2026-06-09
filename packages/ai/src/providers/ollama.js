@@ -30,6 +30,7 @@ import {
 } from './errors.js';
 import { modelSupportsVision as matrixModelSupportsVision } from './capabilities.js';
 import { parseNDJSON } from './streaming.js';
+import { assertLocalOrigin } from './url-guard.js';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'llama3.2';
@@ -55,7 +56,14 @@ export class OllamaProvider extends AIProvider {
 
     configure({ baseUrl, model } = {}) {
         // apiKey is silently ignored — Ollama has no auth.
-        if (baseUrl !== undefined) this._baseUrl = baseUrl;
+        if (baseUrl !== undefined) {
+            // SECURITY: Ollama legitimately runs on a custom host, but only on
+            // the local machine or LAN. assertLocalOrigin rejects public hosts
+            // and the 169.254/16 link-local (cloud-metadata) range to block
+            // SSRF, and normalizes to the origin (scheme://host:port) so the
+            // `${baseUrl}/api/chat` concatenation is well-formed.
+            this._baseUrl = assertLocalOrigin(baseUrl);
+        }
         if (model !== undefined) this._model = model;
     }
 

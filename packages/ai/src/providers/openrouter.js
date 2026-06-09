@@ -30,6 +30,7 @@ import {
 } from './errors.js';
 import { modelSupportsVision as matrixModelSupportsVision } from './capabilities.js';
 import { parseSSE } from './streaming.js';
+import { assertVendorOrigin } from './url-guard.js';
 
 const DEFAULT_BASE_URL = 'https://openrouter.ai';
 const DEFAULT_MODEL = 'openai/gpt-4o';
@@ -58,7 +59,10 @@ export class OpenRouterProvider extends AIProvider {
 
     configure({ apiKey, baseUrl, model } = {}) {
         if (apiKey !== undefined) this._apiKey = apiKey;
-        if (baseUrl !== undefined) this._baseUrl = baseUrl;
+        if (baseUrl !== undefined) {
+            // SECURITY: pin egress to the OpenRouter vendor host (see openai.js).
+            this._baseUrl = assertVendorOrigin(baseUrl, DEFAULT_BASE_URL);
+        }
         if (model !== undefined) this._model = model;
     }
 

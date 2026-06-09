@@ -67,7 +67,20 @@ describe('concrete provider subclasses each implement every abstract method', ()
                 expect(() => p.configure({})).not.toThrow();
                 expect(() => p.configure({ apiKey: 'k' })).not.toThrow();
                 expect(() => p.configure({ model: 'm' })).not.toThrow();
-                expect(() => p.configure({ baseUrl: 'http://x' })).not.toThrow();
+                // A provider's OWN default baseUrl is always a valid egress
+                // target (vendor host for cloud, localhost for Ollama), so
+                // re-supplying it must not throw. Egress validation of a
+                // DISALLOWED baseUrl is covered in url-guard.test.js + each
+                // provider's own test.
+                expect(() => p.configure({ baseUrl: p.baseUrl })).not.toThrow();
+            });
+
+            it('configure() rejects an off-host baseUrl (egress guard)', () => {
+                const p = new Cls();
+                // A blatantly off-host URL must be rejected for every provider
+                // — cloud providers pin to their vendor host, Ollama to
+                // loopback/private. evil.example is neither.
+                expect(() => p.configure({ baseUrl: 'https://evil.example' })).toThrow();
             });
 
             it('modelSupportsVision delegates to the capability matrix', () => {

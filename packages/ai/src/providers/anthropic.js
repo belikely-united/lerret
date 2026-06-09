@@ -47,6 +47,7 @@ import {
 } from './errors.js';
 import { modelSupportsVision as matrixModelSupportsVision } from './capabilities.js';
 import { parseSSE } from './streaming.js';
+import { assertVendorOrigin } from './url-guard.js';
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com';
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
@@ -75,7 +76,10 @@ export class AnthropicProvider extends AIProvider {
 
     configure({ apiKey, baseUrl, model } = {}) {
         if (apiKey !== undefined) this._apiKey = apiKey;
-        if (baseUrl !== undefined) this._baseUrl = baseUrl;
+        if (baseUrl !== undefined) {
+            // SECURITY: pin egress to the Anthropic vendor host (see openai.js).
+            this._baseUrl = assertVendorOrigin(baseUrl, DEFAULT_BASE_URL);
+        }
         if (model !== undefined) this._model = model;
     }
 

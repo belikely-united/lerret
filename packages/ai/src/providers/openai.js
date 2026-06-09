@@ -32,6 +32,7 @@ import {
 } from './errors.js';
 import { modelSupportsVision as matrixModelSupportsVision } from './capabilities.js';
 import { parseSSE } from './streaming.js';
+import { assertVendorOrigin } from './url-guard.js';
 
 const DEFAULT_BASE_URL = 'https://api.openai.com';
 const DEFAULT_MODEL = 'gpt-4o';
@@ -58,7 +59,13 @@ export class OpenAIProvider extends AIProvider {
 
     configure({ apiKey, baseUrl, model } = {}) {
         if (apiKey !== undefined) this._apiKey = apiKey;
-        if (baseUrl !== undefined) this._baseUrl = baseUrl;
+        if (baseUrl !== undefined) {
+            // SECURITY: pin egress to the OpenAI vendor host. A non-vendor
+            // baseUrl is rejected before any key-bearing request is built —
+            // there is no legitimate custom-endpoint path for BYOK cloud
+            // providers in v1 (the setup UI offers no base-URL field).
+            this._baseUrl = assertVendorOrigin(baseUrl, DEFAULT_BASE_URL);
+        }
         if (model !== undefined) this._model = model;
     }
 

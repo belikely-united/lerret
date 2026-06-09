@@ -34,3 +34,9 @@ export {
     modelSupportsVision,
     getContextWindow,
 } from './capabilities.js';
+
+export {
+    EgressBlockedError,
+    assertVendorOrigin,
+    assertLocalOrigin,
+} from './url-guard.js';
