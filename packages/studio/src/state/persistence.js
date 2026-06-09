@@ -52,11 +52,15 @@ const DB_NAME = 'lerret-studio-state';
 // this same database. `@lerret/ai`'s `vault/store.js` opens the SAME
 // 'lerret-studio-state' DB at version 2; both callers MUST agree on the
 // version or whichever opens second throws a VersionError. The migration body
-// below is byte-equivalent to `applyMigrationsV1ToV2` in vault/store.js —
-// duplicated rather than imported because `@lerret/studio` must NOT statically
-// import `@lerret/ai` (the dynamic-import boundary, enforced by
-// no-static-imports.test.js). Whichever module opens the DB first triggers
-// onupgradeneeded; the other connects normally.
+// below is FUNCTIONALLY equivalent to `applyMigrationsV1ToV2` in vault/store.js
+// — both converge to the same final schema (the per-store `contains()` guards
+// make each idempotent), though the structure differs (this file creates
+// trust/handles unconditionally and gates only the AI stores under
+// `oldVersion < 2`, while vault/store.js gates the v1 stores under
+// `oldVersion < 1`). It is duplicated rather than imported because
+// `@lerret/studio` must NOT statically import `@lerret/ai` (the dynamic-import
+// boundary, enforced by no-static-imports.test.js). Whichever module opens the
+// DB first triggers onupgradeneeded; the other connects normally.
 const DB_VERSION = 2;
 const STORE_TRUST = 'trust';
 const STORE_HANDLES = 'handles';
@@ -113,6 +117,17 @@ function openDb() {
 
  req.onsuccess = (e) => resolve(e.target.result);
  req.onerror = (e) => reject(e.target.error);
+ // If another tab holds this DB open at the OLD version, the v1→v2
+ // upgrade fires `blocked` (not `error`) and would otherwise hang forever
+ // with no diagnostic. Reject with a clear, actionable message. Mirrors
+ // the symmetric handler in @lerret/ai's vault/store.js.
+ req.onblocked = () =>
+ reject(
+ new Error(
+ 'lerret-studio-state is open in another tab at an older version; ' +
+ 'close other Lerret tabs and reload to apply the database upgrade.',
+ ),
+ );
  });
 }
 
@@ -153,11 +168,27 @@ function getAllRecords(db, storeName) {
  * @returns {string}
  */
 function generateFolderId(name) {
- // crypto.randomUUID is available in Chromium (the only supported browser for
- // hosted mode). Fallback to a hex timestamp + random for test environments.
- const uid = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
- ? crypto.randomUUID()
- : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+ // SECURITY: the folderId is the SOLE entropy source for the AI key-vault's
+ // per-folder encryption key (see @lerret/ai vault/crypto.js). A low-entropy
+ // or predictable id would collapse the vault's per-folder uniqueness, so the
+ // id MUST come from a CSPRNG — never a non-cryptographic PRNG.
+ let uid;
+ if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+ uid = crypto.randomUUID();
+ } else if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+ // CSPRNG fallback for environments lacking randomUUID (older runtimes,
+ // some test contexts): 16 random bytes as hex.
+ const bytes = crypto.getRandomValues(new Uint8Array(16));
+ uid = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+ } else {
+ // No CSPRNG available — refuse to mint a real persisted folder id rather
+ // than silently degrading to a predictable Math.random value that would
+ // weaken the vault. (Chromium, the only supported hosted browser, always
+ // has Web Crypto; this path is effectively unreachable in production.)
+ throw new Error(
+ 'generateFolderId: no Web Crypto available; cannot mint a secure folder id',
+ );
+ }
  return `folder:${name}:${uid}`;
 }
 

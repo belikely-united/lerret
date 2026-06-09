@@ -249,32 +249,44 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
         setDrafts((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), ...patch } }));
     };
 
-    const handleSelect = async (name) => {
+    const handleSelect = (name) => {
         const d = drafts[name] ?? {};
         // Cloud providers require an API key before commit.
         if (PROVIDER_VARIANTS[name] === 'cloud-byok' && !d.apiKey) {
             // No key — bail; the user can fill the field and try again.
             return;
         }
+        // Do NOT persist anything yet. The provider key + active-config write
+        // is deferred to handleAck so that an Esc-cancel of the disclosure
+        // leaves NO orphaned key, NO ai_provider_config row, and NO change to
+        // the folder's active provider. (Previously configure ran here, before
+        // the disclosure, so backing out still committed everything.)
+        setDiscloseFor(name);
+    };
+
+    const handleAck = async () => {
+        const name = discloseFor;
+        if (!name) {
+            onClose?.();
+            return;
+        }
+        // Persist now — the user has seen and acknowledged the disclosure.
+        const d = drafts[name] ?? {};
         await configureProvider(name, {
             apiKey: d.apiKey,
             baseUrl: d.baseUrl,
             model: d.model,
         });
-        // Open the inline disclosure.
-        setDiscloseFor(name);
-    };
-
-    const handleAck = () => {
-        const name = discloseFor;
         setDiscloseFor(null);
-        if (name) onCommit?.(name);
+        onCommit?.(name);
         onClose?.();
     };
 
     const handleDisclosureCancel = () => {
+        // Nothing was persisted (configure is deferred to handleAck), so there
+        // is nothing to roll back — just close. The originally-submitted turn
+        // is discarded by the caller.
         setDiscloseFor(null);
-        // Closing the disclosure aborts the originally-submitted turn.
         onClose?.();
     };
 

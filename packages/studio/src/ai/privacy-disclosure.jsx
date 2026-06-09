@@ -148,13 +148,42 @@ export function PrivacyDisclosure({
     const primaryRef = React.useRef(null);
     const titleId = React.useId();
 
-    // Esc + focus management.
+    // Esc + focus management + focus trap. This dialog renders its own
+    // backdrop (it is NOT an EditorSheet), so it owns its own focus
+    // containment: Tab / Shift+Tab cycle within the dialog rather than
+    // escaping to the page behind the aria-modal backdrop.
     React.useEffect(() => {
         if (!open) return;
+        // Remember what had focus so we can restore it on close.
+        const previouslyFocused =
+            typeof document !== 'undefined' ? document.activeElement : null;
+
         const onKey = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 onCancel?.();
+                return;
+            }
+            if (e.key !== 'Tab') return;
+            const dialog = dialogRef.current;
+            if (!dialog) return;
+            const focusables = dialog.querySelectorAll(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            );
+            if (focusables.length === 0) return;
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            const active = document.activeElement;
+            if (e.shiftKey) {
+                if (active === first || !dialog.contains(active)) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (active === last || !dialog.contains(active)) {
+                    e.preventDefault();
+                    first.focus();
+                }
             }
         };
         document.addEventListener('keydown', onKey);
@@ -165,6 +194,10 @@ export function PrivacyDisclosure({
         return () => {
             document.removeEventListener('keydown', onKey);
             cancelAnimationFrame(raf);
+            // Restore focus to whatever was focused before the dialog opened.
+            if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+                previouslyFocused.focus();
+            }
         };
     }, [open, onCancel]);
 

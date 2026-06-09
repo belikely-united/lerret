@@ -255,7 +255,11 @@ export function AiContextProvider({ folderId, children }) {
             const existing = await ai.vault.listProviderConfigs({ folderId });
             const wasActive = existing.find((e) => e.providerName === providerName)?.active === true;
             const remaining = existing.filter((e) => e.providerName !== providerName);
-            await ai.vault.setProviderConfig({ folderId, providerName, config: null });
+            // Delete the provider-config row via the dedicated delete API.
+            // (setProviderConfig({config: null}) throws — putProviderConfig
+            // dereferences config.active — and would leave an orphaned keyless
+            // row; clearProviderConfig is the correct delete surface, AC-22.)
+            await ai.vault.clearProviderConfig({ folderId, providerName });
             if (wasActive && remaining.length > 0) {
                 const successor = [...remaining].sort((a, b) =>
                     String(b.configuredAt).localeCompare(String(a.configuredAt)),
@@ -304,8 +308,14 @@ export function AiContextProvider({ folderId, children }) {
                     model: cfg?.model,
                 });
                 return await provider.probe();
-            } catch (err) {
-                return { ok: false, reason: 'other', message: err?.message };
+            } catch {
+                // Never forward a raw error message to the UI: the decrypted
+                // `apiKey` is in scope in this frame, and some fetch/serialization
+                // error paths can echo request headers. Return a fixed reason
+                // string; the provider's own probe() returns structured
+                // {reason, detail} on expected failures, which callers render
+                // safely.
+                return { ok: false, reason: 'probe-failed' };
             }
         },
         [folderId, snapshot.configs],
@@ -355,23 +365,27 @@ export function AiContextProvider({ folderId, children }) {
 
 /**
  * Resolve the provider class on the @lerret/ai module namespace. The four
- * canonical exports are `OpenAIProvider`, `AnthropicProvider`,
- * `OpenRouterProvider`, `OllamaProvider`.
+ * provider classes live under the `providers` namespace
+ * (`packages/ai/src/index.js` does `export * as providers from
+ * './providers/index.js'`), so they are reached as `ai.providers.X`, NOT as
+ * top-level `ai.X`.
  *
  * @param {object} ai - The @lerret/ai module namespace.
  * @param {string} providerName
  * @returns {Function | null}
  */
 function pickProviderClass(ai, providerName) {
+    const ns = ai?.providers;
+    if (!ns) return null;
     switch (providerName) {
         case 'openai':
-            return ai.OpenAIProvider ?? null;
+            return ns.OpenAIProvider ?? null;
         case 'anthropic':
-            return ai.AnthropicProvider ?? null;
+            return ns.AnthropicProvider ?? null;
         case 'openrouter':
-            return ai.OpenRouterProvider ?? null;
+            return ns.OpenRouterProvider ?? null;
         case 'ollama':
-            return ai.OllamaProvider ?? null;
+            return ns.OllamaProvider ?? null;
         default:
             return null;
     }
