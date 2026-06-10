@@ -1232,7 +1232,7 @@ export function sectionDepthBg(depth) {
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
-export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, kicker, sectionStyle, bare = false }) {
+export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, kicker, sectionStyle, bare = false, onSelectScope }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
  const all = React.Children.toArray(children);
@@ -1315,6 +1315,26 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  document.addEventListener('pointerup', up);
  };
 
+ // Epic 8 / Story 8.2 — emit the AI selection scope for the dock cluster's
+ // chip when this section is clicked. `onClickCapture` runs before the inner
+ // artboard / kebab / focus handlers but never calls preventDefault, so it is
+ // purely additive: existing pan / drag / focus / export behavior is untouched.
+ // Clicks that originate from an interactive control (button / input / link /
+ // editable label / reorder grip) are ignored so a download / rename / focus
+ // gesture does not also re-scope the AI input.
+ const onSectionClickCapture = (e) => {
+ if (typeof onSelectScope !== 'function') return;
+ const t = e.target;
+ if (t && typeof t.closest === 'function') {
+ if (
+ t.closest('button, a, input, textarea, select, [contenteditable="true"], [data-dc-grip]')
+ ) {
+ return;
+ }
+ }
+ onSelectScope();
+ };
+
  // Bare variant — a page's own loose assets sit directly on the canvas with no
  // card chrome (no frame, no header, no in-card add bar), so they read as "on
  // the page", not "in a group". Kept measurable (data-dc-section + depth) so
@@ -1327,6 +1347,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  data-dc-section-depth={depth}
  data-dc-section-bare="true"
  data-tour="section"
+ onClickCapture={onSectionClickCapture}
  style={{
  margin: '0 60px 48px 60px',
  position: 'relative',
@@ -1359,6 +1380,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  data-dc-section={sid}
  data-dc-section-depth={depth}
  data-tour="section"
+ onClickCapture={onSectionClickCapture}
  style={{
  // Top-level cards breathe on the canvas; a nested sub-group hugs inside
  // its parent's frame (the small left inset leaves room for the depth

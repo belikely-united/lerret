@@ -161,6 +161,9 @@ importers:
         specifier: ^3.35.0
         version: 3.35.1
     optionalDependencies:
+      '@lerret/ai':
+        specifier: workspace:^
+        version: link:../ai
       '@lerret/animation':
         specifier: workspace:^
         version: link:../animation

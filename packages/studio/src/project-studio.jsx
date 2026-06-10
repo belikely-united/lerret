@@ -43,6 +43,12 @@ import { ProjectCanvas, resolvePage } from './components/canvas/project-canvas.j
 import { ProjectPagesContext } from './components/dock/project-pages-context.jsx';
 import { ProjectModelContext } from './components/dock/project-model-context.jsx';
 import { registerProjectFonts } from './runtime/font-registry.js';
+// Epic 8 / Story 8.2 — the AI subsystem's per-folder provider state and the
+// canvas-selection scope source for the dock cluster's chip. AiContextProvider
+// reaches @lerret/ai only via the getAi() lazy boundary, so wrapping here keeps
+// the studio AI-agnostic when the package is absent.
+import { AiContextProvider } from './ai/ai-context.jsx';
+import { SelectionScopeProvider } from './ai/selection-scope-context.jsx';
 
 // The studio-shell route that shows the loaded project's canvas. Any hash that
 // is not a studio-shell route (i.e. a project-page path) falls through to this
@@ -120,10 +126,21 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  storyboard: { label: 'Storyboard', node: storyboard },
  };
 
+ // The AI subsystem's folder identity. The dock cluster + setup screen + key
+ // vault key off this. We source it from the loaded project model (the
+ // project's LerretPath) rather than minting a fresh identity, so the same
+ // folder maps to the same vault scope across reloads. `null` when no project
+ // is loaded — the cluster then renders its idle state.
+ const folderId = project ? project.path ?? null : null;
+
  return (
  <ProjectModelContext.Provider value={project}>
  <ProjectPagesContext.Provider value={projectPagesNav}>
+ <AiContextProvider folderId={folderId}>
+ <SelectionScopeProvider>
  <StudioShell pages={shellPages} defaultPage={PROJECT_ROUTE} />
+ </SelectionScopeProvider>
+ </AiContextProvider>
  </ProjectPagesContext.Provider>
  </ProjectModelContext.Provider>
  );

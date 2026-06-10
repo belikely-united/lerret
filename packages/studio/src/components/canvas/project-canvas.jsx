@@ -50,6 +50,19 @@ import React from 'react';
 
 import { NODE_KIND } from '@lerret/core';
 
+// Epic 8 / Story 8.2 — the canvas writes the AI selection scope (for the dock
+// cluster's selection chip) into this context on artboard / section selection.
+// This is the architecture's resolution of the selection-chip → JSX-node open
+// question: the v1 canvas had no multi-select state, so this story introduces
+// a minimal scope source. The context lives under src/ai/ but reaches NOTHING
+// from @lerret/ai — it is pure chrome state, so importing it here is safe under
+// the dynamic-import boundary.
+import {
+ useSelectionScope,
+ fileScope,
+ pageScope,
+} from '../../ai/selection-scope-context.jsx';
+
 import { DesignCanvas, DCSection } from '../../design-canvas.jsx';
 import { artboardForEntry } from './asset-artboard.jsx';
 import { useCascadedConfig } from './cascade-context.jsx';
@@ -289,6 +302,29 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  const getConfigFor = useCascadedConfig();
  // Per-asset config (Name.config.json → { autoRefresh }) for the timer below.
  const getAssetConfig = useAssetConfig();
+ // Epic 8 / Story 8.2 — the AI selection scope the dock cluster's chip reads.
+ // Selecting a section emits a `file` scope (a single-asset section) or a
+ // `page` scope (the page itself / a multi-asset section). The scope persists
+ // across turns; only the chip's × / Delete / Backspace clears it (AC-4).
+ const { setScope: setAiScope } = useSelectionScope();
+ // Emit a selection scope for a clicked section. `kind` distinguishes a page
+ // section (whole-page scope) from a group/asset section. A section holding
+ // exactly one asset maps to a `file` scope on that asset; anything else maps
+ // to a `page` scope labelled with the page name. Wrapped in useCallback so
+ // the per-section handler identity is stable.
+ const emitSectionScope = React.useCallback(
+ (section, sectionKind, pageName) => {
+ if (!setAiScope) return;
+ const assets = section?.entries || [];
+ const firstAsset = assets[0]?.asset;
+ if (sectionKind !== 'page' && assets.length === 1 && firstAsset?.path) {
+ setAiScope(fileScope(firstAsset.path));
+ } else {
+ setAiScope(pageScope(pageName || section?.title || 'page'));
+ }
+ },
+ [setAiScope],
+ );
  // The loaded result, tagged with the page path it is for: `{ pagePath,
  // sections }`. Tagging (rather than resetting to `null` on every page
  // switch) lets the render derive "still loading" by comparing the tag to
@@ -621,6 +657,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  subtitle={subtitle}
  sectionStyle={sectionStyle}
  bare={sectionKind === 'page'}
+ onSelectScope={() => emitSectionScope(s, sectionKind, page && page.name)}
  >
  {s.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),

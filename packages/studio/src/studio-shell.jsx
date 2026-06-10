@@ -25,6 +25,11 @@ import * as ReactDOM from 'react-dom';
 import { PagePicker } from './components/dock/page-picker.jsx';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
+// Epic 8 / Story 8.2 — the dock-mounted AI input cluster. It reaches @lerret/ai
+// only via the getAi() lazy boundary (it imports nothing from @lerret/ai
+// directly), so mounting it here keeps the whole dock resilient when the AI
+// package is absent (it renders an idle-only fallback).
+import { AiInputCluster } from './ai/ai-input-cluster.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 import { inCliMode, switchProject } from './runtime/write-client.js';
@@ -588,6 +593,16 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  ))}
  </span>
  )}
+
+ {/* Epic 8 / Story 8.2 — the AI input cluster. Per UX-delta IA tree it sits
+  "between the page picker and the global export"; in the v1 dock the global
+  export lives inside StudioBrandMenu (dock-left), so this resolves to "after
+  the page picker". The cluster joins the dock's existing horizontal-scroll
+  wrapper. It is AI-agnostic chrome: when @lerret/ai is absent it renders an
+  idle-only fallback and the surrounding brand / page-picker children keep
+  working. */}
+ <StudioDockSeparator />
+ <AiInputCluster />
  </div>
  );
 }

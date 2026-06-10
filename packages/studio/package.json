@@ -22,6 +22,7 @@
     "sucrase": "^3.35.0"
   },
   "optionalDependencies": {
+    "@lerret/ai": "workspace:^",
     "@lerret/animation": "workspace:^"
   },
   "devDependencies": {
