@@ -92,6 +92,9 @@ describe('orchestrator integration — happy path', () => {
             '.lerret/social/a.jsx',
             '.lerret/social/b.jsx',
         ]);
+
+        // The done event carries the turn-manifest id (the dock's revert target).
+        expect(doneEv.turnId).toBe(manifests[0].id);
     });
 });
 
@@ -124,6 +127,10 @@ describe('orchestrator integration — stop', () => {
 
         const manifests = await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs });
         expect(manifests[0].status).toBe('stopped-mid-turn');
+
+        // The stopped event carries the turn-manifest id (revert targeting).
+        const stoppedEv = events.find((e) => e.type === 'stopped');
+        expect(stoppedEv.turnId).toBe(manifests[0].id);
     });
 
     it('stop mid-turn while writing → finishes in-flight write, next queued write NOT made', async () => {

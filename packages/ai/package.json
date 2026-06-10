@@ -13,7 +13,8 @@
     "src",
     "!src/**/*.test.js",
     "!src/**/*.test.jsx",
-    "!src/**/__test-helpers__/**"
+    "!src/**/__test-helpers__/**",
+    "!test/**"
   ],
   "publishConfig": {
     "access": "public"

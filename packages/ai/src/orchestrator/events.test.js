@@ -56,6 +56,23 @@ describe('event factories', () => {
         expect(Object.isFrozen(ev.files)).toBe(true);
     });
 
+    it('done carries the manifest turnId ONLY when provided as a string', () => {
+        const withId = done([{ path: 'a', op: 'create' }], 'turn-abc-123');
+        expect(withId.turnId).toBe('turn-abc-123');
+        expect(Object.isFrozen(withId)).toBe(true);
+        // Omitted / non-string → the historical shape, no turnId key at all.
+        expect(done([])).not.toHaveProperty('turnId');
+        expect(done([], 42)).not.toHaveProperty('turnId');
+    });
+
+    it('stopped carries the manifest turnId ONLY when provided as a string', () => {
+        const withId = stopped('turn-abc-123');
+        expect(withId).toMatchObject({ type: 'stopped', turnId: 'turn-abc-123' });
+        expect(Object.isFrozen(withId)).toBe(true);
+        expect(stopped()).not.toHaveProperty('turnId');
+        expect(stopped(42)).not.toHaveProperty('turnId');
+    });
+
     it('error normalizes any thrown value to {class, message} and never leaks extra fields', () => {
         const e = new Error('rate');
         e.name = 'RateLimited';

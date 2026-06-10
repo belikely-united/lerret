@@ -58,3 +58,8 @@ export * as providers from './providers/index.js';
 // session key lifecycle, IndexedDB CRUD for the three AI object stores.
 // Reached as `ai.vault.X`.
 export * as vault from './vault/index.js';
+
+// Memory subsystem (Story 8.6): the brand-aware Memory + DS Curator agents,
+// reserved-path constants, scope-anchoring + design-token parsers, preset
+// discovery, and generation-substrate planners. Reached as `ai.memory.X`.
+export * as memory from './memory/index.js';

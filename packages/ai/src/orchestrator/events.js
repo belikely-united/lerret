@@ -61,9 +61,9 @@ export const TURN_EVENT_TYPES = Object.freeze([
  *   | { type: 'deleting', file: string }
  *   | { type: 'mkdir', dir: string }
  *   | { type: 'tool-call', name: string }
- *   | { type: 'done', files: Array<TurnFileEntry> }
+ *   | { type: 'done', files: Array<TurnFileEntry>, turnId?: string }
  *   | { type: 'error', error: { class: string, message: string } }
- *   | { type: 'stopped' }
+ *   | { type: 'stopped', turnId?: string }
  *   | { type: 'needs-vision-fallback', requiredCapability: 'vision', eligibleProviders: Array<{ name: string, model: string }> }
  * } TurnEvent
  */
@@ -98,9 +98,21 @@ export function toolCall(name) {
     return Object.freeze({ type: 'tool-call', name });
 }
 
-/** @param {Array<TurnFileEntry>} files @returns {TurnEvent} */
-export function done(files) {
-    return Object.freeze({ type: 'done', files: Object.freeze([...(files ?? [])]) });
+/**
+ * Terminal success event. When the turn's manifest id is supplied, it rides
+ * along as `turnId` so the dock can target the revert action at THIS turn's
+ * manifest without correlating out-of-band. `turnId` is included ONLY when
+ * provided (a string) — older callers that omit it produce the historical
+ * shape unchanged.
+ *
+ * @param {Array<TurnFileEntry>} files
+ * @param {string} [turnId]  The turn-manifest id (revert target).
+ * @returns {TurnEvent}
+ */
+export function done(files, turnId) {
+    const ev = { type: 'done', files: Object.freeze([...(files ?? [])]) };
+    if (typeof turnId === 'string') ev.turnId = turnId;
+    return Object.freeze(ev);
 }
 
 /**
@@ -122,9 +134,18 @@ export function error(err) {
     return Object.freeze({ type: 'error', error: Object.freeze({ class: cls, message }) });
 }
 
-/** @returns {TurnEvent} */
-export function stopped() {
-    return Object.freeze({ type: 'stopped' });
+/**
+ * Terminal stop event. Like {@link done}, carries the turn-manifest id as
+ * `turnId` ONLY when provided (a string) so the dock can revert a
+ * stopped-mid-turn manifest.
+ *
+ * @param {string} [turnId]  The turn-manifest id (revert target).
+ * @returns {TurnEvent}
+ */
+export function stopped(turnId) {
+    const ev = { type: 'stopped' };
+    if (typeof turnId === 'string') ev.turnId = turnId;
+    return Object.freeze(ev);
 }
 
 /**

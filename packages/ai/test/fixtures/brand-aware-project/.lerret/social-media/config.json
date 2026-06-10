@@ -1,0 +1,10 @@
+{
+  "_meta": {
+    "preset": "social-media-v1"
+  },
+  "vars": {
+    "brandColor": "#B85B33",
+    "accentColor": "#F1EDE5",
+    "radius": "12px"
+  }
+}

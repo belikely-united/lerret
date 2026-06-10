@@ -127,9 +127,22 @@ function createVaultResolver({ folderId }) {
 /**
  * The public turn entry. An async generator IS the `AsyncIterable<TurnEvent>`.
  *
+ * `scope` is PERMISSIVE — the real shapes runTurn receives today:
+ *   - the dock's selection-scope object (Story 8.2):
+ *     `{ kind: 'file' | 'artboards' | 'page' | null, filePath?: string,
+ *        count?: number, label?: string }` — `filePath` for a single selected
+ *     file, `count` for a marquee multi-select, `label` for the page name;
+ *   - a plain folder-scope string (e.g. `'social-media/'`);
+ *   - the legacy `{ type: 'project' | 'selection', selectionLabel? }` object.
+ * The Memory node derives the anchoring folder via `deriveTargetScope`
+ * (orchestrator/agents/memory.js); unknown shapes degrade to global-only
+ * anchoring, never an error.
+ *
  * @param {{
  *   prompt: string,
- *   scope?: { type: 'project' | 'selection', selectionLabel?: string },
+ *   scope?: string
+ *     | { kind?: 'file' | 'artboards' | 'page' | null, filePath?: string, count?: number, label?: string }
+ *     | { type?: 'project' | 'selection', selectionLabel?: string },
  *   signal?: AbortSignal,
  *   providerOverride?: string,
  *   onVisionDecision?: (ev: object) => Promise<{ accept: boolean, providerOverride?: string }>,
@@ -314,9 +327,11 @@ export async function* runTurn({
             // Snapshot stays intact — NO auto-revert (the user decides).
             yield events.error(graphError);
         } else if (status === 'stopped-mid-turn') {
-            yield events.stopped();
+            // Terminal events carry the manifest id so the dock can target
+            // revert at THIS turn without out-of-band correlation.
+            yield events.stopped(turnId);
         } else {
-            yield events.done(finalState?.writtenFiles ?? []);
+            yield events.done(finalState?.writtenFiles ?? [], turnId);
         }
     } finally {
         // 6. ALWAYS — including on consumer `.return()` (early break) or a
