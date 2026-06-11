@@ -51,6 +51,7 @@ import {
     AiInputCluster,
     summarizeOutcome,
     resolveChipLabel,
+    deriveProjectRoot,
     _setBabelParserLoader,
 } from './ai-input-cluster.jsx';
 import { AiContextProvider } from './ai-context.jsx';
@@ -1846,5 +1847,135 @@ describe('AiInputCluster — inspect answers render file paths as actions (AC-9)
         expect(document.querySelector('[data-testid="ai-thread-path"]')).toBeNull();
         expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent).toBe(answer);
         cleanup();
+    });
+});
+
+// ── folderId + CLI filesystem bridge wiring (cross-story integration) ─────────
+//
+// The real-browser smoke found runTurn invoked WITHOUT folderId/projectRoot/fs
+// — the vault resolver then throws (`listProviderConfigs: folderId must be a
+// non-empty string`) and the snapshot store has no filesystem. These tests pin
+// the wiring: folderId always rides along; in CLI mode with an absolute
+// folderId the memoized ai-fs adapter + derived projectRoot ride too; outside
+// CLI mode they are omitted.
+
+describe('AiInputCluster — runTurn receives folderId (+ fs/projectRoot in CLI mode)', () => {
+    /** Submit a prompt through the input and wait for the turn to finish. */
+    async function submitPrompt(container, prompt = 'make a card') {
+        const input = container.querySelector('[data-testid="ai-input"]');
+        await act(async () => {
+            setReactInputValue(input, prompt);
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        });
+        await tick(40);
+    }
+
+    afterEach(() => {
+        delete globalThis.__LERRET_CLI_MODE__;
+    });
+
+    it('passes the context folderId and OMITS fs/projectRoot outside CLI mode', async () => {
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [] };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        expect(runTurnSpy).toHaveBeenCalledTimes(1);
+        const call = runTurnSpy.mock.calls[0][0];
+        expect(call.folderId).toBe('folder:test:abc');
+        // jsdom default: no __LERRET_CLI_MODE__ → the CLI bridge must not ride.
+        expect('fs' in call).toBe(false);
+        expect('projectRoot' in call).toBe(false);
+        cleanup();
+    });
+
+    it('CLI mode + absolute folderId: passes the derived projectRoot and the ai-fs adapter', async () => {
+        globalThis.__LERRET_CLI_MODE__ = true;
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [] };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        const { container, cleanup } = renderToDom(
+            <Harness folderId="/Users/me/my-project/.lerret" />,
+        );
+        await tick();
+        await submitPrompt(container);
+        expect(runTurnSpy).toHaveBeenCalledTimes(1);
+        const call = runTurnSpy.mock.calls[0][0];
+        // The vault identity stays the folderId (the `.lerret/` path)…
+        expect(call.folderId).toBe('/Users/me/my-project/.lerret');
+        // …while the sandbox root is the folder CONTAINING `.lerret/`.
+        expect(call.projectRoot).toBe('/Users/me/my-project');
+        // The fs is the v1 FilesystemAccess-shaped CLI adapter.
+        expect(call.fs).toBeTruthy();
+        expect(call.fs.capabilities).toEqual({
+            canWrite: true,
+            canWatch: false,
+            canReveal: false,
+        });
+        for (const method of ['readDir', 'readFile', 'writeFile', 'watch', 'deleteFile', 'mkdir', 'exists']) {
+            expect(typeof call.fs[method]).toBe('function');
+        }
+        cleanup();
+    });
+
+    it('memoizes the adapter per folderId — two turns share ONE fs instance', async () => {
+        globalThis.__LERRET_CLI_MODE__ = true;
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [] };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        const { container, cleanup } = renderToDom(
+            <Harness folderId="/Users/me/my-project/.lerret" />,
+        );
+        await tick();
+        await submitPrompt(container, 'first turn');
+        // Let the terminal dwell pass so the input re-enables for turn two.
+        await tick(1600);
+        await submitPrompt(container, 'second turn');
+        expect(runTurnSpy).toHaveBeenCalledTimes(2);
+        const first = runTurnSpy.mock.calls[0][0];
+        const second = runTurnSpy.mock.calls[1][0];
+        expect(first.fs).toBe(second.fs);
+        expect(first.projectRoot).toBe(second.projectRoot);
+        cleanup();
+    });
+
+    it('CLI mode with a NON-absolute folderId still omits fs/projectRoot (no bridge target)', async () => {
+        globalThis.__LERRET_CLI_MODE__ = true;
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [] };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        const call = runTurnSpy.mock.calls[0][0];
+        expect(call.folderId).toBe('folder:test:abc');
+        expect('fs' in call).toBe(false);
+        expect('projectRoot' in call).toBe(false);
+        cleanup();
+    });
+});
+
+describe('deriveProjectRoot — folderId → project root', () => {
+    it('strips the trailing /.lerret segment (the CLI scan root form)', () => {
+        expect(deriveProjectRoot('/Users/me/my-project/.lerret')).toBe('/Users/me/my-project');
+        expect(deriveProjectRoot('/Users/me/my-project/.lerret/')).toBe('/Users/me/my-project');
+    });
+
+    it('passes an absolute non-.lerret path through as the root (defensive)', () => {
+        expect(deriveProjectRoot('/Users/me/my-project')).toBe('/Users/me/my-project');
+    });
+
+    it('returns null for non-absolute / non-string identities', () => {
+        expect(deriveProjectRoot('folder:test:abc')).toBeNull();
+        expect(deriveProjectRoot('')).toBeNull();
+        expect(deriveProjectRoot(null)).toBeNull();
+        expect(deriveProjectRoot(undefined)).toBeNull();
+        // A bare `/.lerret` has no containing folder — no usable root.
+        expect(deriveProjectRoot('/.lerret')).toBeNull();
     });
 });

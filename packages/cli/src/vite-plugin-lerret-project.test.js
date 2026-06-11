@@ -14,9 +14,13 @@ import {
   CREATE_ENDPOINT,
   DELETE_ENDPOINT,
   DUPLICATE_ENDPOINT,
+  EXISTS_ENDPOINT,
   HMR_CHANGE_EVENT,
+  LIST_DIR_ENDPOINT,
+  MKDIR_ENDPOINT,
   MOVE_ENDPOINT,
   PROJECT_ASSET_BASE_URL,
+  READ_FILE_ENDPOINT,
   RENAME_ENDPOINT,
   REVEAL_ENDPOINT,
   VIRTUAL_MODULE_ID,
@@ -27,9 +31,13 @@ import {
   createCreateMiddleware,
   createDeleteMiddleware,
   createDuplicateMiddleware,
+  createExistsMiddleware,
+  createListDirMiddleware,
+  createMkdirMiddleware,
   createMoveMiddleware,
   createProjectAssetMiddleware,
   createReadConfigMiddleware,
+  createReadFileMiddleware,
   createRecentProjectsMiddleware,
   createRenameMiddleware,
   createRevealMiddleware,
@@ -274,6 +282,18 @@ describe('configureServer — initial scan + watcher → HMR forwarding', () => 
     // closeBundle is also a no-op here.
     await expect(plugin.closeBundle()).resolves.toBeUndefined();
   });
+
+  it('registers the AI filesystem-bridge endpoints alongside the write endpoint', async () => {
+    const plugin = lerretProjectPlugin({ projectRoot: null, lerretDir: null });
+    const server = makeFakeServer();
+    await plugin.configureServer(server);
+    const paths = server.middlewares_installed.map((m) => m.path);
+    expect(paths).toContain(WRITE_ENDPOINT);
+    expect(paths).toContain(READ_FILE_ENDPOINT);
+    expect(paths).toContain(LIST_DIR_ENDPOINT);
+    expect(paths).toContain(EXISTS_ENDPOINT);
+    expect(paths).toContain(MKDIR_ENDPOINT);
+  });
 });
 
 describe('transformIndexHtml — CLI-mode flag injection', () => {
@@ -513,6 +533,59 @@ describe('createWriteMiddleware — server-side write endpoint', () => {
     });
     expect(result.status).toBe(400);
     expect(result.body.error).toContain('content');
+  });
+
+  it('creates missing parent folders before writing (the AI Worker writes into new folders)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const middleware = createWriteMiddleware({ lerretDir });
+
+    const target = `${lerretDir}/new-page/nested/Card.jsx`;
+    const payload = 'export default () => null;\n';
+
+    const result = await callMiddleware(middleware, {
+      body: JSON.stringify({ path: target, content: payload }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+    const written = await fsp.readFile(
+      join(lerretAbs, 'new-page', 'nested', 'Card.jsx'),
+      'utf-8',
+    );
+    expect(written).toBe(payload);
+  });
+
+  it('writes raw bytes when encoding is "base64" (AI bridge binary path)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const middleware = createWriteMiddleware({ lerretDir });
+
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 255]);
+    const result = await callMiddleware(middleware, {
+      body: JSON.stringify({
+        path: `${lerretDir}/blob.bin`,
+        content: bytes.toString('base64'),
+        encoding: 'base64',
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+    const written = await fsp.readFile(join(lerretAbs, 'blob.bin'));
+    expect(Buffer.compare(written, bytes)).toBe(0);
+  });
+
+  it('rejects an unknown encoding with 400', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const middleware = createWriteMiddleware({ lerretDir });
+    const result = await callMiddleware(middleware, {
+      body: JSON.stringify({
+        path: `${lerretDir}/x.json`,
+        content: '{}',
+        encoding: 'hex',
+      }),
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('encoding');
   });
 
   it('exposes WRITE_ENDPOINT as the stable URL the studio targets', () => {
@@ -1237,6 +1310,233 @@ describe('createReadConfigMiddleware', () => {
     const mw = createReadConfigMiddleware({ lerretDir });
     const result = await call(mw, { path: '/etc/passwd' });
     expect(result.status).toBe(400);
+  });
+});
+
+// ── AI filesystem-bridge endpoints (read-file / list-dir / exists / mkdir) ────
+
+describe('createReadFileMiddleware — AI bridge file reads', () => {
+  let lerretAbs;
+  let lerretDir;
+
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+    lerretDir = asLerretPath(lerretAbs);
+  });
+
+  it('reads a UTF-8 file by default', async () => {
+    await fsp.writeFile(join(lerretAbs, 'note.md'), '# hello\n');
+    const mw = createReadFileMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/note.md` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, content: '# hello\n' });
+  });
+
+  it('returns base64 bytes for encoding: "base64" (binary round-trip)', async () => {
+    const bytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 254]);
+    await fsp.writeFile(join(lerretAbs, 'img.png'), bytes);
+    const mw = createReadFileMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/img.png`, encoding: 'base64' }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.ok).toBe(true);
+    expect(Buffer.compare(Buffer.from(result.body.base64, 'base64'), bytes)).toBe(0);
+  });
+
+  it('answers a missing file with a calm 404 (the plugin error shape)', async () => {
+    const mw = createReadFileMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/absent.md` }),
+    });
+    expect(result.status).toBe(404);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toContain('not found');
+  });
+
+  it('rejects a path outside .lerret/ with 400', async () => {
+    const mw = createReadFileMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: '/etc/passwd' }),
+    });
+    expect(result.status).toBe(400);
+    expect(result.body.error).toContain('outside the project');
+  });
+
+  it('rejects traversal segments and bad encodings with 400', async () => {
+    const mw = createReadFileMiddleware({ lerretDir });
+    const traversal = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/../escape.md` }),
+    });
+    expect(traversal.status).toBe(400);
+    const badEncoding = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/note.md`, encoding: 'hex' }),
+    });
+    expect(badEncoding.status).toBe(400);
+    expect(badEncoding.body.error).toContain('encoding');
+  });
+
+  it('exposes READ_FILE_ENDPOINT as the stable URL the studio targets', () => {
+    expect(READ_FILE_ENDPOINT).toBe('/__lerret/read-file');
+  });
+});
+
+describe('createListDirMiddleware — AI bridge directory listing', () => {
+  let lerretAbs;
+  let lerretDir;
+
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+    lerretDir = asLerretPath(lerretAbs);
+  });
+
+  it('lists entries with { name, isFile, isDirectory }', async () => {
+    await fsp.mkdir(join(lerretAbs, 'page'), { recursive: true });
+    await fsp.writeFile(join(lerretAbs, 'page', 'Card.jsx'), 'export default () => null;');
+    await fsp.mkdir(join(lerretAbs, 'page', 'group'), { recursive: true });
+    const mw = createListDirMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/page` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.ok).toBe(true);
+    const byName = Object.fromEntries(result.body.entries.map((e) => [e.name, e]));
+    expect(byName['Card.jsx']).toEqual({ name: 'Card.jsx', isFile: true, isDirectory: false });
+    expect(byName['group']).toEqual({ name: 'group', isFile: false, isDirectory: true });
+  });
+
+  it('answers a missing directory with a graceful empty list', async () => {
+    const mw = createListDirMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/.state/history/manifests` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, entries: [] });
+  });
+
+  it('allows listing the bare .lerret/ root', async () => {
+    await fsp.mkdir(join(lerretAbs, 'cards'), { recursive: true });
+    const mw = createListDirMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: lerretDir }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.entries).toEqual([
+      { name: 'cards', isFile: false, isDirectory: true },
+    ]);
+  });
+
+  it('rejects a path outside .lerret/ with 400', async () => {
+    const mw = createListDirMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: asLerretPath(workDir) }),
+    });
+    expect(result.status).toBe(400);
+  });
+
+  it('exposes LIST_DIR_ENDPOINT as the stable URL the studio targets', () => {
+    expect(LIST_DIR_ENDPOINT).toBe('/__lerret/list-dir');
+  });
+});
+
+describe('createExistsMiddleware — AI bridge existence probe', () => {
+  let lerretAbs;
+  let lerretDir;
+
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+    lerretDir = asLerretPath(lerretAbs);
+  });
+
+  it('reports a file as exists: true, isDirectory: false', async () => {
+    await fsp.writeFile(join(lerretAbs, 'blob.bin'), 'x');
+    const mw = createExistsMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/blob.bin` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, exists: true, isDirectory: false });
+  });
+
+  it('reports a directory as exists: true, isDirectory: true (root equality allowed)', async () => {
+    const mw = createExistsMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: lerretDir }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, exists: true, isDirectory: true });
+  });
+
+  it('reports an absent path as exists: false (a normal 200 answer)', async () => {
+    const mw = createExistsMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/.state/history/blobs/deadbeef` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true, exists: false });
+  });
+
+  it('rejects a path outside .lerret/ with 400', async () => {
+    const mw = createExistsMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: '/etc/passwd' }),
+    });
+    expect(result.status).toBe(400);
+  });
+
+  it('exposes EXISTS_ENDPOINT as the stable URL the studio targets', () => {
+    expect(EXISTS_ENDPOINT).toBe('/__lerret/exists');
+  });
+});
+
+describe('createMkdirMiddleware — AI bridge directory creation', () => {
+  let lerretAbs;
+  let lerretDir;
+
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+    lerretDir = asLerretPath(lerretAbs);
+  });
+
+  it('creates a nested directory chain recursively', async () => {
+    const mw = createMkdirMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/.state/history/blobs` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+    const st = await fsp.stat(join(lerretAbs, '.state', 'history', 'blobs'));
+    expect(st.isDirectory()).toBe(true);
+  });
+
+  it('is a no-op for an existing directory (idempotent bootstrap)', async () => {
+    await fsp.mkdir(join(lerretAbs, 'already'), { recursive: true });
+    const mw = createMkdirMiddleware({ lerretDir });
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: `${lerretDir}/already` }),
+    });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+  });
+
+  it('rejects a path outside .lerret/ with 400 (and creates nothing)', async () => {
+    const mw = createMkdirMiddleware({ lerretDir });
+    const outside = `${asLerretPath(workDir)}/escape`;
+    const result = await callJsonMiddleware(mw, {
+      body: JSON.stringify({ path: outside }),
+    });
+    expect(result.status).toBe(400);
+    await expect(fsp.stat(join(workDir, 'escape'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('exposes MKDIR_ENDPOINT as the stable URL the studio targets', () => {
+    expect(MKDIR_ENDPOINT).toBe('/__lerret/mkdir');
   });
 });
 

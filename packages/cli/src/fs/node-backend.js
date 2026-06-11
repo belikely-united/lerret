@@ -298,6 +298,33 @@ async function exists(targetPath) {
   }
 }
 
+/**
+ * Stat a path: report whether anything exists there and, when it does,
+ * whether it is a file or a directory. `ENOENT` resolves to
+ * `{ exists: false }` rather than rejecting — "absent" is a normal answer
+ * here, not an error. Genuine I/O errors (permission denied, etc.) re-reject
+ * so callers can distinguish 'absent' from 'inaccessible', matching
+ * {@link exists}.
+ *
+ * Exported (not folded into the backend object) for the dev server's
+ * `/__lerret/exists` endpoint, which needs the file/directory distinction the
+ * boolean contract method cannot carry.
+ *
+ * @param {string} targetPath A contract-level (forward-slash) path.
+ * @returns {Promise<{ exists: boolean, isFile: boolean, isDirectory: boolean }>}
+ */
+export async function statEntry(targetPath) {
+  try {
+    const st = await fsp.stat(toNativePath(targetPath));
+    return { exists: true, isFile: st.isFile(), isDirectory: st.isDirectory() };
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return { exists: false, isFile: false, isDirectory: false };
+    }
+    throw err;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // watch
 // ---------------------------------------------------------------------------

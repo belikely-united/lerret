@@ -40,6 +40,10 @@ describe('AnthropicProvider', () => {
         expect(init.method).toBe('POST');
         expect(init.headers['x-api-key']).toBe('sk-ant-test');
         expect(init.headers['anthropic-version']).toBe('2023-06-01');
+        // Browser-direct BYOK opt-in: without this header Anthropic's API
+        // refuses CORS to browser origins and every in-studio call fails as a
+        // network TypeError (Epic 8 close browser-smoke finding).
+        expect(init.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
     });
 
     // ────────────────────────────────────────────────────────────────────

@@ -10,7 +10,11 @@ import {
  CREATE_ENDPOINT,
  DELETE_ENDPOINT,
  DUPLICATE_ENDPOINT,
+ EXISTS_ENDPOINT,
+ LIST_DIR_ENDPOINT,
+ MKDIR_ENDPOINT,
  MOVE_ENDPOINT,
+ READ_FILE_ENDPOINT,
  RECENT_PROJECTS_ENDPOINT,
  RENAME_ENDPOINT,
  REVEAL_ENDPOINT,
@@ -19,9 +23,13 @@ import {
  createProjectEntry,
  deleteProjectFile,
  duplicateProjectFile,
+ existsProjectPath,
  fetchRecentProjects,
  inCliMode,
+ listProjectDir,
+ mkdirProject,
  moveProjectFile,
+ readProjectFile,
  renameProjectFile,
  revealProjectFile,
  switchProject,
@@ -105,6 +113,37 @@ describe('writeProjectFile — contract', () => {
  const result = await writeProjectFile('/x/.lerret/y.json', { obj: true }, { fetch: fetchMock });
  expect(result.ok).toBe(false);
  expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('flags the body with encoding: "base64" for binary writes (AI bridge)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true }),
+ });
+ const result = await writeProjectFile('/abs/.lerret/blob.bin', 'aGVsbG8=', {
+ fetch: fetchMock,
+ encoding: 'base64',
+ });
+ expect(result).toEqual({ ok: true });
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+ path: '/abs/.lerret/blob.bin',
+ content: 'aGVsbG8=',
+ encoding: 'base64',
+ });
+ });
+
+ it('omits the encoding field for the default UTF-8 write', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true }),
+ });
+ await writeProjectFile('/abs/.lerret/a.json', '{}', { fetch: fetchMock });
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+ path: '/abs/.lerret/a.json',
+ content: '{}',
+ });
  });
 });
 
@@ -521,6 +560,237 @@ describe('fetchRecentProjects', () => {
  delete globalThis.__LERRET_CLI_MODE__;
  const fetchMock = vi.fn();
  expect(await fetchRecentProjects({ fetch: fetchMock })).toEqual([]);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+// ── AI filesystem-bridge helper tests ─────────────────────────────────────────
+
+describe('readProjectFile', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to READ_FILE_ENDPOINT and returns the UTF-8 content', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true, content: '# hello\n' }),
+ });
+ const result = await readProjectFile('/abs/.lerret/note.md', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true, content: '# hello\n' });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(READ_FILE_ENDPOINT);
+ expect(init.method).toBe('POST');
+ expect(init.headers['Content-Type']).toBe('application/json');
+ expect(JSON.parse(init.body)).toEqual({ path: '/abs/.lerret/note.md' });
+ });
+
+ it('posts encoding: "base64" and returns the base64 payload for binary reads', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true, base64: 'iVBORw==' }),
+ });
+ const result = await readProjectFile('/abs/.lerret/img.png', {
+ fetch: fetchMock,
+ encoding: 'base64',
+ });
+ expect(result).toEqual({ ok: true, base64: 'iVBORw==' });
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+ path: '/abs/.lerret/img.png',
+ encoding: 'base64',
+ });
+ });
+
+ it('marks a 404 as missing: true so the AI adapter can shape ENOENT', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false,
+ status: 404,
+ json: async () => ({ ok: false, error: 'file not found: /abs/.lerret/absent.md' }),
+ });
+ const result = await readProjectFile('/abs/.lerret/absent.md', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.missing).toBe(true);
+ expect(result.error).toContain('not found');
+ });
+
+ it('does NOT mark non-404 failures as missing', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false,
+ status: 500,
+ json: async () => ({ ok: false, error: 'read failed: disk' }),
+ });
+ const result = await readProjectFile('/abs/.lerret/x.md', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.missing).toBeUndefined();
+ });
+
+ it('returns ok:false on a network error (never throws)', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new Error('connection refused'));
+ const result = await readProjectFile('/abs/.lerret/x.md', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('connection refused');
+ });
+
+ it('rejects an empty path before fetching', async () => {
+ const fetchMock = vi.fn();
+ const result = await readProjectFile('', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('is a no-op in standalone mode', async () => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ const fetchMock = vi.fn();
+ const result = await readProjectFile('/abs/.lerret/x.md', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('standalone');
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('listProjectDir', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to LIST_DIR_ENDPOINT and returns the entries', async () => {
+ const entries = [
+ { name: 'Card.jsx', isFile: true, isDirectory: false },
+ { name: 'group', isFile: false, isDirectory: true },
+ ];
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true, entries }),
+ });
+ const result = await listProjectDir('/abs/.lerret/page', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true, entries });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(LIST_DIR_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/abs/.lerret/page' });
+ });
+
+ it('returns ok:false with entries: [] on failure (caller never branches on undefined)', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false,
+ status: 400,
+ json: async () => ({ ok: false, error: 'destination must be inside .lerret/' }),
+ });
+ const result = await listProjectDir('/outside', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.entries).toEqual([]);
+ expect(result.error).toContain('.lerret');
+ });
+
+ it('rejects an empty path before fetching and is a no-op in standalone mode', async () => {
+ const fetchMock = vi.fn();
+ expect((await listProjectDir('', { fetch: fetchMock })).ok).toBe(false);
+ delete globalThis.__LERRET_CLI_MODE__;
+ const standalone = await listProjectDir('/abs/.lerret', { fetch: fetchMock });
+ expect(standalone.ok).toBe(false);
+ expect(standalone.entries).toEqual([]);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('existsProjectPath', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to EXISTS_ENDPOINT and returns exists + isDirectory', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true, exists: true, isDirectory: true }),
+ });
+ const result = await existsProjectPath('/abs/.lerret/page', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true, exists: true, isDirectory: true });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(EXISTS_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/abs/.lerret/page' });
+ });
+
+ it('returns exists: false for an absent path without an isDirectory field', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true, exists: false }),
+ });
+ const result = await existsProjectPath('/abs/.lerret/gone', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true, exists: false });
+ });
+
+ it('returns ok:false, exists:false when the probe itself fails', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new Error('boom'));
+ const result = await existsProjectPath('/abs/.lerret/x', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.exists).toBe(false);
+ });
+
+ it('rejects an empty path and is a no-op in standalone mode', async () => {
+ const fetchMock = vi.fn();
+ expect((await existsProjectPath('', { fetch: fetchMock })).ok).toBe(false);
+ delete globalThis.__LERRET_CLI_MODE__;
+ const standalone = await existsProjectPath('/abs/.lerret/x', { fetch: fetchMock });
+ expect(standalone.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('mkdirProject', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to MKDIR_ENDPOINT and returns ok', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true,
+ status: 200,
+ json: async () => ({ ok: true }),
+ });
+ const result = await mkdirProject('/abs/.lerret/.state/history/blobs', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(MKDIR_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/abs/.lerret/.state/history/blobs' });
+ });
+
+ it('surfaces a server rejection', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false,
+ status: 400,
+ json: async () => ({ ok: false, error: 'destination must be inside .lerret/' }),
+ });
+ const result = await mkdirProject('/outside', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('.lerret');
+ });
+
+ it('rejects an empty path and is a no-op in standalone mode', async () => {
+ const fetchMock = vi.fn();
+ expect((await mkdirProject('', { fetch: fetchMock })).ok).toBe(false);
+ delete globalThis.__LERRET_CLI_MODE__;
+ const standalone = await mkdirProject('/abs/.lerret/x', { fetch: fetchMock });
+ expect(standalone.ok).toBe(false);
  expect(fetchMock).not.toHaveBeenCalled();
  });
 });

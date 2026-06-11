@@ -61,6 +61,20 @@ export const SWITCH_FOLDER_ENDPOINT = '/__lerret/switch-folder';
 export const RECENT_PROJECTS_ENDPOINT = '/__lerret/recent-projects';
 
 /**
+ * AI filesystem-bridge endpoints (read / list / exists / mkdir). The CLI-mode
+ * FilesystemAccess adapter (`src/ai/ai-fs.js`) is their only intended caller:
+ * the AI orchestrator's snapshot store and Worker need real file reads,
+ * directory listings, existence probes, and directory creation in the
+ * browser. Path safety stays server-side, same as every endpoint above.
+ *
+ * @type {string}
+ */
+export const READ_FILE_ENDPOINT = '/__lerret/read-file';
+export const LIST_DIR_ENDPOINT = '/__lerret/list-dir';
+export const EXISTS_ENDPOINT = '/__lerret/exists';
+export const MKDIR_ENDPOINT = '/__lerret/mkdir';
+
+/**
  * Detect CLI mode from the same flag the CLI's plugin injects in
  * `transformIndexHtml`. Reading `globalThis` is friendly to non-browser
  * environments (jsdom tests).
@@ -88,11 +102,15 @@ function isCliMode() {
  * @param {string} content
  * The full new file contents (UTF-8). For JSON callers should serialize
  * with `serializeJson` from `@lerret/core` to get stable key order +
- * trailing newline.
+ * trailing newline. With `opts.encoding: 'base64'` the string is a base64
+ * payload the server decodes to raw bytes (the AI bridge's binary path).
  * @param {object} [opts]
  * @param {typeof fetch} [opts.fetch]
  * Inject a fetch implementation. Tests pass a fake; production uses
  * `globalThis.fetch`.
+ * @param {'utf-8' | 'base64'} [opts.encoding]
+ * Defaults to the UTF-8 text write. `'base64'` flags `content` as
+ * base64-encoded bytes for a binary write server-side.
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 export async function writeProjectFile(path, content, opts = {}) {
@@ -122,7 +140,9 @@ export async function writeProjectFile(path, content, opts = {}) {
  response = await fetchImpl(WRITE_ENDPOINT, {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ path, content }),
+ body: JSON.stringify(
+ opts.encoding === 'base64' ? { path, content, encoding: 'base64' } : { path, content },
+ ),
  });
  } catch (err) {
  return {
@@ -218,6 +238,143 @@ export async function readProjectConfig(configPath, opts = {}) {
  (parsed && typeof parsed.error === 'string' && parsed.error) ||
  `read failed (status ${response.status})`,
  };
+}
+
+// ── AI filesystem-bridge helpers ──────────────────────────────────────────────
+//
+// The browser half of the CLI's read-file / list-dir / exists / mkdir
+// endpoints. `src/ai/ai-fs.js` composes these into the FilesystemAccess shape
+// the AI orchestrator consumes. Each mirrors `writeProjectFile`'s framing:
+// always resolve with `{ ok, ... }`, never throw, no-op in standalone mode.
+
+/**
+ * Read a file inside the project's `.lerret/` tree via the CLI's read-file
+ * endpoint.
+ *
+ * Returns `{ ok: true, content }` for the default UTF-8 read, or
+ * `{ ok: true, base64 }` when `opts.encoding` is `'base64'`. On failure
+ * returns `{ ok: false, error }`, with `missing: true` when the server
+ * answered 404 (no file at the path) — the AI adapter maps that to an
+ * ENOENT-shaped error.
+ *
+ * @param {string} path
+ * The {@link LerretPath} of the file to read.
+ * @param {object} [opts]
+ * @param {'utf-8' | 'base64'} [opts.encoding]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, content?: string, base64?: string, missing?: boolean, error?: string }>}
+ */
+export async function readProjectFile(path, opts = {}) {
+ if (typeof path !== 'string' || path.length === 0) {
+ return { ok: false, error: 'readProjectFile: path must be a non-empty string' };
+ }
+ const encoding = opts.encoding === 'base64' ? 'base64' : 'utf-8';
+ if (!isCliMode()) {
+ return { ok: false, error: 'file reads are disabled in standalone mode' };
+ }
+ const fetchImpl = opts.fetch || (typeof globalThis !== 'undefined' ? globalThis.fetch : undefined);
+ if (typeof fetchImpl !== 'function') {
+ return { ok: false, error: 'no fetch implementation available' };
+ }
+ let response;
+ try {
+ response = await fetchImpl(READ_FILE_ENDPOINT, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(encoding === 'base64' ? { path, encoding } : { path }),
+ });
+ } catch (err) {
+ return {
+ ok: false,
+ error: `network error: ${err instanceof Error ? err.message : String(err)}`,
+ };
+ }
+ let parsed;
+ try {
+ parsed = await response.json();
+ } catch {
+ return {
+ ok: false,
+ error: `server returned non-JSON response (status ${response.status})`,
+ };
+ }
+ if (parsed && parsed.ok === true) {
+ if (encoding === 'base64') {
+ return { ok: true, base64: typeof parsed.base64 === 'string' ? parsed.base64 : '' };
+ }
+ return { ok: true, content: typeof parsed.content === 'string' ? parsed.content : '' };
+ }
+ return {
+ ok: false,
+ ...(response.status === 404 ? { missing: true } : null),
+ error:
+ (parsed && typeof parsed.error === 'string' && parsed.error) ||
+ `read failed (status ${response.status})`,
+ };
+}
+
+/**
+ * List the immediate children of a directory inside (or equal to) the
+ * project's `.lerret/` tree. A missing directory is a graceful
+ * `{ ok: true, entries: [] }` server-side — the AI snapshot store lists
+ * history folders before they are first created.
+ *
+ * @param {string} path
+ * The directory's {@link LerretPath}.
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, entries: Array<{ name: string, isFile: boolean, isDirectory: boolean }>, error?: string }>}
+ */
+export async function listProjectDir(path, opts = {}) {
+ if (typeof path !== 'string' || path.length === 0) {
+ return { ok: false, entries: [], error: 'listProjectDir: path must be a non-empty string' };
+ }
+ const result = await callLifecycleEndpoint(LIST_DIR_ENDPOINT, { path }, opts);
+ if (!result.ok) return { ok: false, entries: [], error: result.error };
+ return { ok: true, entries: Array.isArray(result.entries) ? result.entries : [] };
+}
+
+/**
+ * Probe whether anything exists at a path inside (or equal to) the project's
+ * `.lerret/` tree. "Absent" is a normal `{ ok: true, exists: false }` answer;
+ * `ok: false` means the probe itself failed (standalone mode, network, bad
+ * path).
+ *
+ * @param {string} path
+ * The {@link LerretPath} to probe.
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, exists: boolean, isDirectory?: boolean, error?: string }>}
+ */
+export async function existsProjectPath(path, opts = {}) {
+ if (typeof path !== 'string' || path.length === 0) {
+ return { ok: false, exists: false, error: 'existsProjectPath: path must be a non-empty string' };
+ }
+ const result = await callLifecycleEndpoint(EXISTS_ENDPOINT, { path }, opts);
+ if (!result.ok) return { ok: false, exists: false, error: result.error };
+ return {
+ ok: true,
+ exists: result.exists === true,
+ ...(typeof result.isDirectory === 'boolean' ? { isDirectory: result.isDirectory } : null),
+ };
+}
+
+/**
+ * Recursively create a directory inside (or equal to) the project's
+ * `.lerret/` tree — a no-op when it already exists.
+ *
+ * @param {string} path
+ * The directory's {@link LerretPath}.
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function mkdirProject(path, opts = {}) {
+ if (typeof path !== 'string' || path.length === 0) {
+ return { ok: false, error: 'mkdirProject: path must be a non-empty string' };
+ }
+ const result = await callLifecycleEndpoint(MKDIR_ENDPOINT, { path }, opts);
+ return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
 // ── : lifecycle helpers ────────────────────────────────────────────

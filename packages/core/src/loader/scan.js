@@ -105,15 +105,16 @@ function splitExtension(fileName) {
 }
 
 /**
- * Whether a folder name is reserved by the underscore convention — a leading
- * underscore (`_fonts`, `_assets`). Only meaningful at the project root; see
- * the module header (FR5).
+ * Whether a folder name is reserved — a leading underscore (`_fonts`,
+ * `_assets`; the FR5 convention) or a leading dot (`.state` — the Epic 8
+ * snapshot store under `.lerret/.state/`, plus OS noise like `.git`). Only
+ * meaningful at the project root; see the module header (FR5).
  *
  * @param {string} folderName
  * @returns {boolean}
  */
 function isReservedFolderName(folderName) {
-  return folderName.startsWith('_');
+  return folderName.startsWith('_') || folderName.startsWith('.');
 }
 
 /**

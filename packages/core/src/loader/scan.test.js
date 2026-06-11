@@ -536,3 +536,18 @@ describe('scan — empty folders', () => {
     expect(page.groups[0].groups).toEqual([]);
   });
 });
+
+describe('dot-prefixed folders are reserved (Epic 8 .state)', () => {
+  it("'.state' under .lerret/ is NOT a page (snapshot store stays invisible)", async () => {
+    const fs = makeMemoryFs('/p/.lerret', {
+      kit: { 'a.jsx': 'export default () => null;' },
+      '.state': { history: { manifests: { 'm1.json': '{}' } } },
+      '.git': { HEAD: 'ref: x' },
+    });
+    const project = await scan(fs, '/p/.lerret');
+    const pageNames = project.pages.map((p) => p.name);
+    expect(pageNames).toContain('kit');
+    expect(pageNames).not.toContain('.state');
+    expect(pageNames).not.toContain('.git');
+  });
+});

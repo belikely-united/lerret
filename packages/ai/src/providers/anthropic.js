@@ -262,6 +262,14 @@ export class AnthropicProvider extends AIProvider {
             'Content-Type': 'application/json',
             'x-api-key': this._apiKey,
             'anthropic-version': ANTHROPIC_VERSION,
+            // Anthropic's documented opt-in for browser-direct requests: the
+            // API only serves CORS to browser origins when this header is
+            // present. Lerret's BYOK model is exactly that case — the USER'S
+            // key, entered by the user, calling out from the user's own
+            // browser (ADR-005 §Decision 4; no Lerret proxy). Without it every
+            // in-studio Anthropic call dies at the CORS preflight as a network
+            // TypeError (found by the Epic 8 close browser smoke).
+            'anthropic-dangerous-direct-browser-access': 'true',
         };
     }
 

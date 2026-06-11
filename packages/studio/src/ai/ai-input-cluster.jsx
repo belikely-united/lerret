@@ -56,6 +56,8 @@ import React from 'react';
 
 import { getAi } from './lazy.js';
 import { useAiContext } from './ai-context.jsx';
+import { createCliAiFs } from './ai-fs.js';
+import { inCliMode } from '../runtime/write-client.js';
 import { useSelectionScope, fileScope } from './selection-scope-context.jsx';
 import { SetupScreen } from './setup-screen.jsx';
 import { PrivacyDisclosure } from './privacy-disclosure.jsx';
@@ -445,6 +447,32 @@ export function summarizeOutcome(files, status) {
     return parts.join(' · ');
 }
 
+// ─── CLI project-root derivation (for the AI filesystem bridge) ───────────────
+
+/**
+ * Derive the project ROOT (the folder that CONTAINS `.lerret/`) from the AI
+ * context's folderId.
+ *
+ * In CLI mode the folderId is the loaded project model's `path` — the
+ * absolute `.lerret/` directory itself (the scan root), NOT the project root
+ * the orchestrator's sandbox expects — so the trailing `/.lerret` segment is
+ * stripped. An absolute folderId WITHOUT that suffix is passed through as the
+ * root (defensive: the scan root is always `<root>/.lerret` today).
+ *
+ * Returns null for non-POSIX-absolute identities (the fixture/hosted
+ * `folder:…` form, or no folder) — the CLI filesystem bridge does not apply
+ * there and runTurn receives no fs/projectRoot.
+ *
+ * @param {string | null | undefined} folderId
+ * @returns {string | null}
+ */
+export function deriveProjectRoot(folderId) {
+    if (typeof folderId !== 'string' || !folderId.startsWith('/')) return null;
+    const trimmed = folderId.replace(/\/+$/, '');
+    if (trimmed.endsWith('/.lerret')) return trimmed.slice(0, -'/.lerret'.length) || null;
+    return trimmed.length > 0 ? trimmed : null;
+}
+
 // ─── Chip label resolution (best-effort @babel/parser) ────────────────────────
 
 /**
@@ -802,6 +830,21 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
         };
     }, []);
 
+    // ── CLI filesystem bridge (dock → orchestrator integration) ─────────────
+    // The orchestrator needs a real FilesystemAccess + projectRoot for the
+    // snapshot store and the Worker's writes. In CLI mode the folderId is the
+    // absolute `.lerret/` path, so the root derives from it and the ai-fs
+    // adapter bridges to the dev server's endpoints. Memoized per folderId so
+    // the adapter is NOT rebuilt every turn. Null outside CLI mode (or when
+    // the folderId is not an absolute path) — runTurn then receives no
+    // fs/projectRoot and reports the gap as a calm turn error.
+    const cliFsBinding = React.useMemo(() => {
+        if (!inCliMode()) return null;
+        const projectRoot = deriveProjectRoot(aiCtx.folderId);
+        if (!projectRoot) return null;
+        return { projectRoot, fs: createCliAiFs({ projectRoot }) };
+    }, [aiCtx.folderId]);
+
     // ── Local UI state ──────────────────────────────────────────────────────
     const [text, setText] = React.useState('');
     const [focused, setFocused] = React.useState(false);
@@ -1060,6 +1103,14 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     scope: turnScope,
                     mode: turnMode,
                     signal: controller.signal,
+                    // The vault identity — without it the orchestrator's
+                    // provider resolver cannot list this folder's configs.
+                    folderId: aiCtx.folderId,
+                    // CLI mode: the snapshot store + Worker write through the
+                    // dev-server filesystem bridge (memoized per folderId).
+                    ...(cliFsBinding
+                        ? { projectRoot: cliFsBinding.projectRoot, fs: cliFsBinding.fs }
+                        : null),
                     ...(Array.isArray(opts.attachments) && opts.attachments.length > 0
                         ? { attachments: opts.attachments }
                         : null),
@@ -1166,7 +1217,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 }
             }
         },
-        [scope, finishTurn, clearTerminalTimers],
+        [scope, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding],
     );
 
     // ── Gating: first-run setup + cloud disclosure (consumes Story 8.1) ─────

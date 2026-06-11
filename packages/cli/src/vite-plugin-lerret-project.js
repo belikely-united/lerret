@@ -76,6 +76,7 @@ import {
   moveEntry,
   renameEntry,
   revealEntry,
+  statEntry,
   tryReadConfig,
   // Host-level recent-projects persistence lives in node-backend (the only
   // file allowed to touch `fs`); the recents file is in the user's home, not
@@ -188,6 +189,8 @@ export const HMR_CHANGE_EVENT = 'lerret:change';
  * Contract:
  *   POST {WRITE_ENDPOINT}
  *   Body  : { "path": "<LerretPath>", "content": "<utf-8 string>" }
+ *           or { "path", "content": "<base64>", "encoding": "base64" } for
+ *           raw bytes (the AI filesystem bridge's binary write path)
  *   200   : { "ok": true }
  *   4xx/5xx: { "ok": false, "error": "<reason>" }
  *
@@ -212,6 +215,20 @@ export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
 export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
 export const EXPORT_PDF_ENDPOINT = '/__lerret/export-pdf';
+
+/**
+ * Filesystem-bridge endpoints powering the studio's CLI-mode AI adapter
+ * (`packages/studio/src/ai/ai-fs.js`). The AI orchestrator's snapshot store
+ * and Worker need a real `FilesystemAccess` in the browser; these four
+ * endpoints are its Node-side half. Each accepts a POST with a small JSON
+ * body, validates every path with the SAME `.lerret/`-tree gate the write
+ * endpoint uses ({@link checkWritePath} / {@link validateMoveDest}), and
+ * returns the same calm `{ ok, error? }` JSON shape on failure.
+ */
+export const READ_FILE_ENDPOINT = '/__lerret/read-file';
+export const LIST_DIR_ENDPOINT = '/__lerret/list-dir';
+export const EXISTS_ENDPOINT = '/__lerret/exists';
+export const MKDIR_ENDPOINT = '/__lerret/mkdir';
 
 /**
  * Runtime folder-switch endpoint. `POST` `{ folder: <os path> | null }`:
@@ -785,6 +802,14 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       server.middlewares.use(READ_CONFIG_ENDPOINT, createReadConfigMiddleware({ getLerretDir }));
       server.middlewares.use(EXPORT_PDF_ENDPOINT, createExportPdfMiddleware({ getLerretDir }));
 
+      // The AI filesystem bridge (read / list / exists / mkdir) — the Node
+      // half of the studio's CLI-mode FilesystemAccess adapter. Same live
+      // getter, same `.lerret/`-tree sandboxing as the endpoints above.
+      server.middlewares.use(READ_FILE_ENDPOINT, createReadFileMiddleware({ getLerretDir }));
+      server.middlewares.use(LIST_DIR_ENDPOINT, createListDirMiddleware({ getLerretDir }));
+      server.middlewares.use(EXISTS_ENDPOINT, createExistsMiddleware({ getLerretDir }));
+      server.middlewares.use(MKDIR_ENDPOINT, createMkdirMiddleware({ getLerretDir }));
+
       // Recent-projects list (persisted under the user's home) — read by the
       // studio's connect screen so re-opening a folder is one click.
       server.middlewares.use(RECENT_PROJECTS_ENDPOINT, createRecentProjectsMiddleware());
@@ -933,10 +958,15 @@ function resolveLerretDir(opts) {
  *
  * The middleware:
  *   - accepts POST only (other methods → 405)
- *   - parses the JSON body into `{ path, content }`
+ *   - parses the JSON body into `{ path, content, encoding? }`
  *   - runs the path through {@link checkWritePath} (rejects traversal, paths
  *     outside `.lerret/`, missing project)
- *   - writes via the Node backend's safe-write (atomic temp+rename, NFR9)
+ *   - creates the parent directory chain first (recursive, no-op when present)
+ *     — the AI Worker writes into folders that may not exist yet, and the
+ *     backend's atomic rename needs the parent on disk
+ *   - writes via the Node backend's safe-write (atomic temp+rename, NFR9);
+ *     `encoding: 'base64'` decodes `content` and writes raw bytes (the AI
+ *     filesystem bridge's binary path), default is the UTF-8 text write
  *   - returns `{ ok: true }` on success, `{ ok: false, error }` otherwise
  *
  * Failure modes return a calm JSON body even on 4xx/5xx — the studio never
@@ -977,10 +1007,14 @@ export function createWriteMiddleware(opts) {
           return;
         }
 
-        const { path: requestPath, content } = parsed;
+        const { path: requestPath, content, encoding } = parsed;
 
         if (typeof content !== 'string') {
           sendJson(res, 400, { ok: false, error: 'content must be a string' });
+          return;
+        }
+        if (encoding !== undefined && encoding !== 'utf-8' && encoding !== 'base64') {
+          sendJson(res, 400, { ok: false, error: 'encoding must be "utf-8" or "base64"' });
           return;
         }
 
@@ -991,7 +1025,17 @@ export function createWriteMiddleware(opts) {
         }
 
         try {
-          await backend.writeFile(check.normalized, content, { encoding: 'utf-8' });
+          // Ensure the parent directory chain exists (recursive, no-op when
+          // present). `normalized` passed checkWritePath, so its parent is
+          // `.lerret/` itself or deeper — never outside the tree.
+          const parentDir = check.normalized.slice(0, check.normalized.lastIndexOf('/'));
+          if (parentDir) await backend.mkdir(parentDir);
+          if (encoding === 'base64') {
+            const bytes = new Uint8Array(Buffer.from(content, 'base64'));
+            await backend.writeFile(check.normalized, bytes, { encoding: 'binary' });
+          } else {
+            await backend.writeFile(check.normalized, content, { encoding: 'utf-8' });
+          }
           sendJson(res, 200, { ok: true });
         } catch (err) {
           // Surface the message, not the stack — the studio displays this
@@ -1322,6 +1366,217 @@ export function createReadConfigMiddleware(opts) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[lerret] read-config failed:', message);
       sendJson(res, 500, { ok: false, error: `read failed: ${message}` });
+    }
+  });
+}
+
+// ── AI filesystem-bridge middlewares (read / list / exists / mkdir) ──────────
+//
+// The Node half of the studio's CLI-mode FilesystemAccess adapter
+// (`packages/studio/src/ai/ai-fs.js`). The AI orchestrator's snapshot store
+// reads pre-edit content and manifests, lists the history directory, probes
+// blob existence, and bootstraps `.lerret/.state/` folders — all through
+// these endpoints. Every path is gated by the same `.lerret/`-tree checks the
+// write/lifecycle endpoints use; nothing here can reach outside the project.
+
+/**
+ * `POST /__lerret/read-file` — body `{ path: LerretPath, encoding?: 'utf-8'|'base64' }`.
+ *
+ * Reads a file inside the project's `.lerret/` tree. A plain GET cannot be
+ * used for the same reason as `read-config`: the dev server's SPA fallback
+ * returns index.html for any unknown path, so "missing" and "present" would
+ * be indistinguishable.
+ *
+ * Response (always JSON):
+ *   • 200 `{ ok: true, content }`  — UTF-8 text (default).
+ *   • 200 `{ ok: true, base64 }`   — raw bytes, base64-encoded (`encoding: 'base64'`).
+ *   • 400 `{ ok: false, error }`   — bad / escaping path, bad encoding.
+ *   • 404 `{ ok: false, error }`   — no file at the path.
+ *   • 500 `{ ok: false, error }`   — unexpected read failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createReadFileMiddleware(opts) {
+  const backend = createNodeBackend();
+  return withJsonBody(async (_req, res, body) => {
+    const lerretDir = resolveLerretDir(opts);
+    const { path: requestPath, encoding } = body;
+    if (typeof requestPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'path must be a string' });
+      return;
+    }
+    if (encoding !== undefined && encoding !== 'utf-8' && encoding !== 'base64') {
+      sendJson(res, 400, { ok: false, error: 'encoding must be "utf-8" or "base64"' });
+      return;
+    }
+    const check = checkWritePath(requestPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: check.error });
+      return;
+    }
+    try {
+      if (encoding === 'base64') {
+        const bytes = await backend.readFile(check.normalized, { encoding: 'binary' });
+        sendJson(res, 200, { ok: true, base64: Buffer.from(bytes).toString('base64') });
+        return;
+      }
+      const content = await backend.readFile(check.normalized, { encoding: 'utf-8' });
+      sendJson(res, 200, { ok: true, content });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (err && err.code === 'ENOENT') {
+        // Absent is a normal answer for the AI bridge (ENOENT-shaped client-
+        // side) — a calm 404, not a server error.
+        sendJson(res, 404, { ok: false, error: `file not found: ${check.normalized}` });
+        return;
+      }
+      console.error('[lerret] read-file failed:', message);
+      sendJson(res, 500, { ok: false, error: `read failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/list-dir` — body `{ path: LerretPath }`.
+ *
+ * Lists the immediate children of a directory inside (or equal to) the
+ * project's `.lerret/` tree. A MISSING directory is a graceful empty list —
+ * the AI snapshot store lists `.lerret/.state/history/manifests/` before the
+ * first turn ever creates it, and that must not error.
+ *
+ * Response (always JSON):
+ *   • 200 `{ ok: true, entries: [{ name, isFile, isDirectory }] }`
+ *   • 200 `{ ok: true, entries: [] }` — directory does not exist (graceful).
+ *   • 400 `{ ok: false, error }`      — bad / escaping path.
+ *   • 500 `{ ok: false, error }`      — unexpected failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createListDirMiddleware(opts) {
+  const backend = createNodeBackend();
+  return withJsonBody(async (_req, res, body) => {
+    const lerretDir = resolveLerretDir(opts);
+    const { path: requestPath } = body;
+    if (typeof requestPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'path must be a string' });
+      return;
+    }
+    // Listing the bare `.lerret/` root is legitimate (mirrors the move/create
+    // endpoints' destination rule), so the equality-allowing gate applies.
+    const check = validateMoveDest(requestPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: check.error });
+      return;
+    }
+    try {
+      const entries = await backend.readDir(check.normalized);
+      sendJson(res, 200, {
+        ok: true,
+        entries: entries.map((e) => ({
+          name: e.name,
+          isFile: e.isFile,
+          isDirectory: e.isDirectory,
+        })),
+      });
+    } catch (err) {
+      if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
+        sendJson(res, 200, { ok: true, entries: [] });
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[lerret] list-dir failed:', message);
+      sendJson(res, 500, { ok: false, error: `list failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/exists` — body `{ path: LerretPath }`.
+ *
+ * Probes whether anything exists at the path (file OR directory) inside (or
+ * equal to) the project's `.lerret/` tree. The AI snapshot store uses this
+ * for content-addressed blob dedup, so "absent" is a normal 200 answer.
+ *
+ * Response (always JSON):
+ *   • 200 `{ ok: true, exists: true, isDirectory }` — something is there.
+ *   • 200 `{ ok: true, exists: false }`             — nothing at the path.
+ *   • 400 `{ ok: false, error }`                    — bad / escaping path.
+ *   • 500 `{ ok: false, error }`                    — unexpected failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createExistsMiddleware(opts) {
+  return withJsonBody(async (_req, res, body) => {
+    const lerretDir = resolveLerretDir(opts);
+    const { path: requestPath } = body;
+    if (typeof requestPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'path must be a string' });
+      return;
+    }
+    const check = validateMoveDest(requestPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: check.error });
+      return;
+    }
+    try {
+      const stat = await statEntry(check.normalized);
+      if (!stat.exists) {
+        sendJson(res, 200, { ok: true, exists: false });
+        return;
+      }
+      sendJson(res, 200, { ok: true, exists: true, isDirectory: stat.isDirectory });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[lerret] exists failed:', message);
+      sendJson(res, 500, { ok: false, error: `exists failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/mkdir` — body `{ path: LerretPath }`.
+ *
+ * Recursively creates a directory inside (or equal to) the project's
+ * `.lerret/` tree — a no-op when it already exists, mirroring the Node
+ * backend's `mkdir` contract. The AI snapshot store bootstraps
+ * `.lerret/.state/history/{manifests,blobs}/` through this.
+ *
+ * Response (always JSON):
+ *   • 200 `{ ok: true }`
+ *   • 400 `{ ok: false, error }` — bad / escaping path.
+ *   • 500 `{ ok: false, error }` — unexpected filesystem failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createMkdirMiddleware(opts) {
+  const backend = createNodeBackend();
+  return withJsonBody(async (_req, res, body) => {
+    const lerretDir = resolveLerretDir(opts);
+    const { path: requestPath } = body;
+    if (typeof requestPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'path must be a string' });
+      return;
+    }
+    const check = validateMoveDest(requestPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: check.error });
+      return;
+    }
+    try {
+      await backend.mkdir(check.normalized);
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[lerret] mkdir failed:', message);
+      sendJson(res, 500, { ok: false, error: `mkdir failed: ${message}` });
     }
   });
 }
