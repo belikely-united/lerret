@@ -3,13 +3,24 @@
  * UX-delta §4.1). The single place a user starts every AI turn (FR50).
  *
  * It renders, visually left → right:
- *   [selection chip?] [ text input ] [ status pill | stop button? ] [ chevron ]
+ *   [Ask/Inspect toggle] [selection chip?] [ text input ] [ attach ] [ status pill | stop button? ] [ chevron ]
  *
- * (DOM order puts the input FIRST and the chip second — AC-15's tab order is
- * input → chip × — with CSS `order` keeping the chip at the visual left edge.
- * The status pill is permanently mounted so its aria-live region announces
- * every in-flight state; the stop button appears BESIDE it while a turn runs,
- * per spec §4.1's [ status pill | stop button ] layout.)
+ * (DOM order puts the input FIRST, then the chip, then the mode toggle —
+ * AC-15's tab order starts at the input — with CSS `order` keeping the toggle
+ * at the visual left edge (order -2) and the chip beside it (order -1). The
+ * status pill is permanently mounted so its aria-live region announces every
+ * in-flight state; the stop button appears BESIDE it while a turn runs, per
+ * spec §4.1's [ status pill | stop button ] layout.)
+ *
+ * Story 8.7 adds the vision surfaces: the image-attach affordance (reactive
+ * disabled-with-reason), the submit-side vision gate (State A inline note +
+ * 1500ms "Vision unavailable" pill flash; State B one-off cloud-fallback
+ * prompt), and the mid-turn `onVisionDecision` mirror passed into runTurn.
+ * Story 8.9 adds the Ask/Inspect mode toggle: inspect turns route read-only
+ * (mode passed to runTurn), render the ANSWER as the thread-card body — with
+ * detected file paths actionable (AC-9: click scopes the next prompt to the
+ * file and closes the thread) — and carry no revert affordance (nothing to
+ * revert — no manifest).
  *
  * and, on expand, a session-scoped thread overlay (an EditorSheet variant). The
  * cluster owns:
@@ -45,10 +56,14 @@ import React from 'react';
 
 import { getAi } from './lazy.js';
 import { useAiContext } from './ai-context.jsx';
-import { useSelectionScope } from './selection-scope-context.jsx';
+import { useSelectionScope, fileScope } from './selection-scope-context.jsx';
 import { SetupScreen } from './setup-screen.jsx';
 import { PrivacyDisclosure } from './privacy-disclosure.jsx';
 import { EditorSheet } from '../components/editors/editor-sheet.jsx';
+import { ModeToggle, useInspectMode, MODE_INSPECT } from './mode-toggle.jsx';
+import { VisionAttachButton } from './vision-attach-button.jsx';
+import { VisionFallbackPrompt } from './vision-fallback-prompt.jsx';
+import { useVisionGate, VISION_PILL_LABEL } from './use-vision-gate.js';
 
 // ─── Tokens / copy ────────────────────────────────────────────────────────────
 
@@ -56,6 +71,12 @@ const PLACEHOLDER_FULL = 'Ask Lerret to design or edit…';
 const PLACEHOLDER_NARROW = 'Ask Lerret…';
 const PLACEHOLDER_ABSENT = 'AI not installed';
 const ABSENT_NOTE = 'Run npm install @lerret/ai to enable AI features';
+/**
+ * Calm inline note when staged images are dropped because the submit resolved
+ * to a deterministic generation workflow (Story 8.8 W2/W3) — those turns make
+ * zero provider calls and ignore attachments, so the image can never ride.
+ */
+const WORKFLOW_IMAGE_NOTE = 'Image ignored — kit generation runs without vision.';
 
 /** Narrow-window breakpoint — mirrors the setup-screen's 880px and §4.1's ~860. */
 const NARROW_BP = 860;
@@ -94,6 +115,9 @@ const PILL_STATES = Object.freeze({
     done: { label: 'Done', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-moss, #4A6B3F)' },
     stopped: { label: 'Stopped', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-stone, #6E6960)' },
     error: { label: 'Error — see thread', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-error, #B4503C)' },
+    // Story 8.7 State A: a 1500ms transient flash while the gate's inline note
+    // explains why the vision turn did not run (Stone — calm, not an error).
+    'vision-unavailable': { label: VISION_PILL_LABEL, color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-stone, #6E6960)' },
 });
 
 /** Terminal-label dwell (ms) before the pill fades to idle (AC-7/8). */
@@ -227,6 +251,12 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     /* The chip FOLLOWS the input in the DOM (AC-15 tab order: input → chip ×)
        but stays at the field's visual left edge via flex order. */
     order: -1;
+}
+/* The Ask/Inspect mode toggle sits at the field's visual LEFT edge (before the
+   chip), while following the input + chip in the DOM (tab order: input → chip
+   → toggle). */
+.lm-ai-cluster__field .lm-ai-mode-toggle {
+    order: -2;
 }
 .lm-ai-cluster__chip-label {
     font: 400 11px/1.2 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
@@ -593,13 +623,60 @@ function SelectionChip({ scope, onClear }) {
     );
 }
 
+// ─── Inspect-answer path linking (Story 8.9, AC-9) ────────────────────────────
+
+/**
+ * Detect project-relative file paths in an inspector answer (word-bounded,
+ * optionally `.lerret/`-prefixed, known asset/document extensions). Used with
+ * String#split — the single capture group lands matched paths at ODD indices,
+ * plain text at even ones.
+ *
+ * @type {RegExp}
+ */
+const ANSWER_PATH_RE = /((?:\.lerret\/)?[\w@/-]+\.(?:jsx|json|md|css|svg)\b)/g;
+
+/**
+ * Render an inspect answer with detected file paths as inline actions
+ * (Story 8.9 AC-9): clicking a path scopes the next prompt to that file
+ * (`setScope(fileScope(path))`) and closes the thread. Non-path text renders
+ * as plain React-escaped text — never dangerouslySetInnerHTML.
+ *
+ * @param {object} props
+ * @param {string} props.answer
+ * @param {(path: string) => void} props.onOpenPath
+ */
+function InspectAnswer({ answer, onOpenPath }) {
+    const parts = String(answer ?? '').split(ANSWER_PATH_RE);
+    return (
+        <p className="lm-ai-thread__outcome" data-testid="ai-thread-outcome">
+            {parts.map((part, i) =>
+                i % 2 === 1 ? (
+                    <button
+                        key={`path-${i}`}
+                        type="button"
+                        className="lm-ai-thread__action"
+                        data-testid="ai-thread-path"
+                        title={`Scope the next prompt to ${part}`}
+                        onClick={() => onOpenPath(part)}
+                    >
+                        {part}
+                    </button>
+                ) : (
+                    <React.Fragment key={`text-${i}`}>{part}</React.Fragment>
+                ),
+            )}
+        </p>
+    );
+}
+
 // ─── Thread overlay ───────────────────────────────────────────────────────────
 
 /**
  * Session-scoped thread overlay (an EditorSheet variant). Renders turns in
  * reverse-chronological order as cards: prompt + outcome summary + a secondary
  * actions row. NEVER renders raw transcripts (FR57) — only the summary derived
- * from the terminal event's `files` payload.
+ * from the terminal event's `files` payload. Inspect-card answers render via
+ * {@link InspectAnswer} so detected file paths are actionable (AC-9).
  *
  * @param {object} props
  * @param {boolean} props.open
@@ -608,9 +685,11 @@ function SelectionChip({ scope, onClear }) {
  * @param {(turn: object) => void} props.onRevertTurn
  * @param {(turn: object) => void} props.onViewFiles
  * @param {(turn: object) => void} props.onOpenTimeline
+ * @param {(path: string) => void} props.onOpenPath - Inspect-answer path click:
+ *   scope the next prompt to the file and close the thread (AC-9).
  * @param {boolean} props.revertAvailable
  */
-function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpenTimeline, revertAvailable }) {
+function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpenTimeline, onOpenPath, revertAvailable }) {
     // Reverse-chronological: newest turn first.
     const ordered = React.useMemo(() => [...turns].reverse(), [turns]);
     return (
@@ -621,41 +700,68 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
                         No turns yet. Ask Lerret to design or edit to start one.
                     </p>
                 ) : (
-                    ordered.map((turn) => (
-                        <div className="lm-ai-thread__card" data-testid="ai-thread-card" key={turn.id}>
-                            <p className="lm-ai-thread__prompt">{turn.prompt}</p>
-                            <p className="lm-ai-thread__outcome" data-testid="ai-thread-outcome">
-                                {turn.outcome}
-                            </p>
-                            <div className="lm-ai-thread__actions">
-                                <button
-                                    type="button"
-                                    className="lm-ai-thread__action"
-                                    onClick={() => onRevertTurn(turn)}
-                                    disabled={!revertAvailable}
-                                    title={revertAvailable ? undefined : 'Revert timeline not available'}
-                                >
-                                    Revert this turn
-                                </button>
-                                <button
-                                    type="button"
-                                    className="lm-ai-thread__action"
-                                    onClick={() => onViewFiles(turn)}
-                                >
-                                    View files
-                                </button>
-                                <button
-                                    type="button"
-                                    className="lm-ai-thread__action"
-                                    onClick={() => onOpenTimeline(turn)}
-                                    disabled={!revertAvailable}
-                                    title={revertAvailable ? undefined : 'Revert timeline not available'}
-                                >
-                                    Open revert timeline
-                                </button>
+                    ordered.map((turn) => {
+                        // Inspect turns (Story 8.9): the card body is the
+                        // inspector's ANSWER; there is no manifest, so the
+                        // revert/files actions do not apply — `Revert this
+                        // turn` renders disabled ("Nothing to revert"), the
+                        // file-scoped actions are omitted.
+                        const isInspect = turn.mode === 'inspect';
+                        return (
+                            <div
+                                className="lm-ai-thread__card"
+                                data-testid="ai-thread-card"
+                                data-mode={isInspect ? 'inspect' : 'ask'}
+                                key={turn.id}
+                            >
+                                <p className="lm-ai-thread__prompt">{turn.prompt}</p>
+                                {isInspect ? (
+                                    <InspectAnswer answer={turn.outcome} onOpenPath={onOpenPath} />
+                                ) : (
+                                    <p className="lm-ai-thread__outcome" data-testid="ai-thread-outcome">
+                                        {turn.outcome}
+                                    </p>
+                                )}
+                                <div className="lm-ai-thread__actions">
+                                    <button
+                                        type="button"
+                                        className="lm-ai-thread__action"
+                                        onClick={() => onRevertTurn(turn)}
+                                        disabled={isInspect || !revertAvailable}
+                                        title={
+                                            isInspect
+                                                ? 'Nothing to revert'
+                                                : revertAvailable
+                                                  ? undefined
+                                                  : 'Revert timeline not available'
+                                        }
+                                    >
+                                        Revert this turn
+                                    </button>
+                                    {!isInspect && (
+                                        <button
+                                            type="button"
+                                            className="lm-ai-thread__action"
+                                            onClick={() => onViewFiles(turn)}
+                                        >
+                                            View files
+                                        </button>
+                                    )}
+                                    {!isInspect && (
+                                        <button
+                                            type="button"
+                                            className="lm-ai-thread__action"
+                                            onClick={() => onOpenTimeline(turn)}
+                                            disabled={!revertAvailable}
+                                            title={revertAvailable ? undefined : 'Revert timeline not available'}
+                                        >
+                                            Open revert timeline
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </EditorSheet>
@@ -678,6 +784,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     const reducedMotion = useReducedMotion();
     const narrow = useNarrowWindow();
     const inputId = React.useId();
+    // Ask/Inspect mode (Story 8.9). Toggle is disabled while a turn runs, so
+    // the mode is stable for the duration of a run.
+    const { mode, setMode, placeholder: inspectPlaceholder } = useInspectMode();
 
     // ── AI presence (getAi() null → idle-only fallback, AC-11/12) ───────────
     // undefined = not yet resolved, true = present, false = absent.
@@ -710,6 +819,53 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     // The deferred for the in-flight gate; resolve → resume, reject → discard.
     const gateRef = React.useRef(/** @type {ReturnType<typeof createDeferred> | null} */ (null));
 
+    // ── Vision state (Story 8.7) ────────────────────────────────────────────
+    // Image attachments staged by the attach button for the NEXT submit.
+    const [pendingAttachments, setPendingAttachments] = React.useState(
+        /** @type {Array<object>} */ ([]),
+    );
+    // Non-null while the State B one-off fallback prompt is open (the eligible
+    // cloud handles to offer). The prompt resolves the vision deferred.
+    const [visionPromptProviders, setVisionPromptProviders] = React.useState(
+        /** @type {Array<object> | null} */ (null),
+    );
+    // Calm inline note when a deterministic workflow submit dropped staged
+    // images (Story 8.8: W2/W3 turns ignore attachments). Cleared on the next
+    // accepted submission.
+    const [workflowNote, setWorkflowNote] = React.useState(/** @type {string | null} */ (null));
+    const visionDeferredRef = React.useRef(
+        /** @type {{ promise: Promise<object>, resolve: (v: object) => void, reject: (e?: unknown) => void } | null} */ (null),
+    );
+    /**
+     * Host-side prompt machinery for the vision gate: render the fallback
+     * prompt for the given eligible providers and resolve with the user's
+     * choice — `{ accept: true, handle }` or `{ accept: false }`. Serves BOTH
+     * the submit-side State B path and the mid-turn `onVisionDecision` mirror.
+     */
+    const requestVisionPrompt = React.useCallback((eligibleProviders) => {
+        // Settle any prior pending decision as a decline BEFORE replacing it —
+        // a deferred must never be orphaned (its awaiting closure would hang
+        // forever and could later resume into a clobbered world).
+        visionDeferredRef.current?.resolve({ accept: false });
+        const d = createDeferred();
+        visionDeferredRef.current = d;
+        setVisionPromptProviders(eligibleProviders);
+        return d.promise;
+    }, []);
+    const visionGate = useVisionGate({ requestDecision: requestVisionPrompt });
+    const onVisionAccept = React.useCallback((handle) => {
+        setVisionPromptProviders(null);
+        visionDeferredRef.current?.resolve({ accept: true, handle });
+        visionDeferredRef.current = null;
+    }, []);
+    const onVisionCancel = React.useCallback(() => {
+        setVisionPromptProviders(null);
+        visionDeferredRef.current?.resolve({ accept: false });
+        visionDeferredRef.current = null;
+        // AC-14: focus returns to the dock input on cancel.
+        inputRef.current?.focus();
+    }, []);
+
     // ── Refs ────────────────────────────────────────────────────────────────
     const inputRef = React.useRef(null);
     const controllerRef = React.useRef(/** @type {AbortController | null} */ (null));
@@ -739,6 +895,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             const gate = gateRef.current;
             gateRef.current = null;
             gate?.reject(new Error('GateUnmounted'));
+            // Same for a vision fallback prompt left open at unmount: settle it
+            // as a decline so the awaiting submit/onVisionDecision releases.
+            const vision = visionDeferredRef.current;
+            visionDeferredRef.current = null;
+            vision?.resolve({ accept: false });
         };
     }, []);
 
@@ -769,22 +930,32 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     // window (it fires before the EditorSheet's document-level handler) and
     // stops the event so the thread-collapse Esc applies only when no turn is
     // running.
+    //
+    // When a MID-TURN vision prompt is open (the planner is blocked awaiting
+    // the decision), Esc answers the PROMPT first — settle it as a decline and
+    // do NOT stop the turn on the same keypress; a second Esc then stops.
+    // Calling requestStop while the planner awaits the decision would leave
+    // the prompt unreachable and the pill wedged on "Stopping…".
     React.useEffect(() => {
         if (!running) return undefined;
         const onKey = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopImmediatePropagation();
+                if (visionDeferredRef.current) {
+                    onVisionCancel();
+                    return;
+                }
                 requestStop();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [running, requestStop]);
+    }, [running, requestStop, onVisionCancel]);
 
     // ── Terminal handling: dwell on label, then idle + 4s revert window ─────
     const finishTurn = React.useCallback(
-        (terminalStatus, files, prompt, turnId, errorInfo) => {
+        (terminalStatus, files, prompt, turnId, errorInfo, extra = {}) => {
             setStatus(terminalStatus);
             setRunning(false);
             controllerRef.current = null;
@@ -793,14 +964,22 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             // only the prompt + outcome summary derived from `files`, plus —
             // for an errored turn — the orchestrator's {class, message} so the
             // thread card has a factual one-liner instead of an empty card).
+            // An INSPECT turn's card body is the inspector's ANSWER (the
+            // `inspector-response` payload — the user-facing outcome of FR58),
+            // never a file summary and never raw agent internals.
+            const isInspect = extra.mode === MODE_INSPECT;
             const summary =
                 terminalStatus === 'error' && errorInfo && errorInfo.message
                     ? `${errorInfo.class || 'Error'}: ${errorInfo.message}`
-                    : summarizeOutcome(files, terminalStatus);
+                    : isInspect
+                      ? (extra.answer || 'No answer.')
+                      : summarizeOutcome(files, terminalStatus);
             const record = {
                 id: `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 prompt,
                 status: terminalStatus,
+                mode: isInspect ? MODE_INSPECT : 'ask',
+                answer: isInspect ? (extra.answer ?? '') : null,
                 files: Array.isArray(files) ? files : [],
                 outcome: summary,
                 turnId: turnId ?? null,
@@ -815,8 +994,12 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             }
 
             // done / stopped: show the terminal label for 1500ms, then idle.
+            // The 4s quick-revert affordance only arms when there is a turn
+            // manifest to revert TO — inspect turns carry no turnId (no
+            // manifest, nothing to revert; AC group C of Story 8.9).
+            const revertible = record.turnId != null;
             setLastTurnId(record.turnId);
-            setRevertVisible(true);
+            if (revertible) setRevertVisible(true);
             clearTerminalTimers();
             terminalTimerRef.current = setTimeout(() => {
                 if (!mountedRef.current) return;
@@ -838,7 +1021,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
 
     // ── Drive a turn against the orchestrator (after gating passes) ─────────
     const driveTurn = React.useCallback(
-        async (ai, prompt) => {
+        async (ai, prompt, opts = {}) => {
             const controller = new AbortController();
             controllerRef.current = controller;
             setRunning(true);
@@ -851,9 +1034,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             const turnScope = scope
                 ? { kind: scope.kind, filePath: scope.filePath, count: scope.count }
                 : { kind: 'project' };
+            const turnMode = opts.mode === MODE_INSPECT ? MODE_INSPECT : 'ask';
 
             let terminalSeen = false;
             let turnId = null;
+            // The inspector's answer (Story 8.9) — arrives via the
+            // `inspector-response` event, always before `done`.
+            let inspectAnswer = '';
             // Files observed via writing/deleting events DURING the run. The
             // `stopped` event carries no files, but an in-flight write may
             // have completed before the stop took effect (NFR18) — so the
@@ -868,7 +1055,19 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 seenFiles.push({ path, op });
             };
             try {
-                for await (const ev of ai.runTurn({ prompt, scope: turnScope, signal: controller.signal })) {
+                for await (const ev of ai.runTurn({
+                    prompt,
+                    scope: turnScope,
+                    mode: turnMode,
+                    signal: controller.signal,
+                    ...(Array.isArray(opts.attachments) && opts.attachments.length > 0
+                        ? { attachments: opts.attachments }
+                        : null),
+                    ...(opts.providerOverride ? { providerOverride: opts.providerOverride } : null),
+                    ...(typeof opts.onVisionDecision === 'function'
+                        ? { onVisionDecision: opts.onVisionDecision }
+                        : null),
+                })) {
                     if (!mountedRef.current) break;
                     switch (ev.type) {
                         case 'thinking':
@@ -891,20 +1090,32 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             // All file-mutation progress folds into "Writing files…".
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
                             break;
+                        case 'inspector-response':
+                            // Story 8.9: the read-only answer (FR58). Always
+                            // arrives before `done`; the thread card renders it
+                            // as the body for inspect turns.
+                            inspectAnswer = typeof ev.answer === 'string' ? ev.answer : '';
+                            break;
                         case 'done':
                             terminalSeen = true;
                             if (ev.turnId) turnId = ev.turnId;
-                            finishTurn('done', ev.files, prompt, ev.turnId ?? turnId);
+                            finishTurn('done', ev.files, prompt, ev.turnId ?? turnId, null, {
+                                mode: turnMode,
+                                answer: inspectAnswer,
+                            });
                             break;
                         case 'stopped':
                             terminalSeen = true;
                             // No files on the event → fall back to the writes
                             // observed during the run (NFR18).
-                            finishTurn('stopped', ev.files ?? seenFiles, prompt, ev.turnId ?? turnId);
+                            finishTurn('stopped', ev.files ?? seenFiles, prompt, ev.turnId ?? turnId, null, {
+                                mode: turnMode,
+                                answer: inspectAnswer,
+                            });
                             break;
                         case 'error':
                             terminalSeen = true;
-                            finishTurn('error', [], prompt, null, ev.error ?? null);
+                            finishTurn('error', [], prompt, null, ev.error ?? null, { mode: turnMode });
                             break;
                         default:
                             // needs-vision-fallback ignored here (Story 8.7's
@@ -921,19 +1132,38 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 if (!terminalSeen && mountedRef.current) {
                     // The iterable completed without a terminal event — treat as
                     // a clean (empty) done so the pill never freezes.
-                    finishTurn('done', [], prompt, turnId);
+                    finishTurn('done', [], prompt, turnId, null, {
+                        mode: turnMode,
+                        answer: inspectAnswer,
+                    });
                 }
             } catch (err) {
                 if (mountedRef.current) {
-                    finishTurn('error', [], prompt, null, {
-                        class: (err && typeof err === 'object' && err.name) || 'Error',
-                        message:
-                            (err && typeof err === 'object' && err.message) || String(err),
-                    });
+                    finishTurn(
+                        'error',
+                        [],
+                        prompt,
+                        null,
+                        {
+                            class: (err && typeof err === 'object' && err.name) || 'Error',
+                            message:
+                                (err && typeof err === 'object' && err.message) || String(err),
+                        },
+                        { mode: turnMode },
+                    );
                 }
             } finally {
                 if (controllerRef.current === controller) controllerRef.current = null;
                 if (mountedRef.current) setRunning(false);
+                // A vision prompt must never outlive its turn: settle any
+                // still-open mid-turn decision as a decline and close the
+                // prompt UI (the orchestrator side already ended).
+                const vision = visionDeferredRef.current;
+                if (vision) {
+                    visionDeferredRef.current = null;
+                    vision.resolve({ accept: false });
+                    if (mountedRef.current) setVisionPromptProviders(null);
+                }
             }
         },
         [scope, finishTurn, clearTerminalTimers],
@@ -1006,6 +1236,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     const submit = React.useCallback(async () => {
         const prompt = text.trim();
         if (!prompt || running) return;
+        // A vision decision is pending (the State B prompt is open; `running`
+        // is false and the input is enabled while it waits) — the prompt must
+        // be answered first. This keypress consumes NOTHING: a second Enter
+        // must never start a concurrent turn or steal the pending submission.
+        if (visionDeferredRef.current) return;
 
         const ai = await getAi();
         if (!ai) {
@@ -1016,6 +1251,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
 
         // Clear the input immediately so the user can see the turn take it.
         setText('');
+        // A fresh submission clears the previous workflow note (the State A
+        // note clears via the gate's own evaluate / clearStateA below).
+        setWorkflowNote(null);
 
         try {
             await passGate(ai);
@@ -1025,8 +1263,62 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             return;
         }
 
-        await driveTurn(ai, prompt);
-    }, [text, running, passGate, driveTurn]);
+        // ── Vision gate (Story 8.7, FR56) — submit-side, after the provider
+        // gates pass. Inspect turns never carry attachments toward the model
+        // (the inspector is text-only), so the gate applies to ask mode only.
+        let attachments = [];
+        let providerOverride;
+        if (mode === MODE_INSPECT) {
+            // Inspect submits leave staged attachments STAGED — they apply to
+            // the NEXT ask turn, never silently consumed by a text-only turn —
+            // and clear any stale State A note so the inspect submit reads
+            // fresh.
+            visionGate.clearStateA();
+        } else {
+            // Recognized deterministic workflow turns (Story 8.8 W2 launch-kit
+            // / W3 social-variants) make ZERO provider calls and ignore
+            // attachments — the vision gate must not block them (State A) or
+            // charge consent (State B) for a turn that never sends an image.
+            const shape = ai.workflows?.recognizeWorkflow?.(prompt);
+            if (shape?.kind === 'launch-kit' || shape?.kind === 'social-variants') {
+                visionGate.clearStateA();
+                if (pendingAttachments.length > 0) {
+                    // Staged images cannot ride a deterministic kit turn —
+                    // drop them with a calm note instead of gating the submit.
+                    setPendingAttachments([]);
+                    setWorkflowNote(WORKFLOW_IMAGE_NOTE);
+                }
+            } else {
+                attachments = pendingAttachments;
+                setPendingAttachments([]);
+                const decision = await visionGate.evaluate({ prompt, attachments });
+                if (decision.action === 'blocked-state-a') {
+                    // State A: the submission is consumed — the hook armed the
+                    // inline note + the 1500ms pill flash (AC-9: no modal).
+                    return;
+                }
+                if (decision.action === 'prompt') {
+                    // State B: one-off cloud fallback. Accept routes JUST this
+                    // turn through the override (no makeActive, never
+                    // remembered).
+                    const res = await requestVisionPrompt(decision.eligibleProviders);
+                    if (!res || res.accept !== true) return; // AC-14: discard
+                    // Re-check before resuming: the world may have moved while
+                    // the prompt was open — never resume into a second
+                    // concurrent turn (the controller ref is the live truth).
+                    if (running || controllerRef.current) return;
+                    providerOverride = res.handle?.providerName ?? res.handle?.name;
+                }
+            }
+        }
+
+        await driveTurn(ai, prompt, {
+            mode,
+            attachments,
+            providerOverride,
+            onVisionDecision: visionGate.onVisionDecision,
+        });
+    }, [text, running, passGate, driveTurn, mode, pendingAttachments, visionGate, requestVisionPrompt]);
 
     const onInputKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1124,6 +1416,15 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
         // (Story 8.5 UI); when the panel is absent this is a no-op.
         // Intentionally minimal — the thread card lists the outcome already.
     }, []);
+    // Inspect answers (Story 8.9 AC-9): clicking a detected file path scopes
+    // the next prompt to that file and closes the thread.
+    const onThreadPathOpen = React.useCallback(
+        (path) => {
+            setScope(fileScope(path));
+            setThreadOpen(false);
+        },
+        [setScope],
+    );
 
     // ── Thread expand/collapse + Esc-collapse (when no turn runs) ───────────
     const toggleThread = React.useCallback(() => {
@@ -1161,6 +1462,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         aria-label="AI input (not installed)"
                         data-testid="ai-input"
                     />
+                    {/* The mode toggle stays visible-but-inert in the AI-absent
+                        chrome (calm: no affordance disappears, none invites). */}
+                    <ModeToggle value="ask" disabled />
                 </span>
                 {absentNoteVisible && (
                     <span className="lm-ai-cluster__absent-note" data-testid="ai-absent-note">
@@ -1172,14 +1476,29 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     }
 
     // ─── Render: live cluster (AI present, or not-yet-resolved) ─────────────
-    const placeholder = narrow ? PLACEHOLDER_NARROW : PLACEHOLDER_FULL;
+    // Inspect mode swaps the placeholder (Story 8.9 AC-2); the narrow-window
+    // truncation applies to ask mode only.
+    const placeholder = inspectPlaceholder ?? (narrow ? PLACEHOLDER_NARROW : PLACEHOLDER_FULL);
+    // Story 8.7 State A: flash `Vision unavailable` over an idle pill while the
+    // inline note explains; in-flight/terminal states always win.
+    const pillStatus = visionGate.pillFlash && status === 'idle' ? 'vision-unavailable' : status;
 
     return (
         <span className="lm-ai-cluster" data-tour="dock-ai">
             <span className="lm-ai-cluster__field" data-focused={focused ? 'true' : 'false'}>
-                {/* DOM order: input FIRST, chip second — AC-15's tab order is
-                    input → chip ×. The chip's CSS `order: -1` keeps it at the
-                    field's visual left edge. */}
+                {/* State B one-off vision-fallback prompt (Story 8.7) — renders
+                    inline-near-dock, self-positioned above the field. */}
+                {visionPromptProviders && (
+                    <VisionFallbackPrompt
+                        eligibleProviders={visionPromptProviders}
+                        onAccept={onVisionAccept}
+                        onCancel={onVisionCancel}
+                    />
+                )}
+                {/* DOM order: input FIRST, chip second, mode toggle third —
+                    AC-15's tab order starts at the input. CSS `order` keeps
+                    the toggle at the visual left edge (-2) and the chip beside
+                    it (-1). */}
                 <input
                     ref={inputRef}
                     id={inputId}
@@ -1196,13 +1515,31 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     onBlur={() => setFocused(false)}
                 />
                 {scope && <SelectionChip scope={scope} onClear={clearScope} />}
+                {/* Ask/Inspect mode toggle (Story 8.9). Disabled while a turn
+                    runs AND while a submit is suspended at any gate (setup /
+                    disclosure / vision prompt) — the suspended submission
+                    captured its mode, so the visible toggle must not diverge
+                    from what will actually run. */}
+                <ModeToggle
+                    value={mode}
+                    onChange={setMode}
+                    disabled={
+                        running || setupOpen || Boolean(discloseFor) || Boolean(visionPromptProviders)
+                    }
+                />
+
+                {/* Image-attach affordance (Story 8.7) — reactive
+                    disabled-with-reason when the active model lacks vision. */}
+                <VisionAttachButton
+                    onAttach={(items) => setPendingAttachments((prev) => [...prev, ...items])}
+                />
 
                 {/* [ status pill | stop button ] — spec §4.1. The pill is
                     PERMANENTLY mounted (its aria-live region announces every
                     in-flight state: Thinking… / Reading… / Writing files… /
                     Stopping…, AC-6); the stop button sits beside it while a
                     turn runs (AC-5). */}
-                <StatusPill status={status} reducedMotion={reducedMotion} />
+                <StatusPill status={pillStatus} reducedMotion={reducedMotion} />
                 {running && (
                     <button
                         type="button"
@@ -1248,6 +1585,17 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 </button>
             </span>
 
+            {/* Story 8.7 State A inline note: vision required, no cloud
+                provider can serve a fallback — calm guidance, no modal. The
+                same span carries the Story 8.8 workflow note (staged images
+                dropped — kit turns run without vision); State A wins when
+                both are armed. */}
+            {(visionGate.stateANote || workflowNote) && (
+                <span className="lm-ai-cluster__absent-note" data-testid="ai-vision-note">
+                    {visionGate.stateANote || workflowNote}
+                </span>
+            )}
+
             {/* Thread overlay */}
             <ThreadOverlay
                 open={threadOpen}
@@ -1256,6 +1604,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 onRevertTurn={onThreadRevert}
                 onViewFiles={onThreadViewFiles}
                 onOpenTimeline={onThreadRevert}
+                onOpenPath={onThreadPathOpen}
                 revertAvailable={revertAvailable}
             />
 
@@ -1307,3 +1656,4 @@ async function getActiveProviderName(ai, aiCtx) {
 }
 
 export default AiInputCluster;
+
