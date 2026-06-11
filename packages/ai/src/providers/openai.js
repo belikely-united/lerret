@@ -37,6 +37,40 @@ import { assertVendorOrigin } from './url-guard.js';
 const DEFAULT_BASE_URL = 'https://api.openai.com';
 const DEFAULT_MODEL = 'gpt-4o';
 
+/**
+ * Translate provider-NEUTRAL multipart content (interface.js TextBlock /
+ * ImageBlock) into OpenAI's wire shape. String content and text blocks pass
+ * through verbatim (already wire-compatible); neutral image blocks become
+ * `{ type: 'image_url', image_url: { url } }` parts — the dataUrl when
+ * present, else composed from mimeType + base64. Payload-less image blocks
+ * are dropped (defensive — the Planner never emits them).
+ *
+ * @param {Array<import('./interface.js').Message>} messages
+ * @returns {Array<object>}
+ */
+function toWireMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+    return messages.map((msg) => {
+        if (!msg || !Array.isArray(msg.content)) return msg;
+        const parts = [];
+        for (const block of msg.content) {
+            if (!block || typeof block !== 'object') continue;
+            if (block.type === 'image') {
+                const url =
+                    typeof block.dataUrl === 'string' && block.dataUrl.length > 0
+                        ? block.dataUrl
+                        : typeof block.base64 === 'string' && block.base64.length > 0
+                          ? `data:${block.mimeType || 'image/png'};base64,${block.base64}`
+                          : null;
+                if (url) parts.push({ type: 'image_url', image_url: { url } });
+                continue;
+            }
+            parts.push(block);
+        }
+        return { ...msg, content: parts };
+    });
+}
+
 export class OpenAIProvider extends AIProvider {
     constructor() {
         super();
@@ -76,7 +110,7 @@ export class OpenAIProvider extends AIProvider {
     async complete({ messages, signal, model } = {}) {
         const res = await this._post(
             '/v1/chat/completions',
-            { model: model || this._model, messages, stream: false },
+            { model: model || this._model, messages: toWireMessages(messages), stream: false },
             signal,
         );
         const json = await res.json();
@@ -87,7 +121,7 @@ export class OpenAIProvider extends AIProvider {
     async *stream({ messages, signal, model } = {}) {
         const res = await this._post(
             '/v1/chat/completions',
-            { model: model || this._model, messages, stream: true },
+            { model: model || this._model, messages: toWireMessages(messages), stream: true },
             signal,
         );
         if (!res.body) {

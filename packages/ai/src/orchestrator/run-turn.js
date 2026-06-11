@@ -1,6 +1,6 @@
 // run-turn.js — the public orchestrator entry.
 //
-//   runTurn({ prompt, scope, signal, providerOverride? }) → AsyncIterable<TurnEvent>
+//   runTurn({ prompt, scope, signal, mode?, providerOverride? }) → AsyncIterable<TurnEvent>
 //
 // This is the ONE function the dock (Story 8.2), the vision UI (Story 8.7),
 // the workflows (Story 8.8), and the inspector (Story 8.9) all consume. It:
@@ -17,6 +17,17 @@
 //      auto-revert),
 //   8. on clean completion: finalizes 'applied' + yields `done`,
 //   9. ALWAYS (finally): runs snapshot cleanup synchronously (AC-11).
+//
+// ── Inspect mode (Story 8.9, FR58) ───────────────────────────────────────────
+// `mode: 'inspect'` routes the graph's read-only branch (Orchestrator →
+// Memory → Inspector → END — the Worker node is never visited) and changes
+// the turn's SNAPSHOT semantics: an inspect turn mutates NOTHING, so it
+// creates NO manifest, writes NO blobs, and skips finalization + cleanup
+// entirely (the revert timeline must not grow — there is nothing to revert).
+// Its terminal `done` carries `files: []` and NO `turnId`; an aborted inspect
+// turn yields `stopped` with NO `turnId`. Everything else — provider
+// resolution, the abort plumbing, the out-of-band event queue — is shared
+// with ask mode unchanged.
 //
 // The Plan-A decision (LangGraph.js) traces to the Story 8.0 bundle-spike gate
 // — see ../../../docs/architecture/bundle-spike-2026-06-07.md.
@@ -35,6 +46,7 @@ import { createSandbox } from '@lerret/core';
 import * as snapshot from '../snapshot/index.js';
 import * as providers from '../providers/index.js';
 import * as vault from '../vault/index.js';
+import { supportsVision, resolveEffectiveModel } from '../vision/router.js';
 import * as events from './events.js';
 import { createTurnGraph } from './graph.js';
 import { VisionUnavailable } from './errors.js';
@@ -72,9 +84,13 @@ function makeHandle(instance, model) {
  * key lives only inside this frame — attached to the instance via `configure`,
  * never logged, never returned).
  *
+ * Exported for the integration suite (which drives `enumerateVision` against
+ * the real vault store); production reaches it only as `runTurn`'s default
+ * resolver — it is NOT re-exported by the orchestrator barrel.
+ *
  * @param {{ folderId: string }} ctx
  */
-function createVaultResolver({ folderId }) {
+export function createVaultResolver({ folderId }) {
     async function resolveByName(providerName, model, baseUrl) {
         const Cls = PROVIDER_CLASSES[providerName];
         if (!Cls) throw new Error(`unknown provider '${providerName}'`);
@@ -112,8 +128,17 @@ function createVaultResolver({ folderId }) {
             return configs
                 .filter((c) => c.providerName !== exclude)
                 .filter((c) => c.providerName !== 'ollama') // cloud vision only (FR56)
-                .filter((c) => providers.modelSupportsVision(c.providerName, c.model))
-                .map((c) => ({ name: c.providerName, model: c.model }));
+                // Eligibility — and the model the event offers — are asked
+                // against the EFFECTIVE model via the vision router (config
+                // model, else the provider-class default), in lockstep with
+                // the studio pre-gate. Asking the raw config model would fail
+                // closed on `undefined` and silently hide every key-only
+                // (model-less) cloud config from the mid-turn fallback list.
+                .filter((c) => supportsVision(c.providerName, c.model))
+                .map((c) => ({
+                    name: c.providerName,
+                    model: resolveEffectiveModel(c.providerName, c.model),
+                }));
         },
         async resolveOverride(providerName) {
             const configs = await vault.listProviderConfigs({ folderId });
@@ -201,24 +226,33 @@ export async function* runTurn({
     }
 
     // 2. Construct the sandbox + create + write the manifest BEFORE any
-    //    Worker mutation (AC-9).
+    //    Worker mutation (AC-9). INSPECT turns (Story 8.9 AC group C) skip
+    //    the manifest entirely — they mutate nothing, so the snapshot store
+    //    is never touched and the revert timeline does not grow. `turnId`
+    //    stays undefined for inspect, so the terminal events carry no
+    //    revert target.
+    const isInspect = mode === 'inspect';
     const sandbox = createSandbox({ projectRoot, fs });
-    const turnId =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `turn-${Date.now()}-${Math.floor(Math.random() * 1e9).toString(36)}`;
-    let manifest = snapshot.createManifest({
-        id: turnId,
-        prompt,
-        provider: activeProviderName,
-        model: activeModel,
-        scope,
-    });
-    try {
-        await snapshot.writeManifest({ sandbox, manifest });
-    } catch (err) {
-        yield events.error(err);
-        return;
+    let turnId;
+    let manifest;
+    if (!isInspect) {
+        turnId =
+            typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `turn-${Date.now()}-${Math.floor(Math.random() * 1e9).toString(36)}`;
+        manifest = snapshot.createManifest({
+            id: turnId,
+            prompt,
+            provider: activeProviderName,
+            model: activeModel,
+            scope,
+        });
+        try {
+            await snapshot.writeManifest({ sandbox, manifest });
+        } catch (err) {
+            yield events.error(err);
+            return;
+        }
     }
 
     // 3. Vision-fallback decision bridge (FR56 — logic only; UI is Story 8.7).
@@ -289,6 +323,11 @@ export async function* runTurn({
     // then runs cleanup. Called from BOTH the normal-completion path and the
     // teardown finally, so a consumer that breaks the `for await` early still
     // finalizes the manifest + runs cleanup (AC-11 "ALWAYS finally").
+    //
+    // INSPECT turns short-circuit after the status computation: there is no
+    // manifest to finalize and no snapshot writes to clean up, and this skip
+    // holds on EVERY terminal path (done / error / stopped / early-break) —
+    // an inspect turn leaves `.lerret/.state/history` untouched.
     let finalized = false;
     let finalStatus;
     const finalize = async () => {
@@ -299,6 +338,7 @@ export async function* runTurn({
             : effectiveSignal.aborted
               ? 'stopped-mid-turn'
               : 'applied';
+        if (isInspect) return finalStatus;
         const finalManifest = finalState?.manifest ?? manifest;
         try {
             const fin = snapshot.finalizeManifest(finalManifest, { status: finalStatus });
@@ -328,10 +368,14 @@ export async function* runTurn({
             yield events.error(graphError);
         } else if (status === 'stopped-mid-turn') {
             // Terminal events carry the manifest id so the dock can target
-            // revert at THIS turn without out-of-band correlation.
+            // revert at THIS turn without out-of-band correlation. For an
+            // INSPECT turn `turnId` is undefined, so the event factories omit
+            // the key — nothing to revert (Story 8.9 AC group C).
             yield events.stopped(turnId);
         } else {
-            yield events.done(finalState?.writtenFiles ?? [], turnId);
+            // An inspect turn's done is ALWAYS `files: []` — read-only by
+            // construction, never a file-outcome summary.
+            yield events.done(isInspect ? [] : (finalState?.writtenFiles ?? []), turnId);
         }
     } finally {
         // 6. ALWAYS — including on consumer `.return()` (early break) or a

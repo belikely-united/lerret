@@ -44,6 +44,50 @@ describe('OllamaProvider', () => {
         expect(init.headers['x-api-key']).toBeUndefined();
     });
 
+    it('complete() flattens a multipart message into string content + message-level images', async () => {
+        fetchSpy.mockResolvedValueOnce(
+            jsonResponse({ message: { role: 'assistant', content: 'seen' }, done: true }),
+        );
+        const p = new OllamaProvider();
+        p.configure({ model: 'llava' });
+        await p.complete({
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'describe this' },
+                        { type: 'image', mimeType: 'image/png', base64: 'QUJD' },
+                        { type: 'image', dataUrl: 'data:image/jpeg;base64,REVG' }, // base64 extracted from dataUrl
+                    ],
+                },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        // Ollama has no content-block array form: text joins into the string
+        // content; image payloads ride the message-level images array.
+        expect(body.messages[0]).toEqual({
+            role: 'user',
+            content: 'describe this',
+            images: ['QUJD', 'REVG'],
+        });
+    });
+
+    it('complete() leaves plain string messages untouched (no images key)', async () => {
+        fetchSpy.mockResolvedValueOnce(
+            jsonResponse({ message: { role: 'assistant', content: 'ok' }, done: true }),
+        );
+        const p = new OllamaProvider();
+        p.configure({ model: 'llama3.2' });
+        await p.complete({
+            messages: [{ role: 'user', content: 'plain' }],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        expect(body.messages[0]).toEqual({ role: 'user', content: 'plain' });
+        expect(body.messages[0]).not.toHaveProperty('images');
+    });
+
     it('stream() yields text-delta chunks from NDJSON body', async () => {
         const body =
             '{"model":"llama3.2","message":{"role":"assistant","content":"Hel"},"done":false}\n' +

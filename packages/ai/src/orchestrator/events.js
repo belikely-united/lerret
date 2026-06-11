@@ -42,6 +42,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
     'deleting',
     'mkdir',
     'tool-call',
+    'inspector-response',
     'done',
     'error',
     'stopped',
@@ -61,6 +62,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
  *   | { type: 'deleting', file: string }
  *   | { type: 'mkdir', dir: string }
  *   | { type: 'tool-call', name: string }
+ *   | { type: 'inspector-response', answer: string }
  *   | { type: 'done', files: Array<TurnFileEntry>, turnId?: string }
  *   | { type: 'error', error: { class: string, message: string } }
  *   | { type: 'stopped', turnId?: string }
@@ -96,6 +98,23 @@ export function mkdir(dir) {
 /** @param {string} name @returns {TurnEvent} */
 export function toolCall(name) {
     return Object.freeze({ type: 'tool-call', name });
+}
+
+/**
+ * The Inspector's single-turn answer (Story 8.9, FR58). Per UX Anti-goal #3
+ * the thread renders THIS answer text — never raw agent internals — so the
+ * payload is the finished, user-facing answer string. Exactly one
+ * `inspector-response` precedes the terminal `done` of a successful
+ * inspect-mode turn; ask-mode turns never emit it.
+ *
+ * @param {string} answer  The Inspector's user-facing answer text.
+ * @returns {TurnEvent}
+ */
+export function inspectorResponse(answer) {
+    return Object.freeze({
+        type: 'inspector-response',
+        answer: typeof answer === 'string' ? answer : String(answer ?? ''),
+    });
 }
 
 /**

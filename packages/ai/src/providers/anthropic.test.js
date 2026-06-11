@@ -95,6 +95,69 @@ describe('AnthropicProvider', () => {
         expect(body.system).toBeUndefined();
     });
 
+    it('complete() translates neutral image blocks into base64 source parts (NOT image_url)', async () => {
+        fetchSpy.mockResolvedValueOnce(jsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const p = new AnthropicProvider();
+        p.configure({ apiKey: 'sk', model: 'claude-sonnet-4-6' });
+        await p.complete({
+            messages: [
+                { role: 'system', content: 'sys' },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'match this' },
+                        {
+                            type: 'image',
+                            mimeType: 'image/png',
+                            base64: 'QUJD',
+                            dataUrl: 'data:image/png;base64,QUJD',
+                        },
+                    ],
+                },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        // The system extraction still applies to multipart turns…
+        expect(body.system).toBe('sys');
+        // …and the neutral image block lands as Anthropic's base64 source.
+        expect(body.messages).toEqual([
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: 'match this' },
+                    {
+                        type: 'image',
+                        source: { type: 'base64', media_type: 'image/png', data: 'QUJD' },
+                    },
+                ],
+            },
+        ]);
+    });
+
+    it('complete() extracts base64 + media type from a dataUrl-only image block', async () => {
+        fetchSpy.mockResolvedValueOnce(jsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
+        const p = new AnthropicProvider();
+        p.configure({ apiKey: 'sk', model: 'claude-sonnet-4-6' });
+        await p.complete({
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 't' },
+                        { type: 'image', dataUrl: 'data:image/jpeg;base64,QUJD' },
+                    ],
+                },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        expect(body.messages[0].content[1]).toEqual({
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data: 'QUJD' },
+        });
+    });
+
     it('request body includes max_tokens (Anthropic requires it)', async () => {
         fetchSpy.mockResolvedValueOnce(jsonResponse({ content: [{ type: 'text', text: 'ok' }] }));
         const p = new AnthropicProvider();

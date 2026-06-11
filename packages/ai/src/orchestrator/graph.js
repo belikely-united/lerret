@@ -70,7 +70,7 @@ export function createTurnGraph({ providerHandle, sandbox, fs, projectRoot, emit
         .addNode('Orchestrator', createOrchestratorNode({ emit }))
         .addNode('Memory', createMemoryNode({ sandbox, emit }))
         .addNode('DSCurator', createDsCuratorNode({ sandbox, emit }))
-        .addNode('Planner', createPlannerNode({ providerHandle, emit, requestVisionDecision }))
+        .addNode('Planner', createPlannerNode({ providerHandle, emit, requestVisionDecision, sandbox }))
         .addNode('Worker', createWorkerNode({ sandbox, fs, projectRoot, emit, snapshot }))
         .addNode('Inspector', createInspectorNode({ sandbox, providerHandle, emit }))
         .addEdge(START, 'Orchestrator')

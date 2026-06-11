@@ -63,3 +63,12 @@ export * as vault from './vault/index.js';
 // reserved-path constants, scope-anchoring + design-token parsers, preset
 // discovery, and generation-substrate planners. Reached as `ai.memory.X`.
 export * as memory from './memory/index.js';
+
+// Vision-on-demand router (Story 8.7): capability-matrix gate + the FR56
+// one-off cloud-fallback eligibility logic. Reached as `ai.vision.X`.
+export * as vision from './vision/index.js';
+
+// Generation workflows (Story 8.8): the W2 launch-kit + W3 social-variants
+// recognizers and deterministic WorkerStep planners. Reached as
+// `ai.workflows.X`.
+export * as workflows from './orchestrator/workflows/index.js';

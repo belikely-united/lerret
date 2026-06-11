@@ -35,6 +35,51 @@ import { assertLocalOrigin } from './url-guard.js';
 const DEFAULT_BASE_URL = 'http://localhost:11434';
 const DEFAULT_MODEL = 'llama3.2';
 
+/**
+ * Translate a provider-NEUTRAL multipart message (interface.js TextBlock /
+ * ImageBlock) into Ollama's wire shape: string `content` (text blocks joined)
+ * plus a message-level `images: [<base64>, …]` array — Ollama has no
+ * content-block array form. String content passes through verbatim. Note
+ * Ollama is outside the v1 vision-fallback eligibility (FR56 is cloud-only),
+ * but a vision-capable LOCAL model (e.g. llava) configured as the ACTIVE
+ * provider can still receive image turns, so the translation lives here too.
+ *
+ * @param {import('./interface.js').Message} msg
+ * @returns {object}
+ */
+function toWireMessage(msg) {
+    if (!msg || !Array.isArray(msg.content)) return msg;
+    const texts = [];
+    const images = [];
+    for (const block of msg.content) {
+        if (!block || typeof block !== 'object') continue;
+        if (block.type === 'text' && typeof block.text === 'string') {
+            texts.push(block.text);
+            continue;
+        }
+        if (block.type === 'image') {
+            let data =
+                typeof block.base64 === 'string' && block.base64.length > 0
+                    ? block.base64
+                    : null;
+            if (!data && typeof block.dataUrl === 'string') {
+                const m = /^data:[^;,]*;base64,(.+)$/.exec(block.dataUrl);
+                if (m) data = m[1];
+            }
+            if (data) images.push(data);
+        }
+    }
+    const out = { ...msg, content: texts.join('\n') };
+    if (images.length > 0) out.images = images;
+    return out;
+}
+
+/** @param {Array<import('./interface.js').Message>} messages */
+function toWireMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+    return messages.map(toWireMessage);
+}
+
 export class OllamaProvider extends AIProvider {
     constructor() {
         super();
@@ -74,7 +119,7 @@ export class OllamaProvider extends AIProvider {
     async complete({ messages, signal, model } = {}) {
         const res = await this._post(
             '/api/chat',
-            { model: model || this._model, messages, stream: false },
+            { model: model || this._model, messages: toWireMessages(messages), stream: false },
             signal,
         );
         const json = await res.json();
@@ -85,7 +130,7 @@ export class OllamaProvider extends AIProvider {
     async *stream({ messages, signal, model } = {}) {
         const res = await this._post(
             '/api/chat',
-            { model: model || this._model, messages, stream: true },
+            { model: model || this._model, messages: toWireMessages(messages), stream: true },
             signal,
         );
         if (!res.body) {

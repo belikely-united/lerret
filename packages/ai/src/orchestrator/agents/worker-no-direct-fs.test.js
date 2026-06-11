@@ -12,20 +12,27 @@ import { fileURLToPath } from 'node:url';
  * write surface available to the Worker. CI verifies via grep.
  *
  * This test scans every shipped file under
- * `packages/ai/src/orchestrator/agents/` (Worker territory) and asserts none
- * contains a forbidden pattern. The scan list deliberately excludes
- * `packages/ai/src/providers/` and `packages/ai/src/vault/` — those have
- * their own constraints documented in Story 8.1 (providers/ legitimately
- * uses `fetch(`; vault/ uses Web Crypto).
+ * `packages/ai/src/orchestrator/agents/` (Worker territory), plus the two
+ * sibling territories whose code feeds the Worker the same sandbox-only IO
+ * discipline: `packages/ai/src/orchestrator/workflows/` (the deterministic
+ * W2/W3 planners) and `packages/ai/src/memory/` (the Memory/DS-Curator
+ * substrate), and asserts none contains a forbidden pattern. The scan list
+ * deliberately excludes `packages/ai/src/providers/` and
+ * `packages/ai/src/vault/` — those have their own constraints documented in
+ * Story 8.1 (providers/ legitimately uses `fetch(`; vault/ uses Web Crypto).
  *
  * Structural sibling of `packages/ai/src/no-static-imports.test.js`.
  */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// __dirname = .../public/packages/ai/src/orchestrator/agents/ ; the scan is
-// of `.` (this directory itself).
-const SCAN_DIR = __dirname;
+// __dirname = .../public/packages/ai/src/orchestrator/agents/ ; the scan
+// covers this directory plus the workflow + memory territories.
+const SCAN_DIRS = [
+    __dirname, // orchestrator/agents/
+    join(__dirname, '..', 'workflows'), // orchestrator/workflows/
+    join(__dirname, '..', '..', 'memory'), // memory/
+];
 const EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 
 /**
@@ -167,9 +174,9 @@ function walkSource(dir, hits) {
 }
 
 describe('Worker agents — no direct fs / network / shell surface', () => {
-    it('no forbidden patterns in any file under packages/ai/src/orchestrator/agents/', () => {
+    it('no forbidden patterns in any file under agents/, workflows/, or memory/', () => {
         const offenders = [];
-        walkSource(SCAN_DIR, offenders);
+        for (const dir of SCAN_DIRS) walkSource(dir, offenders);
         expect(
             offenders,
             offenders.length

@@ -38,6 +38,55 @@ describe('OpenRouterProvider', () => {
         expect(init.headers['X-Title']).toBe('Lerret');
     });
 
+    it('complete() translates neutral image blocks into image_url parts (OpenAI-compatible wire)', async () => {
+        fetchSpy.mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+        const p = new OpenRouterProvider();
+        p.configure({ apiKey: 'or', model: 'openai/gpt-4o' });
+        await p.complete({
+            messages: [
+                { role: 'system', content: 'sys' },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'match this' },
+                        {
+                            type: 'image',
+                            mimeType: 'image/png',
+                            base64: 'QUJD',
+                            dataUrl: 'data:image/png;base64,QUJD',
+                        },
+                    ],
+                },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' }); // strings pass verbatim
+        expect(body.messages[1]).toEqual({
+            role: 'user',
+            content: [
+                { type: 'text', text: 'match this' },
+                { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+            ],
+        });
+    });
+
+    it('complete() composes the data URL from mimeType + base64 when no dataUrl is present', async () => {
+        fetchSpy.mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+        const p = new OpenRouterProvider();
+        p.configure({ apiKey: 'or', model: 'openai/gpt-4o' });
+        await p.complete({
+            messages: [
+                { role: 'user', content: [{ type: 'image', mimeType: 'image/jpeg', base64: 'QUJD' }] },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        expect(body.messages[0].content).toEqual([
+            { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,QUJD' } },
+        ]);
+    });
+
     it('stream() yields text-delta chunks from OpenAI-compatible SSE body', async () => {
         const sseBody =
             'data: {"choices":[{"delta":{"content":"Foo"}}]}\n\n' +

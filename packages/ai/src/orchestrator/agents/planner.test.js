@@ -5,7 +5,13 @@
 //   - parsePlan WHITELISTS ops (write/delete/mkdir); an unknown op yields a
 //     visibly-empty plan rather than a step the Worker silently skips,
 //   - the abort re-check immediately before the (expensive) LLM call,
-//   - the vision-fallback decision routes through requestVisionDecision().
+//   - the vision-fallback decision routes through requestVisionDecision(),
+// plus the later additions:
+//   - FR56 image DELIVERY: a payload-bearing image attachment reaches
+//     complete() as a provider-neutral multipart user message when the
+//     resolved handle's model supports vision (text-only fallback otherwise),
+//   - Story 8.8 workflow delegation: recognized launch-kit / social-variants
+//     prompts with a sandbox bypass the provider entirely.
 
 import { describe, it, expect, vi } from 'vitest';
 
@@ -153,5 +159,177 @@ describe('createPlannerNode — vision fallback', () => {
         });
         expect(requestVisionDecision).not.toHaveBeenCalled();
         expect(providerHandle.complete).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('createPlannerNode — vision recognition (Story 8.7 router heuristic)', () => {
+    // The Story 8.7 swap: the Planner now recognizes ALL the image-attachment
+    // shapes in circulation via vision/router.js isVisionRequired — not just
+    // the Story 8.3 `{ type: 'image' }` form.
+    it.each([
+        ['kind: image (studio attach-button shape)', { kind: 'image' }],
+        ['mimeType: image/png (file-picker shape)', { mimeType: 'image/png' }],
+    ])('routes through requestVisionDecision for %s', async (_label, attachment) => {
+        const active = makeHandle({ vision: false });
+        const override = {
+            name: 'anthropic',
+            model: 'claude-sonnet-4-6',
+            modelSupportsVision: () => true,
+            complete: vi.fn(async () => ({ content: '{"steps":[]}' })),
+        };
+        const requestVisionDecision = vi.fn(async () => override);
+        await createPlannerNode({ providerHandle: active, emit: vi.fn(), requestVisionDecision })({
+            prompt: 'p',
+            attachments: [attachment],
+        });
+        expect(requestVisionDecision).toHaveBeenCalledTimes(1);
+        expect(override.complete).toHaveBeenCalledTimes(1);
+        expect(active.complete).not.toHaveBeenCalled();
+    });
+
+    it('non-image attachments do NOT trigger the vision decision (plans on the active handle)', async () => {
+        const requestVisionDecision = vi.fn();
+        const providerHandle = makeHandle({ vision: false });
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision })({
+            prompt: 'p',
+            attachments: [{ type: 'file' }, { kind: 'doc' }, { mimeType: 'text/plain' }],
+        });
+        expect(requestVisionDecision).not.toHaveBeenCalled();
+        expect(providerHandle.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('prompt text alone never triggers vision (v1 heuristic is attachment-only)', async () => {
+        const requestVisionDecision = vi.fn();
+        const providerHandle = makeHandle({ vision: false });
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision })({
+            prompt: 'look at this image and match the screenshot',
+        });
+        expect(requestVisionDecision).not.toHaveBeenCalled();
+        expect(providerHandle.complete).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('createPlannerNode — image payload delivery (FR56 is delivery, not just routing)', () => {
+    const PAYLOAD_ATTACHMENT = Object.freeze({
+        kind: 'image',
+        type: 'image',
+        mimeType: 'image/png',
+        name: 'shot.png',
+        base64: 'QUJD',
+        dataUrl: 'data:image/png;base64,QUJD',
+    });
+
+    it('vision-capable handle + base64-bearing image attachment → multipart user message reaches complete', async () => {
+        const providerHandle = makeHandle({ vision: true });
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'match this screenshot',
+            attachments: [PAYLOAD_ATTACHMENT],
+        });
+        const { messages } = providerHandle.complete.mock.calls[0][0];
+        const user = messages.find((m) => m.role === 'user');
+        expect(Array.isArray(user.content)).toBe(true);
+        expect(user.content[0]).toEqual({ type: 'text', text: 'match this screenshot' });
+        expect(user.content[1]).toEqual({
+            type: 'image',
+            mimeType: 'image/png',
+            base64: 'QUJD',
+            dataUrl: 'data:image/png;base64,QUJD',
+        });
+        // The system message stays a plain string — only the user turn is multipart.
+        expect(typeof messages[0].content).toBe('string');
+    });
+
+    it('the override handle receives the multipart message when the active model lacks vision', async () => {
+        const active = makeHandle({ vision: false });
+        const overrideComplete = vi.fn(async () => ({ content: '{"steps":[]}' }));
+        const override = {
+            name: 'anthropic',
+            model: 'claude-sonnet-4-6',
+            modelSupportsVision: () => true,
+            complete: overrideComplete,
+        };
+        await createPlannerNode({
+            providerHandle: active,
+            emit: vi.fn(),
+            requestVisionDecision: vi.fn(async () => override),
+        })({ prompt: 'p', attachments: [PAYLOAD_ATTACHMENT] });
+
+        const user = overrideComplete.mock.calls[0][0].messages.find((m) => m.role === 'user');
+        expect(Array.isArray(user.content)).toBe(true);
+        expect(user.content.filter((b) => b.type === 'image')).toEqual([
+            { type: 'image', mimeType: 'image/png', base64: 'QUJD', dataUrl: 'data:image/png;base64,QUJD' },
+        ]);
+        expect(active.complete).not.toHaveBeenCalled();
+    });
+
+    it('payload-less image attachments (legacy routing-only shape) fall back to a text-only string', async () => {
+        const providerHandle = makeHandle({ vision: true });
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'match this',
+            attachments: [{ type: 'image' }], // no base64 / dataUrl — never crash
+        });
+        const user = providerHandle.complete.mock.calls[0][0].messages.find((m) => m.role === 'user');
+        expect(user.content).toBe('match this');
+    });
+
+    it('a turn without attachments keeps the plain-string user message (backward compat)', async () => {
+        const providerHandle = makeHandle({ vision: true });
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'plain text turn',
+        });
+        const user = providerHandle.complete.mock.calls[0][0].messages.find((m) => m.role === 'user');
+        expect(user.content).toBe('plain text turn');
+    });
+});
+
+describe('createPlannerNode — recognized workflow delegation (Story 8.8 pin)', () => {
+    // Minimal stub sandbox: nothing exists, every read fails — enough for the
+    // deterministic planners' graceful-absence paths.
+    const stubSandbox = {
+        exists: async () => false,
+        readFile: async () => {
+            throw new Error('ENOENT');
+        },
+    };
+
+    it('a recognized launch-kit prompt with a sandbox returns the workflow plan — provider NEVER called', async () => {
+        const providerHandle = makeHandle();
+        const out = await createPlannerNode({
+            providerHandle,
+            emit: vi.fn(),
+            requestVisionDecision: vi.fn(),
+            sandbox: stubSandbox,
+        })({ prompt: 'launch kit for twitter' });
+
+        expect(providerHandle.complete).not.toHaveBeenCalled();
+        expect(out.plan.map((s) => `${s.op} ${s.path}`)).toEqual([
+            'mkdir .lerret/social-media/twitter',
+            'write .lerret/social-media/twitter/launch.jsx',
+            'write .lerret/social-media/twitter/launch.data.json',
+        ]);
+    });
+
+    it('the same prompt WITHOUT a sandbox falls through to the LLM path (complete called)', async () => {
+        const providerHandle = makeHandle();
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'launch kit for twitter',
+        });
+        expect(providerHandle.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('a recognized social-variants prompt routes to planSocialVariants — zero provider calls', async () => {
+        const providerHandle = makeHandle();
+        const out = await createPlannerNode({
+            providerHandle,
+            emit: vi.fn(),
+            requestVisionDecision: vi.fn(),
+            sandbox: stubSandbox,
+        })({ prompt: 'three more in the same style as social-media/twitter/launch-1.jsx' });
+
+        expect(providerHandle.complete).not.toHaveBeenCalled();
+        // The stub sandbox has no reference component, so the W3 planner's
+        // existence probe yields the EMPTY plan — the pin here is the ROUTE
+        // (deterministic planner, no LLM round-trip), not the plan content.
+        expect(out.plan).toEqual([]);
     });
 });

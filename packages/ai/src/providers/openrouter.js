@@ -37,6 +37,39 @@ const DEFAULT_MODEL = 'openai/gpt-4o';
 const APP_REFERER = 'https://lerret.belikely.com';
 const APP_TITLE = 'Lerret';
 
+/**
+ * Translate provider-NEUTRAL multipart content (interface.js TextBlock /
+ * ImageBlock) into OpenRouter's (OpenAI-compatible) wire shape: neutral image
+ * blocks become `{ type: 'image_url', image_url: { url } }` parts. Duplicated
+ * from openai.js deliberately (this module never subclasses OpenAIProvider —
+ * see the header).
+ *
+ * @param {Array<import('./interface.js').Message>} messages
+ * @returns {Array<object>}
+ */
+function toWireMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+    return messages.map((msg) => {
+        if (!msg || !Array.isArray(msg.content)) return msg;
+        const parts = [];
+        for (const block of msg.content) {
+            if (!block || typeof block !== 'object') continue;
+            if (block.type === 'image') {
+                const url =
+                    typeof block.dataUrl === 'string' && block.dataUrl.length > 0
+                        ? block.dataUrl
+                        : typeof block.base64 === 'string' && block.base64.length > 0
+                          ? `data:${block.mimeType || 'image/png'};base64,${block.base64}`
+                          : null;
+                if (url) parts.push({ type: 'image_url', image_url: { url } });
+                continue;
+            }
+            parts.push(block);
+        }
+        return { ...msg, content: parts };
+    });
+}
+
 export class OpenRouterProvider extends AIProvider {
     constructor() {
         super();
@@ -73,7 +106,7 @@ export class OpenRouterProvider extends AIProvider {
     async complete({ messages, signal, model } = {}) {
         const res = await this._post(
             '/api/v1/chat/completions',
-            { model: model || this._model, messages, stream: false },
+            { model: model || this._model, messages: toWireMessages(messages), stream: false },
             signal,
         );
         const json = await res.json();
@@ -84,7 +117,7 @@ export class OpenRouterProvider extends AIProvider {
     async *stream({ messages, signal, model } = {}) {
         const res = await this._post(
             '/api/v1/chat/completions',
-            { model: model || this._model, messages, stream: true },
+            { model: model || this._model, messages: toWireMessages(messages), stream: true },
             signal,
         );
         if (!res.body) {

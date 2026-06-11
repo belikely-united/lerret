@@ -54,6 +54,51 @@ const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const ANTHROPIC_VERSION = '2023-06-01';
 const DEFAULT_MAX_TOKENS = 4096;
 
+/**
+ * Translate provider-NEUTRAL multipart content (interface.js TextBlock /
+ * ImageBlock) into Anthropic's wire shape. Text blocks pass through verbatim
+ * (already wire-compatible); neutral image blocks become
+ * `{ type: 'image', source: { type: 'base64', media_type, data } }` — the
+ * bare base64 when present, else extracted from the dataUrl. Payload-less
+ * image blocks are dropped (defensive — the Planner never emits them).
+ *
+ * @param {string|Array<object>} content
+ * @returns {string|Array<object>}
+ */
+function toWireContent(content) {
+    if (!Array.isArray(content)) return content;
+    const parts = [];
+    for (const block of content) {
+        if (!block || typeof block !== 'object') continue;
+        if (block.type === 'image') {
+            let data =
+                typeof block.base64 === 'string' && block.base64.length > 0
+                    ? block.base64
+                    : null;
+            let mediaType =
+                typeof block.mimeType === 'string' && block.mimeType.length > 0
+                    ? block.mimeType
+                    : null;
+            if (!data && typeof block.dataUrl === 'string') {
+                const m = /^data:([^;,]+);base64,(.+)$/.exec(block.dataUrl);
+                if (m) {
+                    mediaType = mediaType || m[1];
+                    data = m[2];
+                }
+            }
+            if (data) {
+                parts.push({
+                    type: 'image',
+                    source: { type: 'base64', media_type: mediaType || 'image/png', data },
+                });
+            }
+            continue;
+        }
+        parts.push(block);
+    }
+    return parts;
+}
+
 export class AnthropicProvider extends AIProvider {
     constructor() {
         super();
@@ -189,7 +234,13 @@ export class AnthropicProvider extends AIProvider {
                         : '');
                 system = system ? `${system}\n\n${text}` : text;
             } else {
-                filtered.push(msg);
+                // Multipart (neutral-block) content is translated to the
+                // Anthropic wire shape here; string content passes verbatim.
+                filtered.push(
+                    Array.isArray(msg.content)
+                        ? { ...msg, content: toWireContent(msg.content) }
+                        : msg,
+                );
             }
         }
         /** @type {Record<string, unknown>} */

@@ -39,11 +39,37 @@ export const PROVIDER_NAMES = Object.freeze([
 export const PROVIDER_VARIANTS = Object.freeze(['cloud-byok', 'local-keyless']);
 
 /**
+ * @typedef {Object} TextBlock
+ * @property {'text'} type
+ * @property {string} text
+ */
+
+/**
+ * Provider-NEUTRAL image content block (FR56 image delivery). The Planner is
+ * the only producer of this shape; EACH concrete provider translates it into
+ * its vendor wire form inside its own request-body builder:
+ *
+ *   - OpenAI / OpenRouter → `{ type: 'image_url', image_url: { url: <dataUrl> } }`
+ *   - Anthropic           → `{ type: 'image', source: { type: 'base64', media_type, data } }`
+ *   - Ollama              → message-level `images: [<base64>, …]` + string `content`
+ *
+ * At least one of `base64` / `dataUrl` is present (the Planner skips
+ * payload-less attachments); a missing `mimeType` defaults to `image/png`.
+ *
+ * @typedef {Object} ImageBlock
+ * @property {'image'} type
+ * @property {string} [mimeType]  e.g. 'image/png'.
+ * @property {string} [base64]    Bare base64 payload (no `data:` prefix).
+ * @property {string} [dataUrl]   `data:<mime>;base64,<payload>` form.
+ */
+
+/**
  * @typedef {Object} Message
  * @property {'system'|'user'|'assistant'|'tool'} role
- * @property {string|Array<Object>} content       String for plain text;
- *                                                array for multipart content
- *                                                blocks (e.g. text + image).
+ * @property {string|Array<TextBlock|ImageBlock>} content
+ *   String for plain text (passes through every provider verbatim); array of
+ *   provider-neutral blocks for multipart content (text + image) — each
+ *   provider's body-builder owns the vendor translation.
  */
 
 /**

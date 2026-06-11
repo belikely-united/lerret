@@ -16,6 +16,7 @@ export {
     deleting,
     mkdir,
     toolCall,
+    inspectorResponse,
     done,
     error,
     stopped,

@@ -8,6 +8,7 @@ import {
     deleting,
     mkdir,
     toolCall,
+    inspectorResponse,
     done,
     error,
     stopped,
@@ -20,6 +21,7 @@ describe('TURN_EVENT_TYPES', () => {
         expect(TURN_EVENT_TYPES).toContain('thinking');
         expect(TURN_EVENT_TYPES).toContain('needs-vision-fallback');
         expect(TURN_EVENT_TYPES).toContain('stopped');
+        expect(TURN_EVENT_TYPES).toContain('inspector-response');
     });
 });
 
@@ -32,6 +34,7 @@ describe('event factories', () => {
             deleting('c'),
             mkdir('d'),
             toolCall('inspect'),
+            inspectorResponse('the project has 3 pages'),
             done([{ path: 'x', op: 'create' }]),
             error(new Error('boom')),
             stopped(),
@@ -48,6 +51,19 @@ describe('event factories', () => {
         expect(writing('p.jsx')).toMatchObject({ type: 'writing', file: 'p.jsx' });
         expect(deleting('p.jsx')).toMatchObject({ type: 'deleting', file: 'p.jsx' });
         expect(mkdir('d')).toMatchObject({ type: 'mkdir', dir: 'd' });
+    });
+
+    it('inspectorResponse carries the answer text verbatim, frozen', () => {
+        const answer = 'ReleaseCard.jsx lives at .lerret/social/ReleaseCard.jsx';
+        const ev = inspectorResponse(answer);
+        expect(ev).toEqual({ type: 'inspector-response', answer });
+        expect(Object.isFrozen(ev)).toBe(true);
+    });
+
+    it('inspectorResponse coerces non-string input to a string (never a non-string payload)', () => {
+        expect(inspectorResponse(undefined).answer).toBe('');
+        expect(inspectorResponse(null).answer).toBe('');
+        expect(inspectorResponse(42).answer).toBe('42');
     });
 
     it('done carries a frozen files array', () => {

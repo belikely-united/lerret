@@ -7,13 +7,15 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { runTurn } from '../src/orchestrator/run-turn.js';
+import { runTurn, createVaultResolver } from '../src/orchestrator/run-turn.js';
 import * as snapshot from '../src/snapshot/index.js';
 import {
     createInMemoryFs,
     createMockSandbox,
     seedFs,
 } from '../src/snapshot/__test-helpers__/in-memory-fs.js';
+import { __setIndexedDBForTests, putProviderConfig } from '../src/vault/store.js';
+import { createInMemoryIDB } from '../src/vault/__test-helpers__/in-memory-idb.js';
 
 const PROJECT_ROOT = '/Users/test/project';
 
@@ -289,6 +291,212 @@ describe('orchestrator integration — edit-then-revert round trip', () => {
     });
 });
 
+describe('orchestrator integration — inspect mode (read-only Q&A, Story 8.9)', () => {
+    it('mode:"inspect" happy path → inspector-response carries the provider answer; done files []; NO manifest', async () => {
+        const fs = createInMemoryFs();
+        const active = mockHandle({
+            onComplete: async () => ({ content: 'You have 3 social assets under .lerret/social/.' }),
+        });
+        const resolver = mockResolver({ active });
+
+        const events = await collect(
+            runTurn({
+                prompt: 'what social assets do I have?',
+                mode: 'inspect',
+                projectRoot: PROJECT_ROOT,
+                fs,
+                resolver,
+            }),
+        );
+
+        // The thread shows the ANSWER (FR58) — exactly one inspector-response,
+        // delivered before the terminal done.
+        const respEvents = events.filter((e) => e.type === 'inspector-response');
+        expect(respEvents).toHaveLength(1);
+        expect(respEvents[0].answer).toBe('You have 3 social assets under .lerret/social/.');
+        expect(events.findIndex((e) => e.type === 'inspector-response')).toBeLessThan(
+            events.findIndex((e) => e.type === 'done'),
+        );
+
+        // Terminal done: nothing written, nothing to revert.
+        const doneEv = events.find((e) => e.type === 'done');
+        expect(doneEv.files).toEqual([]);
+        expect(doneEv).not.toHaveProperty('turnId');
+        expect(events.some((e) => e.type === 'writing')).toBe(false);
+
+        // AC group C: NO snapshot manifest — the revert timeline did not grow.
+        const manifests = await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs });
+        expect(manifests).toEqual([]);
+        // And the backend saw zero writes of any kind.
+        expect(fs._files.size).toBe(0);
+    });
+
+    it('inspect turn reads a referenced file (reading event) without mutating the backend', async () => {
+        const fs = createInMemoryFs();
+        seedFs(fs, {
+            [`${PROJECT_ROOT}/.lerret/social/release-card.jsx`]: 'export const ReleaseCard = () => null;',
+        });
+        const active = mockHandle({
+            onComplete: async ({ messages }) => ({
+                // Echo back whether the file content reached the provider —
+                // the assertion below pins the targeted-read plumbing.
+                content: messages[0].content.includes('ReleaseCard')
+                    ? 'It renders the release card: .lerret/social/release-card.jsx'
+                    : 'file content missing',
+            }),
+        });
+        const resolver = mockResolver({ active });
+
+        const events = await collect(
+            runTurn({
+                prompt: 'explain social/release-card.jsx',
+                mode: 'inspect',
+                projectRoot: PROJECT_ROOT,
+                fs,
+                resolver,
+            }),
+        );
+
+        expect(
+            events.some((e) => e.type === 'reading' && e.file === '.lerret/social/release-card.jsx'),
+        ).toBe(true);
+        const respEv = events.find((e) => e.type === 'inspector-response');
+        expect(respEv.answer).toBe('It renders the release card: .lerret/social/release-card.jsx');
+        // Only the seeded file exists — the turn added nothing.
+        expect([...fs._files.keys()]).toEqual([`${PROJECT_ROOT}/.lerret/social/release-card.jsx`]);
+        expect(await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs })).toEqual([]);
+    });
+
+    it('inspect + abort → stopped with NO turnId, no inspector-response, still no manifest', async () => {
+        const fs = createInMemoryFs();
+        const controller = new AbortController();
+        const active = mockHandle({
+            onComplete: async () => {
+                controller.abort(); // Esc / Stop mid-round-trip.
+                return { content: 'late answer' };
+            },
+        });
+        const resolver = mockResolver({ active });
+
+        const events = await collect(
+            runTurn({
+                prompt: 'stop this inspect',
+                mode: 'inspect',
+                signal: controller.signal,
+                projectRoot: PROJECT_ROOT,
+                fs,
+                resolver,
+            }),
+        );
+
+        const stoppedEv = events.find((e) => e.type === 'stopped');
+        expect(stoppedEv).toBeDefined();
+        expect(stoppedEv).not.toHaveProperty('turnId');
+        expect(events.some((e) => e.type === 'inspector-response')).toBe(false);
+        expect(events.some((e) => e.type === 'done')).toBe(false);
+
+        // Aborted inspect turns also write nothing — no stopped-mid-turn manifest.
+        expect(await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs })).toEqual([]);
+        expect(fs._files.size).toBe(0);
+    });
+});
+
+describe('orchestrator integration — consumer early-break (.return() teardown)', () => {
+    /**
+     * A provider whose planning call PARKS until the turn's signal aborts —
+     * the consumer's break lands deterministically while the turn is
+     * mid-flight (no race against a fast mock resolution).
+     */
+    function parkedHandle(plan) {
+        return mockHandle({
+            onComplete: async ({ signal }) =>
+                new Promise((resolve) => {
+                    const finish = () =>
+                        resolve({ content: JSON.stringify({ steps: plan }) });
+                    if (signal?.aborted) return finish();
+                    signal?.addEventListener('abort', finish, { once: true });
+                }),
+        });
+    }
+
+    it('generate mode: breaking after the first event still finalizes the manifest (stopped-mid-turn)', async () => {
+        const fs = createInMemoryFs();
+        const plan = [{ op: 'write', path: '.lerret/late.jsx', content: 'L' }];
+        const resolver = mockResolver({ active: parkedHandle(plan) });
+
+        const consumed = [];
+        for await (const ev of runTurn({ prompt: 'break me', projectRoot: PROJECT_ROOT, fs, resolver })) {
+            consumed.push(ev);
+            break; // the consumer walks away after the FIRST event
+        }
+        expect(consumed).toHaveLength(1);
+
+        // The generator's finally aborted the graph, waited for it to settle,
+        // and finalized: ONE manifest at stopped-mid-turn (current early-break
+        // semantics — the abort lands before the Worker runs)…
+        const manifests = await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs });
+        expect(manifests).toHaveLength(1);
+        expect(manifests[0].status).toBe('stopped-mid-turn');
+        // …and the aborted plan never wrote.
+        expect(fs._files.has(`${PROJECT_ROOT}/.lerret/late.jsx`)).toBe(false);
+    });
+
+    it('inspect mode: breaking after the first event leaves NO manifest and zero writes', async () => {
+        const fs = createInMemoryFs();
+        const resolver = mockResolver({ active: parkedHandle([]) });
+
+        const consumed = [];
+        for await (const ev of runTurn({
+            prompt: 'break this inspect',
+            mode: 'inspect',
+            projectRoot: PROJECT_ROOT,
+            fs,
+            resolver,
+        })) {
+            consumed.push(ev);
+            break;
+        }
+        expect(consumed).toHaveLength(1);
+
+        // Early-break holds the inspect invariant too: no manifest, no blobs,
+        // byte-empty backend.
+        expect(await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs })).toEqual([]);
+        expect(fs._files.size).toBe(0);
+    });
+});
+
+describe('orchestrator integration — vault resolver vision enumeration (FR56, key-only configs)', () => {
+    it('a key-only (model-less) cloud config is eligible mid-turn at its class-default model', async () => {
+        const idb = createInMemoryIDB();
+        __setIndexedDBForTests(idb);
+        try {
+            const folderId = 'folder:vision-enum';
+            // Active local provider (never vision-eligible on llama3.2)…
+            await putProviderConfig({
+                folderId,
+                providerName: 'ollama',
+                config: { active: true, model: 'llama3.2', configuredAt: '2026-06-01T00:00:00.000Z' },
+            });
+            // …plus a key-only cloud config: the user pasted a key and never
+            // picked a model. Its EFFECTIVE model is the class default.
+            await putProviderConfig({
+                folderId,
+                providerName: 'openai',
+                config: { active: false, configuredAt: '2026-06-02T00:00:00.000Z' },
+            });
+
+            const resolver = createVaultResolver({ folderId });
+            const eligible = await resolver.enumerateVision({ exclude: 'ollama' });
+
+            // The router resolves the effective model (gpt-4o), so the
+            // model-less config is OFFERED — not failed closed on `undefined`.
+            expect(eligible).toEqual([{ name: 'openai', model: 'gpt-4o' }]);
+        } finally {
+            __setIndexedDBForTests(null);
+        }
+    });
+});
+
 describe('orchestrator integration — public surface smoke', () => {
     it('@lerret/ai exposes runTurn + orchestrator/providers/vault/snapshot namespaces', async () => {
         const ai = await import('../src/index.js');
@@ -300,5 +508,24 @@ describe('orchestrator integration — public surface smoke', () => {
         expect(ai.snapshot).toBeDefined();
         expect(Array.isArray(ai.AGENT_NODES)).toBe(true);
         expect(ai.AGENT_NODES).toContain('Worker');
+    });
+
+    it('exposes the vision + workflows namespaces with their key functions', async () => {
+        const ai = await import('../src/index.js');
+        // ai.vision — the Story 8.7 router surface.
+        expect(ai.vision).toBeDefined();
+        expect(typeof ai.vision.isVisionRequired).toBe('function');
+        expect(typeof ai.vision.supportsVision).toBe('function');
+        expect(typeof ai.vision.shouldFallback).toBe('function');
+        expect(typeof ai.vision.eligibleVisionProviders).toBe('function');
+        expect(typeof ai.vision.resolveEffectiveModel).toBe('function');
+        // ai.workflows — the Story 8.8 recognizer + planners.
+        expect(ai.workflows).toBeDefined();
+        expect(typeof ai.workflows.recognizeWorkflow).toBe('function');
+        expect(typeof ai.workflows.planLaunchKit).toBe('function');
+        expect(typeof ai.workflows.planSocialVariants).toBe('function');
+        // The orchestrator barrel carries EVERY event factory — including the
+        // Story 8.9 inspector-response one.
+        expect(typeof ai.orchestrator.inspectorResponse).toBe('function');
     });
 });

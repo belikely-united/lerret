@@ -63,6 +63,64 @@ describe('OpenAIProvider', () => {
         ]);
     });
 
+    it('complete() translates neutral image blocks into image_url parts (multipart vision message)', async () => {
+        fetchSpy.mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+        const p = new OpenAIProvider();
+        p.configure({ apiKey: 'sk', model: 'gpt-4o' });
+        await p.complete({
+            messages: [
+                { role: 'system', content: 'sys' },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 'match this' },
+                        {
+                            type: 'image',
+                            mimeType: 'image/png',
+                            base64: 'QUJD',
+                            dataUrl: 'data:image/png;base64,QUJD',
+                        },
+                    ],
+                },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        // String content passes through verbatim; the multipart user turn is
+        // translated to OpenAI's wire shape (text part + image_url part).
+        expect(body.messages[0]).toEqual({ role: 'system', content: 'sys' });
+        expect(body.messages[1]).toEqual({
+            role: 'user',
+            content: [
+                { type: 'text', text: 'match this' },
+                { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+            ],
+        });
+    });
+
+    it('complete() composes the data URL from mimeType + base64 when no dataUrl is present', async () => {
+        fetchSpy.mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+        const p = new OpenAIProvider();
+        p.configure({ apiKey: 'sk', model: 'gpt-4o' });
+        await p.complete({
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: 't' },
+                        { type: 'image', mimeType: 'image/jpeg', base64: 'QUJD' },
+                    ],
+                },
+            ],
+            signal: new AbortController().signal,
+        });
+        const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+        expect(body.messages[0].content[1]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/jpeg;base64,QUJD' },
+        });
+    });
+
     it('stream() request body has stream: true', async () => {
         fetchSpy.mockResolvedValueOnce(sseResponse('data: [DONE]\n\n'));
         const p = new OpenAIProvider();
