@@ -23,6 +23,14 @@
  * The dock wiring (the submit handler that suspends the turn and opens this
  * sheet) is Story 8.2's responsibility. This component only exports the
  * controlled sheet.
+ *
+ * Hosted-mode Ollama detour (Story 8.10): when the studio runs in hosted mode
+ * (`https://lerret.belikely.com`), step 3's Ollama Select first probes the
+ * local endpoint and routes on the classification — `ok` proceeds to the
+ * disclosure as before, `cors` auto-summons the OLLAMA_ORIGINS guide, and
+ * `unreachable` shows a contained error on the Ollama card with a docs link.
+ * In CLI / non-hosted modes the probe never runs (no CORS hurdle) and the
+ * Select path is exactly the pre-8.10 behavior.
  */
 
 import React from 'react';
@@ -30,6 +38,9 @@ import React from 'react';
 import { EditorSheet } from '../components/editors/editor-sheet.jsx';
 import { useAiContext, PROVIDER_NAMES, PROVIDER_LABELS, PROVIDER_VARIANTS, OLLAMA_DEFAULT_BASE_URL } from './ai-context.jsx';
 import { PrivacyDisclosure } from './privacy-disclosure.jsx';
+import { getAi } from './lazy.js';
+import { classifyOllamaProbe, shouldRunHostedProbe } from './ollama-hosted-detect.js';
+import { OllamaOriginsGuide, OLLAMA_DOCS_URL } from './ollama-origins-guide.jsx';
 
 // ─── Verbatim copy (do NOT paraphrase) ────────────────────────────────────────
 
@@ -205,8 +216,50 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-setup-screen
     background: var(--lm-bg-tertiary, #E8E2D4);
     color: var(--lm-text-primary, #1A1714);
 }
+.lm-ai-setup__error {
+    background: var(--lm-error-bg, #FBEBE3);
+    border: 1px solid var(--lm-error-border, #E8B8A0);
+    color: var(--lm-error-text, #8A3A1F);
+    border-radius: var(--lm-radius-sm, 6px);
+    padding: 8px 10px;
+    font: 400 12px/1.4 var(--lm-font-sans);
+    margin-top: var(--lm-space-2, 8px);
+}
+.lm-ai-setup__error a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
     `.trim();
     document.head.appendChild(s);
+}
+
+// ─── Hosted-mode Ollama probe (Story 8.10) ────────────────────────────────────
+
+/**
+ * Run the Ollama `probe()` against the draft config and classify the result
+ * into a setup-screen route. Reaches @lerret/ai ONLY via {@link getAi}; every
+ * failure on the way (chunk missing, invalid draft baseUrl rejected by
+ * `configure`, probe throw) fails safe to `'unreachable'` — never to the
+ * guide (Story 8.10 guardrail #4).
+ *
+ * Used by the Ollama Select path (gated by `shouldRunHostedProbe()`) and by
+ * the guide's `Retry connection` button (which re-reads the then-current
+ * draft via the closure in the component below).
+ *
+ * @param {{ baseUrl?: string, model?: string }} [draft]
+ * @returns {Promise<'ok' | 'cors' | 'unreachable'>}
+ */
+async function probeOllamaHosted(draft) {
+    try {
+        const ai = await getAi();
+        if (!ai) return 'unreachable';
+        const provider = new ai.providers.OllamaProvider();
+        provider.configure({ baseUrl: draft?.baseUrl, model: draft?.model });
+        return classifyOllamaProbe(await provider.probe());
+    } catch {
+        return 'unreachable';
+    }
 }
 
 // ─── Setup screen component ───────────────────────────────────────────────────
@@ -234,6 +287,12 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
     // opens for the chosen provider; on Ack, we call onCommit.
     const [discloseFor, setDiscloseFor] = React.useState(/** @type {string | null} */ (null));
 
+    // Story 8.10 hosted-mode Ollama state: the OLLAMA_ORIGINS guide overlay
+    // (cors route) and the contained error on the Ollama card (unreachable
+    // route).
+    const [guideOpen, setGuideOpen] = React.useState(false);
+    const [ollamaError, setOllamaError] = React.useState(false);
+
     const cardsRef = React.useRef(null);
 
     React.useEffect(() => {
@@ -242,6 +301,8 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
             // the Ollama default URL.
             setSelected(null);
             setDiscloseFor(null);
+            setGuideOpen(false);
+            setOllamaError(false);
         }
     }, [open]);
 
@@ -249,12 +310,33 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
         setDrafts((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), ...patch } }));
     };
 
-    const handleSelect = (name) => {
+    const handleSelect = async (name) => {
         const d = drafts[name] ?? {};
         // Cloud providers require an API key before commit.
         if (PROVIDER_VARIANTS[name] === 'cloud-byok' && !d.apiKey) {
             // No key — bail; the user can fill the field and try again.
             return;
+        }
+        // Story 8.10 — hosted-mode Ollama probe-and-classify (AC-1/2/10).
+        // Gated on shouldRunHostedProbe(): in CLI / non-hosted modes the
+        // probe NEVER runs and the Select path falls straight through to the
+        // disclosure, exactly as before this story.
+        if (name === 'ollama' && shouldRunHostedProbe()) {
+            setOllamaError(false);
+            const route = await probeOllamaHosted(d);
+            if (route === 'cors') {
+                // Ollama is running but the browser blocked it — auto-summon
+                // the OLLAMA_ORIGINS guide.
+                setGuideOpen(true);
+                return;
+            }
+            if (route === 'unreachable') {
+                // Not running / network error / anything unclear — contained
+                // error on the card (never the guide; fail-safe).
+                setOllamaError(true);
+                return;
+            }
+            // 'ok' — CORS already configured; proceed to the disclosure.
         }
         // Do NOT persist anything yet. The provider key + active-config write
         // is deferred to handleAck so that an Esc-cancel of the disclosure
@@ -262,6 +344,35 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
         // the folder's active provider. (Previously configure ran here, before
         // the disclosure, so backing out still committed everything.)
         setDiscloseFor(name);
+    };
+
+    // ── Story 8.10 — OLLAMA_ORIGINS guide callbacks ────────────────────────
+
+    // Re-runs the probe against the THEN-current Ollama draft (the guide's
+    // Step 3 `Retry connection`); the guide branches on the returned route.
+    const handleGuideRetry = () => probeOllamaHosted(drafts.ollama ?? {});
+
+    // Retry classified 'ok' — the guide dismisses and setup resumes on the
+    // disclosure path (then the turn commits via handleAck as usual).
+    const handleGuideSuccess = () => {
+        setGuideOpen(false);
+        setDiscloseFor('ollama');
+    };
+
+    // Ghost-tier bypass (AC-8) — back to the four-card chooser with the
+    // Ollama card unselected.
+    const handleGuideUseDifferentProvider = () => {
+        setGuideOpen(false);
+        setSelected(null);
+    };
+
+    // Esc (AC-9) — the guide closes and the whole setup dismisses; the
+    // originally-submitted turn is discarded by the caller via the existing
+    // onClose contract (Story 8.2's deferred — same wiring as the
+    // disclosure-cancel path).
+    const handleGuideDismiss = () => {
+        setGuideOpen(false);
+        onClose?.();
     };
 
     const handleAck = async () => {
@@ -321,7 +432,7 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
     return (
         <>
             <EditorSheet
-                open={open && !discloseFor}
+                open={open && !discloseFor && !guideOpen}
                 onClose={onClose}
                 title="Pick an AI provider"
                 footer={
@@ -426,6 +537,25 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
                                     >
                                         Select
                                     </button>
+                                    {name === 'ollama' && ollamaError && (
+                                        <div
+                                            className="lm-ai-setup__error"
+                                            role="alert"
+                                            data-testid="lm-ai-setup-ollama-error"
+                                        >
+                                            Could not reach Ollama. Make sure it's running on
+                                            your machine, or{' '}
+                                            <a
+                                                href={OLLAMA_DOCS_URL}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                data-testid="lm-ai-setup-ollama-error-docs"
+                                            >
+                                                see the Ollama setup docs
+                                            </a>
+                                            .
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -447,6 +577,20 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
                     onAck={handleAck}
                     onCancel={handleDisclosureCancel}
                     onSwitchToOllama={handleSwitchToOllama}
+                />
+            )}
+
+            {/* Story 8.10 — OLLAMA_ORIGINS guide. Like the disclosure, a
+                sibling of the EditorSheet (which steps aside via open=false
+                while the guide is up). Only reachable from the hosted-mode
+                cors route in handleSelect; never summoned in CLI mode. */}
+            {guideOpen && (
+                <OllamaOriginsGuide
+                    open={guideOpen}
+                    onRetry={handleGuideRetry}
+                    onSuccess={handleGuideSuccess}
+                    onUseDifferentProvider={handleGuideUseDifferentProvider}
+                    onDismiss={handleGuideDismiss}
                 />
             )}
         </>
