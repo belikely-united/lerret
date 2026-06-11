@@ -93,6 +93,20 @@ describe('createPlannerNode — decomposition', () => {
         expect(sys).toMatch(/brand-orange/);
         expect(sys).toMatch(/CTX/);
     });
+
+    it('teaches the Lerret asset contract (meta + default-export JSX, no .html) in the system prompt', async () => {
+        // Without this the live model produces plausible-but-unloadable files
+        // (.html pages) — found by the Epic 8 close live-model session.
+        const providerHandle = makeHandle();
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'make a pricing card',
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).toMatch(/export const meta = \{ dimensions/);
+        expect(sys).toMatch(/export default function/);
+        expect(sys).toMatch(/Never\s+write \.html files/);
+        expect(sys).toMatch(/inline style objects only/);
+    });
 });
 
 describe('createPlannerNode — abort guard', () => {
@@ -331,5 +345,57 @@ describe('createPlannerNode — recognized workflow delegation (Story 8.8 pin)',
         // existence probe yields the EMPTY plan — the pin here is the ROUTE
         // (deterministic planner, no LLM round-trip), not the plan content.
         expect(out.plan).toEqual([]);
+    });
+});
+
+describe('parsePlan — prose-wrapped JSON salvage (live-model finding)', () => {
+    it('salvages the outermost {...} when the model wraps the plan in prose', () => {
+        const plan = parsePlan(
+            'Here is the plan you asked for:\n' +
+                '{"steps":[{"op":"write","path":".lerret/a.jsx","content":"A"}]}\n' +
+                'Let me know if you want changes.',
+        );
+        expect(plan).toEqual([{ op: 'write', path: '.lerret/a.jsx', content: 'A' }]);
+    });
+
+    it('still returns [] when there is no JSON object at all', () => {
+        expect(parsePlan('I cannot see the file, please share it.')).toEqual([]);
+    });
+});
+
+describe('createPlannerNode — selection-scoped file context (live-model finding)', () => {
+    function makeScopedSandbox(files) {
+        return {
+            exists: vi.fn(async (p) => Object.prototype.hasOwnProperty.call(files, p)),
+            readFile: vi.fn(async (p) => {
+                if (!Object.prototype.hasOwnProperty.call(files, p)) throw new Error('ENOENT');
+                return files[p];
+            }),
+        };
+    }
+
+    it("folds the chip-scoped file's CURRENT content into the planning prompt (with .lerret/ prefix fallback)", async () => {
+        const providerHandle = makeHandle();
+        const sandbox = makeScopedSandbox({
+            '.lerret/pricing/card.jsx': 'export default function Card() { return <div>$89</div>; }',
+        });
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn(), sandbox })({
+            prompt: 'change the price to $79',
+            scope: { kind: 'file', filePath: 'pricing/card.jsx', label: 'card.jsx' },
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).toContain('--- .lerret/pricing/card.jsx (current content) ---');
+        expect(sys).toContain('$89');
+        expect(sys).toMatch(/COMPLETE updated file/);
+    });
+
+    it('no file scope (or no sandbox) → no scoped block, planning proceeds as before', async () => {
+        const providerHandle = makeHandle();
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'make a card',
+            scope: { kind: 'project' },
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).not.toContain('current content');
     });
 });

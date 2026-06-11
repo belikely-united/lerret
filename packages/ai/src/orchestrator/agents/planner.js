@@ -53,23 +53,68 @@ function imageBlocksFromAttachments(attachments) {
     return blocks;
 }
 
+/** Max characters of a selection-scoped file folded into the planning prompt. */
+const SCOPED_FILE_CHAR_CAP = 12000;
+
+/**
+ * Read the selection-scoped file (the dock chip's `{kind:'file', filePath}`)
+ * through the sandbox so an EDIT turn plans against the asset's REAL current
+ * content — without it the model has nothing to edit and either guesses or
+ * answers in prose (found by the Epic 8 close live-model session). Returns
+ * null when there is no file scope, no sandbox, or the read fails (the turn
+ * then plans without file context, exactly the pre-fix behavior).
+ *
+ * @param {object|undefined} scope
+ * @param {object|undefined} sandbox
+ * @returns {Promise<{ path: string, content: string } | null>}
+ */
+async function readScopedFile(scope, sandbox) {
+    if (!sandbox || !scope || typeof scope !== 'object') return null;
+    if (scope.kind !== 'file' || typeof scope.filePath !== 'string' || !scope.filePath) return null;
+    // The chip's filePath is project-relative (a LerretPath); the sandbox
+    // speaks `.lerret/`-prefixed relative paths — mirror the Inspector's
+    // prefix fallback.
+    const candidates = scope.filePath.startsWith('.lerret/')
+        ? [scope.filePath]
+        : [`.lerret/${scope.filePath}`, scope.filePath];
+    for (const path of candidates) {
+        try {
+            if (!(await sandbox.exists(path))) continue;
+            const raw = await sandbox.readFile(path, { encoding: 'utf-8' });
+            const content = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+            return { path, content: content.slice(0, SCOPED_FILE_CHAR_CAP) };
+        } catch {
+            // Violation / read error → try the next candidate, else no context.
+        }
+    }
+    return null;
+}
+
 /**
  * Build the messages array for the planning call. Injects the Memory context
  * + brand tokens so the plan respects the user's brand. When `imageBlocks`
  * are supplied (vision turn on a vision-capable handle), the user message is
  * the provider-NEUTRAL multipart form `[{type:'text',…}, {type:'image',…}…]`
  * — each provider translates that to its vendor wire shape in its own
- * body-builder (providers/interface.js documents the contract).
+ * body-builder (providers/interface.js documents the contract). When
+ * `scopedFile` is supplied (the dock selection chip), its current content is
+ * folded in so edits rewrite the REAL file at its REAL path.
  *
  * @param {object} state
  * @param {Array<object>} [imageBlocks]
+ * @param {{ path: string, content: string } | null} [scopedFile]
  * @returns {Array<{ role: string, content: string | Array<object> }>}
  */
-function buildPlanningMessages(state, imageBlocks = []) {
+function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
     const brand = state.brandTokens && Object.keys(state.brandTokens).length
         ? `\n\nBrand tokens (authoritative): ${JSON.stringify(state.brandTokens)}`
         : '';
     const context = state.context ? `\n\nProject context:\n${state.context}` : '';
+    const scoped = scopedFile
+        ? `\n\nThe user has SELECTED this asset; the request applies to it. To edit it, ` +
+          `emit ONE write step at exactly this path with the COMPLETE updated file.\n` +
+          `--- ${scopedFile.path} (current content) ---\n${scopedFile.content}\n--- end ---`
+        : '';
     const promptText = String(state.prompt ?? '');
     const userContent =
         imageBlocks.length > 0
@@ -82,9 +127,22 @@ function buildPlanningMessages(state, imageBlocks = []) {
                 'You are Lerret\'s asset planner. Decompose the user\'s request into a JSON ' +
                 'array of file operations. Respond with ONLY a JSON object of the form ' +
                 '{"steps":[{"op":"write"|"delete"|"mkdir","path":"...","content":"..."}]}. ' +
-                'All paths MUST be under .lerret/.' +
+                'All paths MUST be under .lerret/.\n\n' +
+                // The Lerret asset contract — without this the model produces
+                // plausible-but-unloadable files (.html pages, bare snippets);
+                // found by the Epic 8 close live-model session.
+                'Lerret renders each .jsx file in a page folder as an artboard. Every asset ' +
+                'you write MUST be a self-contained React component file at ' +
+                '.lerret/<page>/<asset-name>.jsx with exactly this shape:\n' +
+                '  export const meta = { dimensions: { width: <px>, height: <px> }, label: "<Title>" };\n' +
+                '  export default function AssetName() { return ( <div style={{...}}>...</div> ); }\n' +
+                'Rules: inline style objects only (no <style> tags, no CSS files, no className); ' +
+                'no imports of any kind; no <html>/<head>/<body>; the root <div> fills the full ' +
+                'meta dimensions. Edit an existing asset by rewriting its .jsx in place. Never ' +
+                'write .html files. Markdown (.md) is allowed only when the user asks for notes/docs.' +
                 brand +
-                context,
+                context +
+                scoped,
         },
         { role: 'user', content: userContent },
     ];
@@ -107,7 +165,18 @@ export function parsePlan(content) {
     try {
         parsed = JSON.parse(text);
     } catch {
-        return [];
+        // Real models often wrap the JSON in prose ("Here is the plan: {…}.")
+        // — found by the Epic 8 close live-model session, where a whole edit
+        // turn silently became "no files changed". Salvage the outermost
+        // {...} block before giving up.
+        const first = text.indexOf('{');
+        const last = text.lastIndexOf('}');
+        if (first === -1 || last <= first) return [];
+        try {
+            parsed = JSON.parse(text.slice(first, last + 1));
+        } catch {
+            return [];
+        }
     }
     const steps = Array.isArray(parsed) ? parsed : parsed?.steps;
     if (!Array.isArray(steps)) return [];
@@ -189,12 +258,18 @@ export function createPlannerNode({ providerHandle, emit, requestVisionDecision,
                 ? imageBlocksFromAttachments(state.attachments)
                 : [];
 
+        // Selection-scoped file context: when the dock chip targets a single
+        // asset, fold its CURRENT content into the planning prompt so an edit
+        // rewrites the real file at its real path (FR50's "follow-ups stay
+        // scoped" only means something if the planner can see the file).
+        const scopedFile = await readScopedFile(state.scope, sandbox);
+
         // Re-check the signal immediately before the (expensive) LLM call — a
         // stop that landed between the entry guard and here should not pay for
         // the planning round-trip.
         if (state?.signal?.aborted) return { plan: [] };
         const result = await handle.complete({
-            messages: buildPlanningMessages(state, imageBlocks),
+            messages: buildPlanningMessages(state, imageBlocks, scopedFile),
             signal: state.signal,
         });
         const plan = parsePlan(result?.content ?? '');

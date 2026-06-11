@@ -529,3 +529,42 @@ describe('orchestrator integration — public surface smoke', () => {
         expect(typeof ai.orchestrator.inspectorResponse).toBe('function');
     });
 });
+
+describe('orchestrator integration — stop aborting an in-flight provider fetch', () => {
+    it('an AbortError thrown by the aborted provider call terminates as STOPPED, never error', async () => {
+        const fs = createInMemoryFs();
+        const controller = new AbortController();
+        // The provider call rejects with a fetch-style AbortError once the
+        // signal fires mid-flight (the live-session repro: Esc during the
+        // Anthropic round-trip showed "Error — see thread").
+        const active = mockHandle({
+            onComplete: ({ signal } = {}) =>
+                new Promise((resolve, reject) => {
+                    const abort = () => {
+                        const err = new Error('The operation was aborted.');
+                        err.name = 'AbortError';
+                        reject(err);
+                    };
+                    if (signal?.aborted) return abort();
+                    signal?.addEventListener('abort', abort, { once: true });
+                    setTimeout(() => controller.abort(), 20);
+                }),
+        });
+        const resolver = mockResolver({ active });
+
+        const events = await collect(
+            runTurn({
+                prompt: 'stop me mid-fetch',
+                signal: controller.signal,
+                projectRoot: PROJECT_ROOT,
+                fs,
+                resolver,
+            }),
+        );
+
+        expect(events.some((e) => e.type === 'stopped')).toBe(true);
+        expect(events.some((e) => e.type === 'error')).toBe(false);
+        const manifests = await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs });
+        expect(manifests[0].status).toBe('stopped-mid-turn');
+    });
+});

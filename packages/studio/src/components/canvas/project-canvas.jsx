@@ -317,7 +317,11 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  if (!setAiScope) return;
  const assets = section?.entries || [];
  const firstAsset = assets[0]?.asset;
- if (sectionKind !== 'page' && assets.length === 1 && firstAsset?.path) {
+ // A single-asset section IS that asset — file-scope it whether the
+ // section is a sub-group or the page itself (clicking a one-artboard
+ // page selects the artboard, and the planner can then read the file
+ // for scoped edits). Multi-asset sections stay page-scoped.
+ if (assets.length === 1 && firstAsset?.path) {
  setAiScope(fileScope(firstAsset.path));
  } else {
  setAiScope(pageScope(pageName || section?.title || 'page'));

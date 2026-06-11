@@ -333,11 +333,24 @@ export async function* runTurn({
     const finalize = async () => {
         if (finalized) return finalStatus;
         finalized = true;
-        finalStatus = graphError
-            ? 'error'
-            : effectiveSignal.aborted
-              ? 'stopped-mid-turn'
-              : 'applied';
+        // A user stop can abort an IN-FLIGHT provider fetch (the signal is
+        // threaded into fetch), which surfaces as a thrown AbortError-shaped
+        // graphError. That is the stop WORKING, not a failure — on an aborted
+        // turn an abort-shaped error resolves to 'stopped', never 'error'
+        // (found by the Epic 8 close live session: Esc mid-call showed
+        // "Error — see thread" instead of "Stopped").
+        const abortShaped =
+            graphError &&
+            typeof graphError === 'object' &&
+            (graphError.name === 'AbortError' ||
+                graphError.name === 'TurnAborted' ||
+                /\babort/i.test(String(graphError.message ?? '')));
+        finalStatus =
+            graphError && !(effectiveSignal.aborted && abortShaped)
+                ? 'error'
+                : effectiveSignal.aborted
+                  ? 'stopped-mid-turn'
+                  : 'applied';
         if (isInspect) return finalStatus;
         const finalManifest = finalState?.manifest ?? manifest;
         try {
