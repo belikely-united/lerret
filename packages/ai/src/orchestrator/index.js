@@ -17,6 +17,7 @@ export {
     mkdir,
     toolCall,
     inspectorResponse,
+    clarifyingNote,
     done,
     error,
     stopped,

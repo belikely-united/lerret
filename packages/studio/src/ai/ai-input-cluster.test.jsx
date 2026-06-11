@@ -2011,3 +2011,39 @@ describe('selection chip — element pinpoint display + turn threading', () => {
         cleanup();
     });
 });
+
+describe('clarifying-note pipeline (DS Curator conflict surface)', () => {
+    it('captures clarifying-note events into the turn record and renders them in the thread card', async () => {
+        const note =
+            "brand-token conflict on 'brand': _design-system.md says '#B85B33', config.json vars (as 'brandColor') says '#FF0000' — using _design-system.md (primary)";
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'clarifying-note', note, token: 'brand' },
+                { type: 'writing', file: '.lerret/a.jsx' },
+                { type: 'done', files: [{ path: '.lerret/a.jsx', op: 'create' }], turnId: 't-note' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        const input = container.querySelector('[data-testid="ai-input"]');
+        act(() => setReactInputValue(input, 'make a on brand'));
+        act(() => {
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        });
+        await tick(30);
+
+        act(() => {
+            container.querySelector('[data-testid="ai-thread-chevron"]').click();
+        });
+        await tick();
+        const noteEl = document.querySelector('[data-testid="ai-thread-note"]');
+        expect(noteEl).toBeTruthy();
+        expect(noteEl.textContent).toBe(note);
+        // The note is NOT the outcome line (the file summary stays intact).
+        expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent).toBe(
+            'Created a.jsx',
+        );
+        cleanup();
+    });
+});

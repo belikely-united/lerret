@@ -42,6 +42,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
     'deleting',
     'mkdir',
     'tool-call',
+    'clarifying-note',
     'inspector-response',
     'done',
     'error',
@@ -62,6 +63,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
  *   | { type: 'deleting', file: string }
  *   | { type: 'mkdir', dir: string }
  *   | { type: 'tool-call', name: string }
+ *   | { type: 'clarifying-note', note: string, token?: string, designSystemValue?: string, configValue?: string }
  *   | { type: 'inspector-response', answer: string }
  *   | { type: 'done', files: Array<TurnFileEntry>, turnId?: string }
  *   | { type: 'error', error: { class: string, message: string } }
@@ -98,6 +100,29 @@ export function mkdir(dir) {
 /** @param {string} name @returns {TurnEvent} */
 export function toolCall(name) {
     return Object.freeze({ type: 'tool-call', name });
+}
+
+/**
+ * A calm, factual note that two brand-authority sources disagree (the DS
+ * Curator's conflict surface — architecture §Multi-Agent Orchestrator: the
+ * note shows in the turn-outcome card; the turn PROCEEDS with the
+ * `_design-system.md` value, never blocks). `note` is the finished user-facing
+ * sentence; the structured fields ride along for richer future UI.
+ *
+ * @param {string} note
+ * @param {{ token?: string, designSystemValue?: string, configValue?: string }} [details]
+ * @returns {TurnEvent}
+ */
+export function clarifyingNote(note, details = {}) {
+    return Object.freeze({
+        type: 'clarifying-note',
+        note: typeof note === 'string' ? note : String(note ?? ''),
+        ...(typeof details.token === 'string' && details.token ? { token: details.token } : {}),
+        ...(typeof details.designSystemValue === 'string'
+            ? { designSystemValue: details.designSystemValue }
+            : {}),
+        ...(typeof details.configValue === 'string' ? { configValue: details.configValue } : {}),
+    });
 }
 
 /**

@@ -10,7 +10,7 @@
 // ── Two surfaces, one authority rule ─────────────────────────────────────────
 //
 // `createDsCuratorNode({ sandbox, emit })` — the Story 8.3 LangGraph node.
-//   Returns `{ brandTokens }`. Its return contract + its conflict `tool-call`
+//   Returns `{ brandTokens }`. Its return contract + its conflict `clarifying-note`
 //   emit are UNCHANGED by Story 8.6. It now DELEGATES token parsing of
 //   `_design-system.md` to `../../memory/design-tokens.js` (the canonical
 //   `lerret-tokens` fenced block) while KEEPING the lenient `- name: value`
@@ -31,17 +31,17 @@
 // (./worker-no-direct-fs.test.js) is satisfied: no `node:*` import, no
 // `fs.writeFile`/`fs.mkdir`/`fs.unlink`.
 //
-// ── ClarifyingNoteEvent (local typedef — Story 8.3 owns events.js) ───────────
+// ── ClarifyingNoteEvent ──────────────────────────────────────────────────────
 //
-// `orchestrator/events.js` EXISTS (Story 8.3) but its TurnEvent union does NOT
-// yet carry a `clarifying-note` factory (its types are thinking/reading/
-// writing/deleting/mkdir/tool-call/done/error/stopped/needs-vision-fallback).
-// Per the story this typedef is defined LOCALLY here, mirroring how `worker.js`
-// inlines `WorkerEvent`. STORY 8.3 SHOULD: add a `clarifyingNote(...)` factory +
-// the `'clarifying-note'` type to events.js and move this typedef there
-// verbatim, then import it here. Until then it is local.
+// `orchestrator/events.js` now carries the `clarifying-note` TurnEvent + the
+// `clarifyingNote(note, details)` factory (the architecture's documented
+// conflict surface — the dock renders the note in the turn-outcome card). The
+// node emits THAT event for conflicts. The richer `ClarifyingNoteEvent`
+// typedef below (with `configToken`/`scope`) describes the objects
+// `toClarifyingNotes()` returns from the agent surface — a superset of the
+// event payload, kept for the agent's structured consumers.
 
-import { toolCall } from '../events.js';
+import { clarifyingNote } from '../events.js';
 import { DESIGN_SYSTEM_PATH } from '../../memory/paths.js';
 import { parseDesignTokens, flattenTokens } from '../../memory/design-tokens.js';
 
@@ -415,14 +415,14 @@ export function toClarifyingNotes(conflicts) {
 /**
  * Create the DS Curator graph node. Reads `_design-system.md` (primary) and the
  * project `config.json` `vars` (secondary) via the sandbox; records the
- * resolved token map in the `brandTokens` state slot and emits a `tool-call`
+ * resolved token map in the `brandTokens` state slot and emits a `clarifying-note`
  * conflict note for any token the two sources disagree on.
  *
  * Story 8.6 rewires token parsing of `_design-system.md` to delegate to
  * design-tokens.js (canonical fenced block) with the loose-line fallback, so
  * the node now understands BOTH the canonical token format AND the loose lines
  * the Story 8.3 tests feed. The `{ brandTokens }` RETURN CONTRACT and the
- * `tool-call` conflict-note emit are UNCHANGED.
+ * conflict-note emit semantics are UNCHANGED (the event type is now the architecture's documented `clarifying-note`).
  *
  * @param {{ sandbox: import('./types.js').Sandbox, emit: (ev: unknown) => void }} deps
  * @returns {(state: object) => Promise<{ brandTokens: Record<string, string> }>}
@@ -481,10 +481,18 @@ export function createDsCuratorNode({ sandbox, emit }) {
       if (primaryKey != null) {
         if (!tokenValuesEqual(primary[primaryKey], sv.value)) {
           const viaKey = sv.lower === primaryKey ? '' : ` (as '${sv.key}')`;
+          // The architecture's documented conflict surface: a CLARIFYING NOTE
+          // the dock renders in the turn-outcome card (not a tool-call, which
+          // the pill folds into write-progress). Proceed with primary.
           emit(
-            toolCall(
+            clarifyingNote(
               `brand-token conflict on '${primaryKey}': _design-system.md says '${primary[primaryKey]}', ` +
                 `config.json vars${viaKey} says '${sv.value}' — using _design-system.md (primary)`,
+              {
+                token: primaryKey,
+                designSystemValue: primary[primaryKey],
+                configValue: sv.value,
+              },
             ),
           );
         }

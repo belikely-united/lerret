@@ -198,11 +198,24 @@ function assertWellFormed(m) {
         });
     }
     const obj = /** @type {Record<string, unknown>} */ (m);
-    for (const k of ['id', 'timestamp', 'prompt', 'provider', 'model', 'status']) {
+    for (const k of ['id', 'timestamp', 'prompt', 'status']) {
         if (typeof obj[k] !== 'string') {
             throw new SnapshotError({
                 code: 'MALFORMED_MANIFEST',
                 message: `manifest.${k} must be a string; got ${typeof obj[k]}`,
+            });
+        }
+    }
+    // `provider` / `model` are descriptive metadata, not revert-critical: a
+    // key-only provider config has no explicit model, and early Epic 8 turns
+    // wrote manifests without these fields. Requiring them made the ENTIRE
+    // on-disk history unreadable for the most common setup (found live by the
+    // revert-timeline panel) — so they are optional strings, never gates.
+    for (const k of ['provider', 'model']) {
+        if (obj[k] !== undefined && typeof obj[k] !== 'string') {
+            throw new SnapshotError({
+                code: 'MALFORMED_MANIFEST',
+                message: `manifest.${k} must be a string when present; got ${typeof obj[k]}`,
             });
         }
     }

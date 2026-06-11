@@ -218,3 +218,25 @@ describe('serialization determinism', () => {
         expect(serializeJson(value)).toBe(serializeJson(value));
     });
 });
+
+describe('readManifest — provider/model are optional metadata (live-panel finding)', () => {
+    it('reads a manifest written WITHOUT provider/model (key-only config turns)', async () => {
+        const fs = createInMemoryFs();
+        const m = createManifest({ id: 'turn-legacy', prompt: 'p' });
+        // No provider/model on the object — exactly what early live turns wrote.
+        expect(m.provider).toBeUndefined();
+        await writeManifest({ sandbox: createMockSandbox(fs, '/p'), manifest: finalizeManifest(m, { status: 'applied' }) });
+        const back = await readManifest({ projectRoot: '/p', fs, turnId: 'turn-legacy' });
+        expect(back.id).toBe('turn-legacy');
+        expect(back.status).toBe('applied');
+    });
+
+    it('still rejects a NON-string model when present', async () => {
+        const fs = createInMemoryFs();
+        const bad = { id: 't', timestamp: new Date(0).toISOString(), prompt: 'p', model: 42, status: 'applied', files: [] };
+        await fs.writeFile('/p/.lerret/.state/history/manifests/t.json', JSON.stringify(bad));
+        await expect(readManifest({ projectRoot: '/p', fs, turnId: 't' })).rejects.toMatchObject({
+            code: 'MALFORMED_MANIFEST',
+        });
+    });
+});

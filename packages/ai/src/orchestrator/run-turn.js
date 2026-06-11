@@ -104,7 +104,11 @@ export function createVaultResolver({ folderId }) {
             }
         }
         instance.configure({ apiKey, model, baseUrl });
-        return makeHandle(instance, model);
+        // The handle carries the EFFECTIVE model: a key-only config (no model
+        // set — the normal setup-screen shape) resolves to the provider's
+        // family default, so capability checks (`modelSupportsVision`) and the
+        // turn manifest record what actually runs, never `undefined`.
+        return makeHandle(instance, resolveEffectiveModel(providerName, model));
     }
 
     return {

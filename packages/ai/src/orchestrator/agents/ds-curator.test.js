@@ -49,10 +49,10 @@ describe('createDsCuratorNode — authority order', () => {
     });
     const out = await createDsCuratorNode({ sandbox, emit })({});
     expect(out.brandTokens['brand-orange']).toBe('#ff6600'); // primary, not config
-    const note = emit.mock.calls.map((c) => c[0]).find((e) => e.type === 'tool-call');
+    const note = emit.mock.calls.map((c) => c[0]).find((e) => e.type === 'clarifying-note');
     expect(note).toBeDefined();
-    expect(note.name).toMatch(/brand-token conflict on 'brand-orange'/);
-    expect(note.name).toMatch(/using _design-system\.md \(primary\)/);
+    expect(note.note).toMatch(/brand-token conflict on 'brand-orange'/);
+    expect(note.note).toMatch(/using _design-system\.md \(primary\)/);
   });
 
   it('secondary (config vars) fills tokens the primary does not define; no spurious note', async () => {
@@ -64,7 +64,7 @@ describe('createDsCuratorNode — authority order', () => {
     const out = await createDsCuratorNode({ sandbox, emit })({});
     expect(out.brandTokens).toMatchObject({ 'brand-orange': '#ff6600', radius: '8px' });
     // Disjoint keys → no conflict note.
-    expect(emit.mock.calls.some((c) => c[0]?.type === 'tool-call')).toBe(false);
+    expect(emit.mock.calls.some((c) => c[0]?.type === 'clarifying-note')).toBe(false);
   });
 
   it('agreeing values do not emit a conflict note', async () => {
@@ -74,7 +74,7 @@ describe('createDsCuratorNode — authority order', () => {
       [CFG_PATH]: JSON.stringify({ vars: { 'brand-orange': '#ff6600' } }),
     });
     await createDsCuratorNode({ sandbox, emit })({});
-    expect(emit.mock.calls.some((c) => c[0]?.type === 'tool-call')).toBe(false);
+    expect(emit.mock.calls.some((c) => c[0]?.type === 'clarifying-note')).toBe(false);
   });
 
   it("real-vocabulary conflict: DS 'brand' vs vars 'brandColor' fires, names the config key, and DEDUPES brandTokens", async () => {
@@ -89,12 +89,12 @@ describe('createDsCuratorNode — authority order', () => {
     expect(out.brandTokens.brand).toBe('#B85B33');
     expect(out.brandTokens.brandcolor).toBeUndefined();
     expect(out.brandTokens.radius).toBe('8px'); // non-colliding var still fills the gap
-    const note = emit.mock.calls.map((c) => c[0]).find((e) => e.type === 'tool-call');
+    const note = emit.mock.calls.map((c) => c[0]).find((e) => e.type === 'clarifying-note');
     expect(note).toBeDefined();
-    expect(note.name).toMatch(/brand-token conflict on 'brand'/);
-    expect(note.name).toContain("brandColor"); // the user's ACTUAL var key
-    expect(note.name).toContain('#FF0000');
-    expect(note.name).toMatch(/using _design-system\.md \(primary\)/);
+    expect(note.note).toMatch(/brand-token conflict on 'brand'/);
+    expect(note.note).toContain("brandColor"); // the user's ACTUAL var key
+    expect(note.note).toContain('#FF0000');
+    expect(note.note).toMatch(/using _design-system\.md \(primary\)/);
   });
 
   it('a canonically-colliding var that AGREES is excluded from brandTokens without a note', async () => {
@@ -105,7 +105,7 @@ describe('createDsCuratorNode — authority order', () => {
     });
     const out = await createDsCuratorNode({ sandbox, emit })({});
     expect(out.brandTokens).toEqual({ brand: '#B85B33' });
-    expect(emit.mock.calls.some((c) => c[0]?.type === 'tool-call')).toBe(false);
+    expect(emit.mock.calls.some((c) => c[0]?.type === 'clarifying-note')).toBe(false);
   });
 
   it('case-different same hex values are NOT a conflict (normalized compare)', async () => {
@@ -116,7 +116,7 @@ describe('createDsCuratorNode — authority order', () => {
     });
     const out = await createDsCuratorNode({ sandbox, emit })({});
     expect(out.brandTokens['brand-orange']).toBe('#ff6600');
-    expect(emit.mock.calls.some((c) => c[0]?.type === 'tool-call')).toBe(false);
+    expect(emit.mock.calls.some((c) => c[0]?.type === 'clarifying-note')).toBe(false);
   });
 });
 
@@ -182,8 +182,8 @@ describe('createDsCuratorNode — prototype-pollution safety', () => {
     // Resolved as a plain data value, primary wins.
     expect(out.brandTokens.constructor).toBe('#fff');
     // Conflict surfaced like any other token.
-    const note = emit.mock.calls.map((c) => c[0]).find((e) => e.type === 'tool-call');
-    expect(note.name).toMatch(/brand-token conflict on 'constructor'/);
+    const note = emit.mock.calls.map((c) => c[0]).find((e) => e.type === 'clarifying-note');
+    expect(note.note).toMatch(/brand-token conflict on 'constructor'/);
     // Object.prototype is untouched.
     expect(Object.prototype.constructor).toBe(Object);
   });

@@ -9,6 +9,7 @@ import {
     mkdir,
     toolCall,
     inspectorResponse,
+    clarifyingNote,
     done,
     error,
     stopped,
@@ -107,5 +108,29 @@ describe('event factories', () => {
         expect(ev.requiredCapability).toBe('vision');
         expect(Object.isFrozen(ev.eligibleProviders)).toBe(true);
         expect(ev.eligibleProviders[0]).toMatchObject({ name: 'openai', model: 'gpt-4o' });
+    });
+});
+
+describe('clarifyingNote (DS Curator conflict surface)', () => {
+    it('builds the frozen clarifying-note event with optional structured details', () => {
+        const ev = clarifyingNote('A and B disagree on brand — using A.', {
+            token: 'brand',
+            designSystemValue: '#B85B33',
+            configValue: '#FF0000',
+        });
+        expect(ev).toEqual({
+            type: 'clarifying-note',
+            note: 'A and B disagree on brand — using A.',
+            token: 'brand',
+            designSystemValue: '#B85B33',
+            configValue: '#FF0000',
+        });
+        expect(Object.isFrozen(ev)).toBe(true);
+        expect(TURN_EVENT_TYPES).toContain('clarifying-note');
+    });
+
+    it('omits absent details and coerces a non-string note', () => {
+        expect(clarifyingNote('just a note')).toEqual({ type: 'clarifying-note', note: 'just a note' });
+        expect(clarifyingNote(undefined).note).toBe('');
     });
 });

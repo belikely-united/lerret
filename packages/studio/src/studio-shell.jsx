@@ -31,6 +31,7 @@ import { useProjectModel } from './components/dock/project-model-context.jsx';
 // package is absent (it renders an idle-only fallback).
 import { AiInputCluster } from './ai/ai-input-cluster.jsx';
 import { SettingsPanel } from './ai/settings-panel.jsx';
+import { RevertTimelinePanel } from './ai/revert-timeline.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 import { inCliMode, switchProject } from './runtime/write-client.js';
@@ -169,6 +170,7 @@ function StudioBrandMenu({
  onSwitchProject,
  onCloseProject,
  onAiSettings,
+ onAiRevertHistory,
  canExport = false,
  exportFormat = 'png',
  onExportFormatChange,
@@ -270,13 +272,15 @@ function StudioBrandMenu({
  )}
 
  {/* AI — provider + API-key management (UX-delta §4.3: "the dock kebab
- gains Settings"). The panel itself handles every state, including
- no-provider-configured and @lerret/ai absent. */}
- {onAiSettings && (
+ gains Settings") and the revert timeline (UX-delta §4.5: the kebab's
+ "Revert AI history" entry point). Both panels handle every state
+ themselves, including no-provider-configured and @lerret/ai absent. */}
+ {(onAiSettings || onAiRevertHistory) && (
  <React.Fragment>
  <div style={{ height: 'var(--lm-space-1, 4px)' }} />
  <div style={sectionLabel}>AI</div>
- {item('AI settings…', 'Providers and API keys', onAiSettings)}
+ {onAiSettings && item('AI settings…', 'Providers and API keys', onAiSettings)}
+ {onAiRevertHistory && item('Revert AI history…', 'Browse and revert AI turns', onAiRevertHistory)}
  </React.Fragment>
  )}
 
@@ -412,6 +416,11 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  // change the API key, switch the active provider, clear a provider, test the
  // connection.
  const [aiSettingsOpen, setAiSettingsOpen] = React.useState(false);
+ // The revert timeline panel (UX-delta §4.5, FR52) — opened from the brand
+ // kebab's "Revert AI history…" item (no focus turn) or from the AI cluster's
+ // quick-revert / thread actions (which pass the turnId to preselect).
+ const [revertTimelineOpen, setRevertTimelineOpen] = React.useState(false);
+ const [revertTimelineFocusTurn, setRevertTimelineFocusTurn] = React.useState(null);
  // The "Switch project" connect dialog (CLI mode). Opened from the brand menu.
  const [connectOpen, setConnectOpen] = React.useState(false);
  // Folder switching is a CLI-only capability (the server re-points its dev
@@ -568,6 +577,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  onSwitchProject={cliMode ? () => { setBrandOpen(false); setConnectOpen(true); } : undefined}
  onCloseProject={cliMode && projectModel ? () => { setBrandOpen(false); switchProject(null); } : undefined}
  onAiSettings={() => { setBrandOpen(false); setAiSettingsOpen(true); }}
+ onAiRevertHistory={() => { setBrandOpen(false); setRevertTimelineFocusTurn(null); setRevertTimelineOpen(true); }}
  canExport={!!projectModel}
  exportFormat={exportFormat}
  onExportFormatChange={setExportFormat}
@@ -582,6 +592,13 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  )}
  {connectOpen && <ConnectProjectDialog onClose={() => setConnectOpen(false)} />}
  {aiSettingsOpen && <SettingsPanel open onClose={() => setAiSettingsOpen(false)} />}
+ {revertTimelineOpen && (
+ <RevertTimelinePanel
+ open
+ onClose={() => setRevertTimelineOpen(false)}
+ focusTurnId={revertTimelineFocusTurn}
+ />
+ )}
  </span>
 
  <StudioDockSeparator />
@@ -622,7 +639,12 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
   idle-only fallback and the surrounding brand / page-picker children keep
   working. */}
  <StudioDockSeparator />
- <AiInputCluster />
+ <AiInputCluster
+ onOpenRevertTimeline={(turnId) => {
+ setRevertTimelineOpen(true);
+ setRevertTimelineFocusTurn(turnId ?? null);
+ }}
+ />
  </div>
  );
 }

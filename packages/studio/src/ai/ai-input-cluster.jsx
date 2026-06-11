@@ -762,6 +762,20 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
                                         {turn.outcome}
                                     </p>
                                 )}
+                                {/* DS Curator clarifying notes — calm one-liners
+                                    (brand-authority conflicts; the turn proceeded
+                                    with the design-system value). */}
+                                {Array.isArray(turn.notes) &&
+                                    turn.notes.map((note, i) => (
+                                        <p
+                                            className="lm-ai-thread__outcome"
+                                            data-testid="ai-thread-note"
+                                            key={`${turn.id}-note-${i}`}
+                                            style={{ color: 'var(--lm-text-tertiary, #6E6960)' }}
+                                        >
+                                            {note}
+                                        </p>
+                                    ))}
                                 <div className="lm-ai-thread__actions">
                                     <button
                                         type="button"
@@ -1037,6 +1051,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 answer: isInspect ? (extra.answer ?? '') : null,
                 files: Array.isArray(files) ? files : [],
                 outcome: summary,
+                // DS Curator clarifying notes (brand-authority conflicts) —
+                // shown as calm lines under the outcome (FR53/FR54 surface).
+                notes: Array.isArray(extra.notes) ? extra.notes.slice(0, 6) : [],
                 turnId: turnId ?? null,
                 error: terminalStatus === 'error' ? (errorInfo ?? null) : null,
             };
@@ -1101,6 +1118,10 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             // The inspector's answer (Story 8.9) — arrives via the
             // `inspector-response` event, always before `done`.
             let inspectAnswer = '';
+            // DS Curator clarifying notes (brand-authority conflicts) — calm
+            // factual lines the thread card shows under the outcome.
+            /** @type {string[]} */
+            const turnNotes = [];
             // Files observed via writing/deleting events DURING the run. The
             // `stopped` event carries no files, but an in-flight write may
             // have completed before the stop took effect (NFR18) — so the
@@ -1158,6 +1179,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             // All file-mutation progress folds into "Writing files…".
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
                             break;
+                        case 'clarifying-note':
+                            // DS Curator brand-authority conflict (FR53/FR54
+                            // architecture surface): a calm factual line for
+                            // the thread card. Never a pill state, never a
+                            // modal — the turn proceeds.
+                            if (typeof ev.note === 'string' && ev.note) turnNotes.push(ev.note);
+                            break;
                         case 'inspector-response':
                             // Story 8.9: the read-only answer (FR58). Always
                             // arrives before `done`; the thread card renders it
@@ -1170,6 +1198,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             finishTurn('done', ev.files, prompt, ev.turnId ?? turnId, null, {
                                 mode: turnMode,
                                 answer: inspectAnswer,
+                                notes: turnNotes,
                             });
                             break;
                         case 'stopped':
@@ -1179,11 +1208,15 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             finishTurn('stopped', ev.files ?? seenFiles, prompt, ev.turnId ?? turnId, null, {
                                 mode: turnMode,
                                 answer: inspectAnswer,
+                                notes: turnNotes,
                             });
                             break;
                         case 'error':
                             terminalSeen = true;
-                            finishTurn('error', [], prompt, null, ev.error ?? null, { mode: turnMode });
+                            finishTurn('error', [], prompt, null, ev.error ?? null, {
+                                mode: turnMode,
+                                notes: turnNotes,
+                            });
                             break;
                         default:
                             // needs-vision-fallback ignored here (Story 8.7's

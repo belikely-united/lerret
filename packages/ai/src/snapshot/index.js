@@ -25,6 +25,15 @@ export {
 
 export { revertFile, revertTurn, revertToTurn, redoTurn } from './revert.js';
 
+// Convenience re-export for the revert-timeline UI (Story 8.5, UX-delta §4.5).
+// The revert API routes every write through a Story 8.4 sandbox; the
+// orchestrator builds its own (run-turn.js imports `createSandbox` from
+// '@lerret/core'), but the studio panel reaches @lerret/ai ONLY via the
+// dynamic-import boundary (`getAi()`), so the SAME helper is surfaced here as
+// `ai.snapshot.createSandbox` — the panel never needs its own @lerret/core
+// import path to construct one.
+export { createSandbox } from '@lerret/core';
+
 export {
     DEFAULT_CONFIG,
     loadConfig,
