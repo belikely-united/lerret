@@ -313,16 +313,18 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // to a `page` scope labelled with the page name. Wrapped in useCallback so
  // the per-section handler identity is stable.
  const emitSectionScope = React.useCallback(
- (section, sectionKind, pageName) => {
+ (section, sectionKind, pageName, element) => {
  if (!setAiScope) return;
  const assets = section?.entries || [];
  const firstAsset = assets[0]?.asset;
  // A single-asset section IS that asset — file-scope it whether the
  // section is a sub-group or the page itself (clicking a one-artboard
  // page selects the artboard, and the planner can then read the file
- // for scoped edits). Multi-asset sections stay page-scoped.
+ // for scoped edits). Multi-asset sections stay page-scoped. The
+ // optional `element` pinpoint (the clicked node inside the artboard,
+ // from DCSection's capture hook) rides on the file scope.
  if (assets.length === 1 && firstAsset?.path) {
- setAiScope(fileScope(firstAsset.path));
+ setAiScope(fileScope(firstAsset.path, undefined, element));
  } else {
  setAiScope(pageScope(pageName || section?.title || 'page'));
  }
@@ -661,7 +663,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  subtitle={subtitle}
  sectionStyle={sectionStyle}
  bare={sectionKind === 'page'}
- onSelectScope={() => emitSectionScope(s, sectionKind, page && page.name)}
+ onSelectScope={(element) => emitSectionScope(s, sectionKind, page && page.name, element)}
  >
  {s.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),

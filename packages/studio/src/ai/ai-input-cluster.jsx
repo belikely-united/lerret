@@ -625,14 +625,26 @@ function SelectionChip({ scope, onClear }) {
             onClear();
         }
     };
+    // Element pinpoint: when the user clicked a specific node inside the
+    // artboard, the chip reads `file.jsx › “text”` so they can see exactly
+    // what the next request targets.
+    const elementText = scope.element?.text
+        ? scope.element.text.length > 24
+            ? `${scope.element.text.slice(0, 24)}…`
+            : scope.element.text
+        : null;
+    const chipLabel = elementText ? `${scope.label} › “${elementText}”` : scope.label;
+    const chipTitle = scope.element?.text
+        ? `${scope.label} › “${scope.element.text}”`
+        : scope.label;
     return (
         <span
             className="lm-ai-cluster__chip"
             data-testid="ai-selection-chip"
             data-kind={scope.kind}
         >
-            <span className="lm-ai-cluster__chip-label" title={scope.label}>
-                {scope.label}
+            <span className="lm-ai-cluster__chip-label" title={chipTitle}>
+                {chipLabel}
             </span>
             <button
                 type="button"
@@ -1075,7 +1087,12 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             // The turn scope: the selection scope (persisted across turns) folds
             // into the runTurn call; project-wide when no chip is set.
             const turnScope = scope
-                ? { kind: scope.kind, filePath: scope.filePath, count: scope.count }
+                ? {
+                      kind: scope.kind,
+                      filePath: scope.filePath,
+                      count: scope.count,
+                      ...(scope.element ? { element: scope.element } : {}),
+                  }
                 : { kind: 'project' };
             const turnMode = opts.mode === MODE_INSPECT ? MODE_INSPECT : 'ask';
 

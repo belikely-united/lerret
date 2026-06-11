@@ -1322,6 +1322,13 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // Clicks that originate from an interactive control (button / input / link /
  // editable label / reorder grip) are ignored so a download / rename / focus
  // gesture does not also re-scope the AI input.
+ //
+ // ELEMENT PINPOINT: when the click lands on a small, text-bearing node
+ // INSIDE the rendered artboard (not the frame label row), the clicked
+ // element's text + tag ride along as a hint — the chip shows it and the AI
+ // planner targets the request at that element ("change THIS price"). A
+ // click on the card background / a large container carries no hint (the
+ // scope is then the whole asset), so the behavior degrades cleanly.
  const onSectionClickCapture = (e) => {
  if (typeof onSelectScope !== 'function') return;
  const t = e.target;
@@ -1332,7 +1339,20 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  return;
  }
  }
- onSelectScope();
+ let element = null;
+ if (t && typeof t.closest === 'function' && !t.closest('.dc-labelrow')) {
+ const text = String(t.textContent ?? '').replace(/\s+/g, ' ').trim();
+ // Leaf-ish, human-pointable nodes only: short text, no element children
+ // with their own text walls. 120 chars separates "a headline / a price"
+ // from "the whole card".
+ if (text && text.length <= 120) {
+ element = {
+ text: text.slice(0, 80),
+ tag: String(t.tagName ?? '').toLowerCase() || undefined,
+ };
+ }
+ }
+ onSelectScope(element);
  };
 
  // Bare variant — a page's own loose assets sit directly on the canvas with no

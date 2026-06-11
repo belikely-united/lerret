@@ -399,3 +399,24 @@ describe('createPlannerNode — selection-scoped file context (live-model findin
         expect(sys).not.toContain('current content');
     });
 });
+
+describe('createPlannerNode — element pinpoint (chip › element)', () => {
+    it('folds the clicked element into the scoped prompt so the request targets it', async () => {
+        const providerHandle = makeHandle();
+        const sandbox = {
+            exists: vi.fn(async () => true),
+            readFile: vi.fn(async () => 'export default function Card() { return <div>$79</div>; }'),
+        };
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn(), sandbox })({
+            prompt: 'make this bigger',
+            scope: {
+                kind: 'file',
+                filePath: 'pricing/card.jsx',
+                element: { text: '$79', tag: 'div' },
+            },
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).toContain('clicked the <div> element containing "$79"');
+        expect(sys).toMatch(/apply the request to that element specifically/);
+    });
+});

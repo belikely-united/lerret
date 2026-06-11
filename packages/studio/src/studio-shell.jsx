@@ -30,6 +30,7 @@ import { useProjectModel } from './components/dock/project-model-context.jsx';
 // directly), so mounting it here keeps the whole dock resilient when the AI
 // package is absent (it renders an idle-only fallback).
 import { AiInputCluster } from './ai/ai-input-cluster.jsx';
+import { SettingsPanel } from './ai/settings-panel.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 import { inCliMode, switchProject } from './runtime/write-client.js';
@@ -167,6 +168,7 @@ function StudioBrandMenu({
  onTakeTour,
  onSwitchProject,
  onCloseProject,
+ onAiSettings,
  canExport = false,
  exportFormat = 'png',
  onExportFormatChange,
@@ -264,6 +266,17 @@ function StudioBrandMenu({
  <div style={sectionLabel}>Project</div>
  {onSwitchProject && item('Switch project…', 'Connect a different folder', onSwitchProject)}
  {onCloseProject && item('Close project', 'Return to the connect screen', onCloseProject)}
+ </React.Fragment>
+ )}
+
+ {/* AI — provider + API-key management (UX-delta §4.3: "the dock kebab
+ gains Settings"). The panel itself handles every state, including
+ no-provider-configured and @lerret/ai absent. */}
+ {onAiSettings && (
+ <React.Fragment>
+ <div style={{ height: 'var(--lm-space-1, 4px)' }} />
+ <div style={sectionLabel}>AI</div>
+ {item('AI settings…', 'Providers and API keys', onAiSettings)}
  </React.Fragment>
  )}
 
@@ -394,6 +407,11 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  // Brand menu — popover above the lockup. Holds the Brand kit download
  // (and anything else brand-adjacent we add later).
  const [brandOpen, setBrandOpen] = React.useState(false);
+ // The AI provider/key settings panel (UX-delta §4.3) — opened from the brand
+ // kebab's "AI settings…" item. This is the post-setup management surface:
+ // change the API key, switch the active provider, clear a provider, test the
+ // connection.
+ const [aiSettingsOpen, setAiSettingsOpen] = React.useState(false);
  // The "Switch project" connect dialog (CLI mode). Opened from the brand menu.
  const [connectOpen, setConnectOpen] = React.useState(false);
  // Folder switching is a CLI-only capability (the server re-points its dev
@@ -549,6 +567,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  onTakeTour={() => { setBrandOpen(false); onHelp && onHelp(); }}
  onSwitchProject={cliMode ? () => { setBrandOpen(false); setConnectOpen(true); } : undefined}
  onCloseProject={cliMode && projectModel ? () => { setBrandOpen(false); switchProject(null); } : undefined}
+ onAiSettings={() => { setBrandOpen(false); setAiSettingsOpen(true); }}
  canExport={!!projectModel}
  exportFormat={exportFormat}
  onExportFormatChange={setExportFormat}
@@ -562,6 +581,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  />
  )}
  {connectOpen && <ConnectProjectDialog onClose={() => setConnectOpen(false)} />}
+ {aiSettingsOpen && <SettingsPanel open onClose={() => setAiSettingsOpen(false)} />}
  </span>
 
  <StudioDockSeparator />

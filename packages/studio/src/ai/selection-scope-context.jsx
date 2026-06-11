@@ -112,11 +112,21 @@ export function SelectionScopeProvider({ children }) {
  *
  * @param {string} filePath - The selected file's LerretPath.
  * @param {string} [label] - Optional richer label (component name).
+ * @param {{ text: string, tag?: string }} [element] - Optional element
+ *   pinpoint: the clicked node INSIDE the artboard. The chip renders it after
+ *   the file name and the AI planner targets the request at that element.
  * @returns {SelectionScope}
  */
-export function fileScope(filePath, label) {
+export function fileScope(filePath, label, element) {
     const basename = String(filePath).split('/').filter(Boolean).pop() || String(filePath);
-    return { kind: 'file', filePath, label: label || basename };
+    const scope = { kind: 'file', filePath, label: label || basename };
+    if (element && typeof element.text === 'string' && element.text.trim()) {
+        scope.element = {
+            text: element.text.trim().slice(0, 80),
+            ...(typeof element.tag === 'string' && element.tag ? { tag: element.tag } : {}),
+        };
+    }
+    return scope;
 }
 
 /**

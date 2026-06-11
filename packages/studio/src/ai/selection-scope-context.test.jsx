@@ -117,3 +117,21 @@ describe('SelectionScopeProvider', () => {
         cleanup();
     });
 });
+
+describe('fileScope — element pinpoint', () => {
+    it('carries a trimmed, capped element {text, tag} when supplied', () => {
+        const s = fileScope('pricing/card.jsx', undefined, { text: '  $79  ', tag: 'div' });
+        expect(s.element).toEqual({ text: '$79', tag: 'div' });
+    });
+
+    it('omits element entirely for empty/absent hints (whole-asset scope)', () => {
+        expect(fileScope('a/b.jsx').element).toBeUndefined();
+        expect(fileScope('a/b.jsx', undefined, { text: '   ' }).element).toBeUndefined();
+        expect(fileScope('a/b.jsx', undefined, null).element).toBeUndefined();
+    });
+
+    it('caps pathological element text at 80 chars', () => {
+        const s = fileScope('a/b.jsx', undefined, { text: 'x'.repeat(300) });
+        expect(s.element.text).toHaveLength(80);
+    });
+});

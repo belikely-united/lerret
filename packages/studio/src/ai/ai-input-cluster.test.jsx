@@ -1979,3 +1979,35 @@ describe('deriveProjectRoot — folderId → project root', () => {
         expect(deriveProjectRoot('/.lerret')).toBeNull();
     });
 });
+
+// ─── Post-epic follow-ups: element pinpoint + AI settings entry ──────────────
+
+describe('selection chip — element pinpoint display + turn threading', () => {
+    it('chip shows file › "element text" and runTurn receives scope.element', async () => {
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [], turnId: 't-el' };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        let scopeApi;
+        const { container, cleanup } = renderToDom(
+            <Harness onScopeReady={(api) => { scopeApi = api; }} />,
+        );
+        await tick();
+        act(() => {
+            scopeApi.setScope(
+                fileScope('pricing/card.jsx', undefined, { text: '$79', tag: 'div' }),
+            );
+        });
+        const chip = container.querySelector('[data-testid="ai-selection-chip"]');
+        expect(chip.textContent).toContain('card.jsx › “$79”');
+
+        const input = container.querySelector('[data-testid="ai-input"]');
+        act(() => setReactInputValue(input, 'make it bold'));
+        act(() => {
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        });
+        await tick(30);
+        expect(runTurnSpy.mock.calls[0][0].scope.element).toEqual({ text: '$79', tag: 'div' });
+        cleanup();
+    });
+});

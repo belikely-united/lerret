@@ -110,9 +110,19 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
         ? `\n\nBrand tokens (authoritative): ${JSON.stringify(state.brandTokens)}`
         : '';
     const context = state.context ? `\n\nProject context:\n${state.context}` : '';
+    // Element pinpoint (the dock chip's `scope.element`): the exact node the
+    // user clicked inside the artboard — the request targets IT, not the
+    // whole asset.
+    const el = state.scope && typeof state.scope === 'object' ? state.scope.element : null;
+    const pinpoint =
+        el && typeof el.text === 'string' && el.text.trim()
+            ? `\nThe user clicked the ${el.tag ? `<${el.tag}> ` : ''}element containing ` +
+              `"${el.text.trim().slice(0, 80)}" inside this asset — apply the request to that ` +
+              `element specifically; leave the rest of the file unchanged.`
+            : '';
     const scoped = scopedFile
         ? `\n\nThe user has SELECTED this asset; the request applies to it. To edit it, ` +
-          `emit ONE write step at exactly this path with the COMPLETE updated file.\n` +
+          `emit ONE write step at exactly this path with the COMPLETE updated file.${pinpoint}\n` +
           `--- ${scopedFile.path} (current content) ---\n${scopedFile.content}\n--- end ---`
         : '';
     const promptText = String(state.prompt ?? '');
