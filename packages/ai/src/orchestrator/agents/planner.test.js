@@ -118,9 +118,112 @@ describe('createPlannerNode — decomposition', () => {
         });
         const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
         expect(sys).toMatch(/_design-system\.md is the project's brand authority/);
-        expect(sys).toMatch(/PROJECT-WIDE look request/);
+        expect(sys).toMatch(/ONLY when no asset is selected/);
         expect(sys).toMatch(/rewriting \.lerret\/_design-system\.md in place/);
         expect(sys).toMatch(/\{"steps":\[\],"note":/);
+    });
+
+    it('a SELECTED asset takes precedence over the design-system rewrite (explicit-global override stated)', async () => {
+        // "change color to blue" with a chip must edit THAT asset, not
+        // retheme the project — the ds rule and the scoped block competed
+        // (live user-testing finding, 2026-06-12).
+        const providerHandle = makeHandle();
+        const sandbox = {
+            exists: async (p) => p === '.lerret/social/card.jsx',
+            readFile: async () => 'export const meta = {};',
+        };
+        await createPlannerNode({
+            providerHandle,
+            emit: vi.fn(),
+            requestVisionDecision: vi.fn(),
+            sandbox,
+        })({
+            prompt: 'change color to blue',
+            scope: { kind: 'file', filePath: 'social/card.jsx' },
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).toMatch(/selection takes precedence over every project-wide rule/);
+        expect(sys).toMatch(/UNLESS the request explicitly says it applies to\s+all assets/);
+        expect(sys).toMatch(/--- \.lerret\/social\/card\.jsx \(current content\) ---/);
+    });
+
+    it('page/artboards scopes surface their label so the model does not retheme project-wide', async () => {
+        const providerHandle = makeHandle();
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'make these feel warmer',
+            scope: { kind: 'page', label: 'kit page' },
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).toMatch(/scoped this request to: kit page/);
+        expect(sys).toMatch(/do not retheme the whole project/);
+    });
+});
+
+describe('createPlannerNode — selection chip as the W3 reference', () => {
+    it('"make 3 variants of this" with a .jsx chip plans deterministically (no provider call)', async () => {
+        const providerHandle = makeHandle();
+        // The chip references a canvas selection, so the component EXISTS
+        // (W3's AC-5 existence gate passes); no sibling .data.json yet.
+        const sandbox = {
+            exists: async (p) => p === '.lerret/social/post.jsx',
+            readFile: async () => {
+                throw new Error('no data file yet');
+            },
+        };
+        const out = await createPlannerNode({
+            providerHandle,
+            emit: vi.fn(),
+            requestVisionDecision: vi.fn(),
+            sandbox,
+        })({
+            prompt: 'make 3 variants of this',
+            scope: { kind: 'file', filePath: 'social/post.jsx' },
+        });
+        expect(providerHandle.complete).not.toHaveBeenCalled();
+        expect(out.plan.length).toBeGreaterThan(0);
+        expect(out.plan.every((s) => typeof s.path === 'string')).toBe(true);
+    });
+
+    it('an ABSOLUTE chip path (CLI runtime) is normalized before recognition + the existence gate', async () => {
+        // The live shape that silently planned nothing: the CLI runtime's
+        // asset identity is absolute, and W3's gate got `.lerret//private/…`
+        // (live user-testing finding, 2026-06-12).
+        const providerHandle = makeHandle();
+        const sandbox = {
+            exists: async (p) => p === '.lerret/kit/banner.jsx',
+            readFile: async () => {
+                throw new Error('no data file yet');
+            },
+        };
+        const out = await createPlannerNode({
+            providerHandle,
+            emit: vi.fn(),
+            requestVisionDecision: vi.fn(),
+            sandbox,
+        })({
+            prompt: 'make 3 variants of this',
+            scope: { kind: 'file', filePath: '/private/tmp/proj/.lerret/kit/banner.jsx' },
+        });
+        expect(providerHandle.complete).not.toHaveBeenCalled();
+        expect(out.plan.length).toBeGreaterThan(0);
+    });
+
+    it('an empty workflow plan explains itself with a clarifying note (never a silent no-op)', async () => {
+        const providerHandle = makeHandle();
+        const emit = vi.fn();
+        const sandbox = { exists: async () => false, readFile: async () => '' };
+        const out = await createPlannerNode({
+            providerHandle,
+            emit,
+            requestVisionDecision: vi.fn(),
+            sandbox,
+        })({
+            prompt: 'make 3 variants of missing/ghost.jsx',
+        });
+        expect(out.plan).toEqual([]);
+        const notes = emit.mock.calls.map((c) => c[0]).filter((e) => e.type === 'clarifying-note');
+        expect(notes).toHaveLength(1);
+        expect(notes[0].note).toMatch(/couldn't find missing\/ghost\.jsx/);
     });
 });
 
@@ -524,6 +627,7 @@ describe('createPlannerNode — element pinpoint (chip › element)', () => {
         });
         const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
         expect(sys).toContain('clicked the <div> element containing "$79"');
-        expect(sys).toMatch(/apply the request to that element specifically/);
+        expect(sys).toMatch(/the request targets that\s+element specifically/);
+        expect(sys).toMatch(/Leave the rest of the file unchanged/);
     });
 });

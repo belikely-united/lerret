@@ -1329,6 +1329,12 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // planner targets the request at that element ("change THIS price"). A
  // click on the card background / a large container carries no hint (the
  // scope is then the whole asset), so the behavior degrades cleanly.
+ //
+ // ARTBOARD PINPOINT: the click also resolves WHICH artboard it landed in
+ // (the enclosing frame's data-dc-asset-path, stamped by DCArtboardFrame).
+ // Without it, multi-asset sections could only ever page-scope — the user's
+ // "I selected THIS asset" click silently degraded to "kit page" and the AI
+ // lost the target (live user-testing finding, 2026-06-12).
  const onSectionClickCapture = (e) => {
  if (typeof onSelectScope !== 'function') return;
  const t = e.target;
@@ -1340,7 +1346,10 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  }
  }
  let element = null;
- if (t && typeof t.closest === 'function' && !t.closest('.dc-labelrow')) {
+ let assetPath = null;
+ if (t && typeof t.closest === 'function') {
+ assetPath = t.closest('[data-dc-asset-path]')?.getAttribute('data-dc-asset-path') || null;
+ if (!t.closest('.dc-labelrow')) {
  const text = String(t.textContent ?? '').replace(/\s+/g, ' ').trim();
  // Leaf-ish, human-pointable nodes only: short text, no element children
  // with their own text walls. 120 chars separates "a headline / a price"
@@ -1352,7 +1361,8 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  };
  }
  }
- onSelectScope(element);
+ }
+ onSelectScope(element, assetPath);
  };
 
  // Bare variant — a page's own loose assets sit directly on the canvas with no
@@ -1641,7 +1651,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  };
 
  return (
- <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} style={{ position: 'relative', flexShrink: 0 }}>
+ <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} {...(assetPath ? { 'data-dc-asset-path': assetPath } : {})} style={{ position: 'relative', flexShrink: 0 }}>
  {/* Labelrow stretches the full card width so the portaled kebab
  (artboard-kebab.jsx) can right-align inside it via margin-left:auto.
  The right-edge button cluster (ANIM/JPG/PNG/expand/kebab) is rendered

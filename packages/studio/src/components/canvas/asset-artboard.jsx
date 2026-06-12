@@ -134,6 +134,7 @@ export function artboardForEntry(entry, opts = {}) {
  isError={true}
  assetName={assetName}
  hasLiveRefresh={hasLiveRefresh}
+ assetPath={filePath}
  >
  <div style={{ position: 'relative', width: '100%', height: '100%' }}>
  <AssetErrorCard error={entry.error} filePath={filePath} />
@@ -218,7 +219,8 @@ export function artboardForEntry(entry, opts = {}) {
  // rendered component reflects the data file on disk.
  return (
  <DCArtboard key={entry.id} id={entry.id} label={entry.label} width={width} height={height}
- assetName={assetName} variantName={entry.variantName} hasLiveRefresh={hasLiveRefresh}>
+ assetName={assetName} variantName={entry.variantName} hasLiveRefresh={hasLiveRefresh}
+ assetPath={filePath}>
  <VarsWrapper
  folderPath={folderPath}
  style={{ position: 'relative', width: '100%', height: '100%' }}

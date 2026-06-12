@@ -283,6 +283,24 @@ describe('inspect mode — source-level structural guarantee', () => {
         expect(INSPECTOR_SOURCE).toMatch(/createInspectorNode/);
     });
 
+    it('agents/scoped-file.js (the Inspector\'s shared read helper) touches no sandbox mutator', () => {
+        // The Inspector imports readScopedFile/elementPinpoint from this
+        // module (selection-scope awareness, 2026-06-12) — a mutator slipped
+        // in THERE would hand the read-only lane a write path the
+        // inspector.js-only scan above cannot see.
+        const source = readFileSync(join(__dirname, 'agents', 'scoped-file.js'), 'utf8');
+        const offenders = FORBIDDEN_INSPECTOR_PATTERNS.filter(({ pattern }) =>
+            pattern.test(source),
+        ).map(({ label }) => label);
+        expect(
+            offenders,
+            offenders.length
+                ? `scoped-file.js contains forbidden patterns:\n  ${offenders.join('\n  ')}`
+                : 'clean',
+        ).toEqual([]);
+        expect(source).toMatch(/readScopedFile/);
+    });
+
     it('captures forbidden patterns when present in synthetic source strings (the guard cannot rot)', () => {
         const positives = [
             ["import { createWorker } from './worker.js';", 'static import from a worker module'],

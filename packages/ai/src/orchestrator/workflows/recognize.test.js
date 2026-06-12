@@ -262,3 +262,51 @@ describe('recognizeWorkflow — edit/negation/question cues disable the workflow
     ).toBe('social-variants');
   });
 });
+
+describe('recognizeWorkflow — selection chip as the W3 reference (scopePath)', () => {
+  // The artifacts never specified how W3 picks its reference asset; the dock
+  // selection chip is the deterministic answer (gap closed 2026-06-12).
+  it('a variant cue with NO in-prompt path uses the selected .jsx as the reference', () => {
+    expect(
+      recognizeWorkflow('make 3 variants of this', { scopePath: 'social/post.jsx' }),
+    ).toEqual({
+      kind: 'social-variants',
+      reference: { path: 'social/post.jsx', count: 3 },
+    });
+  });
+
+  it('strips a `.lerret/` prefix from the chip path (workflow planners speak project-relative)', () => {
+    const shape = recognizeWorkflow('two more variants of this', {
+      scopePath: '.lerret/social/post.jsx',
+    });
+    expect(shape.reference.path).toBe('social/post.jsx');
+  });
+
+  it('a path named IN THE PROMPT wins over the chip', () => {
+    const shape = recognizeWorkflow('make 2 more variants of social/other.jsx', {
+      scopePath: 'social/post.jsx',
+    });
+    expect(shape).toEqual({
+      kind: 'social-variants',
+      reference: { path: 'social/other.jsx', count: 2 },
+    });
+  });
+
+  it('non-.jsx selections do not qualify as a reference', () => {
+    expect(recognizeWorkflow('make 3 variants of this', { scopePath: '_design-system.md' }).kind).toBe(
+      'generic',
+    );
+  });
+
+  it('a chip WITHOUT a variant cue stays generic (never a synthetic edit shape)', () => {
+    expect(recognizeWorkflow('change color to blue', { scopePath: 'social/post.jsx' }).kind).toBe(
+      'generic',
+    );
+  });
+
+  it('override cues still block chip-referenced variants', () => {
+    expect(
+      recognizeWorkflow("don't make variants of this", { scopePath: 'social/post.jsx' }).kind,
+    ).toBe('generic');
+  });
+});

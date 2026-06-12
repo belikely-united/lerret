@@ -207,9 +207,16 @@ function extractCount(prompt) {
  * planners (`planLaunchKit` / `planSocialVariants`) own the recognized kinds.
  *
  * @param {unknown} prompt  The user's turn prompt.
+ * @param {{ scopePath?: string }} [opts]  `scopePath` is the dock selection
+ *   chip's file path. When the prompt carries a variant cue but names no
+ *   asset path ("make 3 variants of this"), the selected asset is the
+ *   reference — the planning artifacts never specified W3's reference
+ *   selection mechanism; the selection chip is the deterministic answer
+ *   (gap closed 2026-06-12). Only `.jsx` selections qualify (W3 variants
+ *   are component+data expansions of a component file).
  * @returns {WorkflowShape}
  */
-export function recognizeWorkflow(prompt) {
+export function recognizeWorkflow(prompt, opts = {}) {
   if (typeof prompt !== 'string' || prompt.trim().length === 0) {
     return { kind: 'generic' };
   }
@@ -225,14 +232,23 @@ export function recognizeWorkflow(prompt) {
     if (platforms.length > 0) return { kind: 'launch-kit', platforms };
   }
 
-  // 2. W3 social-variants: variant cue AND a referenced asset path.
-  const path = extractReferencePath(prompt);
+  // 2. W3 social-variants: variant cue AND a referenced asset path. A path
+  //    named IN THE PROMPT wins; otherwise the selection chip's .jsx file
+  //    serves as the reference.
+  const promptPath = extractReferencePath(prompt);
+  const scopePath =
+    typeof opts.scopePath === 'string' && /\.jsx$/i.test(opts.scopePath)
+      ? opts.scopePath.replace(/^\.lerret\//, '')
+      : undefined;
+  const path = promptPath ?? scopePath;
   if (!workflowsBlocked && path && VARIANT_CUE_RES.some((re) => re.test(prompt))) {
     return { kind: 'social-variants', reference: { path, count: extractCount(prompt) } };
   }
 
-  // 3. Edit: a referenced asset path without a variant cue.
-  if (path) return { kind: 'edit', reference: { path } };
+  // 3. Edit: a path referenced IN THE PROMPT without a variant cue. (A bare
+  //    selection chip does NOT make a turn an `edit` shape — the LLM planner
+  //    already receives the scoped file's content for those.)
+  if (promptPath) return { kind: 'edit', reference: { path: promptPath } };
 
   // 4. Generic fall-through — the LLM planner decomposes.
   return { kind: 'generic' };

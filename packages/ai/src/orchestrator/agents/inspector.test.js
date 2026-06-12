@@ -148,6 +148,63 @@ describe('createInspectorNode — answer path', () => {
         expect(sysMsg).toMatch(/do NOT give manual-edit instructions/);
     });
 
+    it('folds the SELECTED asset into the prompt and pins redirects to it (scope-aware Inspector)', async () => {
+        // A chip-scoped "change color to blue" in Inspect mode pointed the
+        // user at _design-system.md instead of their selection — the
+        // Inspector was scope-blind (live user-testing finding, 2026-06-12).
+        const providerHandle = makeHandle();
+        const emit = vi.fn();
+        const sandbox = {
+            exists: async (p) => p === '.lerret/social/card.jsx',
+            readFile: async () => 'export const meta = { label: "Card" };',
+        };
+        await createInspectorNode({ providerHandle, emit, sandbox })({
+            prompt: 'change color to blue',
+            scope: {
+                kind: 'file',
+                filePath: 'social/card.jsx',
+                element: { text: '$79', tag: 'span' },
+            },
+        });
+        const sysMsg = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sysMsg).toMatch(/The user has SELECTED this asset/);
+        expect(sysMsg).toMatch(/--- \.lerret\/social\/card\.jsx \(selected asset\) ---/);
+        expect(sysMsg).toContain('export const meta = { label: "Card" };');
+        expect(sysMsg).toMatch(/<span> element containing "\$79"/);
+        expect(sysMsg).toMatch(/that change\s+would touch the SELECTED asset — name it, never a different file/);
+        // The scoped read surfaces as a reading pill like any targeted read.
+        const readEvents = emit.mock.calls.map((c) => c[0]).filter((e) => e.type === 'reading');
+        expect(readEvents.map((e) => e.file)).toContain('.lerret/social/card.jsx');
+    });
+
+    it('does not duplicate the selected asset when the prompt also names it', async () => {
+        const providerHandle = makeHandle();
+        const sandbox = {
+            exists: async (p) => p === '.lerret/social/card.jsx',
+            readFile: async () => 'CARD CONTENT',
+        };
+        await createInspectorNode({ providerHandle, emit: vi.fn(), sandbox })({
+            prompt: 'what does social/card.jsx show?',
+            scope: { kind: 'file', filePath: 'social/card.jsx' },
+        });
+        const sysMsg = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        const occurrences = sysMsg.split('CARD CONTENT').length - 1;
+        expect(occurrences).toBe(1);
+        expect(sysMsg).toMatch(/\(selected asset\)/);
+        expect(sysMsg).not.toMatch(/Referenced project files:/);
+    });
+
+    it('page-scope turns carry no selected-asset block (nothing to read)', async () => {
+        const providerHandle = makeHandle();
+        const sandbox = { exists: async () => true, readFile: async () => 'X' };
+        await createInspectorNode({ providerHandle, emit: vi.fn(), sandbox })({
+            prompt: 'q',
+            scope: { kind: 'page', label: 'kit page' },
+        });
+        const sysMsg = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sysMsg).not.toMatch(/\(selected asset\)/);
+    });
+
     it('passes the answer text through VERBATIM — file paths intact for the studio link-detector', async () => {
         const answer = 'The banner is .lerret/social/launch-banner.jsx (last edited last week).';
         const emit = vi.fn();

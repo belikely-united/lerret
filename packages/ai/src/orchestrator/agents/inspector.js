@@ -30,6 +30,7 @@
 // agent's (core-purity: no DOM here).
 
 import { thinking, reading, inspectorResponse } from '../events.js';
+import { readScopedFile, elementPinpoint } from './scoped-file.js';
 
 /**
  * File-path token extraction — LINEAR-TIME by construction. The prompt is
@@ -164,11 +165,27 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
             }
         }
 
+        // ── Selection scope (the dock chip) ─────────────────────────────────
+        // The selected asset is folded in as first-class context so questions
+        // are answered from ITS content and change-request redirects name IT —
+        // not a guessed target like _design-system.md (live user-testing
+        // finding, 2026-06-12). Same non-mutating read surface as above.
+        const scoped = canRead ? await readScopedFile(state?.scope, sandbox) : null;
+        if (scoped) emit(reading(scoped.path));
+        const selectedBlock = scoped
+            ? `\n\nThe user has SELECTED this asset on the canvas; questions refer to it ` +
+              `and change requests target it.${elementPinpoint(state?.scope)}\n` +
+              `--- ${scoped.path} (selected asset) ---\n${scoped.content}\n--- end ---`
+            : '';
+
         // ── Provider prompt: question + Memory context + file excerpts ──────
         const context = state?.context ? `\n\nProject context:\n${state.context}` : '';
+        const excerpts = scoped
+            ? fileExcerpts.filter((f) => f.path !== scoped.path)
+            : fileExcerpts;
         const filesBlock =
-            fileExcerpts.length > 0
-                ? `\n\nReferenced project files:\n${fileExcerpts
+            excerpts.length > 0
+                ? `\n\nReferenced project files:\n${excerpts
                       .map((f) => `--- ${f.path} ---\n${f.text}`)
                       .join('\n\n')}`
                 : '';
@@ -189,10 +206,13 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
                         'or delete something, do NOT give manual-edit instructions — tell ' +
                         'them in one short sentence to switch the dock toggle from Inspect ' +
                         'to Ask and send the same request again, optionally adding one ' +
-                        'sentence on which file(s) the change would touch. ' +
+                        'sentence on which file(s) the change would touch. When an asset is ' +
+                        'SELECTED (see the selected-asset block, when present), that change ' +
+                        'would touch the SELECTED asset — name it, never a different file. ' +
                         'When you reference a project file, write its project-relative ' +
                         'POSIX path verbatim (for example .lerret/social/card.jsx).' +
                         context +
+                        selectedBlock +
                         filesBlock,
                 },
                 { role: 'user', content: String(state?.prompt ?? '') },

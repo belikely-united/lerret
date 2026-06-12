@@ -18,6 +18,7 @@ import { isVisionRequired } from '../../vision/router.js';
 import { recognizeWorkflow } from '../workflows/recognize.js';
 import { planLaunchKit } from '../workflows/launch-kit.js';
 import { planSocialVariants } from '../workflows/social-variants.js';
+import { readScopedFile, elementPinpoint, toProjectRelativeLerretPath } from './scoped-file.js';
 
 /**
  * Collect provider-NEUTRAL image blocks (providers/interface.js ImageBlock)
@@ -53,42 +54,9 @@ function imageBlocksFromAttachments(attachments) {
     return blocks;
 }
 
-/** Max characters of a selection-scoped file folded into the planning prompt. */
-const SCOPED_FILE_CHAR_CAP = 12000;
-
-/**
- * Read the selection-scoped file (the dock chip's `{kind:'file', filePath}`)
- * through the sandbox so an EDIT turn plans against the asset's REAL current
- * content — without it the model has nothing to edit and either guesses or
- * answers in prose (found by the Epic 8 close live-model session). Returns
- * null when there is no file scope, no sandbox, or the read fails (the turn
- * then plans without file context, exactly the pre-fix behavior).
- *
- * @param {object|undefined} scope
- * @param {object|undefined} sandbox
- * @returns {Promise<{ path: string, content: string } | null>}
- */
-async function readScopedFile(scope, sandbox) {
-    if (!sandbox || !scope || typeof scope !== 'object') return null;
-    if (scope.kind !== 'file' || typeof scope.filePath !== 'string' || !scope.filePath) return null;
-    // The chip's filePath is project-relative (a LerretPath); the sandbox
-    // speaks `.lerret/`-prefixed relative paths — mirror the Inspector's
-    // prefix fallback.
-    const candidates = scope.filePath.startsWith('.lerret/')
-        ? [scope.filePath]
-        : [`.lerret/${scope.filePath}`, scope.filePath];
-    for (const path of candidates) {
-        try {
-            if (!(await sandbox.exists(path))) continue;
-            const raw = await sandbox.readFile(path, { encoding: 'utf-8' });
-            const content = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
-            return { path, content: content.slice(0, SCOPED_FILE_CHAR_CAP) };
-        } catch {
-            // Violation / read error → try the next candidate, else no context.
-        }
-    }
-    return null;
-}
+// Selection-scoped file reading + element pinpoint live in ./scoped-file.js —
+// SHARED with the Inspector (both provider-calling agents fold the selected
+// asset into their prompts; live user-testing finding, 2026-06-12).
 
 /**
  * Build the messages array for the planning call. Injects the Memory context
@@ -113,18 +81,27 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
     // Element pinpoint (the dock chip's `scope.element`): the exact node the
     // user clicked inside the artboard — the request targets IT, not the
     // whole asset.
-    const el = state.scope && typeof state.scope === 'object' ? state.scope.element : null;
-    const pinpoint =
-        el && typeof el.text === 'string' && el.text.trim()
-            ? `\nThe user clicked the ${el.tag ? `<${el.tag}> ` : ''}element containing ` +
-              `"${el.text.trim().slice(0, 80)}" inside this asset — apply the request to that ` +
-              `element specifically; leave the rest of the file unchanged.`
-            : '';
+    const pinpoint = elementPinpoint(state.scope)
+        ? `${elementPinpoint(state.scope)} Leave the rest of the file unchanged.`
+        : '';
     const scoped = scopedFile
         ? `\n\nThe user has SELECTED this asset; the request applies to it. To edit it, ` +
-          `emit ONE write step at exactly this path with the COMPLETE updated file.${pinpoint}\n` +
+          `emit ONE write step at exactly this path with the COMPLETE updated file. ` +
+          `This selection takes precedence over every project-wide rule — including the ` +
+          `_design-system.md rewrite — UNLESS the request explicitly says it applies to ` +
+          `all assets / everything / the whole project, in which case honor the request's ` +
+          `explicit project-wide intent instead.${pinpoint}\n` +
           `--- ${scopedFile.path} (current content) ---\n${scopedFile.content}\n--- end ---`
         : '';
+    // Page / multi-artboard scopes carry no single file to fold in, but the
+    // model must still know the request is anchored there rather than
+    // project-wide (UX §4.1 chip semantics).
+    const scopeKind = state.scope && typeof state.scope === 'object' ? state.scope.kind : null;
+    const scopeLabel =
+        !scopedFile && (scopeKind === 'page' || scopeKind === 'artboards') && state.scope.label
+            ? `\n\nThe user has scoped this request to: ${String(state.scope.label).slice(0, 80)}. ` +
+              `Keep new/edited files within that scope; do not retheme the whole project.`
+            : '';
     const promptText = String(state.prompt ?? '');
     const userContent =
         imageBlocks.length > 0
@@ -152,7 +129,8 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
                 'write .html files. Markdown (.md) is allowed only when the user asks for notes/docs ' +
                 '— with ONE exception: .lerret/_design-system.md is the project\'s brand authority ' +
                 '(the colors/typography/voice tokens every asset reads; when present, its text ' +
-                'appears in the project context below). For a PROJECT-WIDE look request ' +
+                'appears in the project context below). ONLY when no asset is selected (no ' +
+                'selected-asset block below) and the request asks for a PROJECT-WIDE look change ' +
                 '(change the brand color, switch the typography, retheme everything), emit ONE ' +
                 'write step rewriting .lerret/_design-system.md in place with the COMPLETE updated ' +
                 'content — keep its existing structure and change only the values the request ' +
@@ -163,6 +141,7 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
                 'select that asset on the canvas and resend>"}.' +
                 brand +
                 context +
+                scopeLabel +
                 scoped,
         },
         { role: 'user', content: userContent },
@@ -266,27 +245,41 @@ export function createPlannerNode({ providerHandle, emit, requestVisionDecision,
         // ── Recognized generation workflows (Story 8.8, FR54) ──────────────
         // W2 (launch kit) and W3 (social variants) decompose DETERMINISTICALLY
         // — no provider round-trip. Unrecognized shapes ('edit' / 'generic')
-        // flow through the LLM decomposition below, unchanged.
-        const shape = recognizeWorkflow(state.prompt);
+        // flow through the LLM decomposition below, unchanged. The selection
+        // chip's file serves as W3's reference when the prompt has a variant
+        // cue but names no path ("make 3 variants of this") — the artifacts
+        // never specified W3's reference selection; the chip is the natural
+        // answer (gap closed 2026-06-12).
+        const scopePath =
+            state.scope && typeof state.scope === 'object' && state.scope.kind === 'file'
+                ? toProjectRelativeLerretPath(state.scope.filePath)
+                : undefined;
+        const shape = recognizeWorkflow(state.prompt, { scopePath });
         if (shape.kind === 'launch-kit' && sandbox) {
-            return {
-                plan: await planLaunchKit({
-                    prompt: state.prompt,
-                    platforms: shape.platforms,
-                    brandTokens: state.brandTokens,
-                    fs: sandbox,
-                }),
-            };
+            const plan = await planLaunchKit({
+                prompt: state.prompt,
+                platforms: shape.platforms,
+                brandTokens: state.brandTokens,
+                fs: sandbox,
+            });
+            // A workflow that plans nothing must explain itself, same as the
+            // LLM branch — silent "No files changed." reads as broken.
+            if (plan.length === 0) {
+                emit(clarifyingNote('The launch-kit workflow planned nothing for this request — try naming the platforms (e.g. "launch kit for Twitter and LinkedIn").'));
+            }
+            return { plan };
         }
         if (shape.kind === 'social-variants' && sandbox) {
-            return {
-                plan: await planSocialVariants({
-                    prompt: state.prompt,
-                    reference: shape.reference,
-                    brandTokens: state.brandTokens,
-                    fs: sandbox,
-                }),
-            };
+            const plan = await planSocialVariants({
+                prompt: state.prompt,
+                reference: shape.reference,
+                brandTokens: state.brandTokens,
+                fs: sandbox,
+            });
+            if (plan.length === 0) {
+                emit(clarifyingNote(`Variants need an existing reference asset — couldn't find ${shape.reference?.path ?? 'one'}. Select the asset on the canvas (or name its file) and resend.`));
+            }
+            return { plan };
         }
 
         // Vision-fallback decision (FR56). Recognition comes from the Story

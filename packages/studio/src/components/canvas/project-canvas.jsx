@@ -313,16 +313,26 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // to a `page` scope labelled with the page name. Wrapped in useCallback so
  // the per-section handler identity is stable.
  const emitSectionScope = React.useCallback(
- (section, sectionKind, pageName, element) => {
+ (section, sectionKind, pageName, element, assetPath) => {
  if (!setAiScope) return;
  const assets = section?.entries || [];
  const firstAsset = assets[0]?.asset;
+ // The clicked ARTBOARD wins: when the capture resolved the enclosing
+ // frame's asset path (data-dc-asset-path), file-scope that asset no
+ // matter how many siblings the section holds — clicking an artboard
+ // means "this asset", on multi-asset pages too (live user-testing
+ // finding, 2026-06-12: kit-page clicks silently degraded to a page
+ // scope and the AI lost the target). The `element` pinpoint rides on
+ // the file scope as before.
+ if (assetPath) {
+ setAiScope(fileScope(assetPath, undefined, element));
+ return;
+ }
  // A single-asset section IS that asset — file-scope it whether the
  // section is a sub-group or the page itself (clicking a one-artboard
  // page selects the artboard, and the planner can then read the file
- // for scoped edits). Multi-asset sections stay page-scoped. The
- // optional `element` pinpoint (the clicked node inside the artboard,
- // from DCSection's capture hook) rides on the file scope.
+ // for scoped edits). Multi-asset sections with no artboard hit (a
+ // click on the gap between frames) stay page-scoped.
  if (assets.length === 1 && firstAsset?.path) {
  setAiScope(fileScope(firstAsset.path, undefined, element));
  } else {
@@ -663,7 +673,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  subtitle={subtitle}
  sectionStyle={sectionStyle}
  bare={sectionKind === 'page'}
- onSelectScope={(element) => emitSectionScope(s, sectionKind, page && page.name, element)}
+ onSelectScope={(element, assetPath) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath)}
  >
  {s.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),

@@ -722,3 +722,50 @@ describe('DesignCanvas — top-level group reorder', () => {
  cleanup();
  });
 });
+
+// ─── Selection scope capture — artboard pinpoint (2026-06-12) ─────────────────
+
+describe('DCSection onSelectScope — artboard pinpoint', () => {
+ it('resolves WHICH artboard was clicked on a multi-asset section (data-dc-asset-path)', async () => {
+ const onSelectScope = vi.fn();
+ const { container, cleanup } = renderToDom(
+ <DCSection id="kit" title="Kit" onSelectScope={onSelectScope}>
+ <DCArtboard id="a1" label="One" width={120} height={90} assetPath="kit/one.jsx">
+ <div>Alpha</div>
+ </DCArtboard>
+ <DCArtboard id="a2" label="Two" width={120} height={90} assetPath="kit/two.jsx">
+ <div>Your Name</div>
+ </DCArtboard>
+ </DCSection>,
+ );
+ const target = Array.from(container.querySelectorAll('div')).find(
+ (el) => el.textContent === 'Your Name' && el.children.length === 0,
+ );
+ await act(async () => {
+ target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+ });
+ expect(onSelectScope).toHaveBeenCalledTimes(1);
+ const [element, assetPath] = onSelectScope.mock.calls[0];
+ expect(assetPath).toBe('kit/two.jsx');
+ expect(element).toEqual({ text: 'Your Name', tag: 'div' });
+ cleanup();
+ });
+
+ it('a click outside any artboard frame yields a null assetPath (page scope fallback)', async () => {
+ const onSelectScope = vi.fn();
+ const { container, cleanup } = renderToDom(
+ <DCSection id="kit" title="Kit" onSelectScope={onSelectScope}>
+ <DCArtboard id="a1" label="One" width={120} height={90} assetPath="kit/one.jsx">
+ <div>Alpha</div>
+ </DCArtboard>
+ </DCSection>,
+ );
+ const section = container.querySelector('[data-dc-section]');
+ await act(async () => {
+ section.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+ });
+ expect(onSelectScope).toHaveBeenCalledTimes(1);
+ expect(onSelectScope.mock.calls[0][1]).toBeNull();
+ cleanup();
+ });
+});
