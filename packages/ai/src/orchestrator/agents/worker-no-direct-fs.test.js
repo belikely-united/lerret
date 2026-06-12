@@ -12,14 +12,18 @@ import { fileURLToPath } from 'node:url';
  * write surface available to the Worker. CI verifies via grep.
  *
  * This test scans every shipped file under
- * `packages/ai/src/orchestrator/agents/` (Worker territory), plus the two
+ * `packages/ai/src/orchestrator/agents/` (Worker territory), plus the
  * sibling territories whose code feeds the Worker the same sandbox-only IO
  * discipline: `packages/ai/src/orchestrator/workflows/` (the deterministic
- * W2/W3 planners) and `packages/ai/src/memory/` (the Memory/DS-Curator
- * substrate), and asserts none contains a forbidden pattern. The scan list
- * deliberately excludes `packages/ai/src/providers/` and
- * `packages/ai/src/vault/` — those have their own constraints documented in
- * Story 8.1 (providers/ legitimately uses `fetch(`; vault/ uses Web Crypto).
+ * W2/W3 planners), `packages/ai/src/orchestrator/tools/` (Epic 9, Story 9.5
+ * — the agent loop + tool contract; every tool execution flows through this
+ * code, so a direct fs/net/shell surface there would bypass the sandbox
+ * exactly like one in the Worker), and `packages/ai/src/memory/` (the
+ * Memory/DS-Curator substrate), and asserts none contains a forbidden
+ * pattern. The scan list deliberately excludes `packages/ai/src/providers/`
+ * and `packages/ai/src/vault/` — those have their own constraints documented
+ * in Story 8.1 (providers/ legitimately uses `fetch(`; vault/ uses Web
+ * Crypto).
  *
  * Structural sibling of `packages/ai/src/no-static-imports.test.js`.
  */
@@ -31,6 +35,7 @@ const __dirname = dirname(__filename);
 const SCAN_DIRS = [
     __dirname, // orchestrator/agents/
     join(__dirname, '..', 'workflows'), // orchestrator/workflows/
+    join(__dirname, '..', 'tools'), // orchestrator/tools/ — the agent loop (Epic 9, Story 9.5)
     join(__dirname, '..', '..', 'memory'), // memory/
 ];
 const EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
@@ -174,7 +179,16 @@ function walkSource(dir, hits) {
 }
 
 describe('Worker agents — no direct fs / network / shell surface', () => {
-    it('no forbidden patterns in any file under agents/, workflows/, or memory/', () => {
+    it('the Epic 9 loop territory (orchestrator/tools/) exists — the scan scope cannot rot to a no-op', () => {
+        // walkSource skips missing directories SILENTLY (worktree-stitching
+        // tolerance), so a relocation of tools/ would otherwise drop the
+        // Story 9.5 scope extension without failing anything. Pin presence.
+        const names = readdirSync(join(__dirname, '..', 'tools'));
+        expect(names).toContain('loop.js');
+        expect(names).toContain('definitions.js');
+    });
+
+    it('no forbidden patterns in any file under agents/, workflows/, tools/, or memory/', () => {
         const offenders = [];
         for (const dir of SCAN_DIRS) walkSource(dir, offenders);
         expect(

@@ -34,6 +34,11 @@ const SCAN_DIRS = [
     // (binds it to `apiKey`) before handing it to the provider's configure().
     // Scan orchestrator/ too so a `console.log(apiKey)` slip in the
     // provider-handle resolution (or any orchestrator file) fails CI.
+    // Story 9.5: this recursive walk INCLUDES orchestrator/tools/ — the agent
+    // loop handles raw provider responses on every iteration, so no key
+    // material may be logged/serialized there either; a dedicated test below
+    // pins that the tools/ territory is present and inside this scope (the
+    // walk skips missing dirs silently, so a relocation must fail loudly).
     join(SRC_ROOT, 'orchestrator'),
 ];
 const EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
@@ -163,6 +168,28 @@ describe('@lerret/ai key-material leak guard', () => {
                       'The decrypted key must NEVER appear in logs. Replace with a boolean ' +
                       '(e.g., console.log("configured", !!this.apiKey)) and remove before commit.'
                 : 'no leaks'
+        ).toEqual([]);
+    });
+
+    it('the agent-loop territory (orchestrator/tools/, Story 9.5) is present and leak-free', () => {
+        // The loop (tools/loop.js) receives raw provider responses every
+        // iteration — adjacent to where a debugging `console.log` of request
+        // state (which can carry auth context) is most tempting. The
+        // recursive orchestrator/ entry in SCAN_DIRS covers this directory;
+        // this test makes the coverage NON-VACUOUS: readdirSync throws if the
+        // directory moves (walkSource would skip it silently), and the direct
+        // walk pins the territory clean on its own.
+        const toolsDir = join(SRC_ROOT, 'orchestrator', 'tools');
+        const names = readdirSync(toolsDir);
+        expect(names).toContain('loop.js');
+        expect(names).toContain('definitions.js');
+        const offenders = [];
+        walkSource(toolsDir, offenders);
+        expect(
+            offenders,
+            offenders.length
+                ? `orchestrator/tools/ contains key-material logging:\n  ${offenders.join('\n  ')}`
+                : 'no leaks',
         ).toEqual([]);
     });
 

@@ -17,6 +17,14 @@
 //      dynamic, or require), no `createWorker` reference, and no sandbox
 //      mutator member access — the mutation surface is absent from the
 //      inspect module, not merely unused.
+//
+// Epic 9 (Story 9.5, architecture-epic-9 §7) extends BOTH directions to the
+// agent loop: `orchestrator/tools/` (loop.js + definitions.js) is the inspect
+// lane's EXECUTION ENGINE — a mutator reference there would hand the
+// read-only lane a write path — so the same forbidden-pattern scan covers it;
+// the Inspector must register READ_TOOLS (never ALL_TOOLS); and the runtime
+// spies are re-run over a full inspect LOOP turn (tool-capable handle whose
+// completeWithTools requests list_dir + read_file before answering).
 
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -216,6 +224,97 @@ describe('inspect mode — runtime read-only guarantee (AC-11)', () => {
     });
 });
 
+describe('inspect mode — runtime read-only guarantee over a full agent LOOP turn (Story 9.5)', () => {
+    /**
+     * A TOOL-CAPABLE mock handle: `completeWithTools` consumes a scripted
+     * response queue ({text, toolCalls, usage} shapes). name/model keep
+     * `supportsTools` true so the Inspector takes its Epic 9 loop branch.
+     */
+    function toolLoopHandle(script, { name = 'openai', model = 'gpt-4o' } = {}) {
+        let i = 0;
+        return {
+            name,
+            model,
+            modelSupportsVision: () => true,
+            complete: vi.fn(async () => ({ content: 'fallback path (must not be used)' })),
+            async *stream() {},
+            completeWithTools: vi.fn(async () => {
+                if (i >= script.length) throw new Error(`scripted handle exhausted at call ${i}`);
+                return script[i++];
+            }),
+        };
+    }
+
+    it('a loop-driven inspect turn (list_dir + read_file, then answer) calls ZERO mutators and writes NO manifest', async () => {
+        const fs = spyMutators(createInMemoryFs());
+        seedFs(fs, {
+            [`${PROJECT_ROOT}/.lerret/social/card.jsx`]: 'export const Card = () => null;',
+        });
+        const before = [...fs._files.keys()].sort();
+        const active = toolLoopHandle([
+            {
+                text: '',
+                toolCalls: [
+                    { id: 't1', name: 'list_dir', args: { path: '.lerret/' } },
+                    { id: 't2', name: 'read_file', args: { path: 'social/card.jsx' } },
+                ],
+                usage: { inputTokens: 7, outputTokens: 3 },
+            },
+            {
+                text: 'One social asset: .lerret/social/card.jsx.',
+                toolCalls: [],
+                usage: { inputTokens: 9, outputTokens: 4 },
+            },
+        ]);
+        const resolver = mockResolver(active);
+
+        const events = await collect(
+            runTurn({
+                prompt: 'what assets exist?',
+                mode: 'inspect',
+                projectRoot: PROJECT_ROOT,
+                fs,
+                resolver,
+            }),
+        );
+
+        // The LOOP ran (both read tools executed, surfaced as reads) — this
+        // is the Epic 9 branch, not the Epic 8 targeted-read fallback.
+        expect(active.completeWithTools).toHaveBeenCalledTimes(2);
+        expect(active.complete).not.toHaveBeenCalled();
+        expect(events.filter((e) => e.type === 'tool-call').map((e) => e.name)).toEqual([
+            'list_dir',
+            'read_file',
+        ]);
+        expect(events.some((e) => e.type === 'reading' && e.file === '.lerret/')).toBe(true);
+        expect(
+            events.some((e) => e.type === 'reading' && e.file === '.lerret/social/card.jsx'),
+        ).toBe(true);
+
+        // ZERO mutations: no mutator spy fired, no mutation events, the
+        // backend's key set is byte-identical to the seed.
+        expect(fs.writeFile).not.toHaveBeenCalled();
+        expect(fs.deleteFile).not.toHaveBeenCalled();
+        expect(fs.mkdir).not.toHaveBeenCalled();
+        expect(events.filter((e) => ['writing', 'deleting', 'mkdir'].includes(e.type))).toEqual([]);
+        expect([...fs._files.keys()].sort()).toEqual(before);
+
+        // ONE inspector-response (the loop's closing text) before done; done
+        // carries files: [] and NO turnId.
+        const responses = events.filter((e) => e.type === 'inspector-response');
+        expect(responses).toHaveLength(1);
+        expect(responses[0].answer).toBe('One social asset: .lerret/social/card.jsx.');
+        const doneIdx = events.findIndex((e) => e.type === 'done');
+        expect(doneIdx).toBeGreaterThan(events.findIndex((e) => e.type === 'inspector-response'));
+        expect(events[doneIdx].files).toEqual([]);
+        expect(events[doneIdx]).not.toHaveProperty('turnId');
+
+        // NO manifest, NO history blob — the revert timeline did not grow.
+        expect(await snapshot.listManifests({ projectRoot: PROJECT_ROOT, fs })).toEqual([]);
+        expect([...fs._files.keys()].filter((k) => k.includes('/.state/history/'))).toEqual([]);
+    });
+});
+
 // ─── Source-level structural guarantee (grep guard, mirrors worker-no-direct-fs) ──
 
 const __filename = fileURLToPath(import.meta.url);
@@ -340,5 +439,66 @@ describe('inspect mode — source-level structural guarantee', () => {
             const matched = FORBIDDEN_INSPECTOR_PATTERNS.find(({ pattern }) => pattern.test(body));
             expect(matched, `expected NO match for innocuous string: "${body}"`).toBeUndefined();
         }
+    });
+});
+
+// ─── Epic 9 structural extension (Story 9.5, architecture-epic-9 §7) ────────
+//
+// The agent loop is the inspect lane's execution engine: the Inspector hands
+// `runAgentLoop` its read-only executors, so `tools/loop.js` and
+// `tools/definitions.js` joining the inspect path means the SAME mutation
+// surface ban applies to them — a Worker import or sandbox mutator reference
+// in the loop would hand the read-only lane a write path the inspector.js
+// scan above cannot see.
+
+describe('inspect mode — agent-loop structural guarantee (Epic 9)', () => {
+    const TOOLS_DIR = join(__dirname, 'tools');
+
+    it('tools/loop.js contains no Worker import and no sandbox mutator reference', () => {
+        const source = readFileSync(join(TOOLS_DIR, 'loop.js'), 'utf8');
+        const offenders = FORBIDDEN_INSPECTOR_PATTERNS.filter(({ pattern }) =>
+            pattern.test(source),
+        ).map(({ label }) => label);
+        expect(
+            offenders,
+            offenders.length
+                ? `tools/loop.js contains forbidden patterns:\n  ${offenders.join('\n  ')}\n\n` +
+                      'The loop executes the inspect lane read-only via INJECTED executors. ' +
+                      'It must never import worker.js, reference createWorker, or touch a ' +
+                      'sandbox mutator itself — mutation lives only in executors the Ask ' +
+                      'lane injects.'
+                : 'clean',
+        ).toEqual([]);
+        // Sanity: the scan read the real loop module (a path move cannot
+        // silently turn this grep into a no-op).
+        expect(source).toMatch(/runAgentLoop/);
+    });
+
+    it('tools/definitions.js contains no Worker import and no sandbox mutator reference', () => {
+        const source = readFileSync(join(TOOLS_DIR, 'definitions.js'), 'utf8');
+        const offenders = FORBIDDEN_INSPECTOR_PATTERNS.filter(({ pattern }) =>
+            pattern.test(source),
+        ).map(({ label }) => label);
+        expect(
+            offenders,
+            offenders.length
+                ? `tools/definitions.js contains forbidden patterns:\n  ${offenders.join('\n  ')}`
+                : 'clean',
+        ).toEqual([]);
+        expect(source).toMatch(/READ_TOOLS/);
+    });
+
+    it('agents/inspector.js registers READ_TOOLS — and never references ALL_TOOLS', () => {
+        // The read-only asymmetry is structural at the tool-definition layer:
+        // the Inspector's registry is the READ_TOOLS subset, so the write
+        // tools do not EXIST in its lane. A reference to ALL_TOOLS anywhere in
+        // the module would be the first step of that guarantee eroding.
+        expect(INSPECTOR_SOURCE).toMatch(/\bREAD_TOOLS\b/);
+        expect(INSPECTOR_SOURCE).not.toMatch(/\bALL_TOOLS\b/);
+        // And the registration is the real import from the definitions module,
+        // not a stray comment mention.
+        expect(INSPECTOR_SOURCE).toMatch(
+            /import\s*\{[^}]*\bREAD_TOOLS\b[^}]*\}\s*from\s*['"]\.\.\/tools\/definitions\.js['"]/,
+        );
     });
 });
