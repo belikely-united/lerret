@@ -230,5 +230,30 @@ export function createSandbox({ projectRoot, fs } = {}) {
             validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ true);
             return fs.exists(normalized);
         },
+        // List the immediate children of a directory inside (or equal to) the
+        // `.lerret/` tree — the non-mutating discovery surface the Epic 9
+        // agent loop's `list_dir` tool reads through. Entries are
+        // `{ name, kind: 'file'|'dir', size? }`, name-sorted. The `.state/`
+        // sidecar (snapshot history) is OPAQUE here: listing `.lerret/.state`
+        // or anything under it returns [] — the AI never enumerates history
+        // blobs (noise + size), while `.state` still appears as one entry
+        // when listing `.lerret/` itself (that it exists is the truth; its
+        // contents are not browsable).
+        listDir: async (path) => {
+            const normalized = normalizePath(projectRoot, path);
+            validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ true);
+            const stateRoot = `${projectRoot}/.lerret/.state`;
+            if (normalized === stateRoot || normalized.startsWith(`${stateRoot}/`)) {
+                return [];
+            }
+            const entries = await fs.readDir(normalized);
+            return entries
+                .map((e) => ({
+                    name: e.name,
+                    kind: e.isDirectory === true ? 'dir' : 'file',
+                    ...(typeof e.size === 'number' ? { size: e.size } : {}),
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+        },
     };
 }

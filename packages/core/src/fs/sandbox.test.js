@@ -455,3 +455,49 @@ describe('createSandbox factory validation', () => {
         );
     });
 });
+
+// ─── listDir — the Epic 9 discovery surface (Story 9.0) ───────────────────────
+
+describe('listDir — validated, non-mutating discovery', () => {
+    it('lists .lerret/ children name-sorted with kind (and size when the backend provides it)', async () => {
+        const { sandbox, fs } = makeSandbox();
+        fs.readDir.mockResolvedValue([
+            { name: 'social', path: `${PROJECT_ROOT}/.lerret/social`, kind: 'directory', isFile: false, isDirectory: true },
+            { name: 'banner.jsx', path: `${PROJECT_ROOT}/.lerret/banner.jsx`, kind: 'file', isFile: true, isDirectory: false, size: 412 },
+            { name: '_design-system.md', path: `${PROJECT_ROOT}/.lerret/_design-system.md`, kind: 'file', isFile: true, isDirectory: false },
+        ]);
+        const entries = await sandbox.listDir('.lerret/');
+        expect(fs.readDir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret`);
+        expect(entries).toEqual([
+            { name: '_design-system.md', kind: 'file' },
+            { name: 'banner.jsx', kind: 'file', size: 412 },
+            { name: 'social', kind: 'dir' },
+        ]);
+    });
+
+    it('accepts the .lerret root itself and nested dirs; rejects traversal and outside paths', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.listDir('.lerret/social');
+        expect(fs.readDir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret/social`);
+        await expect(sandbox.listDir('.lerret/../src')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+        });
+        await expect(sandbox.listDir('src')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+        });
+        // The two rejections never reached the backend.
+        expect(fs.readDir).toHaveBeenCalledTimes(1);
+    });
+
+    it('.lerret/.state and anything under it are OPAQUE — [] without touching the backend', async () => {
+        const { sandbox, fs } = makeSandbox();
+        expect(await sandbox.listDir('.lerret/.state')).toEqual([]);
+        expect(await sandbox.listDir('.lerret/.state/history/manifests')).toEqual([]);
+        expect(fs.readDir).not.toHaveBeenCalled();
+        // But .state APPEARS as an entry when listing .lerret/ (backend truth passes through).
+        fs.readDir.mockResolvedValue([
+            { name: '.state', path: `${PROJECT_ROOT}/.lerret/.state`, kind: 'directory', isFile: false, isDirectory: true },
+        ]);
+        expect(await sandbox.listDir('.lerret')).toEqual([{ name: '.state', kind: 'dir' }]);
+    });
+});

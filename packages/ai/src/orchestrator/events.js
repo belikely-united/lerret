@@ -48,6 +48,8 @@ export const TURN_EVENT_TYPES = Object.freeze([
     'error',
     'stopped',
     'needs-vision-fallback',
+    'turn-progress',
+    'needs-continue',
 ]);
 
 /**
@@ -69,6 +71,8 @@ export const TURN_EVENT_TYPES = Object.freeze([
  *   | { type: 'error', error: { class: string, message: string } }
  *   | { type: 'stopped', turnId?: string }
  *   | { type: 'needs-vision-fallback', requiredCapability: 'vision', eligibleProviders: Array<{ name: string, model: string }> }
+ *   | { type: 'turn-progress', turn: number, maxTurns: number, spentTokens: number }
+ *   | { type: 'needs-continue', turnsUsed: number, spentTokens: number }
  * } TurnEvent
  */
 
@@ -151,11 +155,17 @@ export function inspectorResponse(answer) {
  *
  * @param {Array<TurnFileEntry>} files
  * @param {string} [turnId]  The turn-manifest id (revert target).
+ * @param {string} [summary]  The agent's closing summary text (Epic 9 loop
+ *   turns end with a short "what I did" — the thread shows it as the
+ *   outcome line). Omitted for inspect turns and legacy single-shot plans.
  * @returns {TurnEvent}
  */
-export function done(files, turnId) {
+export function done(files, turnId, summary) {
     const ev = { type: 'done', files: Object.freeze([...(files ?? [])]) };
     if (typeof turnId === 'string') ev.turnId = turnId;
+    if (typeof summary === 'string' && summary.trim().length > 0) {
+        ev.summary = summary.trim();
+    }
     return Object.freeze(ev);
 }
 
@@ -201,5 +211,62 @@ export function needsVisionFallback(eligibleProviders) {
         type: 'needs-vision-fallback',
         requiredCapability: 'vision',
         eligibleProviders: Object.freeze([...(eligibleProviders ?? [])]),
+    });
+}
+
+/**
+ * Coerce a numeric-ish input to a plain number for event payloads —
+ * `Number()` semantics with NaN normalized to 0, so a malformed provider
+ * `usage` field can never put NaN in front of the dock.
+ *
+ * @param {unknown} value
+ * @returns {number}
+ */
+function asEventNumber(value) {
+    const n = Number(value);
+    return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * Loop heartbeat (Story 9.1, architecture-epic-9 §6): the agent loop emits
+ * one per completed loop turn. Drives the dock's quiet turn counter
+ * ("Turn 3/10") and the running spend line — `spentTokens` is the CUMULATIVE
+ * input+output token count for the whole user-perceived turn, never this
+ * iteration's delta (BYOK users pay directly, so spend is shown live and
+ * honestly; ADR-006 Consequences).
+ *
+ * @param {number} turn
+ * @param {number} maxTurns
+ * @param {number} spentTokens
+ * @returns {TurnEvent}
+ */
+export function turnProgress(turn, maxTurns, spentTokens) {
+    return Object.freeze({
+        type: 'turn-progress',
+        turn: asEventNumber(turn),
+        maxTurns: asEventNumber(maxTurns),
+        spentTokens: asEventNumber(spentTokens),
+    });
+}
+
+/**
+ * The agent loop hit its turn cap with the model still requesting tools
+ * (Story 9.1, ADR-006 §3: never a silent stop). Mirrors
+ * `needs-vision-fallback`'s resolver-callback pattern (see header comment):
+ * the loop emits this AND blocks on the caller-supplied `onContinueDecision`
+ * resolver; the dock renders the inline "Paused after N steps — Continue /
+ * Stop here" affordance inside the resolver and resolves it when the user
+ * chooses. Never emitted headless — with no resolver the loop cap-stops
+ * immediately instead of asking nobody.
+ *
+ * @param {number} turnsUsed
+ * @param {number} spentTokens
+ * @returns {TurnEvent}
+ */
+export function needsContinue(turnsUsed, spentTokens) {
+    return Object.freeze({
+        type: 'needs-continue',
+        turnsUsed: asEventNumber(turnsUsed),
+        spentTokens: asEventNumber(spentTokens),
     });
 }

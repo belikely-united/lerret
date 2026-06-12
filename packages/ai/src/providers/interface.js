@@ -72,6 +72,94 @@ export const PROVIDER_VARIANTS = Object.freeze(['cloud-byok', 'local-keyless']);
  *   provider's body-builder owns the vendor translation.
  */
 
+// ─────────────────────────────────────────────────────────────────────────
+// Agentic tool-calling contract (Epic 9, Story 9.2 — ADR-006)
+//
+// `completeWithTools` joins `complete` / `stream` on the provider surface.
+// The orchestrator's tool loop (Story 9.1) speaks ONE internal shape; each
+// concrete provider translates it to its vendor wire format, mirroring the
+// ImageBlock vision-translation pattern above:
+//
+//   - Anthropic    → `tools[{name,description,input_schema,strict}]`;
+//                    calls arrive as `tool_use` content blocks; results go
+//                    back as `tool_result` blocks inside ONE user message;
+//                    `cache_control` breakpoint rides the last tool def.
+//   - OpenAI /     → `tools[{type:'function', function:{...}}]`; calls
+//     OpenRouter     arrive as `message.tool_calls` with JSON-STRING
+//                    `arguments` (parsed once at the provider boundary);
+//                    results go back as N `{role:'tool', tool_call_id}`
+//                    messages. Tools are re-sent on EVERY request.
+//   - Ollama       → OpenAI function shape on NATIVE `/api/chat` only (the
+//                    `/v1` compat layer is banned — it drops streamed tool
+//                    calls); `arguments` is already an object; call ids may
+//                    be absent and are synthesized (`call_1`, `call_2`, …);
+//                    results go back as `{role:'tool', content, tool_name}`.
+//
+// Tool-call arguments are NEVER streamed in v1 — `completeWithTools` is a
+// non-streaming POST per loop iteration; existing text streaming via
+// `stream()` is untouched (ADR-006 §Decision 5).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * A tool definition offered to the model. `parameters` is a JSON Schema
+ * object; each provider translates it to its vendor field (`input_schema`
+ * for Anthropic, `function.parameters` for the OpenAI shape).
+ *
+ * @typedef {Object} ToolDef
+ * @property {string} name
+ * @property {string} description
+ * @property {object} parameters  JSON Schema for the tool's arguments.
+ */
+
+/**
+ * One tool invocation requested by the model. `args` is ALWAYS a parsed
+ * plain object — never a JSON string; the provider boundary owns the parse
+ * (and degrades unparseable vendor arguments to `{}`).
+ *
+ * @typedef {Object} ToolCall
+ * @property {string} id    Vendor call id, or synthesized for Ollama.
+ * @property {string} name
+ * @property {object} args
+ */
+
+/**
+ * One executed-tool result, addressed to a preceding assistant turn's
+ * ToolCall by `callId`. `isError: true` marks a failed execution — the
+ * loop feeds it back so the model can self-correct (never a thrown turn).
+ *
+ * @typedef {Object} ToolResult
+ * @property {string} callId   The ToolCall `id` this result answers.
+ * @property {string} name     The tool name (Ollama's wire needs it).
+ * @property {string} content
+ * @property {boolean} [isError]
+ */
+
+/**
+ * Neutral message shapes accepted by `completeWithTools` — the vision-era
+ * `Message` shapes plus two loop-history forms:
+ *
+ *   - `{role:'system', content: string}`
+ *   - `{role:'user', content: string | Array<TextBlock|ImageBlock>}`
+ *   - `{role:'assistant', content: string, toolCalls?: Array<ToolCall>}`
+ *     — a previous loop turn, replayed verbatim.
+ *   - `{role:'tool', results: Array<ToolResult>}`
+ *     — the results for the PRECEDING assistant turn's toolCalls.
+ *
+ * @typedef {Message | {role:'assistant', content: string, toolCalls?: Array<ToolCall>} | {role:'tool', results: Array<ToolResult>}} ToolLoopMessage
+ */
+
+/**
+ * Normalized `completeWithTools` response envelope.
+ *
+ * @typedef {Object} CompleteWithToolsResult
+ * @property {string} text  Concatenated text parts ('' if none).
+ * @property {Array<ToolCall>} toolCalls  [] when the model made no calls.
+ * @property {{inputTokens: number, outputTokens: number}} usage
+ *   Numbers; 0 when the vendor omits a count.
+ * @property {string} [stopReason]  Vendor stop value, passthrough for
+ *   debugging (`tool_use`, `tool_calls`, `stop`, …).
+ */
+
 /**
  * @typedef {Object} TextDelta
  * @property {'text-delta'} type
@@ -158,6 +246,26 @@ export class AIProvider {
     // eslint-disable-next-line no-unused-vars
     async complete(args) {
         throw new Error('AIProvider.complete: not implemented');
+    }
+
+    /**
+     * Send one tool-loop iteration (non-streaming). The orchestrator's
+     * agent loop (Story 9.1) calls this once per turn with the full neutral
+     * history (`ToolLoopMessage[]`) and the tool definitions (`ToolDef[]`),
+     * and consumes the normalized `CompleteWithToolsResult` — zero
+     * `toolCalls` terminates the loop.
+     *
+     * Errors MUST flow through the same normalized `ProviderError`
+     * subclasses as `complete()` (the concrete providers reuse their
+     * `_post` / `_mapError` plumbing). Tool definitions MUST be re-sent on
+     * every call — the wire is stateless (especially OpenRouter).
+     *
+     * @param {{ messages: Array<ToolLoopMessage>, tools: Array<ToolDef>, signal: AbortSignal, model?: string }} args
+     * @returns {Promise<CompleteWithToolsResult>}
+     */
+    // eslint-disable-next-line no-unused-vars
+    async completeWithTools(args) {
+        throw new Error('AIProvider.completeWithTools: not implemented');
     }
 
     /**

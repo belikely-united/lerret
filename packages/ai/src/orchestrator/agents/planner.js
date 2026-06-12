@@ -30,7 +30,7 @@ import { readScopedFile, elementPinpoint, toProjectRelativeLerretPath } from './
  * @param {Array<object>|undefined} attachments
  * @returns {Array<{ type: 'image', mimeType?: string, base64?: string, dataUrl?: string }>}
  */
-function imageBlocksFromAttachments(attachments) {
+export function imageBlocksFromAttachments(attachments) {
     if (!Array.isArray(attachments)) return [];
     const blocks = [];
     for (const a of attachments) {

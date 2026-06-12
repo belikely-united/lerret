@@ -257,4 +257,237 @@ describe('AnthropicProvider', () => {
         await p.complete({ messages: [], signal: ctrl.signal });
         expect(fetchSpy.mock.calls[0][1].signal).toBe(ctrl.signal);
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // completeWithTools — Story 9.2 AC-2 (wire shape pinned both ways)
+    // ────────────────────────────────────────────────────────────────────
+    describe('completeWithTools', () => {
+        const TOOLS = [
+            {
+                name: 'list_dir',
+                description: 'List a directory',
+                parameters: { type: 'object', properties: { path: { type: 'string' } } },
+            },
+            {
+                name: 'read_file',
+                description: 'Read a file',
+                parameters: { type: 'object', properties: { path: { type: 'string' } } },
+            },
+        ];
+
+        function toolResponse(overrides = {}) {
+            return jsonResponse({
+                content: [{ type: 'text', text: 'ok' }],
+                stop_reason: 'end_turn',
+                usage: { input_tokens: 10, output_tokens: 5 },
+                ...overrides,
+            });
+        }
+
+        it('POSTs a NON-streaming /v1/messages body with input_schema tools, strict, and cache_control on the LAST tool only', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'system', content: 'You build assets.' },
+                    { role: 'user', content: 'go' },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const [url, init] = fetchSpy.mock.calls[0];
+            expect(url).toBe('https://api.anthropic.com/v1/messages');
+            expect(init.method).toBe('POST');
+            // Same headers as complete() — incl. the browser-direct opt-in.
+            expect(init.headers['x-api-key']).toBe('sk-ant-test');
+            expect(init.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
+            const body = JSON.parse(init.body);
+            // Non-streaming POST (tool args are never streamed in v1).
+            expect(body.stream).toBeUndefined();
+            // System extraction still applies.
+            expect(body.system).toBe('You build assets.');
+            expect(typeof body.max_tokens).toBe('number');
+            // Tools: input_schema + strict; cache_control on the LAST only.
+            expect(body.tools).toEqual([
+                {
+                    name: 'list_dir',
+                    description: 'List a directory',
+                    input_schema: { type: 'object', properties: { path: { type: 'string' } } },
+                    strict: true,
+                },
+                {
+                    name: 'read_file',
+                    description: 'Read a file',
+                    input_schema: { type: 'object', properties: { path: { type: 'string' } } },
+                    strict: true,
+                    cache_control: { type: 'ephemeral' },
+                },
+            ]);
+            expect(body.tools[0].cache_control).toBeUndefined();
+        });
+
+        it('maps loop history: assistant toolCalls → text + tool_use blocks; tool results → ONE user message of tool_result blocks', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk', model: 'claude-sonnet-4-6' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'user', content: 'retheme the banner' },
+                    {
+                        role: 'assistant',
+                        content: 'Let me look around.',
+                        toolCalls: [
+                            { id: 'toolu_1', name: 'list_dir', args: { path: '.lerret' } },
+                            { id: 'toolu_2', name: 'read_file', args: { path: '.lerret/banner.jsx' } },
+                        ],
+                    },
+                    {
+                        role: 'tool',
+                        results: [
+                            { callId: 'toolu_1', name: 'list_dir', content: 'banner.jsx · file · 120' },
+                            { callId: 'toolu_2', name: 'read_file', content: 'nope', isError: true },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages).toEqual([
+                { role: 'user', content: 'retheme the banner' },
+                {
+                    role: 'assistant',
+                    content: [
+                        { type: 'text', text: 'Let me look around.' },
+                        { type: 'tool_use', id: 'toolu_1', name: 'list_dir', input: { path: '.lerret' } },
+                        { type: 'tool_use', id: 'toolu_2', name: 'read_file', input: { path: '.lerret/banner.jsx' } },
+                    ],
+                },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'tool_result', tool_use_id: 'toolu_1', content: 'banner.jsx · file · 120' },
+                        { type: 'tool_result', tool_use_id: 'toolu_2', content: 'nope', is_error: true },
+                    ],
+                },
+            ]);
+        });
+
+        it('omits the text block when the assistant turn had no text', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'user', content: 'go' },
+                    {
+                        role: 'assistant',
+                        content: '',
+                        toolCalls: [{ id: 'toolu_1', name: 'list_dir', args: {} }],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages[1].content).toEqual([
+                { type: 'tool_use', id: 'toolu_1', name: 'list_dir', input: {} },
+            ]);
+        });
+
+        it('translates multipart user vision blocks with the same builder as complete()', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk' });
+            await p.completeWithTools({
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: 'match this' },
+                            { type: 'image', mimeType: 'image/png', base64: 'QUJD' },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages[0].content).toEqual([
+                { type: 'text', text: 'match this' },
+                { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } },
+            ]);
+        });
+
+        it('parses tool_use blocks → toolCalls with object args; concatenates text blocks; maps usage + stop_reason', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    content: [
+                        { type: 'text', text: 'I will ' },
+                        { type: 'text', text: 'read it.' },
+                        { type: 'tool_use', id: 'toolu_9', name: 'read_file', input: { path: 'a.jsx' } },
+                    ],
+                    stop_reason: 'tool_use',
+                    usage: { input_tokens: 321, output_tokens: 42 },
+                }),
+            );
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result).toEqual({
+                text: 'I will read it.',
+                toolCalls: [{ id: 'toolu_9', name: 'read_file', args: { path: 'a.jsx' } }],
+                usage: { inputTokens: 321, outputTokens: 42 },
+                stopReason: 'tool_use',
+            });
+        });
+
+        it('returns empty text, empty toolCalls, and zero usage when the vendor omits them', async () => {
+            fetchSpy.mockResolvedValueOnce(jsonResponse({ content: [] }));
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result.text).toBe('');
+            expect(result.toolCalls).toEqual([]);
+            expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+            expect(result.stopReason).toBeUndefined();
+        });
+
+        it('normalizes errors through the same classes as complete() (HTTP 400 model error → BadModel)', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                errorResponse(400, { error: { type: 'invalid_request_error', message: 'model: not supported' } }),
+            );
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk' });
+            await expect(
+                p.completeWithTools({
+                    messages: [{ role: 'user', content: 'go' }],
+                    tools: TOOLS,
+                    signal: new AbortController().signal,
+                }),
+            ).rejects.toBeInstanceOf(BadModel);
+        });
+
+        it('passes AbortSignal through to fetch', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk' });
+            const ctrl = new AbortController();
+            await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: ctrl.signal,
+            });
+            expect(fetchSpy.mock.calls[0][1].signal).toBe(ctrl.signal);
+        });
+    });
 });

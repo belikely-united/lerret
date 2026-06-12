@@ -235,4 +235,281 @@ describe('OpenAIProvider', () => {
         expect(result.ok).toBe(false);
         expect(result.reason).toBe('invalid-key');
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // completeWithTools — Story 9.2 AC-3 (wire shape pinned both ways)
+    // ────────────────────────────────────────────────────────────────────
+    describe('completeWithTools', () => {
+        const TOOLS = [
+            {
+                name: 'list_dir',
+                description: 'List a directory',
+                parameters: { type: 'object', properties: { path: { type: 'string' } } },
+            },
+        ];
+
+        function toolResponse(overrides = {}) {
+            return jsonResponse({
+                choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 10, completion_tokens: 5 },
+                ...overrides,
+            });
+        }
+
+        it('POSTs a NON-streaming body with function-shaped tools', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk-test', model: 'gpt-4o' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'system', content: 'You build assets.' },
+                    { role: 'user', content: 'go' },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const [url, init] = fetchSpy.mock.calls[0];
+            expect(url).toBe('https://api.openai.com/v1/chat/completions');
+            expect(init.headers.Authorization).toBe('Bearer sk-test');
+            const body = JSON.parse(init.body);
+            expect(body.stream).toBe(false);
+            expect(body.tools).toEqual([
+                {
+                    type: 'function',
+                    function: {
+                        name: 'list_dir',
+                        description: 'List a directory',
+                        parameters: { type: 'object', properties: { path: { type: 'string' } } },
+                    },
+                },
+            ]);
+            // System messages ride messages[] verbatim on this wire.
+            expect(body.messages[0]).toEqual({ role: 'system', content: 'You build assets.' });
+        });
+
+        it('re-sends tools on EVERY request (stateless wire)', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse()).mockResolvedValueOnce(toolResponse());
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk', model: 'gpt-4o' });
+            const args = {
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            };
+            await p.completeWithTools(args);
+            await p.completeWithTools(args);
+            expect(fetchSpy).toHaveBeenCalledTimes(2);
+            for (const call of fetchSpy.mock.calls) {
+                expect(JSON.parse(call[1].body).tools).toHaveLength(1);
+            }
+        });
+
+        it('maps loop history: assistant toolCalls → tool_calls with STRINGIFIED arguments; results → N role:tool messages', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk', model: 'gpt-4o' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'user', content: 'retheme the banner' },
+                    {
+                        role: 'assistant',
+                        content: 'Looking around.',
+                        toolCalls: [
+                            { id: 'call_a', name: 'list_dir', args: { path: '.lerret' } },
+                            { id: 'call_b', name: 'read_file', args: { path: '.lerret/banner.jsx' } },
+                        ],
+                    },
+                    {
+                        role: 'tool',
+                        results: [
+                            { callId: 'call_a', name: 'list_dir', content: 'banner.jsx · file · 120' },
+                            { callId: 'call_b', name: 'read_file', content: 'no such file', isError: true },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages).toEqual([
+                { role: 'user', content: 'retheme the banner' },
+                {
+                    role: 'assistant',
+                    content: 'Looking around.',
+                    tool_calls: [
+                        {
+                            id: 'call_a',
+                            type: 'function',
+                            function: { name: 'list_dir', arguments: '{"path":".lerret"}' },
+                        },
+                        {
+                            id: 'call_b',
+                            type: 'function',
+                            function: { name: 'read_file', arguments: '{"path":".lerret/banner.jsx"}' },
+                        },
+                    ],
+                },
+                // One role:tool message PER result, order preserved; isError
+                // surfaces as an 'ERROR: ' content prefix.
+                { role: 'tool', tool_call_id: 'call_a', content: 'banner.jsx · file · 120' },
+                { role: 'tool', tool_call_id: 'call_b', content: 'ERROR: no such file' },
+            ]);
+        });
+
+        it('assistant turn with toolCalls and empty text → content null', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'user', content: 'go' },
+                    {
+                        role: 'assistant',
+                        content: '',
+                        toolCalls: [{ id: 'call_a', name: 'list_dir', args: {} }],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages[1].content).toBeNull();
+        });
+
+        it('translates multipart user vision blocks with the same builder as complete()', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            await p.completeWithTools({
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: 'match this' },
+                            { type: 'image', mimeType: 'image/png', base64: 'QUJD' },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages[0].content).toEqual([
+                { type: 'text', text: 'match this' },
+                { type: 'image_url', image_url: { url: 'data:image/png;base64,QUJD' } },
+            ]);
+        });
+
+        it('parses tool_calls: JSON-STRING arguments → object args; maps usage + finish_reason', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    choices: [
+                        {
+                            message: {
+                                content: null,
+                                tool_calls: [
+                                    {
+                                        id: 'call_9',
+                                        type: 'function',
+                                        function: { name: 'read_file', arguments: '{"path":"a.jsx"}' },
+                                    },
+                                ],
+                            },
+                            finish_reason: 'tool_calls',
+                        },
+                    ],
+                    usage: { prompt_tokens: 321, completion_tokens: 42 },
+                }),
+            );
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result).toEqual({
+                // null content normalizes to ''.
+                text: '',
+                toolCalls: [{ id: 'call_9', name: 'read_file', args: { path: 'a.jsx' } }],
+                usage: { inputTokens: 321, outputTokens: 42 },
+                stopReason: 'tool_calls',
+            });
+        });
+
+        it('degrades empty-string and unparseable arguments to {}', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    choices: [
+                        {
+                            message: {
+                                content: '',
+                                tool_calls: [
+                                    { id: 'c1', type: 'function', function: { name: 'a', arguments: '' } },
+                                    { id: 'c2', type: 'function', function: { name: 'b', arguments: '{not json' } },
+                                ],
+                            },
+                            finish_reason: 'tool_calls',
+                        },
+                    ],
+                }),
+            );
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result.toolCalls).toEqual([
+                { id: 'c1', name: 'a', args: {} },
+                { id: 'c2', name: 'b', args: {} },
+            ]);
+        });
+
+        it('returns empty toolCalls and zero usage when the vendor omits them', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({ choices: [{ message: { content: 'done' } }] }),
+            );
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result.text).toBe('done');
+            expect(result.toolCalls).toEqual([]);
+            expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+            expect(result.stopReason).toBeUndefined();
+        });
+
+        it('normalizes errors through the same classes as complete() (HTTP 400 model error → BadModel)', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                errorResponse(400, { error: { code: 'model_not_found', message: 'no such model' } }),
+            );
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            await expect(
+                p.completeWithTools({
+                    messages: [{ role: 'user', content: 'go' }],
+                    tools: TOOLS,
+                    signal: new AbortController().signal,
+                }),
+            ).rejects.toBeInstanceOf(BadModel);
+        });
+
+        it('passes AbortSignal through to fetch', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenAIProvider();
+            p.configure({ apiKey: 'sk' });
+            const ctrl = new AbortController();
+            await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: ctrl.signal,
+            });
+            expect(fetchSpy.mock.calls[0][1].signal).toBe(ctrl.signal);
+        });
+    });
 });

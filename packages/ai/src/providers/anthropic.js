@@ -32,6 +32,13 @@
 //   HTTP 5xx              → Unreachable (reason: 'server')
 //   network               → Unreachable (reason: 'network')
 //
+// Tool calling (Epic 9 / Story 9.2): `completeWithTools` is a NON-streaming
+// POST per loop iteration — tool-call arguments are never streamed in v1
+// (ADR-006 §Decision 5). Tools go out as `{name, description, input_schema,
+// strict}` with a `cache_control` breakpoint on the last definition; calls
+// come back as `tool_use` content blocks; results return as `tool_result`
+// blocks inside one user message.
+//
 // Reference: https://docs.anthropic.com/en/api/messages ; ADR-005 §Decision
 // 4 (NOT an OpenAI-compatible shortcut).
 
@@ -99,6 +106,49 @@ function toWireContent(content) {
     return parts;
 }
 
+/**
+ * Flatten a system message's content to plain text (string passes through;
+ * multipart keeps only text blocks). Shared by `_buildBody` and
+ * `_buildToolBody`.
+ *
+ * @param {string|Array<object>} content
+ * @returns {string}
+ */
+function systemTextOf(content) {
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content
+            .filter((c) => c?.type === 'text')
+            .map((c) => c.text)
+            .join('');
+    }
+    return '';
+}
+
+/**
+ * Translate neutral ToolDefs (interface.js) into Anthropic's wire shape:
+ * `{name, description, input_schema, strict}`. The LAST definition carries
+ * `cache_control: {type: 'ephemeral'}` — Anthropic caches the prefix up to
+ * the breakpoint, and tools precede `system` in the cache order, so one
+ * breakpoint on the final tool caches the stable tools+system prefix across
+ * loop iterations (ADR-006 §Consequences: BYOK users pay per token).
+ *
+ * @param {Array<import('./interface.js').ToolDef>} tools
+ * @returns {Array<object>}
+ */
+function toWireTools(tools) {
+    const defs = (Array.isArray(tools) ? tools : []).map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.parameters,
+        strict: true,
+    }));
+    if (defs.length > 0) {
+        defs[defs.length - 1].cache_control = { type: 'ephemeral' };
+    }
+    return defs;
+}
+
 export class AnthropicProvider extends AIProvider {
     constructor() {
         super();
@@ -143,6 +193,44 @@ export class AnthropicProvider extends AIProvider {
             .map((b) => b.text)
             .join('');
         return { content };
+    }
+
+    /**
+     * One tool-loop iteration — non-streaming POST to /v1/messages (tool
+     * calls are never streamed in v1; ADR-006 §Decision 5). Translates the
+     * neutral loop history (interface.js ToolLoopMessage) to Anthropic's
+     * wire shape and normalizes the response per CompleteWithToolsResult.
+     * Errors flow through the same `_post` → `_mapError` plumbing as
+     * `complete()`.
+     *
+     * @param {{ messages: Array<object>, tools: Array<object>, signal: AbortSignal, model?: string, maxTokens?: number }} args
+     * @returns {Promise<import('./interface.js').CompleteWithToolsResult>}
+     */
+    async completeWithTools({ messages, tools, signal, model, maxTokens } = {}) {
+        const body = this._buildToolBody(messages, tools, model, maxTokens);
+        const res = await this._post('/v1/messages', body, signal);
+        const json = await res.json();
+        const blocks = Array.isArray(json?.content) ? json.content : [];
+        const text = blocks
+            .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
+            .map((b) => b.text)
+            .join('');
+        const toolCalls = blocks
+            .filter((b) => b && b.type === 'tool_use')
+            .map((b) => ({
+                id: b.id,
+                name: b.name,
+                // `input` is already a parsed object on Anthropic's wire;
+                // degrade anything else to {} (args are ALWAYS an object).
+                args: b.input && typeof b.input === 'object' ? b.input : {},
+            }));
+        const usage = {
+            inputTokens: typeof json?.usage?.input_tokens === 'number' ? json.usage.input_tokens : 0,
+            outputTokens: typeof json?.usage?.output_tokens === 'number' ? json.usage.output_tokens : 0,
+        };
+        const result = { text, toolCalls, usage };
+        if (typeof json?.stop_reason === 'string') result.stopReason = json.stop_reason;
+        return result;
     }
 
     async *stream({ messages, signal, model, maxTokens } = {}) {
@@ -224,14 +312,7 @@ export class AnthropicProvider extends AIProvider {
             if (msg.role === 'system') {
                 // First system message becomes top-level. Additional system
                 // messages are concatenated (rare but defined behavior).
-                const text = typeof msg.content === 'string'
-                    ? msg.content
-                    : (Array.isArray(msg.content)
-                        ? msg.content
-                            .filter((c) => c?.type === 'text')
-                            .map((c) => c.text)
-                            .join('')
-                        : '');
+                const text = systemTextOf(msg.content);
                 system = system ? `${system}\n\n${text}` : text;
             } else {
                 // Multipart (neutral-block) content is translated to the
@@ -251,6 +332,70 @@ export class AnthropicProvider extends AIProvider {
         };
         if (system !== undefined) body.system = system;
         if (stream) body.stream = true;
+        return body;
+    }
+
+    /**
+     * Build the /v1/messages body for a tool-loop iteration. Extends
+     * `_buildBody`'s system extraction with the two loop-history shapes:
+     *
+     *   - assistant + toolCalls → content blocks
+     *     `[{type:'text'} (only if non-empty), ...{type:'tool_use'}]`
+     *   - role:'tool' results → ONE user message whose content is the
+     *     `tool_result` blocks (exactly one per call id, order preserved)
+     *
+     * User multipart content reuses the same `toWireContent` vision
+     * translation as `complete()`.
+     *
+     * @private
+     */
+    _buildToolBody(messages, tools, model, maxTokens) {
+        let system;
+        const wire = [];
+        for (const msg of messages || []) {
+            if (!msg) continue;
+            if (msg.role === 'system') {
+                const text = systemTextOf(msg.content);
+                system = system ? `${system}\n\n${text}` : text;
+                continue;
+            }
+            if (msg.role === 'tool') {
+                const results = Array.isArray(msg.results) ? msg.results : [];
+                wire.push({
+                    role: 'user',
+                    content: results.map((r) => ({
+                        type: 'tool_result',
+                        tool_use_id: r.callId,
+                        content: r.content,
+                        ...(r.isError ? { is_error: true } : {}),
+                    })),
+                });
+                continue;
+            }
+            if (msg.role === 'assistant' && Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+                const blocks = [];
+                const text = typeof msg.content === 'string' ? msg.content : '';
+                if (text.length > 0) blocks.push({ type: 'text', text });
+                for (const c of msg.toolCalls) {
+                    blocks.push({ type: 'tool_use', id: c.id, name: c.name, input: c.args });
+                }
+                wire.push({ role: 'assistant', content: blocks });
+                continue;
+            }
+            wire.push(
+                Array.isArray(msg.content)
+                    ? { ...msg, content: toWireContent(msg.content) }
+                    : msg,
+            );
+        }
+        /** @type {Record<string, unknown>} */
+        const body = {
+            model: model || this._model,
+            max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
+            messages: wire,
+            tools: toWireTools(tools),
+        };
+        if (system !== undefined) body.system = system;
         return body;
     }
 

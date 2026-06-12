@@ -184,4 +184,195 @@ describe('OpenRouterProvider', () => {
         const result = await p.probe();
         expect(result).toMatchObject({ ok: false, reason: 'invalid-key' });
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // completeWithTools — Story 9.2 AC-3 (OpenAI-shape, OpenRouter fixture)
+    // ────────────────────────────────────────────────────────────────────
+    describe('completeWithTools', () => {
+        const TOOLS = [
+            {
+                name: 'write_file',
+                description: 'Write a file',
+                parameters: {
+                    type: 'object',
+                    properties: { path: { type: 'string' }, content: { type: 'string' } },
+                },
+            },
+        ];
+
+        function toolResponse(overrides = {}) {
+            return jsonResponse({
+                choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 10, completion_tokens: 5 },
+                ...overrides,
+            });
+        }
+
+        it('POSTs a NON-streaming body with function-shaped tools + app-attribution headers', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenRouterProvider();
+            p.configure({ apiKey: 'or-test', model: 'openai/gpt-4o' });
+            await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const [url, init] = fetchSpy.mock.calls[0];
+            expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+            expect(init.headers.Authorization).toBe('Bearer or-test');
+            expect(init.headers['HTTP-Referer']).toBe('https://lerret.belikely.com');
+            expect(init.headers['X-Title']).toBe('Lerret');
+            const body = JSON.parse(init.body);
+            expect(body.stream).toBe(false);
+            expect(body.tools).toEqual([
+                {
+                    type: 'function',
+                    function: {
+                        name: 'write_file',
+                        description: 'Write a file',
+                        parameters: {
+                            type: 'object',
+                            properties: { path: { type: 'string' }, content: { type: 'string' } },
+                        },
+                    },
+                },
+            ]);
+        });
+
+        it('re-sends tools on EVERY request (OpenRouter is stateless)', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse()).mockResolvedValueOnce(toolResponse());
+            const p = new OpenRouterProvider();
+            p.configure({ apiKey: 'or', model: 'openai/gpt-4o' });
+            const args = {
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            };
+            await p.completeWithTools(args);
+            await p.completeWithTools(args);
+            expect(fetchSpy).toHaveBeenCalledTimes(2);
+            for (const call of fetchSpy.mock.calls) {
+                expect(JSON.parse(call[1].body).tools).toHaveLength(1);
+            }
+        });
+
+        it('maps loop history: assistant toolCalls → tool_calls with STRINGIFIED arguments; results → N role:tool messages', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OpenRouterProvider();
+            p.configure({ apiKey: 'or', model: 'openai/gpt-4o' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'user', content: 'go' },
+                    {
+                        role: 'assistant',
+                        content: '',
+                        toolCalls: [{ id: 'call_a', name: 'write_file', args: { path: 'a.jsx', content: 'x' } }],
+                    },
+                    {
+                        role: 'tool',
+                        results: [
+                            { callId: 'call_a', name: 'write_file', content: 'permission denied', isError: true },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages).toEqual([
+                { role: 'user', content: 'go' },
+                {
+                    role: 'assistant',
+                    content: null, // empty text → null
+                    tool_calls: [
+                        {
+                            id: 'call_a',
+                            type: 'function',
+                            function: { name: 'write_file', arguments: '{"path":"a.jsx","content":"x"}' },
+                        },
+                    ],
+                },
+                { role: 'tool', tool_call_id: 'call_a', content: 'ERROR: permission denied' },
+            ]);
+        });
+
+        it('parses tool_calls: JSON-STRING arguments → object args; maps usage + finish_reason', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    choices: [
+                        {
+                            message: {
+                                content: 'Writing now.',
+                                tool_calls: [
+                                    {
+                                        id: 'call_or_1',
+                                        type: 'function',
+                                        function: { name: 'write_file', arguments: '{"path":"b.jsx","content":"y"}' },
+                                    },
+                                ],
+                            },
+                            finish_reason: 'tool_calls',
+                        },
+                    ],
+                    usage: { prompt_tokens: 100, completion_tokens: 20 },
+                }),
+            );
+            const p = new OpenRouterProvider();
+            p.configure({ apiKey: 'or', model: 'openai/gpt-4o' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result).toEqual({
+                text: 'Writing now.',
+                toolCalls: [{ id: 'call_or_1', name: 'write_file', args: { path: 'b.jsx', content: 'y' } }],
+                usage: { inputTokens: 100, outputTokens: 20 },
+                stopReason: 'tool_calls',
+            });
+        });
+
+        it('degrades unparseable arguments to {} and zero usage when the vendor omits it', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    choices: [
+                        {
+                            message: {
+                                content: null,
+                                tool_calls: [
+                                    { id: 'c1', type: 'function', function: { name: 'write_file', arguments: 'not-json' } },
+                                ],
+                            },
+                            finish_reason: 'tool_calls',
+                        },
+                    ],
+                }),
+            );
+            const p = new OpenRouterProvider();
+            p.configure({ apiKey: 'or' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result.text).toBe('');
+            expect(result.toolCalls).toEqual([{ id: 'c1', name: 'write_file', args: {} }]);
+            expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+        });
+
+        it('normalizes errors through the same classes as complete() (HTTP 400 model error → BadModel)', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                errorResponse(400, { error: { code: 'model_not_found', message: 'no such model' } }),
+            );
+            const p = new OpenRouterProvider();
+            p.configure({ apiKey: 'or' });
+            await expect(
+                p.completeWithTools({
+                    messages: [{ role: 'user', content: 'go' }],
+                    tools: TOOLS,
+                    signal: new AbortController().signal,
+                }),
+            ).rejects.toBeInstanceOf(BadModel);
+        });
+    });
 });

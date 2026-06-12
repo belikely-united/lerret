@@ -191,4 +191,242 @@ describe('OllamaProvider', () => {
         expect(p.modelSupportsVision('llava')).toBe(true);
         expect(p.modelSupportsVision('codellama')).toBe(false);
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // completeWithTools — Story 9.2 AC-4 (native /api/chat ONLY)
+    // ────────────────────────────────────────────────────────────────────
+    describe('completeWithTools', () => {
+        const TOOLS = [
+            {
+                name: 'list_dir',
+                description: 'List a directory',
+                parameters: { type: 'object', properties: { path: { type: 'string' } } },
+            },
+        ];
+
+        function toolResponse(overrides = {}) {
+            return jsonResponse({
+                message: { role: 'assistant', content: 'ok' },
+                done: true,
+                done_reason: 'stop',
+                prompt_eval_count: 10,
+                eval_count: 5,
+                ...overrides,
+            });
+        }
+
+        it('POSTs to the NATIVE /api/chat endpoint — never the /v1 compat layer', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const [url] = fetchSpy.mock.calls[0];
+            // The /v1 OpenAI-compat layer drops streamed tool calls
+            // (ollama/ollama#12557) and is BANNED for tool calls.
+            expect(url).toBe('http://localhost:11434/api/chat');
+            expect(url).not.toContain('/v1');
+        });
+
+        it('sends stream:false and OpenAI-function-shaped tools', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'system', content: 'You build assets.' },
+                    { role: 'user', content: 'go' },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.stream).toBe(false);
+            expect(body.tools).toEqual([
+                {
+                    type: 'function',
+                    function: {
+                        name: 'list_dir',
+                        description: 'List a directory',
+                        parameters: { type: 'object', properties: { path: { type: 'string' } } },
+                    },
+                },
+            ]);
+            // System messages ride messages[] verbatim on this wire.
+            expect(body.messages[0]).toEqual({ role: 'system', content: 'You build assets.' });
+        });
+
+        it('maps loop history: assistant toolCalls → id-less tool_calls with OBJECT arguments; results → N role:tool + tool_name messages', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            await p.completeWithTools({
+                messages: [
+                    { role: 'user', content: 'retheme the banner' },
+                    {
+                        role: 'assistant',
+                        content: 'Looking around.',
+                        toolCalls: [
+                            { id: 'call_1', name: 'list_dir', args: { path: '.lerret' } },
+                            { id: 'call_2', name: 'read_file', args: { path: '.lerret/banner.jsx' } },
+                        ],
+                    },
+                    {
+                        role: 'tool',
+                        results: [
+                            { callId: 'call_1', name: 'list_dir', content: 'banner.jsx · file · 120' },
+                            { callId: 'call_2', name: 'read_file', content: 'no such file', isError: true },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages).toEqual([
+                { role: 'user', content: 'retheme the banner' },
+                {
+                    role: 'assistant',
+                    content: 'Looking around.',
+                    // OBJECT arguments, no ids — Ollama's wire carries none.
+                    tool_calls: [
+                        { function: { name: 'list_dir', arguments: { path: '.lerret' } } },
+                        { function: { name: 'read_file', arguments: { path: '.lerret/banner.jsx' } } },
+                    ],
+                },
+                // One role:tool message PER result with tool_name; isError
+                // surfaces as an 'ERROR: ' content prefix.
+                { role: 'tool', content: 'banner.jsx · file · 120', tool_name: 'list_dir' },
+                { role: 'tool', content: 'ERROR: no such file', tool_name: 'read_file' },
+            ]);
+        });
+
+        it('translates multipart user vision blocks with the same builder as complete()', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.2' });
+            await p.completeWithTools({
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: 'match this' },
+                            { type: 'image', mimeType: 'image/png', base64: 'QUJD' },
+                        ],
+                    },
+                ],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+            expect(body.messages[0]).toEqual({
+                role: 'user',
+                content: 'match this',
+                images: ['QUJD'],
+            });
+        });
+
+        it('parses tool_calls with OBJECT arguments as-is and synthesizes missing ids (call_1, call_2, …)', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    message: {
+                        role: 'assistant',
+                        content: '',
+                        tool_calls: [
+                            { function: { name: 'list_dir', arguments: { path: '.lerret' } } },
+                            { function: { name: 'read_file', arguments: { path: 'a.jsx' } } },
+                        ],
+                    },
+                    done: true,
+                    done_reason: 'stop',
+                    prompt_eval_count: 321,
+                    eval_count: 42,
+                }),
+            );
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result).toEqual({
+                text: '',
+                toolCalls: [
+                    { id: 'call_1', name: 'list_dir', args: { path: '.lerret' } },
+                    { id: 'call_2', name: 'read_file', args: { path: 'a.jsx' } },
+                ],
+                usage: { inputTokens: 321, outputTokens: 42 },
+                stopReason: 'stop',
+            });
+        });
+
+        it('keeps a vendor-supplied call id when present', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({
+                    message: {
+                        role: 'assistant',
+                        content: '',
+                        tool_calls: [
+                            { id: 'vendor_id_7', function: { name: 'list_dir', arguments: {} } },
+                        ],
+                    },
+                    done: true,
+                }),
+            );
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result.toolCalls).toEqual([{ id: 'vendor_id_7', name: 'list_dir', args: {} }]);
+        });
+
+        it('maps usage from prompt_eval_count/eval_count; zero when absent', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                jsonResponse({ message: { role: 'assistant', content: 'done' }, done: true }),
+            );
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            const result = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: new AbortController().signal,
+            });
+            expect(result.text).toBe('done');
+            expect(result.toolCalls).toEqual([]);
+            expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+        });
+
+        it('normalizes errors through the same classes as complete() (HTTP 400 → normalized ProviderError)', async () => {
+            fetchSpy.mockResolvedValueOnce(errorResponse(400, { error: 'invalid request' }));
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            await expect(
+                p.completeWithTools({
+                    messages: [{ role: 'user', content: 'go' }],
+                    tools: TOOLS,
+                    signal: new AbortController().signal,
+                }),
+            ).rejects.toBeInstanceOf(Unknown);
+        });
+
+        it('passes AbortSignal through to fetch', async () => {
+            fetchSpy.mockResolvedValueOnce(toolResponse());
+            const p = new OllamaProvider();
+            p.configure({ model: 'llama3.1' });
+            const ctrl = new AbortController();
+            await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+                signal: ctrl.signal,
+            });
+            expect(fetchSpy.mock.calls[0][1].signal).toBe(ctrl.signal);
+        });
+    });
 });

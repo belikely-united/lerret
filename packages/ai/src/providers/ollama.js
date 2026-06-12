@@ -19,6 +19,12 @@
 //   HTTP 5xx       → Unreachable (reason: 'server')
 //   anything else  → Unknown
 //
+// Tool calling (Epic 9 / Story 9.2): `completeWithTools` speaks the NATIVE
+// `/api/chat` endpoint ONLY — the `/v1` OpenAI-compat layer is banned for
+// tool calls (it drops them when streaming; ollama/ollama#12557, ADR-006
+// §Decision 1). Non-streaming POST per loop iteration; `arguments` is an
+// object on this wire (no JSON parse); missing call ids are synthesized.
+//
 // Reference: https://github.com/ollama/ollama/blob/main/docs/api.md
 
 import { AIProvider } from './interface.js';
@@ -80,6 +86,66 @@ function toWireMessages(messages) {
     return messages.map(toWireMessage);
 }
 
+/**
+ * Translate neutral ToolDefs (interface.js) into the OpenAI function shape
+ * Ollama's NATIVE `/api/chat` accepts:
+ * `{type:'function', function:{name, description, parameters}}`.
+ *
+ * @param {Array<import('./interface.js').ToolDef>} tools
+ * @returns {Array<object>}
+ */
+function toWireTools(tools) {
+    return (Array.isArray(tools) ? tools : []).map((t) => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+    }));
+}
+
+/**
+ * Translate the neutral tool-loop history (interface.js ToolLoopMessage)
+ * into Ollama wire messages:
+ *
+ *   - assistant + toolCalls → `tool_calls: [{function:{name, arguments}}]`
+ *     with OBJECT arguments and NO ids (Ollama's wire carries none)
+ *   - role:'tool' results → N `{role:'tool', content, tool_name}` messages,
+ *     one per result, order preserved; `isError` results carry an
+ *     'ERROR: ' content prefix (the wire has no error flag)
+ *   - everything else flows through `toWireMessage` so multipart user
+ *     vision blocks get the same content + images flattening as complete()
+ *
+ * @param {Array<object>} messages
+ * @returns {Array<object>}
+ */
+function toToolWireMessages(messages) {
+    const wire = [];
+    for (const msg of messages || []) {
+        if (!msg) continue;
+        if (msg.role === 'tool') {
+            const results = Array.isArray(msg.results) ? msg.results : [];
+            for (const r of results) {
+                wire.push({
+                    role: 'tool',
+                    content: r.isError ? `ERROR: ${r.content}` : r.content,
+                    tool_name: r.name,
+                });
+            }
+            continue;
+        }
+        if (msg.role === 'assistant' && Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+            wire.push({
+                role: 'assistant',
+                content: typeof msg.content === 'string' ? msg.content : '',
+                tool_calls: msg.toolCalls.map((c) => ({
+                    function: { name: c.name, arguments: c.args },
+                })),
+            });
+            continue;
+        }
+        wire.push(toWireMessage(msg));
+    }
+    return wire;
+}
+
 export class OllamaProvider extends AIProvider {
     constructor() {
         super();
@@ -125,6 +191,53 @@ export class OllamaProvider extends AIProvider {
         const json = await res.json();
         const content = json?.message?.content ?? '';
         return { content };
+    }
+
+    /**
+     * One tool-loop iteration — NATIVE `/api/chat` ONLY, `stream: false`.
+     * The `/v1` OpenAI-compat layer is BANNED for tool calls: it drops
+     * streamed tool calls (github.com/ollama/ollama/issues/12557; ADR-006
+     * §Decision 1). Native quirks normalized here: `arguments` arrives as
+     * an OBJECT (used as-is, no JSON parse), and calls may lack ids —
+     * synthesized as `call_1`, `call_2`, … per response. Errors flow
+     * through the same `_post` → `_mapError` plumbing as `complete()`.
+     *
+     * @param {{ messages: Array<object>, tools: Array<object>, signal: AbortSignal, model?: string }} args
+     * @returns {Promise<import('./interface.js').CompleteWithToolsResult>}
+     */
+    async completeWithTools({ messages, tools, signal, model } = {}) {
+        const res = await this._post(
+            '/api/chat',
+            {
+                model: model || this._model,
+                messages: toToolWireMessages(messages),
+                tools: toWireTools(tools),
+                stream: false,
+            },
+            signal,
+        );
+        const json = await res.json();
+        const message = json?.message;
+        const text = typeof message?.content === 'string' ? message.content : '';
+        const toolCalls = (Array.isArray(message?.tool_calls) ? message.tool_calls : []).map(
+            (c, i) => ({
+                id: typeof c?.id === 'string' && c.id.length > 0 ? c.id : `call_${i + 1}`,
+                name: c?.function?.name,
+                // Ollama's native wire delivers `arguments` as an object
+                // already — used as-is; anything else degrades to {}.
+                args:
+                    c?.function?.arguments && typeof c.function.arguments === 'object'
+                        ? c.function.arguments
+                        : {},
+            }),
+        );
+        const usage = {
+            inputTokens: typeof json?.prompt_eval_count === 'number' ? json.prompt_eval_count : 0,
+            outputTokens: typeof json?.eval_count === 'number' ? json.eval_count : 0,
+        };
+        const result = { text, toolCalls, usage };
+        if (typeof json?.done_reason === 'string') result.stopReason = json.done_reason;
+        return result;
     }
 
     async *stream({ messages, signal, model } = {}) {

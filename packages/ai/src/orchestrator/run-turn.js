@@ -75,6 +75,10 @@ function makeHandle(instance, model) {
         modelSupportsVision: (m) => instance.modelSupportsVision(m ?? model),
         complete: (args) => instance.complete(args),
         stream: (args) => instance.stream(args),
+        // Epic 9 — the agentic loop's provider surface. Providers without the
+        // method (a custom test double) surface as tool-incapable upstream,
+        // so the executor's FR64 fallback handles it before this is reached.
+        completeWithTools: (args) => instance.completeWithTools(args),
     };
 }
 
@@ -175,6 +179,7 @@ export function createVaultResolver({ folderId }) {
  *   signal?: AbortSignal,
  *   providerOverride?: string,
  *   onVisionDecision?: (ev: object) => Promise<{ accept: boolean, providerOverride?: string }>,
+ *   onContinueDecision?: (info: { turnsUsed: number, spentTokens: number }) => Promise<boolean>,
  *   attachments?: Array<{ type: string }>,
  *   mode?: 'ask' | 'inspect',
  *   folderId?: string,
@@ -190,6 +195,7 @@ export async function* runTurn({
     signal,
     providerOverride,
     onVisionDecision,
+    onContinueDecision,
     attachments,
     mode,
     folderId,
@@ -296,6 +302,7 @@ export async function* runTurn({
         emit,
         snapshot,
         requestVisionDecision,
+        onContinueDecision,
     });
 
     let graphError;
@@ -391,8 +398,14 @@ export async function* runTurn({
             yield events.stopped(turnId);
         } else {
             // An inspect turn's done is ALWAYS `files: []` — read-only by
-            // construction, never a file-outcome summary.
-            yield events.done(isInspect ? [] : (finalState?.writtenFiles ?? []), turnId);
+            // construction, never a file-outcome summary. Ask turns carry the
+            // loop's closing summary (Epic 9) so the thread can show WHAT was
+            // done, not just which files changed.
+            yield events.done(
+                isInspect ? [] : (finalState?.writtenFiles ?? []),
+                turnId,
+                isInspect ? undefined : finalState?.answer || undefined,
+            );
         }
     } finally {
         // 6. ALWAYS — including on consumer `.return()` (early break) or a

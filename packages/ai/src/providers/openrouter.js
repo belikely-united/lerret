@@ -17,6 +17,12 @@
 // live list but only the curated subset has known vision support.
 //
 // Error mapping mirrors OpenAI's (same wire format).
+//
+// Tool calling (Epic 9 / Story 9.2): `completeWithTools` mirrors openai.js
+// (same OpenAI-compatible wire — function-shaped tools, JSON-STRING
+// `arguments` parsed once at the boundary, N `{role:'tool'}` result
+// messages). OpenRouter is STATELESS: tools are re-sent on every request.
+// Non-streaming POST per loop iteration (ADR-006 §Decision 5).
 
 import { AIProvider } from './interface.js';
 import {
@@ -70,6 +76,87 @@ function toWireMessages(messages) {
     });
 }
 
+/**
+ * Translate neutral ToolDefs (interface.js) into the OpenAI-compatible
+ * function wire shape. Duplicated from openai.js deliberately (see the
+ * header). OpenRouter is stateless per request — `completeWithTools`
+ * re-sends these on EVERY request.
+ *
+ * @param {Array<import('./interface.js').ToolDef>} tools
+ * @returns {Array<object>}
+ */
+function toWireTools(tools) {
+    return (Array.isArray(tools) ? tools : []).map((t) => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+    }));
+}
+
+/**
+ * Translate the neutral tool-loop history (interface.js ToolLoopMessage)
+ * into OpenAI-compatible wire messages — assistant toolCalls become
+ * `tool_calls` with JSON-stringified `arguments` (empty text → content
+ * null); role:'tool' results become N `{role:'tool', tool_call_id}`
+ * messages (isError → 'ERROR: ' content prefix); everything else flows
+ * through `toWireMessages`. Duplicated from openai.js deliberately.
+ *
+ * @param {Array<object>} messages
+ * @returns {Array<object>}
+ */
+function toToolWireMessages(messages) {
+    const wire = [];
+    for (const msg of messages || []) {
+        if (!msg) continue;
+        if (msg.role === 'tool') {
+            const results = Array.isArray(msg.results) ? msg.results : [];
+            for (const r of results) {
+                wire.push({
+                    role: 'tool',
+                    tool_call_id: r.callId,
+                    content: r.isError ? `ERROR: ${r.content}` : r.content,
+                });
+            }
+            continue;
+        }
+        if (msg.role === 'assistant' && Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+            const text = typeof msg.content === 'string' ? msg.content : '';
+            wire.push({
+                role: 'assistant',
+                content: text.length > 0 ? text : null,
+                tool_calls: msg.toolCalls.map((c) => ({
+                    id: c.id,
+                    type: 'function',
+                    function: { name: c.name, arguments: JSON.stringify(c.args) },
+                })),
+            });
+            continue;
+        }
+        wire.push(msg);
+    }
+    return toWireMessages(wire);
+}
+
+/**
+ * Parse a vendor `function.arguments` value into a plain object — parsed
+ * exactly once at this boundary. OpenRouter routes to many vendors, so the
+ * defensive object pass-through matters more here than on openai.js (some
+ * routed vendors already emit objects). Empty / unparseable / non-object
+ * arguments degrade to `{}`.
+ *
+ * @param {unknown} args
+ * @returns {object}
+ */
+function parseToolArgs(args) {
+    if (args && typeof args === 'object' && !Array.isArray(args)) return args;
+    if (typeof args !== 'string' || args.trim().length === 0) return {};
+    try {
+        const parsed = JSON.parse(args);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
 export class OpenRouterProvider extends AIProvider {
     constructor() {
         super();
@@ -112,6 +199,49 @@ export class OpenRouterProvider extends AIProvider {
         const json = await res.json();
         const content = json?.choices?.[0]?.message?.content ?? '';
         return { content };
+    }
+
+    /**
+     * One tool-loop iteration — non-streaming POST (tool-call arguments are
+     * never streamed in v1; ADR-006 §Decision 5). Tools are re-sent on
+     * EVERY request — OpenRouter is stateless and forgets them otherwise.
+     * Errors flow through the same `_post` → `_mapError` plumbing as
+     * `complete()`.
+     *
+     * @param {{ messages: Array<object>, tools: Array<object>, signal: AbortSignal, model?: string }} args
+     * @returns {Promise<import('./interface.js').CompleteWithToolsResult>}
+     */
+    async completeWithTools({ messages, tools, signal, model } = {}) {
+        const res = await this._post(
+            '/api/v1/chat/completions',
+            {
+                model: model || this._model,
+                messages: toToolWireMessages(messages),
+                tools: toWireTools(tools),
+                stream: false,
+            },
+            signal,
+        );
+        const json = await res.json();
+        const choice = json?.choices?.[0];
+        const message = choice?.message;
+        const text = typeof message?.content === 'string' ? message.content : '';
+        const toolCalls = (Array.isArray(message?.tool_calls) ? message.tool_calls : []).map(
+            (c) => ({
+                id: c?.id,
+                name: c?.function?.name,
+                // `arguments` is a JSON STRING on this wire — parsed here,
+                // exactly once.
+                args: parseToolArgs(c?.function?.arguments),
+            }),
+        );
+        const usage = {
+            inputTokens: typeof json?.usage?.prompt_tokens === 'number' ? json.usage.prompt_tokens : 0,
+            outputTokens: typeof json?.usage?.completion_tokens === 'number' ? json.usage.completion_tokens : 0,
+        };
+        const result = { text, toolCalls, usage };
+        if (typeof choice?.finish_reason === 'string') result.stopReason = choice.finish_reason;
+        return result;
     }
 
     async *stream({ messages, signal, model } = {}) {

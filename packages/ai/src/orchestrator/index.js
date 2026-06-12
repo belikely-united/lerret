@@ -27,17 +27,18 @@ export {
 export { OrchestratorError, VisionUnavailable, TurnAborted } from './errors.js';
 
 /**
- * The six agent node names — the single source of truth, re-exported by the
- * package barrel as `AGENT_NODES`. Verbatim from architecture-epic-8.md
- * §Multi-Agent Orchestrator.
+ * The five agent node names — the single source of truth, re-exported by the
+ * package barrel as `AGENT_NODES`. Epic 9 (ADR-006) collapsed the
+ * Planner→Worker pair into one AgentExecutor node: the Planner survives as
+ * the AgentExecutor's tool-incapable fallback module and the Worker as its
+ * exclusive mutation module — neither is a GRAPH node anymore.
  *
  * @type {readonly string[]}
  */
 export const AGENT_NODES = Object.freeze([
     'Orchestrator',
     'Memory',
-    'Planner',
-    'Worker',
     'DSCurator',
+    'AgentExecutor',
     'Inspector',
 ]);

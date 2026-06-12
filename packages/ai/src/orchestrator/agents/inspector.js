@@ -30,7 +30,14 @@
 // agent's (core-purity: no DOM here).
 
 import { thinking, reading, inspectorResponse } from '../events.js';
-import { readScopedFile, elementPinpoint } from './scoped-file.js';
+import { readScopedFile, elementPinpoint, toProjectRelativeLerretPath } from './scoped-file.js';
+import { runAgentLoop } from '../tools/loop.js';
+import { READ_TOOLS, formatListing, capFileContent } from '../tools/definitions.js';
+import { supportsTools } from '../../providers/tool-support.js';
+
+/** Iteration cap for the inspect lane's read-only loop — reads are cheap but
+ * the lane answers questions, it does not wander; 6 turns is generous. */
+const INSPECT_MAX_TURNS = 6;
 
 /**
  * File-path token extraction — LINEAR-TIME by construction. The prompt is
@@ -111,6 +118,37 @@ async function resolveReadablePath(sandbox, token) {
 }
 
 /**
+ * The Inspector's system-prompt core — ONE source for both the Epic 9
+ * read-only loop branch and the Epic 8 targeted-read fallback, so the
+ * mode-redirect contract (switch to Ask; name the SELECTED asset) can never
+ * drift between them.
+ *
+ * @param {{ context: string, selectedBlock: string, extra?: string, filesBlock?: string }} parts
+ * @returns {string}
+ */
+function buildInspectorSystem({ context, selectedBlock, extra = '', filesBlock = '' }) {
+    return (
+        'You are Lerret\'s read-only project inspector. Answer the user\'s ' +
+        'question about their project concisely. You CANNOT modify files in ' +
+        'this mode — the user\'s dock input is switched to Inspect, which is ' +
+        'read-only. The same dock input has an Ask mode that CAN create and ' +
+        'edit project files for them. If the user asks you to change, create, ' +
+        'or delete something, do NOT give manual-edit instructions — tell ' +
+        'them in one short sentence to switch the dock toggle from Inspect ' +
+        'to Ask and send the same request again, optionally adding one ' +
+        'sentence on which file(s) the change would touch. When an asset is ' +
+        'SELECTED (see the selected-asset block, when present), that change ' +
+        'would touch the SELECTED asset — name it, never a different file. ' +
+        'When you reference a project file, write its project-relative ' +
+        'POSIX path verbatim (for example .lerret/social/card.jsx).' +
+        extra +
+        context +
+        selectedBlock +
+        filesBlock
+    );
+}
+
+/**
  * Create the Inspector node.
  *
  * `sandbox` is OPTIONAL — when absent (or missing the non-mutating pair) the
@@ -134,6 +172,89 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
     return async function inspectorNode(state) {
         if (state?.signal?.aborted) return { answer: '' };
         emit(thinking());
+
+        // ── Epic 9: read-only agentic loop (tool-capable models) ────────────
+        // The Inspector EXPLORES instead of regex-guessing paths: list_dir +
+        // read_file only. The write tools are never passed — the read-only
+        // guarantee is structural at the tool-definition layer (READ_TOOLS),
+        // on top of this module never referencing a mutation surface. Models
+        // without tool support fall through to the Epic 8 targeted-read path
+        // below, unchanged.
+        const canLoop =
+            canRead &&
+            typeof sandbox.listDir === 'function' &&
+            typeof providerHandle?.completeWithTools === 'function' &&
+            supportsTools(providerHandle?.name, providerHandle?.model);
+        if (canLoop) {
+            const scoped = await readScopedFile(state?.scope, sandbox);
+            if (scoped) emit(reading(scoped.path));
+            const selectedBlock = scoped
+                ? `\n\nThe user has SELECTED this asset on the canvas; questions refer to it ` +
+                  `and change requests target it.${elementPinpoint(state?.scope)}\n` +
+                  `--- ${scoped.path} (selected asset) ---\n${scoped.content}\n--- end ---`
+                : '';
+            const context = state?.context ? `\n\nProject context:\n${state.context}` : '';
+            const canon = (p) => {
+                if (typeof p !== 'string' || !p.trim()) return null;
+                if (p.trim() === '.lerret' || p.trim() === '.lerret/') return '.lerret/';
+                const rel = toProjectRelativeLerretPath(p.trim());
+                return rel ? `.lerret/${rel.replace(/^\/+/, '')}` : null;
+            };
+            const executors = {
+                list_dir: async (args) => {
+                    const p = canon(args?.path ?? '.lerret/');
+                    if (!p) return { content: `Invalid path "${String(args?.path)}".`, isError: true };
+                    try {
+                        return {
+                            content: formatListing(await sandbox.listDir(p)),
+                            meta: { op: 'list', file: p },
+                        };
+                    } catch (err) {
+                        return { content: `Could not list ${p}: ${err?.message ?? err}`, isError: true };
+                    }
+                },
+                read_file: async (args) => {
+                    const p = canon(args?.path);
+                    if (!p || p === '.lerret/') {
+                        return { content: `Invalid path "${String(args?.path)}".`, isError: true };
+                    }
+                    try {
+                        const raw = await sandbox.readFile(p, { encoding: 'utf-8' });
+                        const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+                        return { content: capFileContent(text), meta: { op: 'read', file: p } };
+                    } catch (err) {
+                        return { content: `Could not read ${p}: ${err?.message ?? err}`, isError: true };
+                    }
+                },
+            };
+            const result = await runAgentLoop({
+                providerHandle,
+                tools: READ_TOOLS,
+                executors,
+                messages: [
+                    {
+                        role: 'system',
+                        content: buildInspectorSystem({
+                            context,
+                            selectedBlock,
+                            extra:
+                                ' You can explore the project with the list_dir and read_file ' +
+                                'tools — use them to ground every claim in real file contents; ' +
+                                'never guess. Start with list_dir(".lerret/") when you do not ' +
+                                'know the structure.',
+                        }),
+                    },
+                    { role: 'user', content: String(state?.prompt ?? '') },
+                ],
+                signal: state?.signal,
+                emit,
+                maxTurns: INSPECT_MAX_TURNS,
+            });
+            if (state?.signal?.aborted) return { answer: '' };
+            const answer = result.text ?? '';
+            emit(inspectorResponse(answer));
+            return { answer };
+        }
 
         // ── Targeted READ-ONLY file inspection (AC-4) ────────────────────────
         // Gather the contents of files the question references. Reads emit
@@ -197,23 +318,7 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
             messages: [
                 {
                     role: 'system',
-                    content:
-                        'You are Lerret\'s read-only project inspector. Answer the user\'s ' +
-                        'question about their project concisely. You CANNOT modify files in ' +
-                        'this mode — the user\'s dock input is switched to Inspect, which is ' +
-                        'read-only. The same dock input has an Ask mode that CAN create and ' +
-                        'edit project files for them. If the user asks you to change, create, ' +
-                        'or delete something, do NOT give manual-edit instructions — tell ' +
-                        'them in one short sentence to switch the dock toggle from Inspect ' +
-                        'to Ask and send the same request again, optionally adding one ' +
-                        'sentence on which file(s) the change would touch. When an asset is ' +
-                        'SELECTED (see the selected-asset block, when present), that change ' +
-                        'would touch the SELECTED asset — name it, never a different file. ' +
-                        'When you reference a project file, write its project-relative ' +
-                        'POSIX path verbatim (for example .lerret/social/card.jsx).' +
-                        context +
-                        selectedBlock +
-                        filesBlock,
+                    content: buildInspectorSystem({ context, selectedBlock, filesBlock }),
                 },
                 { role: 'user', content: String(state?.prompt ?? '') },
             ],

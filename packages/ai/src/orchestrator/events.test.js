@@ -14,6 +14,8 @@ import {
     error,
     stopped,
     needsVisionFallback,
+    turnProgress,
+    needsContinue,
 } from './events.js';
 
 describe('TURN_EVENT_TYPES', () => {
@@ -40,6 +42,8 @@ describe('event factories', () => {
             error(new Error('boom')),
             stopped(),
             needsVisionFallback([{ name: 'anthropic', model: 'claude-opus-4-7' }]),
+            turnProgress(3, 10, 12400),
+            needsContinue(10, 48210),
         ];
         for (const ev of samples) {
             expect(Object.isFrozen(ev)).toBe(true);
@@ -132,5 +136,54 @@ describe('clarifyingNote (DS Curator conflict surface)', () => {
     it('omits absent details and coerces a non-string note', () => {
         expect(clarifyingNote('just a note')).toEqual({ type: 'clarifying-note', note: 'just a note' });
         expect(clarifyingNote(undefined).note).toBe('');
+    });
+});
+
+describe('loop events (Story 9.1 — turn-progress / needs-continue)', () => {
+    it('turnProgress carries turn/maxTurns/spentTokens, frozen, type registered', () => {
+        const ev = turnProgress(3, 10, 12400);
+        expect(ev).toEqual({ type: 'turn-progress', turn: 3, maxTurns: 10, spentTokens: 12400 });
+        expect(Object.isFrozen(ev)).toBe(true);
+        expect(TURN_EVENT_TYPES).toContain('turn-progress');
+    });
+
+    it('turnProgress coerces via Number() and normalizes NaN to 0', () => {
+        expect(turnProgress('3', '10', '99')).toEqual({
+            type: 'turn-progress',
+            turn: 3,
+            maxTurns: 10,
+            spentTokens: 99,
+        });
+        expect(turnProgress(undefined, 'not-a-number', NaN)).toEqual({
+            type: 'turn-progress',
+            turn: 0,
+            maxTurns: 0,
+            spentTokens: 0,
+        });
+    });
+
+    it('needsContinue carries turnsUsed/spentTokens, frozen, type registered', () => {
+        const ev = needsContinue(10, 48210);
+        expect(ev).toEqual({ type: 'needs-continue', turnsUsed: 10, spentTokens: 48210 });
+        expect(Object.isFrozen(ev)).toBe(true);
+        expect(TURN_EVENT_TYPES).toContain('needs-continue');
+    });
+
+    it('needsContinue coerces via Number() and normalizes NaN to 0', () => {
+        expect(needsContinue('10', undefined)).toEqual({
+            type: 'needs-continue',
+            turnsUsed: 10,
+            spentTokens: 0,
+        });
+    });
+});
+
+describe('done — Epic 9 summary', () => {
+    it('carries a trimmed summary when provided; omits it when empty/absent', async () => {
+        const { done } = await import('./events.js');
+        expect(done([], 't1', '  Created the banner.  ').summary).toBe('Created the banner.');
+        expect(done([], 't1')).not.toHaveProperty('summary');
+        expect(done([], 't1', '   ')).not.toHaveProperty('summary');
+        expect(done([], undefined, 'No revert target still summarizes.').summary).toBeDefined();
     });
 });

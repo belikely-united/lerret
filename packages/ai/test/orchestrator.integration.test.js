@@ -507,7 +507,10 @@ describe('orchestrator integration — public surface smoke', () => {
         expect(ai.vault).toBeDefined();
         expect(ai.snapshot).toBeDefined();
         expect(Array.isArray(ai.AGENT_NODES)).toBe(true);
-        expect(ai.AGENT_NODES).toContain('Worker');
+        // Epic 9 (ADR-006): Planner→Worker collapsed into one AgentExecutor
+        // graph node — the Worker lives on as the mutation MODULE.
+        expect(ai.AGENT_NODES).toContain('AgentExecutor');
+        expect(ai.AGENT_NODES).not.toContain('Worker');
     });
 
     it('exposes the vision + workflows namespaces with their key functions', async () => {

@@ -16,6 +16,14 @@
 //   abort            → throws AbortError unchanged (not a ProviderError)
 //   anything else    → Unknown
 //
+// Tool calling (Epic 9 / Story 9.2): `completeWithTools` is a NON-streaming
+// POST per loop iteration (tool-call arguments are never streamed in v1 —
+// ADR-006 §Decision 5). Tools go out as `{type:'function', function:{...}}`
+// and are re-sent on EVERY request (the wire is stateless); calls come back
+// in `message.tool_calls` with JSON-STRING `arguments`, parsed exactly once
+// at this boundary; results return as N `{role:'tool', tool_call_id}`
+// messages.
+//
 // SECURITY: the API key flows through `configure({apiKey})` once per turn,
 // lives only in this instance's private field, and is dropped at turn end.
 // MUST NOT be logged. The no-key-leak CI grep (Story 8.1 Task 5) enforces.
@@ -71,6 +79,92 @@ function toWireMessages(messages) {
     });
 }
 
+/**
+ * Translate neutral ToolDefs (interface.js) into the OpenAI function wire
+ * shape: `{type:'function', function:{name, description, parameters}}`.
+ * The wire is stateless — `completeWithTools` re-sends these on EVERY
+ * request.
+ *
+ * @param {Array<import('./interface.js').ToolDef>} tools
+ * @returns {Array<object>}
+ */
+function toWireTools(tools) {
+    return (Array.isArray(tools) ? tools : []).map((t) => ({
+        type: 'function',
+        function: { name: t.name, description: t.description, parameters: t.parameters },
+    }));
+}
+
+/**
+ * Translate the neutral tool-loop history (interface.js ToolLoopMessage)
+ * into OpenAI wire messages:
+ *
+ *   - assistant + toolCalls → one assistant message with `tool_calls`
+ *     (`arguments` JSON-stringified; empty text → content null)
+ *   - role:'tool' results → N `{role:'tool', tool_call_id, content}`
+ *     messages, one per result, order preserved; `isError` results carry
+ *     an 'ERROR: ' content prefix (the wire has no error flag)
+ *   - everything else flows through `toWireMessages` so multipart user
+ *     vision blocks get the same translation as complete()
+ *
+ * @param {Array<object>} messages
+ * @returns {Array<object>}
+ */
+function toToolWireMessages(messages) {
+    const wire = [];
+    for (const msg of messages || []) {
+        if (!msg) continue;
+        if (msg.role === 'tool') {
+            const results = Array.isArray(msg.results) ? msg.results : [];
+            for (const r of results) {
+                wire.push({
+                    role: 'tool',
+                    tool_call_id: r.callId,
+                    content: r.isError ? `ERROR: ${r.content}` : r.content,
+                });
+            }
+            continue;
+        }
+        if (msg.role === 'assistant' && Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {
+            const text = typeof msg.content === 'string' ? msg.content : '';
+            wire.push({
+                role: 'assistant',
+                content: text.length > 0 ? text : null,
+                tool_calls: msg.toolCalls.map((c) => ({
+                    id: c.id,
+                    type: 'function',
+                    function: { name: c.name, arguments: JSON.stringify(c.args) },
+                })),
+            });
+            continue;
+        }
+        wire.push(msg);
+    }
+    return toWireMessages(wire);
+}
+
+/**
+ * Parse a vendor `function.arguments` value into a plain object — the ONE
+ * place the JSON-string boundary is crossed (architecture-epic-9.md §4:
+ * parse once, never substring-match). Empty / unparseable / non-object
+ * arguments degrade to `{}` so a malformed call still surfaces as a
+ * well-shaped ToolCall the loop can answer with an isError result.
+ *
+ * @param {unknown} args
+ * @returns {object}
+ */
+function parseToolArgs(args) {
+    // Defensive: some OpenRouter-routed vendors already emit objects.
+    if (args && typeof args === 'object' && !Array.isArray(args)) return args;
+    if (typeof args !== 'string' || args.trim().length === 0) return {};
+    try {
+        const parsed = JSON.parse(args);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
 export class OpenAIProvider extends AIProvider {
     constructor() {
         super();
@@ -116,6 +210,48 @@ export class OpenAIProvider extends AIProvider {
         const json = await res.json();
         const content = json?.choices?.[0]?.message?.content ?? '';
         return { content };
+    }
+
+    /**
+     * One tool-loop iteration — non-streaming POST (tool-call arguments are
+     * never streamed in v1; ADR-006 §Decision 5). Tools are re-sent on every
+     * request. Errors flow through the same `_post` → `_mapError` plumbing
+     * as `complete()`.
+     *
+     * @param {{ messages: Array<object>, tools: Array<object>, signal: AbortSignal, model?: string }} args
+     * @returns {Promise<import('./interface.js').CompleteWithToolsResult>}
+     */
+    async completeWithTools({ messages, tools, signal, model } = {}) {
+        const res = await this._post(
+            '/v1/chat/completions',
+            {
+                model: model || this._model,
+                messages: toToolWireMessages(messages),
+                tools: toWireTools(tools),
+                stream: false,
+            },
+            signal,
+        );
+        const json = await res.json();
+        const choice = json?.choices?.[0];
+        const message = choice?.message;
+        const text = typeof message?.content === 'string' ? message.content : '';
+        const toolCalls = (Array.isArray(message?.tool_calls) ? message.tool_calls : []).map(
+            (c) => ({
+                id: c?.id,
+                name: c?.function?.name,
+                // `arguments` is a JSON STRING on this wire — parsed here,
+                // exactly once.
+                args: parseToolArgs(c?.function?.arguments),
+            }),
+        );
+        const usage = {
+            inputTokens: typeof json?.usage?.prompt_tokens === 'number' ? json.usage.prompt_tokens : 0,
+            outputTokens: typeof json?.usage?.completion_tokens === 'number' ? json.usage.completion_tokens : 0,
+        };
+        const result = { text, toolCalls, usage };
+        if (typeof choice?.finish_reason === 'string') result.stopReason = choice.finish_reason;
+        return result;
     }
 
     async *stream({ messages, signal, model } = {}) {
