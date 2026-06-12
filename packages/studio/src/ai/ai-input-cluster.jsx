@@ -34,6 +34,16 @@
  *     Story 8.1's components),
  *   - the in-memory, session-scoped thread history (never persisted).
  *
+ * Story 9.4 adds the agentic-loop surfaces (Epic 9, ux-design-epic-9 §1–§4):
+ * a quiet `Turn N of M` pill tooltip once a loop turn passes its first
+ * iteration, a tertiary spend line (`~12.4k tokens`) updated from
+ * `turn-progress`, the needs-continue inline row (Continue / Stop here) that
+ * settles the `onContinueDecision` callback passed into runTurn (the
+ * vision-prompt pattern — never a modal; Esc/stop still aborts the whole
+ * turn and settles a pending decision false), and per-turn records carrying
+ * spentTokens / turns / a tool-step trail the thread card renders collapsed
+ * (`N steps · R read · W written`).
+ *
  * ── Dynamic-import boundary (non-negotiable) ────────────────────────────────
  * This file reaches @lerret/ai ONLY via `await getAi()` from ./lazy.js. It
  * NEVER `import`s '@lerret/ai'. The no-static-imports CI check (Story 8.0)
@@ -353,6 +363,38 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     color: var(--lm-text-tertiary, #6E6960);
     white-space: nowrap;
 }
+/* Story 9.4 §2: quiet spend line while a turn runs. */
+.lm-ai-cluster__spend {
+    font: 400 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
+    color: var(--lm-text-tertiary, #6E6960);
+    white-space: nowrap;
+}
+/* Story 9.4 §3: the needs-continue inline row (takes the pill's slot). */
+.lm-ai-cluster__continue {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 400 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
+    color: var(--lm-text-secondary, #44403A);
+    white-space: nowrap;
+}
+.lm-ai-cluster__continue-btn {
+    font: 500 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
+    color: var(--lm-accent, #B85B33);
+    background: transparent;
+    border: 1px solid var(--lm-border-light, #E8E2D4);
+    border-radius: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.lm-ai-cluster__continue-btn:hover {
+    background: var(--lm-bg-tertiary, #E8E2D4);
+}
+.lm-ai-cluster__continue-btn:focus-visible {
+    outline: 2px solid var(--lm-accent, #B85B33);
+    outline-offset: 1px;
+}
 /* Thread overlay cards */
 .lm-ai-thread {
     display: flex;
@@ -402,6 +444,45 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     cursor: default;
     text-decoration: none;
 }
+/* Story 9.4 §4: collapsed tool trail + its expanded quiet list. */
+.lm-ai-thread__trail {
+    font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
+    color: var(--lm-text-tertiary, #6E6960);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+    align-self: flex-start;
+}
+.lm-ai-thread__trail:hover {
+    color: var(--lm-text-secondary, #44403A);
+}
+.lm-ai-thread__trail:focus-visible {
+    outline: 2px solid var(--lm-accent, #B85B33);
+    outline-offset: 1px;
+}
+.lm-ai-thread__trail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 var(--lm-space-2, 8px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.lm-ai-thread__trail-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font: 400 11px/1.4 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
+    color: var(--lm-text-secondary, #44403A);
+}
+/* Story 9.4 §2/§5: quiet meta lines (spend, secondary files line). */
+.lm-ai-thread__meta {
+    font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
+    color: var(--lm-text-tertiary, #6E6960);
+    margin: 0;
+}
     `.trim();
     document.head.appendChild(s);
 }
@@ -445,6 +526,25 @@ export function summarizeOutcome(files, status) {
     phrase('Edited', edits);
     phrase('Deleted', deletes);
     return parts.join(' · ');
+}
+
+// ─── Token-spend formatting (Story 9.4 — ux-design-epic-9 §2) ─────────────────
+
+/**
+ * Format a token count for the spend line / continue row / thread meta: below
+ * 1000 the raw count (`842`), at/above 1000 a one-decimal `k` figure with a
+ * trailing `.0` dropped (`12.4k`, `18k`). The caller adds the `~` prefix and
+ * the `tokens` word — tokens are the honest unit (no currency math in v1;
+ * provider pricing varies).
+ *
+ * @param {number} n
+ * @returns {string}
+ */
+export function formatTokens(n) {
+    const count = Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+    if (count < 1000) return String(count);
+    const k = Math.round((count / 1000) * 10) / 10;
+    return Number.isInteger(k) ? `${k}k` : `${k.toFixed(1)}k`;
 }
 
 // ─── CLI project-root derivation (for the AI filesystem bridge) ───────────────
@@ -581,8 +681,10 @@ function createDeferred() {
  * @param {object} props
  * @param {string} props.status - One of PILL_STATES keys.
  * @param {boolean} props.reducedMotion
+ * @param {string} [props.title] - Optional tooltip. Story 9.4 §1: `Turn N of M`
+ *   once a loop turn passes its first iteration — no new chrome at rest.
  */
-function StatusPill({ status, reducedMotion }) {
+function StatusPill({ status, reducedMotion, title }) {
     const desc = PILL_STATES[status] || PILL_STATES.idle;
     const isIdle = status === 'idle';
     return (
@@ -591,6 +693,7 @@ function StatusPill({ status, reducedMotion }) {
             data-testid="ai-status-pill"
             data-status={status}
             data-motion={reducedMotion ? 'instant' : 'animate'}
+            title={title || undefined}
             role="status"
             aria-live="polite"
             style={{
@@ -709,6 +812,89 @@ function InspectAnswer({ answer, onOpenPath }) {
     );
 }
 
+// ─── Tool trail (Story 9.4 — ux-design-epic-9 §4) ─────────────────────────────
+
+/** Display slugs for trail rows — the quiet machine-verb form UX §4 shows. */
+const STEP_SLUGS = Object.freeze({
+    read: 'read_file',
+    write: 'write_file',
+    delete: 'delete_file',
+    list: 'list_dir',
+    call: 'tool_call',
+});
+
+/**
+ * Map a loop tool-call's name onto a trail step kind. Known file-tool verbs
+ * map to their kind; anything else is a generic 'call'.
+ *
+ * @param {string} name
+ * @returns {'read'|'write'|'delete'|'list'|'call'}
+ */
+function stepKindForTool(name) {
+    const n = String(name ?? '').toLowerCase();
+    if (n.includes('list')) return 'list';
+    if (n.includes('read')) return 'read';
+    if (n.includes('delete') || n.includes('remove')) return 'delete';
+    if (n.includes('write') || n.includes('edit') || n.includes('create') || n.includes('mkdir')) {
+        return 'write';
+    }
+    return 'call';
+}
+
+/**
+ * Collapsed one-line tool trail for an ask-lane thread card (Story 9.4, UX
+ * §4): `N steps · R read · W written` (list+read count as read; write+delete
+ * as written; 'call' counts toward N only). Clicking toggles a quiet expanded
+ * list of `read_file kit/banner.jsx`-style rows; file paths reuse the
+ * existing path-link affordance (scope the next prompt + close the thread).
+ *
+ * @param {object} props
+ * @param {Array<{ kind: 'read'|'write'|'delete'|'list'|'call', file?: string }>} props.steps
+ * @param {(path: string) => void} [props.onOpenPath]
+ */
+function ThreadTrail({ steps, onOpenPath }) {
+    const [expanded, setExpanded] = React.useState(false);
+    const readCount = steps.filter((s) => s.kind === 'read' || s.kind === 'list').length;
+    const writtenCount = steps.filter((s) => s.kind === 'write' || s.kind === 'delete').length;
+    const line = `${steps.length} ${steps.length === 1 ? 'step' : 'steps'} · ${readCount} read · ${writtenCount} written`;
+    return (
+        <>
+            <button
+                type="button"
+                className="lm-ai-thread__trail"
+                data-testid="ai-thread-trail"
+                aria-expanded={expanded}
+                onClick={() => setExpanded((e) => !e)}
+            >
+                {line}
+            </button>
+            {expanded && (
+                <ul className="lm-ai-thread__trail-list" data-testid="ai-thread-trail-list">
+                    {steps.map((s, i) => (
+                        <li className="lm-ai-thread__trail-row" key={i}>
+                            <span>{STEP_SLUGS[s.kind] ?? STEP_SLUGS.call}</span>
+                            {s.file &&
+                                (typeof onOpenPath === 'function' ? (
+                                    <button
+                                        type="button"
+                                        className="lm-ai-thread__action"
+                                        data-testid="ai-thread-trail-path"
+                                        title={`Scope the next prompt to ${s.file}`}
+                                        onClick={() => onOpenPath(s.file)}
+                                    >
+                                        {s.file}
+                                    </button>
+                                ) : (
+                                    <span>{s.file}</span>
+                                ))}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </>
+    );
+}
+
 // ─── Thread overlay ───────────────────────────────────────────────────────────
 
 /**
@@ -755,11 +941,36 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
                                 key={turn.id}
                             >
                                 <p className="lm-ai-thread__prompt">{turn.prompt}</p>
+                                {/* Story 9.4 §4: collapsed tool trail — ask-lane
+                                    cards only (the inspect loop is invisible by
+                                    design; reads already showed as the pill). */}
+                                {!isInspect &&
+                                    Array.isArray(turn.steps) &&
+                                    turn.steps.length > 0 && (
+                                        <ThreadTrail steps={turn.steps} onOpenPath={onOpenPath} />
+                                    )}
                                 {isInspect ? (
                                     <InspectAnswer answer={turn.outcome} onOpenPath={onOpenPath} />
                                 ) : (
                                     <p className="lm-ai-thread__outcome" data-testid="ai-thread-outcome">
                                         {turn.outcome}
+                                    </p>
+                                )}
+                                {/* Story 9.4 §5: when the agent's closing summary
+                                    took the outcome slot, the files-derived line
+                                    stays as quiet secondary info. */}
+                                {!isInspect && turn.filesLine && (
+                                    <p className="lm-ai-thread__meta" data-testid="ai-thread-files-line">
+                                        {turn.filesLine}
+                                    </p>
+                                )}
+                                {/* Story 9.4 §2: per-turn spend meta — tokens are
+                                    the honest unit. */}
+                                {!isInspect && turn.spentTokens > 0 && (
+                                    <p className="lm-ai-thread__meta" data-testid="ai-thread-spend">
+                                        {`~${formatTokens(turn.spentTokens)} tokens${
+                                            turn.turns > 1 ? ` · ${turn.turns} turns` : ''
+                                        }`}
                                     </p>
                                 )}
                                 {/* DS Curator clarifying notes — calm one-liners
@@ -882,6 +1093,19 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     const [threadOpen, setThreadOpen] = React.useState(false);
     const [turns, setTurns] = React.useState(/** @type {Array<object>} */ ([]));
 
+    // ── Loop-turn state (Story 9.4) ─────────────────────────────────────────
+    // Latest turn-progress payload while a turn runs — drives the pill's
+    // `Turn N of M` tooltip and the quiet spend line. Cleared when the turn
+    // ends (the spend folds into the thread card; no chrome at rest).
+    const [turnProgress, setTurnProgress] = React.useState(
+        /** @type {{ turn: number, maxTurns: number | null, spentTokens: number } | null} */ (null),
+    );
+    // Non-null while the needs-continue inline row is open (the loop hit its
+    // step cap and blocks awaiting the user's call).
+    const [continuePrompt, setContinuePrompt] = React.useState(
+        /** @type {{ turnsUsed: number, spentTokens: number } | null} */ (null),
+    );
+
     // ── Gating overlay state (first-run setup + cloud disclosure) ───────────
     const [setupOpen, setSetupOpen] = React.useState(false);
     const [discloseFor, setDiscloseFor] = React.useState(/** @type {string | null} */ (null));
@@ -935,6 +1159,37 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
         inputRef.current?.focus();
     }, []);
 
+    // ── Continue-at-the-cap state (Story 9.4 §3) ────────────────────────────
+    const continueDeferredRef = React.useRef(
+        /** @type {{ promise: Promise<boolean>, resolve: (v: boolean) => void, reject: (e?: unknown) => void } | null} */ (null),
+    );
+    /**
+     * The `onContinueDecision` callback passed INTO runTurn (the
+     * onVisionDecision pattern): the loop hit its step cap and blocks
+     * awaiting the user's call. Renders the calm inline row where the pill
+     * sits and resolves `true` (continue) / `false` (stop here) from its
+     * buttons. The stop path (Esc / stop button) settles a pending decision
+     * false before aborting, so no promise ever dangles.
+     */
+    const requestContinueDecision = React.useCallback(async ({ turnsUsed, spentTokens } = {}) => {
+        // Settle any prior pending decision as a stop BEFORE replacing it —
+        // a deferred must never be orphaned.
+        continueDeferredRef.current?.resolve(false);
+        const d = createDeferred();
+        continueDeferredRef.current = d;
+        setContinuePrompt({
+            turnsUsed: typeof turnsUsed === 'number' ? turnsUsed : 0,
+            spentTokens: typeof spentTokens === 'number' ? spentTokens : 0,
+        });
+        return d.promise;
+    }, []);
+    /** Settle the open continue row with the user's choice and close it. */
+    const onContinueChoice = React.useCallback((decision) => {
+        setContinuePrompt(null);
+        continueDeferredRef.current?.resolve(decision === true);
+        continueDeferredRef.current = null;
+    }, []);
+
     // ── Refs ────────────────────────────────────────────────────────────────
     const inputRef = React.useRef(null);
     const controllerRef = React.useRef(/** @type {AbortController | null} */ (null));
@@ -969,6 +1224,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             const vision = visionDeferredRef.current;
             visionDeferredRef.current = null;
             vision?.resolve({ accept: false });
+            // And a pending continue decision (Story 9.4): resolve "stop" so
+            // the awaiting loop releases.
+            const cont = continueDeferredRef.current;
+            continueDeferredRef.current = null;
+            cont?.resolve(false);
         };
     }, []);
 
@@ -986,6 +1246,15 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     // ── Stop semantics (stop button + global Esc while running) ─────────────
     const requestStop = React.useCallback(() => {
         if (!controllerRef.current) return;
+        // Story 9.4: a pending continue decision must not dangle across an
+        // abort — settle it as "stop here" and close the row, THEN abort
+        // (the loop sees the decision or the abort, whichever it awaits).
+        const pendingContinue = continueDeferredRef.current;
+        if (pendingContinue) {
+            continueDeferredRef.current = null;
+            pendingContinue.resolve(false);
+            setContinuePrompt(null);
+        }
         // The pill keeps moving: Writing files… → Stopping… → Stopped. The
         // in-flight write finishes per NFR18, so we show the transient
         // "stopping" until the orchestrator's `stopped` event arrives.
@@ -1037,12 +1306,24 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             // `inspector-response` payload — the user-facing outcome of FR58),
             // never a file summary and never raw agent internals.
             const isInspect = extra.mode === MODE_INSPECT;
+            // Story 9.4 §5: a done event may carry the agent's 1–3 sentence
+            // closing summary — it takes the outcome slot; the files-derived
+            // line then renders as quiet secondary info (when files exist).
+            // Inspect cards are unchanged.
+            const agentSummary =
+                !isInspect &&
+                terminalStatus === 'done' &&
+                typeof extra.summary === 'string' &&
+                extra.summary.trim()
+                    ? extra.summary.trim()
+                    : null;
+            const filesSummary = isInspect ? null : summarizeOutcome(files, terminalStatus);
             const summary =
                 terminalStatus === 'error' && errorInfo && errorInfo.message
                     ? `${errorInfo.class || 'Error'}: ${errorInfo.message}`
                     : isInspect
                       ? (extra.answer || 'No answer.')
-                      : summarizeOutcome(files, terminalStatus);
+                      : (agentSummary ?? filesSummary);
             const record = {
                 id: `turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 prompt,
@@ -1051,6 +1332,19 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 answer: isInspect ? (extra.answer ?? '') : null,
                 files: Array.isArray(files) ? files : [],
                 outcome: summary,
+                // The files line as secondary info when the agent summary took
+                // the outcome slot (Story 9.4 §5).
+                filesLine:
+                    agentSummary && Array.isArray(files) && files.length > 0
+                        ? filesSummary
+                        : null,
+                // Story 9.4 loop telemetry — spend + turn count + tool trail.
+                spentTokens:
+                    typeof extra.spentTokens === 'number' && extra.spentTokens > 0
+                        ? extra.spentTokens
+                        : 0,
+                turns: typeof extra.turns === 'number' && extra.turns > 1 ? extra.turns : 1,
+                steps: Array.isArray(extra.steps) ? extra.steps.slice() : [],
                 // DS Curator clarifying notes (brand-authority conflicts) —
                 // shown as calm lines under the outcome (FR53/FR54 surface).
                 notes: Array.isArray(extra.notes) ? extra.notes.slice(0, 6) : [],
@@ -1099,6 +1393,10 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             setRunning(true);
             setStatus('thinking');
             setRevertVisible(false);
+            // Story 9.4: fresh loop telemetry per turn (no stale tooltip /
+            // spend line / continue row from a prior run).
+            setTurnProgress(null);
+            setContinuePrompt(null);
             clearTerminalTimers();
 
             // The turn scope: the selection scope (persisted across turns) folds
@@ -1135,6 +1433,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 seenPaths.add(path);
                 seenFiles.push({ path, op });
             };
+            // Story 9.4 loop telemetry: latest token spend + highest turn seen
+            // (from turn-progress) and the tool-trail steps — all persisted on
+            // the turn record at the terminal.
+            let tokensSpent = 0;
+            let turnsSeen = 1;
+            /** @type {Array<{ kind: 'read'|'write'|'delete'|'list'|'call', file?: string }>} */
+            const turnSteps = [];
             try {
                 for await (const ev of ai.runTurn({
                     prompt,
@@ -1156,6 +1461,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     ...(typeof opts.onVisionDecision === 'function'
                         ? { onVisionDecision: opts.onVisionDecision }
                         : null),
+                    // Story 9.4 §3: the step-cap decision rides this callback
+                    // (the needs-continue event itself is informational).
+                    onContinueDecision: requestContinueDecision,
                 })) {
                     if (!mountedRef.current) break;
                     switch (ev.type) {
@@ -1163,6 +1471,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             setStatus((s) => (s === 'stopping' ? s : 'thinking'));
                             break;
                         case 'reading':
+                            // Story 9.4 §4: every read is a trail step.
+                            turnSteps.push({
+                                kind: 'read',
+                                ...(typeof ev.file === 'string' && ev.file
+                                    ? { file: ev.file }
+                                    : {}),
+                            });
                             setStatus((s) => (s === 'stopping' ? s : 'reading'));
                             break;
                         case 'writing':
@@ -1172,12 +1487,50 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             // conservative op (the stopped summary counts
                             // paths and never branches on op).
                             recordSeenFile(ev.file, ev.type === 'deleting' ? 'delete' : 'edit');
+                            // Story 9.4 §4: every mutation is a trail step.
+                            turnSteps.push({
+                                kind: ev.type === 'deleting' ? 'delete' : 'write',
+                                ...(typeof ev.file === 'string' && ev.file
+                                    ? { file: ev.file }
+                                    : {}),
+                            });
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
                             break;
                         case 'tool-call':
+                            // Story 9.4 §4: one trail step per loop tool
+                            // execution; status folds into "Writing files…"
+                            // as before.
+                            turnSteps.push({ kind: stepKindForTool(ev.name) });
+                            setStatus((s) => (s === 'stopping' ? s : 'writing'));
+                            break;
                         case 'mkdir':
                             // All file-mutation progress folds into "Writing files…".
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
+                            break;
+                        case 'turn-progress':
+                            // Story 9.4 §1/§2: live loop telemetry — may arrive
+                            // many times per turn. Drives the pill's `Turn N of
+                            // M` tooltip and the quiet spend line.
+                            if (typeof ev.spentTokens === 'number') tokensSpent = ev.spentTokens;
+                            if (typeof ev.turn === 'number' && ev.turn > turnsSeen) {
+                                turnsSeen = ev.turn;
+                            }
+                            setTurnProgress({
+                                turn: typeof ev.turn === 'number' ? ev.turn : turnsSeen,
+                                maxTurns: typeof ev.maxTurns === 'number' ? ev.maxTurns : null,
+                                spentTokens: tokensSpent,
+                            });
+                            break;
+                        case 'needs-continue':
+                            // Informational only — the DECISION rides the
+                            // onContinueDecision callback passed into runTurn.
+                            // Keep the spend figure fresh for the record.
+                            if (typeof ev.spentTokens === 'number') {
+                                tokensSpent = ev.spentTokens;
+                                setTurnProgress((p) =>
+                                    p ? { ...p, spentTokens: ev.spentTokens } : p,
+                                );
+                            }
                             break;
                         case 'clarifying-note':
                             // DS Curator brand-authority conflict (FR53/FR54
@@ -1199,6 +1552,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                 mode: turnMode,
                                 answer: inspectAnswer,
                                 notes: turnNotes,
+                                // Story 9.4 §5: the agent's closing summary
+                                // (may be absent — the files-derived line is
+                                // the fallback).
+                                summary: typeof ev.summary === 'string' ? ev.summary : '',
+                                spentTokens: tokensSpent,
+                                turns: turnsSeen,
+                                steps: turnSteps,
                             });
                             break;
                         case 'stopped':
@@ -1209,6 +1569,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                 mode: turnMode,
                                 answer: inspectAnswer,
                                 notes: turnNotes,
+                                spentTokens: tokensSpent,
+                                turns: turnsSeen,
+                                steps: turnSteps,
                             });
                             break;
                         case 'error':
@@ -1216,6 +1579,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             finishTurn('error', [], prompt, null, ev.error ?? null, {
                                 mode: turnMode,
                                 notes: turnNotes,
+                                spentTokens: tokensSpent,
+                                turns: turnsSeen,
+                                steps: turnSteps,
                             });
                             break;
                         default:
@@ -1236,6 +1602,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     finishTurn('done', [], prompt, turnId, null, {
                         mode: turnMode,
                         answer: inspectAnswer,
+                        spentTokens: tokensSpent,
+                        turns: turnsSeen,
+                        steps: turnSteps,
                     });
                 }
             } catch (err) {
@@ -1250,7 +1619,12 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             message:
                                 (err && typeof err === 'object' && err.message) || String(err),
                         },
-                        { mode: turnMode },
+                        {
+                            mode: turnMode,
+                            spentTokens: tokensSpent,
+                            turns: turnsSeen,
+                            steps: turnSteps,
+                        },
                     );
                 }
             } finally {
@@ -1265,9 +1639,20 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     vision.resolve({ accept: false });
                     if (mountedRef.current) setVisionPromptProviders(null);
                 }
+                // Story 9.4: a continue row must never outlive its turn either
+                // — settle any still-open decision as "stop" and clear the
+                // live loop telemetry (the spend folds into the thread card;
+                // no tooltip chrome at rest).
+                const pendingContinue = continueDeferredRef.current;
+                if (pendingContinue) {
+                    continueDeferredRef.current = null;
+                    pendingContinue.resolve(false);
+                    if (mountedRef.current) setContinuePrompt(null);
+                }
+                if (mountedRef.current) setTurnProgress(null);
             }
         },
-        [scope, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding],
+        [scope, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding, requestContinueDecision],
     );
 
     // ── Gating: first-run setup + cloud disclosure (consumes Story 8.1) ─────
@@ -1583,6 +1968,12 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     // Story 8.7 State A: flash `Vision unavailable` over an idle pill while the
     // inline note explains; in-flight/terminal states always win.
     const pillStatus = visionGate.pillFlash && status === 'idle' ? 'vision-unavailable' : status;
+    // Story 9.4 §1: past the first loop iteration the pill tooltip carries the
+    // turn counter — no new chrome at rest (turnProgress clears at turn end).
+    const pillTitle =
+        turnProgress && turnProgress.turn > 1 && turnProgress.maxTurns
+            ? `Turn ${turnProgress.turn} of ${turnProgress.maxTurns}`
+            : undefined;
 
     return (
         <span className="lm-ai-cluster" data-tour="dock-ai">
@@ -1639,8 +2030,44 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     PERMANENTLY mounted (its aria-live region announces every
                     in-flight state: Thinking… / Reading… / Writing files… /
                     Stopping…, AC-6); the stop button sits beside it while a
-                    turn runs (AC-5). */}
-                <StatusPill status={pillStatus} reducedMotion={reducedMotion} />
+                    turn runs (AC-5). Story 9.4 §3: while a needs-continue
+                    decision is pending, the calm inline row takes the pill's
+                    slot (same pattern family as the vision prompt — never a
+                    modal); Esc / the stop button still abort the whole turn. */}
+                {continuePrompt ? (
+                    <span
+                        className="lm-ai-cluster__continue"
+                        data-testid="ai-continue-prompt"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <span>
+                            {`Paused after ${continuePrompt.turnsUsed} steps · ~${formatTokens(continuePrompt.spentTokens)} tokens — `}
+                        </span>
+                        <button
+                            type="button"
+                            className="lm-ai-cluster__continue-btn"
+                            data-testid="ai-continue-yes"
+                            onClick={() => onContinueChoice(true)}
+                        >
+                            Continue
+                        </button>
+                        <button
+                            type="button"
+                            className="lm-ai-cluster__continue-btn"
+                            data-testid="ai-continue-stop"
+                            onClick={() => onContinueChoice(false)}
+                        >
+                            Stop here
+                        </button>
+                    </span>
+                ) : (
+                    <StatusPill
+                        status={pillStatus}
+                        reducedMotion={reducedMotion}
+                        title={pillTitle}
+                    />
+                )}
                 {running && (
                     <button
                         type="button"
@@ -1685,6 +2112,15 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     </svg>
                 </button>
             </span>
+
+            {/* Story 9.4 §2: quiet spend line near the input while a turn runs
+                — tokens are the honest unit (BYOK users are paying; visibility
+                is a feature, not noise). Folds into the thread card after. */}
+            {running && turnProgress && turnProgress.spentTokens > 0 && (
+                <span className="lm-ai-cluster__spend" data-testid="ai-spend-line">
+                    {`~${formatTokens(turnProgress.spentTokens)} tokens`}
+                </span>
+            )}
 
             {/* Story 8.7 State A inline note: vision required, no cloud
                 provider can serve a fallback — calm guidance, no modal. The

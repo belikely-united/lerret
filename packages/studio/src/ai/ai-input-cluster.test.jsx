@@ -52,6 +52,7 @@ import {
     summarizeOutcome,
     resolveChipLabel,
     deriveProjectRoot,
+    formatTokens,
     _setBabelParserLoader,
 } from './ai-input-cluster.jsx';
 import { AiContextProvider } from './ai-context.jsx';
@@ -2044,6 +2045,410 @@ describe('clarifying-note pipeline (DS Curator conflict surface)', () => {
         expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent).toBe(
             'Created a.jsx',
         );
+        cleanup();
+    });
+});
+
+// ── Story 9.4: loop UX — counter, spend, continue, trail, summary ────────────────
+
+/** Submit the given prompt through the dock input (shared 9.4 helper). */
+async function submitPrompt(container, prompt = 'go') {
+    const input = container.querySelector('[data-testid="ai-input"]');
+    await act(async () => {
+        setReactInputValue(input, prompt);
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+}
+
+/** Open the thread overlay via the chevron (shared 9.4 helper). */
+async function openThread(container) {
+    await act(async () => {
+        container.querySelector('[data-testid="ai-thread-chevron"]').click();
+    });
+    await tick();
+}
+
+describe('formatTokens (Story 9.4 — spend formatting)', () => {
+    it('shows raw counts below 1000 and a one-decimal k figure above', () => {
+        expect(formatTokens(0)).toBe('0');
+        expect(formatTokens(842)).toBe('842');
+        expect(formatTokens(999)).toBe('999');
+        expect(formatTokens(12437)).toBe('12.4k');
+        expect(formatTokens(18000)).toBe('18k');
+    });
+
+    it('tolerates junk input (NaN / negative → 0)', () => {
+        expect(formatTokens(NaN)).toBe('0');
+        expect(formatTokens(-5)).toBe('0');
+        expect(formatTokens(undefined)).toBe('0');
+    });
+});
+
+describe('AiInputCluster — turn counter + spend line (Story 9.4 AC-1/AC-2)', () => {
+    it('adds the Turn N of M pill tooltip once turn > 1, renders + updates the spend line, and clears both at rest', async () => {
+        const step1 = deferred();
+        const step2 = deferred();
+        aiMock.current = makeAi({
+            runTurnImpl: async function* () {
+                yield { type: 'thinking' };
+                yield { type: 'turn-progress', turn: 1, maxTurns: 10, spentTokens: 842 };
+                await step1.promise;
+                yield { type: 'turn-progress', turn: 3, maxTurns: 10, spentTokens: 12437 };
+                await step2.promise;
+                yield { type: 'done', files: [{ op: 'edit', path: 'a.jsx' }], turnId: 't-prog' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(20);
+        // Turn 1: spend line live, NO turn-counter tooltip yet (turn === 1).
+        let pill = container.querySelector('[data-testid="ai-status-pill"]');
+        expect(pill.getAttribute('title')).toBeNull();
+        let spend = container.querySelector('[data-testid="ai-spend-line"]');
+        expect(spend).not.toBeNull();
+        expect(spend.textContent).toBe('~842 tokens');
+        // Turn 3: the tooltip appears and the spend updates in place.
+        await act(async () => { step1.resolve(); });
+        await tick(10);
+        pill = container.querySelector('[data-testid="ai-status-pill"]');
+        expect(pill.getAttribute('title')).toBe('Turn 3 of 10');
+        spend = container.querySelector('[data-testid="ai-spend-line"]');
+        expect(spend.textContent).toBe('~12.4k tokens');
+        // Turn end: the live line folds away and the tooltip clears — no new
+        // chrome at rest (UX §1/§2).
+        await act(async () => { step2.resolve(); });
+        await tick(40);
+        expect(container.querySelector('[data-testid="ai-spend-line"]')).toBeNull();
+        pill = container.querySelector('[data-testid="ai-status-pill"]');
+        expect(pill.getAttribute('title')).toBeNull();
+        cleanup();
+    });
+
+    it('persists spentTokens + turns (max seen) on the record — the thread card shows the spend meta', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'turn-progress', turn: 1, maxTurns: 10, spentTokens: 4000 },
+                { type: 'turn-progress', turn: 3, maxTurns: 10, spentTokens: 12437 },
+                { type: 'done', files: [{ op: 'edit', path: 'a.jsx' }], turnId: 't-spend' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(40);
+        await openThread(container);
+        const meta = document.querySelector('[data-testid="ai-thread-spend"]');
+        expect(meta).not.toBeNull();
+        expect(meta.textContent).toBe('~12.4k tokens · 3 turns');
+        cleanup();
+    });
+
+    it('a single-turn record shows the spend without a turns suffix; a no-spend record shows no meta', async () => {
+        const scripts = [
+            [
+                { type: 'thinking' },
+                { type: 'turn-progress', turn: 1, maxTurns: 10, spentTokens: 842 },
+                { type: 'done', files: [], turnId: 't-one' },
+            ],
+            [{ type: 'thinking' }, { type: 'done', files: [], turnId: 't-none' }],
+        ];
+        let call = 0;
+        aiMock.current = makeAi({
+            runTurnImpl: async function* () {
+                const evs = scripts[Math.min(call, scripts.length - 1)];
+                call += 1;
+                for (const e of evs) yield e;
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'first');
+        await tick(40);
+        await submitPrompt(container, 'second');
+        await tick(40);
+        await openThread(container);
+        const cards = document.querySelectorAll('[data-testid="ai-thread-card"]');
+        expect(cards.length).toBe(2);
+        // Newest first: the no-spend turn has no meta line.
+        expect(cards[0].querySelector('[data-testid="ai-thread-spend"]')).toBeNull();
+        // The single-turn record: tokens only, no "· N turns" suffix.
+        expect(cards[1].querySelector('[data-testid="ai-thread-spend"]').textContent)
+            .toBe('~842 tokens');
+        cleanup();
+    });
+});
+
+describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
+    it('renders the inline row at the cap; Continue resolves true, the row clears, the turn resumes', async () => {
+        const decisions = [];
+        aiMock.current = makeAi({
+            runTurnImpl: async function* ({ onContinueDecision }) {
+                yield { type: 'thinking' };
+                yield { type: 'turn-progress', turn: 10, maxTurns: 10, spentTokens: 18000 };
+                decisions.push(await onContinueDecision({ turnsUsed: 10, spentTokens: 18000 }));
+                yield { type: 'turn-progress', turn: 11, maxTurns: 20, spentTokens: 19500 };
+                yield {
+                    type: 'done',
+                    files: [{ op: 'edit', path: 'kit/banner.jsx' }],
+                    turnId: 't-cap',
+                };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'retheme the kit');
+        await tick(20);
+        // The row takes the pill's slot, mid-turn: input disabled, stop
+        // button still present (retro addendum-4 order-of-use).
+        const row = container.querySelector('[data-testid="ai-continue-prompt"]');
+        expect(row).not.toBeNull();
+        expect(row.getAttribute('role')).toBe('status');
+        expect(row.textContent).toContain('Paused after 10 steps · ~18k tokens');
+        expect(container.querySelector('[data-testid="ai-input"]').disabled).toBe(true);
+        expect(container.querySelector('[data-testid="ai-stop"]')).not.toBeNull();
+        // Continue → resolves true, the row clears, the loop runs on to done.
+        await act(async () => {
+            container.querySelector('[data-testid="ai-continue-yes"]').click();
+        });
+        await tick(20);
+        expect(decisions).toEqual([true]);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
+            .toBe('done');
+        cleanup();
+    });
+
+    it('Stop here resolves false and the turn finalizes as done with the files so far', async () => {
+        const decisions = [];
+        aiMock.current = makeAi({
+            runTurnImpl: async function* ({ onContinueDecision }) {
+                yield { type: 'thinking' };
+                yield { type: 'writing', file: 'kit/banner.jsx' };
+                decisions.push(await onContinueDecision({ turnsUsed: 10, spentTokens: 18000 }));
+                // The loop honors "stop here" by finalizing done with the
+                // files written so far (they are real and snapshotted).
+                yield {
+                    type: 'done',
+                    files: [{ op: 'edit', path: 'kit/banner.jsx' }],
+                    turnId: 't-cap2',
+                };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(20);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).not.toBeNull();
+        await act(async () => {
+            container.querySelector('[data-testid="ai-continue-stop"]').click();
+        });
+        await tick(20);
+        expect(decisions).toEqual([false]);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
+            .toBe('done');
+        // The input re-enabled after the choice ended the turn.
+        expect(container.querySelector('[data-testid="ai-input"]').disabled).toBe(false);
+        cleanup();
+    });
+
+    it('Esc while the row shows aborts the whole turn and settles the decision false (no dangling promise)', async () => {
+        let aborted = false;
+        const decisions = [];
+        aiMock.current = makeAi({
+            runTurnImpl: async function* ({ signal, onContinueDecision }) {
+                signal.addEventListener('abort', () => { aborted = true; });
+                yield { type: 'thinking' };
+                // The stop path settles this false BEFORE aborting — the loop
+                // wakes with the decision, sees the abort, and stops.
+                decisions.push(await onContinueDecision({ turnsUsed: 10, spentTokens: 18000 }));
+                yield { type: 'stopped' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(20);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).not.toBeNull();
+        await act(async () => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        });
+        await tick(20);
+        expect(aborted).toBe(true);
+        expect(decisions).toEqual([false]);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        await tick(20);
+        expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
+            .toBe('stopped');
+        cleanup();
+    });
+
+    it('the stop button while the row shows also aborts + settles false', async () => {
+        let aborted = false;
+        const decisions = [];
+        aiMock.current = makeAi({
+            runTurnImpl: async function* ({ signal, onContinueDecision }) {
+                signal.addEventListener('abort', () => { aborted = true; });
+                yield { type: 'thinking' };
+                decisions.push(await onContinueDecision({ turnsUsed: 4, spentTokens: 900 }));
+                yield { type: 'stopped' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(20);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]').textContent)
+            .toContain('Paused after 4 steps · ~900 tokens');
+        await act(async () => {
+            container.querySelector('[data-testid="ai-stop"]').click();
+        });
+        await tick(40);
+        expect(aborted).toBe(true);
+        expect(decisions).toEqual([false]);
+        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
+            .toBe('stopped');
+        cleanup();
+    });
+});
+
+describe('AiInputCluster — tool trail (Story 9.4 AC-4)', () => {
+    it('renders the collapsed trail line with counts and toggles the expanded quiet list', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'tool-call', name: 'list_dir' },
+                { type: 'reading', file: 'kit/banner.jsx' },
+                { type: 'reading', file: 'kit/card.jsx' },
+                { type: 'writing', file: 'kit/banner.jsx' },
+                { type: 'done', files: [{ op: 'edit', path: 'kit/banner.jsx' }], turnId: 't-trail' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'retheme the banner');
+        await tick(40);
+        await openThread(container);
+        // Collapsed one-liner: list+read count as read, write+delete as written.
+        const trail = document.querySelector('[data-testid="ai-thread-trail"]');
+        expect(trail).not.toBeNull();
+        expect(trail.textContent).toBe('4 steps · 3 read · 1 written');
+        expect(document.querySelector('[data-testid="ai-thread-trail-list"]')).toBeNull();
+        // Expand: quiet machine-verb rows in event order.
+        await act(async () => { trail.click(); });
+        const rows = document.querySelectorAll('[data-testid="ai-thread-trail-list"] li');
+        expect(rows.length).toBe(4);
+        expect(rows[0].textContent).toBe('list_dir');
+        expect(rows[1].textContent).toContain('read_file');
+        expect(rows[1].textContent).toContain('kit/banner.jsx');
+        expect(rows[3].textContent).toContain('write_file');
+        // Collapse again.
+        await act(async () => { trail.click(); });
+        expect(document.querySelector('[data-testid="ai-thread-trail-list"]')).toBeNull();
+        cleanup();
+    });
+
+    it('renders no trail when a turn had zero steps', async () => {
+        aiMock.current = makeAi({
+            events: [{ type: 'thinking' }, { type: 'done', files: [], turnId: 't-none' }],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(40);
+        await openThread(container);
+        expect(document.querySelector('[data-testid="ai-thread-card"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-thread-trail"]')).toBeNull();
+        cleanup();
+    });
+
+    it('inspect cards stay trail-free (their loop is invisible by design)', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'reading', file: 'kit/banner.jsx' },
+                { type: 'inspector-response', answer: 'It uses the brand color.' },
+                { type: 'done', files: [] },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        act(() => {
+            container.querySelector('[data-testid="ai-mode-inspect"]').click();
+        });
+        await submitPrompt(container, 'what color does the banner use?');
+        await tick(40);
+        await openThread(container);
+        const card = document.querySelector('[data-testid="ai-thread-card"]');
+        expect(card.getAttribute('data-mode')).toBe('inspect');
+        expect(card.querySelector('[data-testid="ai-thread-trail"]')).toBeNull();
+        cleanup();
+    });
+});
+
+describe('AiInputCluster — done summary (Story 9.4 AC §5)', () => {
+    it('a done summary takes the outcome line, with the files line as quiet secondary info', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'writing', file: 'kit/banner.jsx' },
+                {
+                    type: 'done',
+                    files: [{ op: 'edit', path: 'kit/banner.jsx' }],
+                    turnId: 't-sum',
+                    summary: 'Rethemed the banner to the moss palette.',
+                },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'retheme the banner');
+        await tick(40);
+        await openThread(container);
+        expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent)
+            .toBe('Rethemed the banner to the moss palette.');
+        const filesLine = document.querySelector('[data-testid="ai-thread-files-line"]');
+        expect(filesLine).not.toBeNull();
+        expect(filesLine.textContent).toBe('Edited banner.jsx');
+        cleanup();
+    });
+
+    it('a done without summary keeps the files-derived outcome and shows no secondary line', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'done', files: [{ op: 'edit', path: 'a.jsx' }], turnId: 't-nosum' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(40);
+        await openThread(container);
+        expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent)
+            .toBe('Edited a.jsx');
+        expect(document.querySelector('[data-testid="ai-thread-files-line"]')).toBeNull();
+        cleanup();
+    });
+
+    it('a summary with no files renders alone (no empty secondary line)', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'done', files: [], turnId: 't-sumonly', summary: 'Nothing needed changing.' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container);
+        await tick(40);
+        await openThread(container);
+        expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent)
+            .toBe('Nothing needed changing.');
+        expect(document.querySelector('[data-testid="ai-thread-files-line"]')).toBeNull();
         cleanup();
     });
 });
