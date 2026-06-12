@@ -182,7 +182,14 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
                     role: 'system',
                     content:
                         'You are Lerret\'s read-only project inspector. Answer the user\'s ' +
-                        'question about their project concisely. You CANNOT modify files. ' +
+                        'question about their project concisely. You CANNOT modify files in ' +
+                        'this mode — the user\'s dock input is switched to Inspect, which is ' +
+                        'read-only. The same dock input has an Ask mode that CAN create and ' +
+                        'edit project files for them. If the user asks you to change, create, ' +
+                        'or delete something, do NOT give manual-edit instructions — tell ' +
+                        'them in one short sentence to switch the dock toggle from Inspect ' +
+                        'to Ask and send the same request again, optionally adding one ' +
+                        'sentence on which file(s) the change would touch. ' +
                         'When you reference a project file, write its project-relative ' +
                         'POSIX path verbatim (for example .lerret/social/card.jsx).' +
                         context +

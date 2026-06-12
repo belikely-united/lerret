@@ -15,7 +15,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { createPlannerNode, parsePlan } from './planner.js';
+import { createPlannerNode, parsePlan, parsePlanResult } from './planner.js';
 
 describe('parsePlan', () => {
     it('keeps write/delete/mkdir steps with a string path', () => {
@@ -106,6 +106,113 @@ describe('createPlannerNode — decomposition', () => {
         expect(sys).toMatch(/export default function/);
         expect(sys).toMatch(/Never\s+write \.html files/);
         expect(sys).toMatch(/inline style objects only/);
+    });
+
+    it('teaches the design-system brand-authority edit + the empty-plan note escape hatch', async () => {
+        // "change color to blue gradient" with nothing selected planned ZERO
+        // steps — the contract forbade writing the brand .md and offered no
+        // way to explain itself (live user-testing finding, 2026-06-12).
+        const providerHandle = makeHandle();
+        await createPlannerNode({ providerHandle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
+            prompt: 'change color to blue gradient',
+        });
+        const sys = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        expect(sys).toMatch(/_design-system\.md is the project's brand authority/);
+        expect(sys).toMatch(/PROJECT-WIDE look request/);
+        expect(sys).toMatch(/rewriting \.lerret\/_design-system\.md in place/);
+        expect(sys).toMatch(/\{"steps":\[\],"note":/);
+    });
+});
+
+describe('createPlannerNode — empty-plan clarifying note', () => {
+    it('surfaces the model\'s note when the plan is empty', async () => {
+        const emit = vi.fn();
+        const providerHandle = makeHandle({
+            content: '{"steps":[],"note":"Select the pricing card on the canvas and resend."}',
+        });
+        const out = await createPlannerNode({ providerHandle, emit, requestVisionDecision: vi.fn() })({
+            prompt: 'change the pricing card',
+        });
+        expect(out.plan).toEqual([]);
+        const notes = emit.mock.calls.map((c) => c[0]).filter((e) => e.type === 'clarifying-note');
+        expect(notes).toHaveLength(1);
+        expect(notes[0].note).toBe('Select the pricing card on the canvas and resend.');
+    });
+
+    it('falls back to the fixed pointer when the empty plan has no note (prose / unparseable)', async () => {
+        const emit = vi.fn();
+        const providerHandle = makeHandle({ content: 'Sorry, I am not sure which asset you mean.' });
+        await createPlannerNode({ providerHandle, emit, requestVisionDecision: vi.fn() })({
+            prompt: 'change it',
+        });
+        const notes = emit.mock.calls.map((c) => c[0]).filter((e) => e.type === 'clarifying-note');
+        expect(notes).toHaveLength(1);
+        expect(notes[0].note).toMatch(/selecting the\s+target asset on the canvas/);
+    });
+
+    it('emits NO clarifying note when the plan has steps', async () => {
+        const emit = vi.fn();
+        const providerHandle = makeHandle({
+            content: JSON.stringify({ steps: [{ op: 'write', path: '.lerret/a.jsx', content: 'A' }] }),
+        });
+        await createPlannerNode({ providerHandle, emit, requestVisionDecision: vi.fn() })({
+            prompt: 'make a',
+        });
+        const notes = emit.mock.calls.map((c) => c[0]).filter((e) => e.type === 'clarifying-note');
+        expect(notes).toHaveLength(0);
+    });
+});
+
+describe('parsePlanResult', () => {
+    it('extracts steps and note together', () => {
+        const r = parsePlanResult('{"steps":[],"note":"pick an asset"}');
+        expect(r.steps).toEqual([]);
+        expect(r.note).toBe('pick an asset');
+    });
+
+    it('parses a bare-JSON plan whose file CONTENT embeds a fenced block (design-system rewrite)', () => {
+        // The exact live shape that silently planned to nothing: the brand
+        // file's ```lerret-tokens``` fence sits INSIDE the JSON string, and
+        // the old fence-FIRST unwrap reduced the whole response to the YAML
+        // between the embedded fences (live user-testing finding, 2026-06-12).
+        const content = JSON.stringify({
+            steps: [
+                {
+                    op: 'write',
+                    path: '.lerret/_design-system.md',
+                    content:
+                        '# Design system\n\n```lerret-tokens\ncolors:\n  brand: "#1A4FA3"\n```\n\nBlue leads.\n',
+                },
+            ],
+        });
+        const r = parsePlanResult(content);
+        expect(r.steps).toHaveLength(1);
+        expect(r.steps[0].path).toBe('.lerret/_design-system.md');
+        expect(r.steps[0].content).toContain('#1A4FA3');
+    });
+
+    it('still unwraps a response that is ONLY a fenced JSON block', () => {
+        const r = parsePlanResult('```json\n{"steps":[{"op":"mkdir","path":".lerret/social"}]}\n```');
+        expect(r.steps).toEqual([{ op: 'mkdir', path: '.lerret/social' }]);
+    });
+
+    it('still salvages prose-wrapped bare JSON', () => {
+        const r = parsePlanResult(
+            'Here is the plan: {"steps":[{"op":"write","path":".lerret/a.jsx","content":"A"}]} — done.',
+        );
+        expect(r.steps).toEqual([{ op: 'write', path: '.lerret/a.jsx', content: 'A' }]);
+    });
+
+    it('caps the note and ignores non-string notes', () => {
+        const long = parsePlanResult(`{"steps":[],"note":"${'x'.repeat(500)}"}`);
+        expect(long.note).toHaveLength(240);
+        expect(parsePlanResult('{"steps":[],"note":42}').note).toBe('');
+    });
+
+    it('keeps parsePlan as the steps-only view', () => {
+        expect(parsePlan('{"steps":[{"op":"write","path":".lerret/a.jsx","content":"A"}],"note":"n"}')).toEqual([
+            { op: 'write', path: '.lerret/a.jsx', content: 'A' },
+        ]);
     });
 });
 

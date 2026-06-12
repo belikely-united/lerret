@@ -134,6 +134,20 @@ describe('createInspectorNode — answer path', () => {
         expect(sysMsg).toMatch(/project-relative\s+POSIX path verbatim/);
     });
 
+    it('instructs the model to redirect change requests to Ask mode (never manual-edit guidance)', async () => {
+        const providerHandle = makeHandle();
+        await createInspectorNode({ providerHandle, emit: vi.fn() })({
+            prompt: 'change color to blue gradient',
+        });
+        const sysMsg = providerHandle.complete.mock.calls[0][0].messages[0].content;
+        // The mode-aware redirect: Inspect is read-only, Ask CAN edit — the
+        // model must point at the toggle instead of telling the user to make
+        // the change themselves (live user-testing finding, 2026-06-12).
+        expect(sysMsg).toMatch(/Ask mode that CAN create and edit/);
+        expect(sysMsg).toMatch(/switch the dock toggle from Inspect\s+to Ask/);
+        expect(sysMsg).toMatch(/do NOT give manual-edit instructions/);
+    });
+
     it('passes the answer text through VERBATIM — file paths intact for the studio link-detector', async () => {
         const answer = 'The banner is .lerret/social/launch-banner.jsx (last edited last week).';
         const emit = vi.fn();

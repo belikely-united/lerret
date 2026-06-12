@@ -13,7 +13,7 @@
 // Story 8.3 ships the generic decomposition path. Story 8.8 extends with
 // preset-aware W2/W3 planning — extend, do not rewrite.
 
-import { thinking } from '../events.js';
+import { thinking, clarifyingNote } from '../events.js';
 import { isVisionRequired } from '../../vision/router.js';
 import { recognizeWorkflow } from '../workflows/recognize.js';
 import { planLaunchKit } from '../workflows/launch-kit.js';
@@ -149,7 +149,18 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
                 'Rules: inline style objects only (no <style> tags, no CSS files, no className); ' +
                 'no imports of any kind; no <html>/<head>/<body>; the root <div> fills the full ' +
                 'meta dimensions. Edit an existing asset by rewriting its .jsx in place. Never ' +
-                'write .html files. Markdown (.md) is allowed only when the user asks for notes/docs.' +
+                'write .html files. Markdown (.md) is allowed only when the user asks for notes/docs ' +
+                '— with ONE exception: .lerret/_design-system.md is the project\'s brand authority ' +
+                '(the colors/typography/voice tokens every asset reads; when present, its text ' +
+                'appears in the project context below). For a PROJECT-WIDE look request ' +
+                '(change the brand color, switch the typography, retheme everything), emit ONE ' +
+                'write step rewriting .lerret/_design-system.md in place with the COMPLETE updated ' +
+                'content — keep its existing structure and change only the values the request ' +
+                'targets.\n' +
+                'If you cannot produce a correct plan (for example the request targets one ' +
+                'specific asset whose content you cannot see), respond ' +
+                '{"steps":[],"note":"<one short sentence telling the user what to do — e.g. ' +
+                'select that asset on the canvas and resend>"}.' +
                 brand +
                 context +
                 scoped,
@@ -158,45 +169,80 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
     ];
 }
 
+/** Cap on the model's empty-plan `note` surfaced into the thread. */
+const PLAN_NOTE_CHAR_CAP = 240;
+
 /**
- * Parse the provider's planning response into a WorkerStep array. Tolerant of
- * a fenced ```json block or a bare JSON object. Returns [] on unparseable
- * output (the turn then completes with no writes rather than crashing).
+ * Parse the provider's planning response into `{ steps, note }`. Tolerant of
+ * a fenced ```json block or a bare JSON object. `steps` is [] on unparseable
+ * output (the turn then completes with no writes rather than crashing);
+ * `note` carries the model's `{"steps":[],"note":"…"}` explanation — the
+ * escape hatch the system prompt offers when it cannot produce a correct
+ * plan — so an empty plan can be EXPLAINED in the thread instead of ending
+ * as a silent "No files changed." (live user-testing finding, 2026-06-12).
+ *
+ * @param {string} content
+ * @returns {{ steps: Array<import('./worker.js').WorkerStep>, note: string }}
+ */
+export function parsePlanResult(content) {
+    const empty = { steps: [], note: '' };
+    if (typeof content !== 'string') return empty;
+    const text = content.trim();
+    const tryParse = (t) => {
+        try {
+            return JSON.parse(t);
+        } catch {
+            return undefined;
+        }
+    };
+    // Parse the RAW text first. The fence-unwrap must only ever be a
+    // fallback: a plan whose file CONTENT embeds a fenced block (the
+    // design-system's ```lerret-tokens``` — so every brand rewrite) would
+    // otherwise have its JSON "unwrapped" down to the text between the
+    // embedded fences and silently parse to nothing (live user-testing
+    // finding, 2026-06-12).
+    let parsed = tryParse(text);
+    if (parsed === undefined) {
+        const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
+        if (fence) parsed = tryParse(fence[1].trim());
+    }
+    if (parsed === undefined) {
+        // Real models often wrap the JSON in prose ("Here is the plan: {…}.")
+        // — found by the Epic 8 close live-model session, where a whole edit
+        // turn silently became "no files changed". Salvage the outermost
+        // {...} block (of the raw text) before giving up.
+        const first = text.indexOf('{');
+        const last = text.lastIndexOf('}');
+        if (first === -1 || last <= first) return empty;
+        parsed = tryParse(text.slice(first, last + 1));
+        if (parsed === undefined) return empty;
+    }
+    const note =
+        !Array.isArray(parsed) && typeof parsed?.note === 'string'
+            ? parsed.note.trim().slice(0, PLAN_NOTE_CHAR_CAP)
+            : '';
+    const steps = Array.isArray(parsed) ? parsed : parsed?.steps;
+    if (!Array.isArray(steps)) return { steps: [], note };
+    // Whitelist the op so a typo'd/unknown op surfaces as a visibly-empty plan
+    // (a no-op `done`) rather than silently being skipped step-by-step in the
+    // Worker. Path validity is enforced by the sandbox at write time.
+    const ALLOWED_OPS = new Set(['write', 'delete', 'mkdir']);
+    return {
+        steps: steps.filter(
+            (s) => s && typeof s.op === 'string' && ALLOWED_OPS.has(s.op) && typeof s.path === 'string',
+        ),
+        note,
+    };
+}
+
+/**
+ * Back-compat steps-only view of {@link parsePlanResult}.
  *
  * @param {string} content
  * @returns {Array<import('./worker.js').WorkerStep>}
  */
 export function parsePlan(content) {
-    if (typeof content !== 'string') return [];
-    let text = content.trim();
-    const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
-    if (fence) text = fence[1].trim();
-    let parsed;
-    try {
-        parsed = JSON.parse(text);
-    } catch {
-        // Real models often wrap the JSON in prose ("Here is the plan: {…}.")
-        // — found by the Epic 8 close live-model session, where a whole edit
-        // turn silently became "no files changed". Salvage the outermost
-        // {...} block before giving up.
-        const first = text.indexOf('{');
-        const last = text.lastIndexOf('}');
-        if (first === -1 || last <= first) return [];
-        try {
-            parsed = JSON.parse(text.slice(first, last + 1));
-        } catch {
-            return [];
-        }
-    }
-    const steps = Array.isArray(parsed) ? parsed : parsed?.steps;
-    if (!Array.isArray(steps)) return [];
-    // Whitelist the op so a typo'd/unknown op surfaces as a visibly-empty plan
-    // (a no-op `done`) rather than silently being skipped step-by-step in the
-    // Worker. Path validity is enforced by the sandbox at write time.
-    const ALLOWED_OPS = new Set(['write', 'delete', 'mkdir']);
-    return steps.filter(
-        (s) => s && typeof s.op === 'string' && ALLOWED_OPS.has(s.op) && typeof s.path === 'string',
-    );
+    return parsePlanResult(content).steps;
 }
 
 /**
@@ -282,7 +328,19 @@ export function createPlannerNode({ providerHandle, emit, requestVisionDecision,
             messages: buildPlanningMessages(state, imageBlocks, scopedFile),
             signal: state.signal,
         });
-        const plan = parsePlan(result?.content ?? '');
-        return { plan };
+        const { steps, note } = parsePlanResult(result?.content ?? '');
+        // An empty plan must never end as a SILENT "No files changed." —
+        // surface the model's own note (the system prompt's escape hatch) or
+        // a fixed pointer at the selection chip (live user-testing finding).
+        if (steps.length === 0 && !state?.signal?.aborted) {
+            emit(
+                clarifyingNote(
+                    note ||
+                        'The model didn\'t return an actionable plan — try selecting the ' +
+                            'target asset on the canvas, or name the file in your request.',
+                ),
+            );
+        }
+        return { plan: steps };
     };
 }
