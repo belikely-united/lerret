@@ -86,7 +86,7 @@ function deepFreeze(value) {
 export const LIST_DIR_TOOL = deepFreeze({
     name: 'list_dir',
     description:
-        "List the immediate children of a project folder (name, kind, size). Start at '.lerret/' to discover the project structure.",
+        "List the immediate children of a project folder (name, kind, and size when available). Start at '.lerret/' to discover the project structure.",
     parameters: {
         type: 'object',
         properties: {

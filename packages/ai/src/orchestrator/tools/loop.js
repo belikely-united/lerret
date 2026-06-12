@@ -39,6 +39,14 @@ import {
 const REPEAT_GUARD_CONTENT =
     'You already performed this exact action. Choose a different action or finish with a summary.';
 
+/** Per-iteration output ceiling passed to every provider call — write_file
+ * carries complete file contents, so vendor defaults (4096) are too small. */
+export const LOOP_MAX_OUTPUT_TOKENS = 16384;
+
+/** Vendor stop reasons that mean "output truncated mid-thought" — Anthropic
+ * 'max_tokens', OpenAI-shape 'length' (OpenAI/OpenRouter/Ollama compat). */
+const TRUNCATION_STOP_REASONS = new Set(['max_tokens', 'length']);
+
 /**
  * Identity key for the repetition guard: name + canonical args JSON.
  * Circular args (a malformed translator output) degrade to String() rather
@@ -48,9 +56,21 @@ const REPEAT_GUARD_CONTENT =
  * @returns {string}
  */
 function callKey(call) {
+    // Keys are sorted recursively so `{path,content}` and `{content,path}`
+    // (key order rides through JSON.parse from the model's wire output) hash
+    // identically (review finding L1, 2026-06-13).
+    const sortKeys = (v) => {
+        if (Array.isArray(v)) return v.map(sortKeys);
+        if (v && typeof v === 'object') {
+            const out = {};
+            for (const k of Object.keys(v).sort()) out[k] = sortKeys(v[k]);
+            return out;
+        }
+        return v;
+    };
     let argsKey;
     try {
-        argsKey = JSON.stringify(call.args);
+        argsKey = JSON.stringify(sortKeys(call.args));
     } catch {
         argsKey = String(call.args);
     }
@@ -138,7 +158,15 @@ export async function runAgentLoop({
 
         turnNumber += 1;
         send(thinking());
-        const response = await providerHandle.completeWithTools({ messages, tools, signal });
+        const response = await providerHandle.completeWithTools({
+            messages,
+            tools,
+            signal,
+            // write_file carries COMPLETE file contents as tool-input JSON —
+            // vendor default output ceilings (Anthropic: 4096) truncate real
+            // asset rewrites (review finding M3, 2026-06-13).
+            maxTokens: LOOP_MAX_OUTPUT_TOKENS,
+        });
 
         usage.inputTokens += coerceCount(response?.usage?.inputTokens);
         usage.outputTokens += coerceCount(response?.usage?.outputTokens);
@@ -147,6 +175,25 @@ export async function runAgentLoop({
 
         const requestedCalls = Array.isArray(response?.toolCalls) ? response.toolCalls : [];
         if (requestedCalls.length === 0) {
+            // A truncation that produced NO parseable tool call is not a
+            // clean finish — the "summary" would be a cut-off fragment.
+            // Nudge the model to resume instead of silently shipping it
+            // (review finding M3, 2026-06-13); maxTurns still bounds us.
+            const truncated =
+                typeof response?.stopReason === 'string' &&
+                TRUNCATION_STOP_REASONS.has(response.stopReason);
+            if (truncated && turnNumber < effectiveMax) {
+                messages.push({ role: 'assistant', content: lastText });
+                messages.push({
+                    role: 'user',
+                    content:
+                        'Your reply was cut off by the output-token limit. Continue: issue ' +
+                        'the next tool call (keep any file write in ONE complete call), or ' +
+                        'give the short closing summary.',
+                });
+                send(turnProgress(turnNumber, effectiveMax, usage.inputTokens + usage.outputTokens));
+                continue;
+            }
             // Zero tool calls → DONE: the response text IS the turn summary.
             send(turnProgress(turnNumber, effectiveMax, usage.inputTokens + usage.outputTokens));
             return finish('done');

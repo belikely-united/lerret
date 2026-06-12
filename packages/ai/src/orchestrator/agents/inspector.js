@@ -30,7 +30,7 @@
 // agent's (core-purity: no DOM here).
 
 import { thinking, reading, inspectorResponse } from '../events.js';
-import { readScopedFile, elementPinpoint, toProjectRelativeLerretPath } from './scoped-file.js';
+import { readScopedFile, elementPinpoint, canonLerretPath } from './scoped-file.js';
 import { runAgentLoop } from '../tools/loop.js';
 import { READ_TOOLS, formatListing, capFileContent } from '../tools/definitions.js';
 import { supportsTools } from '../../providers/tool-support.js';
@@ -194,12 +194,7 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
                   `--- ${scoped.path} (selected asset) ---\n${scoped.content}\n--- end ---`
                 : '';
             const context = state?.context ? `\n\nProject context:\n${state.context}` : '';
-            const canon = (p) => {
-                if (typeof p !== 'string' || !p.trim()) return null;
-                if (p.trim() === '.lerret' || p.trim() === '.lerret/') return '.lerret/';
-                const rel = toProjectRelativeLerretPath(p.trim());
-                return rel ? `.lerret/${rel.replace(/^\/+/, '')}` : null;
-            };
+            const canon = canonLerretPath;
             const executors = {
                 list_dir: async (args) => {
                     const p = canon(args?.path ?? '.lerret/');
@@ -251,7 +246,12 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
                 maxTurns: INSPECT_MAX_TURNS,
             });
             if (state?.signal?.aborted) return { answer: '' };
-            const answer = result.text ?? '';
+            // A cap-stop with no closing text must still explain itself
+            // (NFR-E9-3 — never a silent "No answer."; review finding L2).
+            const answer =
+                result.status === 'cap-stopped' && !result.text
+                    ? 'Stopped at the step cap before finishing — try a narrower question.'
+                    : (result.text ?? '');
             emit(inspectorResponse(answer));
             return { answer };
         }

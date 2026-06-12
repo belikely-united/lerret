@@ -205,7 +205,7 @@ export class OllamaProvider extends AIProvider {
      * @param {{ messages: Array<object>, tools: Array<object>, signal: AbortSignal, model?: string }} args
      * @returns {Promise<import('./interface.js').CompleteWithToolsResult>}
      */
-    async completeWithTools({ messages, tools, signal, model } = {}) {
+    async completeWithTools({ messages, tools, signal, model, maxTokens } = {}) {
         const res = await this._post(
             '/api/chat',
             {
@@ -213,6 +213,8 @@ export class OllamaProvider extends AIProvider {
                 messages: toToolWireMessages(messages),
                 tools: toWireTools(tools),
                 stream: false,
+                // num_predict is Ollama's output ceiling (review finding M3).
+                ...(typeof maxTokens === 'number' ? { options: { num_predict: maxTokens } } : {}),
             },
             signal,
         );

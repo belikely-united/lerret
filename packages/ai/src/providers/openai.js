@@ -221,7 +221,7 @@ export class OpenAIProvider extends AIProvider {
      * @param {{ messages: Array<object>, tools: Array<object>, signal: AbortSignal, model?: string }} args
      * @returns {Promise<import('./interface.js').CompleteWithToolsResult>}
      */
-    async completeWithTools({ messages, tools, signal, model } = {}) {
+    async completeWithTools({ messages, tools, signal, model, maxTokens } = {}) {
         const res = await this._post(
             '/v1/chat/completions',
             {
@@ -229,6 +229,9 @@ export class OpenAIProvider extends AIProvider {
                 messages: toToolWireMessages(messages),
                 tools: toWireTools(tools),
                 stream: false,
+                // Loop iterations carry COMPLETE file contents as tool-input
+                // JSON — honor the caller's ceiling (review finding M3, 2026-06-13).
+                ...(typeof maxTokens === 'number' ? { max_tokens: maxTokens } : {}),
             },
             signal,
         );

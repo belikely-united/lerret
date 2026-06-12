@@ -40,6 +40,25 @@ export function toProjectRelativeLerretPath(filePath) {
 }
 
 /**
+ * Canonicalize a MODEL-supplied tool path to the sandbox's `.lerret/<rel>`
+ * form — the ONE normalization seam shared by the Agent Executor's and the
+ * Inspector's tool executors (review finding L5: two copies drift). Real
+ * models send project-relative, `.lerret/`-prefixed, and absolute shapes;
+ * traversal does not need catching here — the sandbox's normalize+validate
+ * is the authority and turns escapes into typed violations.
+ *
+ * @param {unknown} p
+ * @returns {string | null}  `.lerret/` for the root; null for unusable input.
+ */
+export function canonLerretPath(p) {
+    if (typeof p !== 'string' || p.trim().length === 0) return null;
+    const trimmed = p.trim();
+    if (trimmed === '.lerret' || trimmed === '.lerret/') return '.lerret/';
+    const rel = toProjectRelativeLerretPath(trimmed);
+    return rel ? `.lerret/${rel.replace(/^\/+/, '')}` : null;
+}
+
+/**
  * Read the selection-scoped file through the sandbox. The chip's filePath is
  * project-relative (a LerretPath); the sandbox speaks `.lerret/`-prefixed
  * relative paths — try the prefixed form first, then the verbatim one.

@@ -35,7 +35,12 @@ import {
 import { supportsTools } from '../../providers/tool-support.js';
 import { createWorkerNode } from './worker.js';
 import { createPlannerNode, imageBlocksFromAttachments } from './planner.js';
-import { readScopedFile, elementPinpoint, toProjectRelativeLerretPath } from './scoped-file.js';
+import {
+    readScopedFile,
+    elementPinpoint,
+    toProjectRelativeLerretPath,
+    canonLerretPath,
+} from './scoped-file.js';
 import { isVisionRequired } from '../../vision/router.js';
 import { recognizeWorkflow } from '../workflows/recognize.js';
 import { planLaunchKit } from '../workflows/launch-kit.js';
@@ -45,20 +50,26 @@ import { planSocialVariants } from '../workflows/social-variants.js';
 export const DEFAULT_MAX_TURNS = 10;
 
 /**
- * Canonicalize a model-supplied path to the sandbox's `.lerret/<rel>` form.
- * The model is TOLD to use project-relative paths, but real models send
- * `.lerret/`-prefixed and absolute shapes too — normalize at the seam (Epic 8
- * retro addendum-5 lesson), never trust the shape.
+ * Collapse repeated writes to one entry per path — the loop's natural
+ * write → verify → rewrite pattern would otherwise ship duplicate `done`
+ * files ("Created card.jsx · Edited card.jsx" for ONE file; review finding
+ * M5, 2026-06-13). A path first CREATED this turn stays `create` no matter
+ * how many rewrites follow (net effect: the file is new); otherwise the
+ * last op wins (edit→delete = delete).
  *
- * @param {unknown} p
- * @returns {string | null}
+ * @param {Array<{ path: string, op: string }>} files
+ * @returns {Array<{ path: string, op: string }>}
  */
-function canonPath(p) {
-    if (typeof p !== 'string' || p.trim().length === 0) return null;
-    const trimmed = p.trim();
-    if (trimmed === '.lerret' || trimmed === '.lerret/') return '.lerret/';
-    const rel = toProjectRelativeLerretPath(trimmed);
-    return rel ? `.lerret/${rel.replace(/^\/+/, '')}` : null;
+export function dedupeWrittenFiles(files) {
+    /** @type {Map<string, { path: string, op: string }>} */
+    const byPath = new Map();
+    for (const f of files ?? []) {
+        if (!f || typeof f.path !== 'string') continue;
+        const prev = byPath.get(f.path);
+        if (prev && prev.op === 'create' && f.op === 'edit') continue;
+        byPath.set(f.path, { path: f.path, op: prev?.op === 'create' && f.op !== 'delete' ? 'create' : f.op });
+    }
+    return [...byPath.values()];
 }
 
 /**
@@ -150,9 +161,17 @@ export function buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles,
     });
     return {
         list_dir: async (args) => {
-            const p = canonPath(args?.path ?? '.lerret/');
+            const p = canonLerretPath(args?.path ?? '.lerret/');
             if (!p) return badPath(args?.path);
             try {
+                // Existence probe FIRST: the CLI bridge's list endpoint maps a
+                // missing dir to an empty list (graceful for the snapshot
+                // store) — but the MODEL must hear "no such folder", not
+                // "real empty folder", or it writes into a hallucinated tree
+                // (review finding M4, 2026-06-13).
+                if (p !== '.lerret/' && !(await sandbox.exists(p))) {
+                    return { content: `No such folder: ${p}. Use list_dir on a parent to see what exists.`, isError: true };
+                }
                 const entries = await sandbox.listDir(p);
                 return { content: formatListing(entries), meta: { op: 'list', file: p } };
             } catch (err) {
@@ -160,7 +179,7 @@ export function buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles,
             }
         },
         read_file: async (args) => {
-            const p = canonPath(args?.path);
+            const p = canonLerretPath(args?.path);
             if (!p || p === '.lerret/') return badPath(args?.path);
             try {
                 const raw = await sandbox.readFile(p, { encoding: 'utf-8' });
@@ -171,17 +190,23 @@ export function buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles,
             }
         },
         write_file: async (args) => {
-            const p = canonPath(args?.path);
+            const p = canonLerretPath(args?.path);
             if (!p || p === '.lerret/') return badPath(args?.path);
             if (typeof args?.content !== 'string') {
                 return { content: 'write_file requires string `content` (the COMPLETE file).', isError: true };
             }
             try {
-                // Parent folders auto-create (the tool contract) — a single-step
-                // mkdir ahead of the write; idempotent on existing dirs.
+                // Parent folders auto-create (the tool contract) — one mkdir
+                // step ahead of the write, but ONLY when the parent is
+                // actually absent (review finding L4: unconditional mkdir
+                // emitted a spurious event + round trip on every nested
+                // write). The FilesystemAccess contract makes mkdir
+                // recursive, so one step covers the whole missing chain.
                 const parent = p.split('/').slice(0, -1).join('/');
+                const needsMkdir =
+                    parent && parent !== '.lerret' && !(await sandbox.exists(parent));
                 const plan = [
-                    ...(parent && parent !== '.lerret' ? [{ op: 'mkdir', path: parent }] : []),
+                    ...(needsMkdir ? [{ op: 'mkdir', path: parent }] : []),
                     { op: 'write', path: p, content: args.content },
                 ];
                 const res = await workerNode({ manifest: manifestRef.current, signal, plan });
@@ -196,7 +221,7 @@ export function buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles,
             }
         },
         delete_file: async (args) => {
-            const p = canonPath(args?.path);
+            const p = canonLerretPath(args?.path);
             if (!p || p === '.lerret/') return badPath(args?.path);
             try {
                 const res = await workerNode({
@@ -283,7 +308,7 @@ export function createAgentExecutorNode({
                 return { writtenFiles: [], answer: '', plan: [] };
             }
             const res = await workerNode({ manifest: state.manifest, signal: state.signal, plan });
-            return { manifest: res.manifest, writtenFiles: res.writtenFiles, answer: '', plan };
+            return { manifest: res.manifest, writtenFiles: dedupeWrittenFiles(res.writtenFiles), answer: '', plan };
         }
 
         // ── Branch 3 (checked before 2's cost): tool-incapable path ───────
@@ -304,7 +329,7 @@ export function createAgentExecutorNode({
             const planned = await plannerNode(state);
             const plan = Array.isArray(planned?.plan) ? planned.plan : [];
             const res = await workerNode({ manifest: state.manifest, signal: state.signal, plan });
-            return { manifest: res.manifest, writtenFiles: res.writtenFiles, answer: '', plan };
+            return { manifest: res.manifest, writtenFiles: dedupeWrittenFiles(res.writtenFiles), answer: '', plan };
         }
 
         // ── Branch 2: the agentic loop ─────────────────────────────────────
@@ -361,7 +386,7 @@ export function createAgentExecutorNode({
             result.status === 'cap-stopped' && !result.text
                 ? 'Stopped at the step cap.'
                 : (result.text ?? '');
-        return { manifest: manifestRef.current, writtenFiles, answer, plan: [] };
+        return { manifest: manifestRef.current, writtenFiles: dedupeWrittenFiles(writtenFiles), answer, plan: [] };
     };
 }
 

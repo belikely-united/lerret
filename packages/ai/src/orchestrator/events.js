@@ -67,7 +67,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
  *   | { type: 'tool-call', name: string }
  *   | { type: 'clarifying-note', note: string, token?: string, designSystemValue?: string, configValue?: string }
  *   | { type: 'inspector-response', answer: string }
- *   | { type: 'done', files: Array<TurnFileEntry>, turnId?: string }
+ *   | { type: 'done', files: Array<TurnFileEntry>, turnId?: string, summary?: string }
  *   | { type: 'error', error: { class: string, message: string } }
  *   | { type: 'stopped', turnId?: string }
  *   | { type: 'needs-vision-fallback', requiredCapability: 'vision', eligibleProviders: Array<{ name: string, model: string }> }

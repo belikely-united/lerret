@@ -604,3 +604,83 @@ describe('runAgentLoop — structural read-only guarantee', () => {
         expect(src).not.toMatch(/from\s+['"]node:/);
     });
 });
+
+// ── Review-fix pins (2026-06-13): M3 maxTokens + truncation, L1 key order ────
+
+describe('runAgentLoop — review-fix pins', () => {
+    it('passes LOOP_MAX_OUTPUT_TOKENS to every provider call (M3)', async () => {
+        const calls = [];
+        const handle = {
+            completeWithTools: async (req) => {
+                calls.push(req);
+                return { text: 'done', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+            },
+        };
+        const { LOOP_MAX_OUTPUT_TOKENS } = await import('./loop.js');
+        await runAgentLoop({
+            providerHandle: handle,
+            tools: [],
+            executors: {},
+            messages: [{ role: 'user', content: 'p' }],
+            emit: () => {},
+        });
+        expect(calls[0].maxTokens).toBe(LOOP_MAX_OUTPUT_TOKENS);
+    });
+
+    it('a truncated zero-call response gets a resume nudge instead of shipping the fragment as done (M3)', async () => {
+        const responses = [
+            { text: 'half a summa', toolCalls: [], usage: {}, stopReason: 'max_tokens' },
+            { text: 'Full summary.', toolCalls: [], usage: {}, stopReason: 'end_turn' },
+        ];
+        const seen = [];
+        const handle = {
+            completeWithTools: async ({ messages }) => {
+                seen.push(messages.map((m) => m.role).join(','));
+                return responses.shift();
+            },
+        };
+        const result = await runAgentLoop({
+            providerHandle: handle,
+            tools: [],
+            executors: {},
+            messages: [{ role: 'user', content: 'p' }],
+            emit: () => {},
+        });
+        expect(result.status).toBe('done');
+        expect(result.text).toBe('Full summary.');
+        // The second call saw the nudge: user,assistant(fragment),user(nudge).
+        expect(seen[1]).toBe('user,assistant,user');
+    });
+
+    it('repetition guard is key-order independent (L1)', async () => {
+        const executed = [];
+        const responses = [
+            {
+                text: '',
+                toolCalls: [{ id: '1', name: 'write_file', args: { path: 'a', content: 'X' } }],
+                usage: {},
+            },
+            {
+                text: '',
+                toolCalls: [{ id: '2', name: 'write_file', args: { content: 'X', path: 'a' } }],
+                usage: {},
+            },
+            { text: 'done', toolCalls: [], usage: {} },
+        ];
+        const handle = { completeWithTools: async () => responses.shift() };
+        const result = await runAgentLoop({
+            providerHandle: handle,
+            tools: [],
+            executors: {
+                write_file: async (args) => {
+                    executed.push(args);
+                    return { content: 'ok' };
+                },
+            },
+            messages: [{ role: 'user', content: 'p' }],
+            emit: () => {},
+        });
+        expect(executed).toHaveLength(1);
+        expect(result.steps.filter((s) => s.isError)).toHaveLength(1);
+    });
+});

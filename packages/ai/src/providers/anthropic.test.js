@@ -284,7 +284,7 @@ describe('AnthropicProvider', () => {
             });
         }
 
-        it('POSTs a NON-streaming /v1/messages body with input_schema tools, strict, and cache_control on the LAST tool only', async () => {
+        it('POSTs a NON-streaming /v1/messages body: plain input_schema tools, cache_control on the LAST SYSTEM block', async () => {
             fetchSpy.mockResolvedValueOnce(toolResponse());
             const p = new AnthropicProvider();
             p.configure({ apiKey: 'sk-ant-test', model: 'claude-sonnet-4-6' });
@@ -305,26 +305,54 @@ describe('AnthropicProvider', () => {
             const body = JSON.parse(init.body);
             // Non-streaming POST (tool args are never streamed in v1).
             expect(body.stream).toBeUndefined();
-            // System extraction still applies.
-            expect(body.system).toBe('You build assets.');
+            // System rides as a block array carrying the turn's ONE
+            // cache breakpoint — tools render before system, so this caches
+            // the tools+system prefix together (a breakpoint on the tiny
+            // tools alone is below the minimum cacheable prefix — a no-op;
+            // review finding M2, 2026-06-13).
+            expect(body.system).toEqual([
+                {
+                    type: 'text',
+                    text: 'You build assets.',
+                    cache_control: { type: 'ephemeral' },
+                },
+            ]);
             expect(typeof body.max_tokens).toBe('number');
-            // Tools: input_schema + strict; cache_control on the LAST only.
+            // Tools: plain defs — no strict (model-gated; a legacy model
+            // would 400 before the FR64 fallback could help), no per-tool
+            // cache_control.
             expect(body.tools).toEqual([
                 {
                     name: 'list_dir',
                     description: 'List a directory',
                     input_schema: { type: 'object', properties: { path: { type: 'string' } } },
-                    strict: true,
                 },
                 {
                     name: 'read_file',
                     description: 'Read a file',
                     input_schema: { type: 'object', properties: { path: { type: 'string' } } },
-                    strict: true,
-                    cache_control: { type: 'ephemeral' },
                 },
             ]);
-            expect(body.tools[0].cache_control).toBeUndefined();
+        });
+
+        it('sums cache_creation/read tokens into inputTokens — the spend line reports the WHOLE prompt', async () => {
+            fetchSpy.mockResolvedValueOnce(
+                toolResponse({
+                    usage: {
+                        input_tokens: 12,
+                        cache_creation_input_tokens: 900,
+                        cache_read_input_tokens: 2100,
+                        output_tokens: 40,
+                    },
+                }),
+            );
+            const p = new AnthropicProvider();
+            p.configure({ apiKey: 'sk', model: 'claude-sonnet-4-6' });
+            const res = await p.completeWithTools({
+                messages: [{ role: 'user', content: 'go' }],
+                tools: TOOLS,
+            });
+            expect(res.usage).toEqual({ inputTokens: 3012, outputTokens: 40 });
         });
 
         it('maps loop history: assistant toolCalls → text + tool_use blocks; tool results → ONE user message of tool_result blocks', async () => {

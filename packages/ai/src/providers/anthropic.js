@@ -34,10 +34,11 @@
 //
 // Tool calling (Epic 9 / Story 9.2): `completeWithTools` is a NON-streaming
 // POST per loop iteration — tool-call arguments are never streamed in v1
-// (ADR-006 §Decision 5). Tools go out as `{name, description, input_schema,
-// strict}` with a `cache_control` breakpoint on the last definition; calls
-// come back as `tool_use` content blocks; results return as `tool_result`
-// blocks inside one user message.
+// (ADR-006 §Decision 5). Tools go out as `{name, description, input_schema}`;
+// the ONE `cache_control` breakpoint rides the last SYSTEM block (tools →
+// system → messages render order caches both together); calls come back as
+// `tool_use` content blocks; results return as `tool_result` blocks inside
+// one user message.
 //
 // Reference: https://docs.anthropic.com/en/api/messages ; ADR-005 §Decision
 // 4 (NOT an OpenAI-compatible shortcut).
@@ -127,26 +128,25 @@ function systemTextOf(content) {
 
 /**
  * Translate neutral ToolDefs (interface.js) into Anthropic's wire shape:
- * `{name, description, input_schema, strict}`. The LAST definition carries
- * `cache_control: {type: 'ephemeral'}` — Anthropic caches the prefix up to
- * the breakpoint, and tools precede `system` in the cache order, so one
- * breakpoint on the final tool caches the stable tools+system prefix across
- * loop iterations (ADR-006 §Consequences: BYOK users pay per token).
+ * `{name, description, input_schema}`. No `strict` flag — it is model-gated
+ * (a legacy model would 400 on every loop request before the FR64 fallback
+ * could help) and the executors already validate every argument; and NO
+ * cache_control here — Anthropic's render order is tools → system →
+ * messages, so the ONE breakpoint rides the last system block instead (see
+ * `_buildToolBody`), which caches the tools+system prefix together. A
+ * breakpoint on the tools alone would cache only the four small defs —
+ * below the model's minimum cacheable prefix, i.e. a no-op (review finding
+ * M2, 2026-06-13).
  *
  * @param {Array<import('./interface.js').ToolDef>} tools
  * @returns {Array<object>}
  */
 function toWireTools(tools) {
-    const defs = (Array.isArray(tools) ? tools : []).map((t) => ({
+    return (Array.isArray(tools) ? tools : []).map((t) => ({
         name: t.name,
         description: t.description,
         input_schema: t.parameters,
-        strict: true,
     }));
-    if (defs.length > 0) {
-        defs[defs.length - 1].cache_control = { type: 'ephemeral' };
-    }
-    return defs;
 }
 
 export class AnthropicProvider extends AIProvider {
@@ -224,9 +224,17 @@ export class AnthropicProvider extends AIProvider {
                 // degrade anything else to {} (args are ALWAYS an object).
                 args: b.input && typeof b.input === 'object' ? b.input : {},
             }));
+        // `input_tokens` is only the UNCACHED remainder — the cache write/read
+        // counts are separate fields. The dock's spend line promises the whole
+        // prompt, so sum all three (review finding M2, 2026-06-13).
+        const u = json?.usage ?? {};
+        const num = (v) => (typeof v === 'number' ? v : 0);
         const usage = {
-            inputTokens: typeof json?.usage?.input_tokens === 'number' ? json.usage.input_tokens : 0,
-            outputTokens: typeof json?.usage?.output_tokens === 'number' ? json.usage.output_tokens : 0,
+            inputTokens:
+                num(u.input_tokens) +
+                num(u.cache_creation_input_tokens) +
+                num(u.cache_read_input_tokens),
+            outputTokens: num(u.output_tokens),
         };
         const result = { text, toolCalls, usage };
         if (typeof json?.stop_reason === 'string') result.stopReason = json.stop_reason;
@@ -395,7 +403,17 @@ export class AnthropicProvider extends AIProvider {
             messages: wire,
             tools: toWireTools(tools),
         };
-        if (system !== undefined) body.system = system;
+        if (system !== undefined) {
+            // System rides as a content-block array with the turn's ONE
+            // cache_control breakpoint on its last block: tools render before
+            // system, so this caches the stable tools+system prefix across
+            // loop iterations (ADR-006 §Consequences — BYOK users pay per
+            // token; the system prompt carries the asset contract + scoped
+            // file, the expensive stable part).
+            body.system = [
+                { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
+            ];
+        }
         return body;
     }
 

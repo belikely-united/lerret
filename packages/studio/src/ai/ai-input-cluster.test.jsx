@@ -2317,12 +2317,21 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
 
 describe('AiInputCluster — tool trail (Story 9.4 AC-4)', () => {
     it('renders the collapsed trail line with counts and toggles the expanded quiet list', async () => {
+        // The REAL loop pattern (review finding H1): every executed call is
+        // `tool-call` followed by its paired file event — the step source is
+        // the tool-call; the file event only fills in the path. A pre-loop
+        // Memory read (a bare `reading` with no tool-call) is NOT a step.
         aiMock.current = makeAi({
             events: [
                 { type: 'thinking' },
+                { type: 'reading', file: '_design-system.md' }, // Memory context read — pill only
                 { type: 'tool-call', name: 'list_dir' },
+                { type: 'reading', file: '.lerret/' },
+                { type: 'tool-call', name: 'read_file' },
                 { type: 'reading', file: 'kit/banner.jsx' },
+                { type: 'tool-call', name: 'read_file' },
                 { type: 'reading', file: 'kit/card.jsx' },
+                { type: 'tool-call', name: 'write_file' },
                 { type: 'writing', file: 'kit/banner.jsx' },
                 { type: 'done', files: [{ op: 'edit', path: 'kit/banner.jsx' }], turnId: 't-trail' },
             ],
@@ -2332,22 +2341,48 @@ describe('AiInputCluster — tool trail (Story 9.4 AC-4)', () => {
         await submitPrompt(container, 'retheme the banner');
         await tick(40);
         await openThread(container);
-        // Collapsed one-liner: list+read count as read, write+delete as written.
+        // Collapsed one-liner: list+read count as read, write+delete as
+        // written — exactly ONE step per tool-call, no double counting.
         const trail = document.querySelector('[data-testid="ai-thread-trail"]');
         expect(trail).not.toBeNull();
         expect(trail.textContent).toBe('4 steps · 3 read · 1 written');
         expect(document.querySelector('[data-testid="ai-thread-trail-list"]')).toBeNull();
-        // Expand: quiet machine-verb rows in event order.
+        // Expand: quiet machine-verb rows in event order, files attached
+        // from the paired events.
         await act(async () => { trail.click(); });
         const rows = document.querySelectorAll('[data-testid="ai-thread-trail-list"] li');
         expect(rows.length).toBe(4);
-        expect(rows[0].textContent).toBe('list_dir');
+        expect(rows[0].textContent).toContain('list_dir');
+        expect(rows[0].textContent).toContain('.lerret/');
         expect(rows[1].textContent).toContain('read_file');
         expect(rows[1].textContent).toContain('kit/banner.jsx');
         expect(rows[3].textContent).toContain('write_file');
+        expect(rows[3].textContent).toContain('kit/banner.jsx');
         // Collapse again.
         await act(async () => { trail.click(); });
         expect(document.querySelector('[data-testid="ai-thread-trail-list"]')).toBeNull();
+        cleanup();
+    });
+
+    it('a guarded call (no paired file event) still counts as one step, file-less', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'thinking' },
+                { type: 'tool-call', name: 'write_file' },
+                { type: 'writing', file: 'kit/a.jsx' },
+                { type: 'tool-call', name: 'write_file' }, // repetition-guarded: no file event follows
+                { type: 'tool-call', name: 'read_file' },
+                { type: 'reading', file: 'kit/a.jsx' },
+                { type: 'done', files: [{ op: 'edit', path: 'kit/a.jsx' }], turnId: 't-guard' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'p');
+        await tick(40);
+        await openThread(container);
+        const trail = document.querySelector('[data-testid="ai-thread-trail"]');
+        expect(trail.textContent).toBe('3 steps · 1 read · 2 written');
         cleanup();
     });
 
@@ -2449,6 +2484,35 @@ describe('AiInputCluster — done summary (Story 9.4 AC §5)', () => {
         expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent)
             .toBe('Nothing needed changing.');
         expect(document.querySelector('[data-testid="ai-thread-files-line"]')).toBeNull();
+        cleanup();
+    });
+});
+
+describe('AiInputCluster — inspect pill never shows Writing (review M1)', () => {
+    it('read-tool tool-calls drive the READING state in inspect mode', async () => {
+        const gate = deferred();
+        aiMock.current = makeAi({
+            runTurnImpl: async function* () {
+                yield { type: 'thinking' };
+                yield { type: 'tool-call', name: 'read_file' };
+                yield { type: 'reading', file: 'kit/banner.jsx' };
+                await gate.promise; // hold the turn open so the pill is observable
+                yield { type: 'inspector-response', answer: 'teal' };
+                yield { type: 'done', files: [] };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        act(() => {
+            container.querySelector('[data-testid="ai-mode-inspect"]').click();
+        });
+        await submitPrompt(container, 'what color is the banner?');
+        await tick(30);
+        const pill = container.querySelector('[data-testid="ai-status-pill"]');
+        expect(pill.getAttribute('data-status')).toBe('reading');
+        gate.resolve();
+        await tick(30);
+        expect(pill.getAttribute('data-status')).toBe('done');
         cleanup();
     });
 });

@@ -1440,6 +1440,15 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             let turnsSeen = 1;
             /** @type {Array<{ kind: 'read'|'write'|'delete'|'list'|'call', file?: string }>} */
             const turnSteps = [];
+            // The trail's step source is the loop's `tool-call` event — ONE
+            // per executed call. The paired file event (reading / writing /
+            // deleting) that follows fills in the step's file instead of
+            // pushing a second step (review finding H1: counting both
+            // double-counted every step, and pre-loop Memory reads became
+            // phantom steps). `pendingStepIdx` points at the last tool-call
+            // step still awaiting its file event (-1 = none; guarded/failed
+            // calls simply never get one).
+            let pendingStepIdx = -1;
             try {
                 for await (const ev of ai.runTurn({
                     prompt,
@@ -1471,13 +1480,22 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             setStatus((s) => (s === 'stopping' ? s : 'thinking'));
                             break;
                         case 'reading':
-                            // Story 9.4 §4: every read is a trail step.
-                            turnSteps.push({
-                                kind: 'read',
-                                ...(typeof ev.file === 'string' && ev.file
-                                    ? { file: ev.file }
-                                    : {}),
-                            });
+                            // Fill the pending tool-call step's file (loop
+                            // reads); a standalone reading event (the Memory
+                            // node's pre-loop context reads, the Inspector's
+                            // scoped fold) is NOT a loop step — pill only.
+                            if (
+                                pendingStepIdx >= 0 &&
+                                !turnSteps[pendingStepIdx].file &&
+                                typeof ev.file === 'string' &&
+                                ev.file
+                            ) {
+                                turnSteps[pendingStepIdx] = {
+                                    ...turnSteps[pendingStepIdx],
+                                    file: ev.file,
+                                };
+                                pendingStepIdx = -1;
+                            }
                             setStatus((s) => (s === 'stopping' ? s : 'reading'));
                             break;
                         case 'writing':
@@ -1487,22 +1505,43 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             // conservative op (the stopped summary counts
                             // paths and never branches on op).
                             recordSeenFile(ev.file, ev.type === 'deleting' ? 'delete' : 'edit');
-                            // Story 9.4 §4: every mutation is a trail step.
-                            turnSteps.push({
-                                kind: ev.type === 'deleting' ? 'delete' : 'write',
-                                ...(typeof ev.file === 'string' && ev.file
-                                    ? { file: ev.file }
-                                    : {}),
-                            });
+                            // Same fill-don't-push rule as 'reading' (H1) —
+                            // W2/fallback writes have no tool-call and thus
+                            // no trail (matches pre-Epic-9 cards).
+                            if (
+                                pendingStepIdx >= 0 &&
+                                !turnSteps[pendingStepIdx].file &&
+                                typeof ev.file === 'string' &&
+                                ev.file
+                            ) {
+                                turnSteps[pendingStepIdx] = {
+                                    ...turnSteps[pendingStepIdx],
+                                    file: ev.file,
+                                };
+                                pendingStepIdx = -1;
+                            }
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
                             break;
-                        case 'tool-call':
-                            // Story 9.4 §4: one trail step per loop tool
-                            // execution; status folds into "Writing files…"
-                            // as before.
-                            turnSteps.push({ kind: stepKindForTool(ev.name) });
-                            setStatus((s) => (s === 'stopping' ? s : 'writing'));
+                        case 'tool-call': {
+                            // Story 9.4 §4: ONE trail step per loop tool call
+                            // (the paired file event fills `file` above). The
+                            // pill state derives from the TOOL KIND — a
+                            // read-only inspect loop must never flash
+                            // "Writing files…" (review finding M1).
+                            const kind = stepKindForTool(ev.name);
+                            turnSteps.push({ kind });
+                            pendingStepIdx = turnSteps.length - 1;
+                            const nextStatus =
+                                kind === 'read' || kind === 'list'
+                                    ? 'reading'
+                                    : kind === 'write' || kind === 'delete'
+                                      ? 'writing'
+                                      : null;
+                            if (nextStatus) {
+                                setStatus((s) => (s === 'stopping' ? s : nextStatus));
+                            }
                             break;
+                        }
                         case 'mkdir':
                             // All file-mutation progress folds into "Writing files…".
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
