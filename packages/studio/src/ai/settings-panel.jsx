@@ -10,9 +10,12 @@
  * Right-column actions:
  *   - Edit masked API key (cloud) OR base URL + model picker (Ollama).
  *   - Make active — instantaneous per-folder switch; no confirmation modal.
- *   - Test connection — calls provider.probe() via the lazy AI module;
- *     inline `Connected` (moss, 1500ms) on success, contained error card on
- *     failure.
+ *   - Test connection — probes with the form's current (possibly unsaved)
+ *     values, falling back to the saved config, so "paste key → Test" works
+ *     before Save. Inline `Connected` cue on success (with a persistent
+ *     "Save to keep this key" hint when the tested values are unsaved);
+ *     contained human-voice error card on failure (raw reason slugs never
+ *     render — see probeFailureCopy).
  *   - Clear key — removes the ai_keys entry AND the ai_provider_config row.
  *   - Privacy — re-opens the disclosure dialog in info-only mode.
  */
@@ -211,6 +214,41 @@ const PROVIDER_DETAIL_DESC = Object.freeze({
     ollama: 'Runs entirely on your machine. No key. No data leaves your computer.',
 });
 
+// ─── Probe-failure copy ──────────────────────────────────────────────────────
+
+/**
+ * Map a probe result's machine reason to a human sentence. The raw reason
+ * slugs (`invalid-key`, `unreachable`, …) never render directly — an auth
+ * rejection in particular must not read as "could not reach" (the request
+ * DID reach the vendor; the key was refused).
+ *
+ * @param {string} providerName
+ * @param {{ reason?: string, detail?: string } | null | undefined} result
+ * @returns {string}
+ */
+export function probeFailureCopy(providerName, result) {
+    const label = PROVIDER_LABELS[providerName] ?? providerName;
+    switch (result?.reason) {
+        case 'no-key':
+            return 'Enter an API key first, then test the connection.';
+        case 'invalid-key':
+            return `${label} rejected this API key — check that it's correct and active.`;
+        case 'cors':
+            return `${label} blocked the request from this origin — see the setup guide for OLLAMA_ORIGINS.`;
+        case 'unreachable':
+        case 'network':
+            return providerName === 'ollama'
+                ? 'Could not reach Ollama — make sure it is running at the base URL.'
+                : `Could not reach ${label} — check your connection.`;
+        case 'server':
+            return `${label} returned a server error — try again in a moment.`;
+        case 'unavailable':
+            return 'AI is not available in this build.';
+        default:
+            return `Connection test failed${result?.detail ? ` (${result.detail})` : ''}.`;
+    }
+}
+
 // ─── Status computation ──────────────────────────────────────────────────────
 
 /**
@@ -239,7 +277,7 @@ export function SettingsPanel({ open, onClose }) {
 
     const [selected, setSelected] = React.useState('openai');
     const [drafts, setDrafts] = React.useState({});
-    const [probeResult, setProbeResult] = React.useState(/** @type {null | {ok: boolean, reason?: string, message?: string}} */ (null));
+    const [probeResult, setProbeResult] = React.useState(/** @type {null | {ok: boolean, reason?: string, detail?: string}} */ (null));
     const [showCue, setShowCue] = React.useState(false);
     const [privacyOpen, setPrivacyOpen] = React.useState(false);
 
@@ -263,6 +301,10 @@ export function SettingsPanel({ open, onClose }) {
             baseUrl: draft.baseUrl,
             model: draft.model,
         });
+        // The just-tested state (cue or error) referred to the pre-save form;
+        // clear it so a stale "Save to keep this key" hint never outlives the save.
+        setProbeResult(null);
+        setShowCue(false);
     };
 
     const handleMakeActive = async () => {
@@ -274,14 +316,27 @@ export function SettingsPanel({ open, onClose }) {
         setDrafts((prev) => ({ ...prev, [selected]: {} }));
     };
 
+    // True when the form holds values the user typed but has not saved — the
+    // test then runs against those, and a passing cue must point at Save.
+    const draftUsed =
+        PROVIDER_VARIANTS[selected] === 'cloud-byok'
+            ? Boolean((draft.apiKey ?? '').trim())
+            : Boolean((draft.baseUrl ?? '').trim() || (draft.model ?? '').trim());
+
     const handleTest = async () => {
         setProbeResult(null);
         setShowCue(false);
-        const result = await testConnection(selected);
+        const result = await testConnection(selected, {
+            apiKey: draft.apiKey,
+            baseUrl: draft.baseUrl,
+            model: draft.model,
+        });
         setProbeResult(result);
         if (result?.ok) {
             setShowCue(true);
-            setTimeout(() => setShowCue(false), 1500);
+            // A pass on unsaved values carries an action ("Save") — that cue
+            // stays until the next action; a plain "Connected" fades.
+            if (!draftUsed) setTimeout(() => setShowCue(false), 1500);
         }
     };
 
@@ -422,14 +477,16 @@ export function SettingsPanel({ open, onClose }) {
 
                     {showCue && (
                         <div className="lm-ai-settings__cue" role="status">
-                            Connected
+                            {draftUsed
+                                ? variant === 'cloud-byok'
+                                    ? 'Connected — Save to keep this key.'
+                                    : 'Connected — Save to keep these settings.'
+                                : 'Connected'}
                         </div>
                     )}
                     {probeResult && !probeResult.ok && (
                         <div className="lm-ai-settings__error" role="alert">
-                            Could not reach {PROVIDER_LABELS[selected]}
-                            {probeResult.reason ? ` — ${probeResult.reason}` : ''}
-                            {probeResult.message ? `: ${probeResult.message}` : ''}.
+                            {probeFailureCopy(selected, probeResult)}
                         </div>
                     )}
 

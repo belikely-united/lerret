@@ -13,7 +13,19 @@
 import React from 'react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// ── getAi() mock ──────────────────────────────────────────────────────────────
+// Module-level handle the testConnection specs reconfigure per-spec. The
+// constants/default-context tests never reach getAi (no provider mounted).
+const aiMock = {
+    current: /** @type {object | null} */ (null),
+};
+vi.mock('./lazy.js', () => ({
+    getAi: async () => aiMock.current,
+    _resetAiCache: () => {},
+    lastLoadError: undefined,
+}));
 
 import {
     PROVIDER_NAMES,
@@ -22,6 +34,7 @@ import {
     OLLAMA_DEFAULT_BASE_URL,
     useAiContext,
     useActiveProvider,
+    AiContextProvider,
 } from './ai-context.jsx';
 
 describe('PROVIDER_NAMES', () => {
@@ -87,6 +100,120 @@ describe('useAiContext', () => {
         expect(typeof captured.testConnection).toBe('function');
         act(() => root.unmount());
         container.remove();
+    });
+});
+
+// ── testConnection (draft-first probing) ─────────────────────────────────────
+
+/**
+ * Build a fake @lerret/ai module whose single provider class records
+ * configure() calls and resolves probe() with the scripted result. `vaultKey`
+ * non-null simulates a previously saved (encrypted) key.
+ */
+function makeFakeAi({ probeResult = { ok: true }, vaultKey = null } = {}) {
+    const calls = { configure: [], probe: 0, vaultReads: 0 };
+    class FakeProvider {
+        configure(cfg) {
+            calls.configure.push(cfg);
+        }
+        async probe() {
+            calls.probe += 1;
+            return probeResult;
+        }
+    }
+    const ai = {
+        providers: {
+            OpenAIProvider: FakeProvider,
+            AnthropicProvider: FakeProvider,
+            OpenRouterProvider: FakeProvider,
+            OllamaProvider: FakeProvider,
+        },
+        vault: {
+            listProviderConfigs: async () => [],
+            isDisclosureAcked: async () => false,
+            getEncryptedKey: async () => {
+                calls.vaultReads += 1;
+                return vaultKey ? { iv: 'x', data: 'y' } : null;
+            },
+            getSessionKey: async () => 'session-key',
+            decrypt: async () => vaultKey,
+        },
+    };
+    return { ai, calls };
+}
+
+/** Mount AiContextProvider and capture the live context value. */
+async function captureContext(folderId = 'folder:test:ctx') {
+    let captured;
+    function Probe() {
+        captured = useAiContext();
+        return null;
+    }
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+        root.render(
+            <AiContextProvider folderId={folderId}>
+                <Probe />
+            </AiContextProvider>,
+        );
+    });
+    return {
+        get: () => captured,
+        cleanup: () => {
+            act(() => root.unmount());
+            container.remove();
+        },
+    };
+}
+
+describe('testConnection — draft-first probing', () => {
+    it('uses the unsaved draft key (trimmed) without touching the vault', async () => {
+        const { ai, calls } = makeFakeAi();
+        aiMock.current = ai;
+        const ctx = await captureContext();
+        const result = await ctx.get().testConnection('anthropic', { apiKey: '  sk-draft-123\n' });
+        expect(result).toEqual({ ok: true });
+        expect(calls.configure[0].apiKey).toBe('sk-draft-123');
+        expect(calls.vaultReads).toBe(0);
+        expect(calls.probe).toBe(1);
+        ctx.cleanup();
+    });
+
+    it('short-circuits with no-key when a cloud provider has neither draft nor saved key', async () => {
+        const { ai, calls } = makeFakeAi();
+        aiMock.current = ai;
+        const ctx = await captureContext();
+        const result = await ctx.get().testConnection('anthropic');
+        expect(result).toEqual({ ok: false, reason: 'no-key' });
+        expect(calls.probe).toBe(0);
+        ctx.cleanup();
+    });
+
+    it('falls back to the saved vault key when no draft is given', async () => {
+        const { ai, calls } = makeFakeAi({ vaultKey: 'sk-saved-456' });
+        aiMock.current = ai;
+        const ctx = await captureContext();
+        const result = await ctx.get().testConnection('openai');
+        expect(result).toEqual({ ok: true });
+        expect(calls.configure[0].apiKey).toBe('sk-saved-456');
+        expect(calls.vaultReads).toBe(1);
+        ctx.cleanup();
+    });
+
+    it('passes draft baseUrl/model to Ollama probes with no key requirement', async () => {
+        const { ai, calls } = makeFakeAi();
+        aiMock.current = ai;
+        const ctx = await captureContext();
+        const result = await ctx
+            .get()
+            .testConnection('ollama', { baseUrl: 'http://localhost:9999 ', model: ' llava ' });
+        expect(result).toEqual({ ok: true });
+        expect(calls.configure[0].baseUrl).toBe('http://localhost:9999');
+        expect(calls.configure[0].model).toBe('llava');
+        expect(calls.probe).toBe(1);
+        ctx.cleanup();
     });
 });
 

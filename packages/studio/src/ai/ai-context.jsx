@@ -88,7 +88,7 @@ export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
  * @property {(name: string) => Promise<void>} makeActive
  * @property {(name: string) => Promise<void>} clearProvider
  * @property {(name: string) => Promise<void>} recordAck
- * @property {(name: string) => Promise<{ ok: boolean, reason?: string }>} testConnection
+ * @property {(name: string, overrides?: { apiKey?: string, baseUrl?: string, model?: string }) => Promise<{ ok: boolean, reason?: string, detail?: string }>} testConnection
  */
 
 /** @type {React.Context<AiContextValue | null>} */
@@ -194,10 +194,12 @@ export function AiContextProvider({ folderId, children }) {
         async (providerName, payload) => {
             const ai = await getAi();
             if (!ai || !folderId) return;
-            // Encrypt key (cloud only).
-            if (payload?.apiKey) {
+            // Encrypt key (cloud only). Trim — pasted keys routinely carry a
+            // trailing newline/space, which would break the auth header.
+            const apiKey = typeof payload?.apiKey === 'string' ? payload.apiKey.trim() : payload?.apiKey;
+            if (apiKey) {
                 const sessionKey = await ai.vault.getSessionKey(folderId);
-                const encrypted = await ai.vault.encrypt(payload.apiKey, sessionKey);
+                const encrypted = await ai.vault.encrypt(apiKey, sessionKey);
                 await ai.vault.setEncryptedKey({ folderId, providerName, payload: encrypted });
             }
             // Mark all others inactive in this folder, then write this entry as active.
@@ -216,8 +218,8 @@ export function AiContextProvider({ folderId, children }) {
                 providerName,
                 config: {
                     active: true,
-                    model: payload?.model,
-                    baseUrl: payload?.baseUrl,
+                    model: typeof payload?.model === 'string' ? payload.model.trim() || undefined : payload?.model,
+                    baseUrl: typeof payload?.baseUrl === 'string' ? payload.baseUrl.trim() || undefined : payload?.baseUrl,
                     configuredAt: new Date().toISOString(),
                 },
             });
@@ -286,7 +288,7 @@ export function AiContextProvider({ folderId, children }) {
     );
 
     const testConnection = React.useCallback(
-        async (providerName) => {
+        async (providerName, overrides = {}) => {
             const ai = await getAi();
             if (!ai || !folderId) return { ok: false, reason: 'unavailable' };
             try {
@@ -294,18 +296,32 @@ export function AiContextProvider({ folderId, children }) {
                 if (!ProviderClass) return { ok: false, reason: 'unknown-provider' };
                 const provider = new ProviderClass();
                 const cfg = snapshot.configs.find((c) => c.providerName === providerName);
+                // Unsaved draft values from the settings form take precedence
+                // over the stored config, so "paste key → Test connection"
+                // works before Save. Without this, testing an unsaved key
+                // probes the (absent) vault entry and reports invalid-key.
+                const draftKey = typeof overrides.apiKey === 'string' ? overrides.apiKey.trim() : '';
                 let apiKey;
                 if (PROVIDER_VARIANTS[providerName] === 'cloud-byok') {
-                    const enc = await ai.vault.getEncryptedKey({ folderId, providerName });
-                    if (enc) {
-                        const sessionKey = await ai.vault.getSessionKey(folderId);
-                        apiKey = await ai.vault.decrypt(enc, sessionKey);
+                    if (draftKey) {
+                        apiKey = draftKey;
+                    } else {
+                        const enc = await ai.vault.getEncryptedKey({ folderId, providerName });
+                        if (enc) {
+                            const sessionKey = await ai.vault.getSessionKey(folderId);
+                            apiKey = await ai.vault.decrypt(enc, sessionKey);
+                        }
                     }
+                    // Nothing to test — don't fire a doomed keyless probe that
+                    // would surface as invalid-key.
+                    if (!apiKey) return { ok: false, reason: 'no-key' };
                 }
+                const draftBaseUrl = typeof overrides.baseUrl === 'string' ? overrides.baseUrl.trim() : '';
+                const draftModel = typeof overrides.model === 'string' ? overrides.model.trim() : '';
                 provider.configure({
                     apiKey,
-                    baseUrl: cfg?.baseUrl,
-                    model: cfg?.model,
+                    baseUrl: draftBaseUrl || cfg?.baseUrl,
+                    model: draftModel || cfg?.model,
                 });
                 return await provider.probe();
             } catch {
