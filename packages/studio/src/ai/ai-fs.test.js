@@ -251,3 +251,22 @@ describe('base64 helpers', () => {
         }
     });
 });
+
+describe('createCliAiFs — dropped-connection error copy', () => {
+    it('surfaces the calm connection message VERBATIM (no "mkdir failed:" prefix)', async () => {
+        const fs = createCliAiFs({ projectRoot: ROOT });
+        const connMsg =
+            "can't reach the Lerret dev server — it may have stopped. Reload the studio to reconnect (and check that `@lerret/cli dev` is still running).";
+        mkdirProject.mockResolvedValue({ ok: false, error: connMsg });
+        await expect(fs.mkdir(`${LERRET}/kit`)).rejects.toThrow(connMsg);
+        await expect(fs.mkdir(`${LERRET}/kit`)).rejects.not.toThrow(/mkdir failed/);
+    });
+
+    it('keeps the "<op> failed:" prefix for genuine server-side errors', async () => {
+        const fs = createCliAiFs({ projectRoot: ROOT });
+        writeProjectFile.mockResolvedValue({ ok: false, error: 'EACCES: permission denied' });
+        await expect(fs.writeFile(`${LERRET}/a.jsx`, 'X')).rejects.toThrow(
+            'writeFile failed: EACCES: permission denied',
+        );
+    });
+});

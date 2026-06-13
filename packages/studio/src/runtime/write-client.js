@@ -86,6 +86,28 @@ function isCliMode() {
 }
 
 /**
+ * Turn a thrown fetch error into a calm message. The browser's
+ * connection-failure signatures ("Failed to fetch" on Chromium, "NetworkError
+ * when attempting to fetch resource" on Firefox, "Load failed" on Safari) all
+ * mean the same thing for us: the Lerret dev server isn't answering. We
+ * surface that as one actionable sentence instead of the raw vendor string —
+ * so an AI turn that loses its filesystem backend mid-flight (server stopped,
+ * laptop slept, `@lerret/cli dev` Ctrl-C'd) reads as something the user can
+ * fix, not a cryptic "Failed to fetch". Any other thrown error keeps its
+ * original message (e.g. a test's `econnrefused`).
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+function networkErrorMessage(err) {
+ const raw = err instanceof Error ? err.message : String(err);
+ if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+ return "can't reach the Lerret dev server — it may have stopped. Reload the studio to reconnect (and check that `@lerret/cli dev` is still running).";
+ }
+ return `network error: ${raw}`;
+}
+
+/**
  * Write a file to the user's project via the CLI's write endpoint.
  *
  * Always resolves with a `{ ok, error? }` shape — never rejects. Callers can
@@ -147,7 +169,7 @@ export async function writeProjectFile(path, content, opts = {}) {
  } catch (err) {
  return {
  ok: false,
- error: `network error: ${err instanceof Error ? err.message : String(err)}`,
+ error: networkErrorMessage(err),
  };
  }
 
@@ -211,7 +233,7 @@ export async function readProjectConfig(configPath, opts = {}) {
  return {
  ok: false,
  value: {},
- error: `network error: ${err instanceof Error ? err.message : String(err)}`,
+ error: networkErrorMessage(err),
  };
  }
  let parsed;
@@ -286,7 +308,7 @@ export async function readProjectFile(path, opts = {}) {
  } catch (err) {
  return {
  ok: false,
- error: `network error: ${err instanceof Error ? err.message : String(err)}`,
+ error: networkErrorMessage(err),
  };
  }
  let parsed;
@@ -421,7 +443,7 @@ async function callLifecycleEndpoint(endpoint, body, opts = {}) {
  } catch (err) {
  return {
  ok: false,
- error: `network error: ${err instanceof Error ? err.message : String(err)}`,
+ error: networkErrorMessage(err),
  };
  }
 

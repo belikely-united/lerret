@@ -794,3 +794,37 @@ describe('mkdirProject', () => {
  expect(fetchMock).not.toHaveBeenCalled();
  });
 });
+
+describe('network-error copy — dropped dev-server connection', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('maps a fetch "Failed to fetch" rejection to a calm, actionable message (mkdir)', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+ const res = await mkdirProject('/x/.lerret/kit', { fetch: fetchMock });
+ expect(res.ok).toBe(false);
+ expect(res.error).toMatch(/can't reach the Lerret dev server/);
+ expect(res.error).toMatch(/Reload the studio to reconnect/);
+ // The raw vendor string is NOT surfaced to the user.
+ expect(res.error).not.toMatch(/Failed to fetch/);
+ });
+
+ it('covers Firefox/Safari connection signatures too', async () => {
+ for (const msg of ['NetworkError when attempting to fetch resource', 'Load failed']) {
+ const fetchMock = vi.fn().mockRejectedValue(new TypeError(msg));
+ const res = await writeProjectFile('/x/.lerret/a.jsx', 'X', { fetch: fetchMock });
+ expect(res.error).toMatch(/can't reach the Lerret dev server/);
+ }
+ });
+
+ it('preserves the raw message for non-connection errors (still diagnosable)', async () => {
+ const fetchMock = vi.fn().mockRejectedValue(new Error('econnrefused'));
+ const res = await writeProjectFile('/x/.lerret/a.jsx', 'X', { fetch: fetchMock });
+ expect(res.error).toBe('network error: econnrefused');
+ });
+});

@@ -57,6 +57,28 @@ function enoent(message, path) {
 }
 
 /**
+ * Build the Error a failed fs-bridge op throws. The write-client already turns
+ * a dropped connection into one calm, actionable sentence ("can't reach the
+ * Lerret dev server …"); when that's the cause we surface it VERBATIM rather
+ * than burying it under a technical "mkdir failed:" prefix — the user sees
+ * "can't reach the Lerret dev server — reload to reconnect", not
+ * "mkdir failed: network error: Failed to fetch". Every other failure keeps
+ * the `<op> failed: <reason>` shape so genuine server-side errors stay
+ * diagnosable.
+ *
+ * @param {string} op
+ * @param {string | undefined} resError
+ * @returns {Error}
+ */
+function fsOpError(op, resError) {
+    const reason = resError || 'unknown error';
+    if (reason.startsWith("can't reach the Lerret dev server")) {
+        return new Error(reason);
+    }
+    return new Error(`${op} failed: ${reason}`);
+}
+
+/**
  * Encode raw bytes to base64 without Node's Buffer (browser-safe). Chunked so
  * `String.fromCharCode` never sees an argument list large enough to overflow
  * the call stack.
@@ -136,7 +158,7 @@ export function createCliAiFs({ projectRoot } = {}) {
             const p = ensureInside(dirPath).replace(/\/+$/, '');
             const res = await listProjectDir(p);
             if (!res.ok) {
-                throw new Error(`readDir failed: ${res.error || 'unknown error'}`);
+                throw fsOpError('readDir', res.error);
             }
             return res.entries.map((e) => ({
                 name: e.name,
@@ -158,14 +180,14 @@ export function createCliAiFs({ projectRoot } = {}) {
                 const res = await readProjectFile(p, { encoding: 'base64' });
                 if (!res.ok) {
                     if (res.missing) throw enoent('no such file', p);
-                    throw new Error(`readFile failed: ${res.error || 'unknown error'}`);
+                    throw fsOpError('readFile', res.error);
                 }
                 return base64ToBytes(res.base64 || '');
             }
             const res = await readProjectFile(p);
             if (!res.ok) {
                 if (res.missing) throw enoent('no such file', p);
-                throw new Error(`readFile failed: ${res.error || 'unknown error'}`);
+                throw fsOpError('readFile', res.error);
             }
             return res.content ?? '';
         },
@@ -183,7 +205,7 @@ export function createCliAiFs({ projectRoot } = {}) {
                     ? await writeProjectFile(p, bytesToBase64(content), { encoding: 'base64' })
                     : await writeProjectFile(p, content);
             if (!res.ok) {
-                throw new Error(`writeFile failed: ${res.error || 'unknown error'}`);
+                throw fsOpError('writeFile', res.error);
             }
         },
 
@@ -192,7 +214,7 @@ export function createCliAiFs({ projectRoot } = {}) {
             const p = ensureInside(filePath);
             const res = await deleteProjectFile(p);
             if (!res.ok) {
-                throw new Error(`deleteFile failed: ${res.error || 'unknown error'}`);
+                throw fsOpError('deleteFile', res.error);
             }
         },
 
@@ -201,7 +223,7 @@ export function createCliAiFs({ projectRoot } = {}) {
             const p = ensureInside(dirPath);
             const res = await mkdirProject(p);
             if (!res.ok) {
-                throw new Error(`mkdir failed: ${res.error || 'unknown error'}`);
+                throw fsOpError('mkdir', res.error);
             }
         },
 
