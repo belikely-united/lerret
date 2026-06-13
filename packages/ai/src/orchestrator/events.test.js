@@ -75,6 +75,31 @@ describe('event factories', () => {
         expect(mkdir('d')).toMatchObject({ type: 'mkdir', dir: 'd' });
     });
 
+    it('toolCall carries name alone by default; target/why ride along ONLY when non-empty (§6.5)', () => {
+        // Legacy shape: name only — no target/why keys (callers unchanged).
+        const bare = toolCall('write_file');
+        expect(bare).toEqual({ type: 'tool-call', name: 'write_file' });
+        expect(Object.isFrozen(bare)).toBe(true);
+
+        // Enriched: target (the path the call acts on) + why (the model's
+        // preamble) — both trimmed so the dock's now-line stays calm.
+        const rich = toolCall('write_file', {
+            target: '  kit/banner.jsx  ',
+            why: '  Updating the headline colour.  ',
+        });
+        expect(rich).toMatchObject({
+            type: 'tool-call',
+            name: 'write_file',
+            target: 'kit/banner.jsx',
+            why: 'Updating the headline colour.',
+        });
+
+        // Empty / whitespace meta → omitted (never an empty key in front of UI).
+        const empty = toolCall('read_file', { target: '   ', why: '' });
+        expect(empty).not.toHaveProperty('target');
+        expect(empty).not.toHaveProperty('why');
+    });
+
     it('inspectorResponse carries the answer text verbatim, frozen', () => {
         const answer = 'ReleaseCard.jsx lives at .lerret/social/ReleaseCard.jsx';
         const ev = inspectorResponse(answer);

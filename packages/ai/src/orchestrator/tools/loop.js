@@ -208,7 +208,17 @@ export async function runAgentLoop({
             // ... and before EVERY tool execution (NFR-E9-2).
             if (signal?.aborted) return finish('stopped');
 
-            send(toolCall(call.name));
+            // §6.5 (self-managing verbose timeline): enrich the event with the
+            // path this call acts on (every fs tool's arg is `path`) and the
+            // model's preamble for this generation (`lastText`) so the dock's
+            // now-line can read "Editing kit/banner.jsx — <why>" the instant the
+            // call is parsed — no streaming needed (Tier 1). Both optional.
+            send(
+                toolCall(call.name, {
+                    target: call?.args && typeof call.args.path === 'string' ? call.args.path : '',
+                    why: lastText,
+                }),
+            );
             const key = callKey(call);
             let outcome;
             // hasOwnProperty guard: a model-supplied name like "constructor"

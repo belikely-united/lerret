@@ -2688,13 +2688,27 @@ describe('AiInputCluster — live activity timeline', () => {
         expect(phases.some((t) => t.includes('Working on your files'))).toBe(true);
         expect(phases.join(' ')).not.toMatch(/Orchestrator|DSCurator|AgentExecutor|Memory|Inspector/);
 
-        // Tool steps — friendly present-tense with files, never raw tool names.
+        // §6.5: COMPLETED tool steps live in the bounded history; the CURRENT
+        // step is the pinned now-line. Friendly present-tense, never raw names.
         const rows = [...container.querySelectorAll('[data-testid="ai-activity-row"]')].map((r) =>
             r.textContent.trim(),
         );
         expect(rows.some((t) => t.includes('Looking through') && t.includes('.lerret/'))).toBe(true);
-        expect(rows.some((t) => t.includes('Writing') && t.includes('kit/a.jsx'))).toBe(true);
         expect(rows.join(' ')).not.toMatch(/list_dir|write_file/);
+
+        // §6.5 the PRESENT: the pinned now-line narrates the current action
+        // (the latest step — the write), always visible regardless of viewport.
+        const now = container.querySelector('[data-testid="ai-activity-now"]');
+        expect(now).not.toBeNull();
+        expect(now.textContent).toMatch(/Writing/);
+        expect(now.textContent).toContain('kit/a.jsx');
+        expect(now.textContent).not.toMatch(/write_file/);
+
+        // §6.5 the count header reflects COMPLETED tool steps (the list_dir);
+        // phases + decisions never inflate it (TOOL_STEP_KINDS).
+        const count = container.querySelector('[data-testid="ai-activity-count"]');
+        expect(count).not.toBeNull();
+        expect(count.textContent).toMatch(/1 step done/);
 
         // Decision line — "what decisions were taken".
         const decisions = [
@@ -2754,5 +2768,53 @@ describe('AiInputCluster — live activity timeline', () => {
         const activityRule = css.match(/\.lm-ai-cluster__activity\s*\{[^}]*\}/)?.[0] || '';
         expect(clusterRule).toMatch(/position:\s*relative/);
         expect(activityRule).toMatch(/position:\s*absolute/);
+    });
+
+    it('§6.5: the now-line narrates the current call with its target + the model\'s "why"', async () => {
+        const gate = deferred();
+        aiMock.current = makeAi({
+            runTurnImpl: async function* () {
+                yield { type: 'phase', phase: 'working' };
+                yield { type: 'thinking' };
+                // The enriched tool-call event carries the target path + the
+                // model's preamble (its response.text) — both available with NO
+                // streaming (Tier 1). The dock surfaces them on the now-line so
+                // a silent generation gap reads as a narrated action.
+                yield {
+                    type: 'tool-call',
+                    name: 'write_file',
+                    target: 'kit/banner.jsx',
+                    why: 'Updating the headline colour to the brand blue. Then I will resize it.',
+                };
+                yield { type: 'writing', file: 'kit/banner.jsx' };
+                await gate.promise;
+                yield {
+                    type: 'done',
+                    files: [{ op: 'edit', path: 'kit/banner.jsx' }],
+                    turnId: 't-why',
+                };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'fix the headline');
+        await tick(40);
+
+        const now = container.querySelector('[data-testid="ai-activity-now"]');
+        expect(now).not.toBeNull();
+        // Friendly verb + the target path…
+        expect(now.textContent).toMatch(/Writing/);
+        expect(now.textContent).toContain('kit/banner.jsx');
+        // …and the model's "why", trimmed to its first sentence (calm, not a wall).
+        expect(now.textContent).toContain('Updating the headline colour to the brand blue.');
+        expect(now.textContent).not.toContain('Then I will resize it');
+        // Never the raw tool name (FR57 spirit).
+        expect(now.textContent).not.toMatch(/write_file/);
+        // A live per-step timer rides the now-line so the wait visibly moves.
+        expect(now.querySelector('[class*="now-time"]')).not.toBeNull();
+
+        gate.resolve();
+        await tick(40);
+        cleanup();
     });
 });

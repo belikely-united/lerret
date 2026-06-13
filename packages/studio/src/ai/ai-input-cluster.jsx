@@ -393,13 +393,15 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     bottom: calc(100% + 8px);
     left: 0;
     z-index: 60;
-    list-style: none;
+    display: flex;
+    flex-direction: column;
     margin: 0;
-    padding: 8px 12px;
+    padding: 0;
     min-width: 240px;
     max-width: 380px;
-    max-height: 40vh;
-    overflow-y: auto;
+    /* Clip children to the rounded corners; the HISTORY scrolls within (the
+       container itself never scrolls — the now-line stays pinned). */
+    overflow: hidden;
     /* Frosted dock-family surface so the panel reads as floating ABOVE the
        canvas (a plain --lm-bg-primary fill blends into the same-toned canvas). */
     background: rgba(255, 255, 255, 0.92);
@@ -409,6 +411,77 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     box-shadow: 0 6px 20px rgba(26, 23, 20, 0.14), 0 1px 3px rgba(26, 23, 20, 0.08);
     font: 400 11px/1.5 var(--lm-font-sans, -apple-system, sans-serif);
     color: var(--lm-text-tertiary, #6E6960);
+}
+/* §6.5: "N steps done" header — keeps a scrolled/tail-followed history legible
+   at a glance once older rows scroll out of view. */
+.lm-ai-cluster__activity-count {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(26, 23, 20, 0.07);
+    color: var(--lm-text-tertiary, #6E6960);
+}
+/* §6.5: the PAST — completed steps, newest nearest the now-line. Capped to a
+   slice of the viewport so it TAIL-FOLLOWS (scrolls) rather than growing; the
+   device height sets density, never the user. Recency-graded: stale rows dim
+   and shed their "why" (.is-old), so verbose never means cluttered. */
+.lm-ai-cluster__activity-hist {
+    flex: 1 1 auto;
+    list-style: none;
+    margin: 0;
+    padding: 8px 12px;
+    max-height: 30vh;
+    overflow-y: auto;
+}
+.lm-ai-cluster__activity-hist .is-old {
+    opacity: 0.55;
+}
+.lm-ai-cluster__activity-hist .is-old .lm-ai-cluster__activity-why {
+    display: none;
+}
+.lm-ai-cluster__activity-why {
+    color: var(--lm-text-tertiary, #6E6960);
+}
+/* §6.5: the PRESENT — pinned, ALWAYS visible (it never scrolls away, even on a
+   tiny pane), full detail + a live per-step timer + a shimmer dot so a silent
+   model-generation gap still visibly moves. The heartbeat of the turn. */
+.lm-ai-cluster__activity-now {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 7px 12px;
+    border-top: 1px solid rgba(26, 23, 20, 0.07);
+    color: var(--lm-text-secondary, #44403A);
+    font-weight: 500;
+}
+.lm-ai-cluster__activity-now-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-warning, #C98A3C);
+    align-self: center;
+    animation: lm-ai-now-pulse 1.4s ease-in-out infinite;
+}
+.lm-ai-cluster__activity-now-label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.lm-ai-cluster__activity-now-time {
+    flex: 0 0 auto;
+    margin-left: 4px;
+    color: var(--lm-text-tertiary, #6E6960);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+}
+@keyframes lm-ai-now-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .lm-ai-cluster__activity-now-dot {
+        animation: none;
+    }
 }
 /* Story 9.4 §3: the needs-continue inline row (takes the pill's slot). */
 .lm-ai-cluster__continue {
@@ -949,6 +1022,54 @@ function phaseLabel(slug) {
 }
 
 /**
+ * §6.5: trim the model's preamble (`response.text`) to a single calm clause for
+ * a now-line "why" — first sentence, whitespace-collapsed, capped. The model
+ * often narrates its intent in prose before a tool call; this surfaces that as
+ * the step's reason without flooding the calm panel. Empty in → empty out.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function trimWhy(text) {
+    if (typeof text !== 'string') return '';
+    const t = text.trim().replace(/\s+/g, ' ');
+    if (!t) return '';
+    const m = t.match(/^(.+?[.!?])(\s|$)/);
+    let s = m ? m[1] : t;
+    if (s.length > 90) s = `${s.slice(0, 87)}…`;
+    return s;
+}
+
+/**
+ * §6.5: the pinned "now-line" text — the friendly present-tense narration of
+ * whatever is happening RIGHT NOW (a phase stage, or a tool action with its
+ * target + why). This is the heartbeat that stays visible on any viewport, so
+ * even a silent model-generation gap reads as "Working on your files · 2.4s"
+ * instead of a context-free pill. Never a raw node/tool name (FR57 spirit).
+ *
+ * @param {{ kind: string, label?: string, file?: string, why?: string }} step
+ * @returns {string}
+ */
+function nowLineText(step) {
+    if (!step) return '';
+    if (step.kind === 'phase' || step.kind === 'decision') return step.label ?? '';
+    const why = trimWhy(step.why);
+    return `${activityLabel(step.kind)}${step.file ? ` ${step.file}` : ''}${why ? ` — ${why}` : ''}`;
+}
+
+/**
+ * §6.5: format a per-step elapsed (ms) as a calm "2.4s" — one decimal, never
+ * negative or NaN. Drives the live now-line timer so a wait visibly moves.
+ *
+ * @param {number} ms
+ * @returns {string}
+ */
+function fmtElapsed(ms) {
+    const s = Math.max(0, Number(ms) || 0) / 1000;
+    return `${s.toFixed(1)}s`;
+}
+
+/**
  * Collapsed one-line tool trail for an ask-lane thread card (Story 9.4, UX
  * §4): `N steps · R read · W written` (list+read count as read; write+delete
  * as written; 'call' counts toward N only). Clicking toggles a quiet expanded
@@ -1245,6 +1366,22 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     // visibility was the explicit ask). "Hide activity" remains the calm
     // escape hatch — and once set within a session it sticks.
     const [showActivity, setShowActivity] = React.useState(true);
+    // §6.5: per-step elapsed for the live now-line. Resets whenever the timeline
+    // gains a step (a fresh "now"), so even a silent model-generation gap
+    // visibly moves ("Working on your files · 2.4s"). Ticks only while a turn
+    // runs and the panel is shown; cleared at rest.
+    const [nowElapsedMs, setNowElapsedMs] = React.useState(0);
+    const liveLen = Array.isArray(liveSteps) ? liveSteps.length : 0;
+    React.useEffect(() => {
+        if (!running || !showActivity || liveLen === 0) {
+            setNowElapsedMs(0);
+            return undefined;
+        }
+        const startedAt = Date.now();
+        setNowElapsedMs(0);
+        const id = setInterval(() => setNowElapsedMs(Date.now() - startedAt), 200);
+        return () => clearInterval(id);
+    }, [running, showActivity, liveLen]);
     // Non-null while the needs-continue inline row is open (the loop hit its
     // step cap and blocks awaiting the user's call).
     const [continuePrompt, setContinuePrompt] = React.useState(
@@ -1779,7 +1916,20 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             // read-only inspect loop must never flash
                             // "Writing files…" (review finding M1).
                             const kind = stepKindForTool(ev.name);
-                            turnSteps.push({ kind });
+                            // §6.5 (self-managing verbose timeline): carry the
+                            // target path + the model's "why" preamble onto the
+                            // step so the pinned now-line narrates it ("Editing
+                            // kit/banner.jsx — updating the headline colour").
+                            // `file` is prefilled from ev.target when present;
+                            // the paired reading/writing event still fills it
+                            // for the W2/fallback paths that carry no target.
+                            turnSteps.push({
+                                kind,
+                                ...(typeof ev.target === 'string' && ev.target
+                                    ? { file: ev.target }
+                                    : {}),
+                                ...(typeof ev.why === 'string' && ev.why ? { why: ev.why } : {}),
+                            });
                             pendingStepIdx = turnSteps.length - 1;
                             setLiveSteps([...turnSteps]);
                             const nextStatus =
@@ -2511,62 +2661,115 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 </span>
             )}
 
-            {/* Epic 9 follow-up #3: the live activity timeline — the agent
-                showing its work, on by default. An ordered mix of PHASE markers
-                (friendly node names — "Checking your brand"), the tool STEPS
-                nested beneath, and DECISION lines (brand conflicts). Same
-                content as the thread card's frozen trail (tool rows), plus the
-                orchestration flavor. Friendly present-tense, never raw node
-                names; the current tool step (no file yet) reads as in-progress. */}
-            {running && showActivity && Array.isArray(liveSteps) && liveSteps.length > 0 && (
-                <ul
-                    className="lm-ai-cluster__activity"
-                    data-testid="ai-activity-feed"
-                >
-                    {liveSteps.map((step, i) => {
-                        if (step.kind === 'phase') {
-                            // Orchestration stage header — the "which agent is
-                            // thinking now" line.
-                            return (
-                                <li
-                                    key={i}
-                                    data-testid="ai-activity-phase"
-                                    style={{
-                                        marginTop: i === 0 ? 0 : 5,
-                                        color: 'var(--lm-text-secondary, #3A3530)',
-                                        fontWeight: 500,
-                                    }}
+            {/* §6.5: the self-managing verbose timeline — "Pin the present, tail
+                the past, bound by the viewport." `current` is the pinned now-line
+                (always visible, full detail, live timer + shimmer — the heartbeat
+                that narrates even a silent generation gap); `history` is the
+                bounded, tail-following past (newest nearest, recency-graded so
+                stale rows dim + shed their "why"); the count chip keeps a
+                scrolled history legible. On by default; "Hide activity" still the
+                calm off-switch. Friendly present-tense, never raw node names. */}
+            {running &&
+                showActivity &&
+                Array.isArray(liveSteps) &&
+                liveSteps.length > 0 &&
+                (() => {
+                    const current = liveSteps[liveSteps.length - 1];
+                    const history = liveSteps.slice(0, -1);
+                    const doneToolCount = history.filter((s) =>
+                        TOOL_STEP_KINDS.has(s.kind),
+                    ).length;
+                    return (
+                        <div className="lm-ai-cluster__activity" data-testid="ai-activity-feed">
+                            {doneToolCount > 0 && (
+                                <div
+                                    className="lm-ai-cluster__activity-count"
+                                    data-testid="ai-activity-count"
                                 >
-                                    {`▸ ${step.label ?? ''}`}
-                                </li>
-                            );
-                        }
-                        if (step.kind === 'decision') {
-                            // "What decisions were taken" — a noticed line,
-                            // calmly accented, indented under its phase.
-                            return (
-                                <li
-                                    key={i}
-                                    data-testid="ai-activity-decision"
-                                    style={{
-                                        paddingLeft: 14,
-                                        color: 'var(--lm-accent, #B85B33)',
-                                    }}
+                                    {`✓ ${doneToolCount} ${doneToolCount === 1 ? 'step' : 'steps'} done`}
+                                </div>
+                            )}
+                            {history.length > 0 && (
+                                <ul
+                                    className="lm-ai-cluster__activity-hist"
+                                    data-testid="ai-activity-hist"
                                 >
-                                    {`◆ ${step.label ?? ''}`}
-                                </li>
-                            );
-                        }
-                        return (
-                            <li key={i} data-testid="ai-activity-row" style={{ paddingLeft: 14 }}>
-                                {i === liveSteps.length - 1 && !step.file ? '◐ ' : '✓ '}
-                                {activityLabel(step.kind)}
-                                {step.file ? ` ${step.file}` : ''}
-                            </li>
-                        );
-                    })}
-                </ul>
-            )}
+                                    {history.map((step, i) => {
+                                        // Recency-grade: only the freshest two
+                                        // rows keep full opacity + their "why";
+                                        // older rows dim + shed it (.is-old) so
+                                        // verbose never means cluttered.
+                                        const old = i < history.length - 2;
+                                        if (step.kind === 'phase') {
+                                            return (
+                                                <li
+                                                    key={i}
+                                                    data-testid="ai-activity-phase"
+                                                    className={old ? 'is-old' : undefined}
+                                                    style={{
+                                                        marginTop: i === 0 ? 0 : 5,
+                                                        color: 'var(--lm-text-secondary, #3A3530)',
+                                                        fontWeight: 500,
+                                                    }}
+                                                >
+                                                    {`▸ ${step.label ?? ''}`}
+                                                </li>
+                                            );
+                                        }
+                                        if (step.kind === 'decision') {
+                                            return (
+                                                <li
+                                                    key={i}
+                                                    data-testid="ai-activity-decision"
+                                                    className={old ? 'is-old' : undefined}
+                                                    style={{
+                                                        paddingLeft: 14,
+                                                        color: 'var(--lm-accent, #B85B33)',
+                                                    }}
+                                                >
+                                                    {`◆ ${step.label ?? ''}`}
+                                                </li>
+                                            );
+                                        }
+                                        const why = trimWhy(step.why);
+                                        return (
+                                            <li
+                                                key={i}
+                                                data-testid="ai-activity-row"
+                                                className={old ? 'is-old' : undefined}
+                                                style={{ paddingLeft: 14 }}
+                                            >
+                                                {`✓ ${activityLabel(step.kind)}${step.file ? ` ${step.file}` : ''}`}
+                                                {why ? (
+                                                    <span className="lm-ai-cluster__activity-why">
+                                                        {` — ${why}`}
+                                                    </span>
+                                                ) : null}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
+                            {current && (
+                                <div
+                                    className="lm-ai-cluster__activity-now"
+                                    data-testid="ai-activity-now"
+                                >
+                                    <span
+                                        className="lm-ai-cluster__activity-now-dot"
+                                        aria-hidden="true"
+                                    />
+                                    <span className="lm-ai-cluster__activity-now-label">
+                                        {nowLineText(current)}
+                                    </span>
+                                    <span className="lm-ai-cluster__activity-now-time">
+                                        {`· ${fmtElapsed(nowElapsedMs)}`}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
 
             {/* Story 8.7 State A inline note: vision required, no cloud
                 provider can serve a fallback — calm guidance, no modal. The

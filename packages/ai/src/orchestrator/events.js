@@ -76,7 +76,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
  *   | { type: 'writing', file: string }
  *   | { type: 'deleting', file: string }
  *   | { type: 'mkdir', dir: string }
- *   | { type: 'tool-call', name: string }
+ *   | { type: 'tool-call', name: string, target?: string, why?: string }
  *   | { type: 'clarifying-note', note: string, token?: string, designSystemValue?: string, configValue?: string }
  *   | { type: 'inspector-response', answer: string }
  *   | { type: 'done', files: Array<TurnFileEntry>, turnId?: string, summary?: string }
@@ -130,9 +130,27 @@ export function mkdir(dir) {
     return Object.freeze({ type: 'mkdir', dir });
 }
 
-/** @param {string} name @returns {TurnEvent} */
-export function toolCall(name) {
-    return Object.freeze({ type: 'tool-call', name });
+/**
+ * A loop tool call about to execute. Epic 9 follow-up #4 (§6.5 — the
+ * self-managing verbose timeline): the event now also carries, when known, the
+ * `target` (the path the tool acts on — straight from the tool-call args, so
+ * it's available the instant the call is parsed) and `why` (the model's
+ * natural-language preamble for this step — its `response.text`, available the
+ * instant generation returns). The dock's now-line reads "Editing
+ * kit/banner.jsx — updating the headline colour" instead of a bare "Writing
+ * files…". Both are OPTIONAL and only included when non-empty — legacy callers
+ * passing only `name` produce the historical shape unchanged. Still never a raw
+ * node/agent name (FR57 spirit): the dock owns the friendly verb.
+ *
+ * @param {string} name
+ * @param {{ target?: string, why?: string }} [meta]
+ * @returns {TurnEvent}
+ */
+export function toolCall(name, meta = {}) {
+    const ev = { type: 'tool-call', name };
+    if (typeof meta.target === 'string' && meta.target.trim()) ev.target = meta.target.trim();
+    if (typeof meta.why === 'string' && meta.why.trim()) ev.why = meta.why.trim();
+    return Object.freeze(ev);
 }
 
 /**
