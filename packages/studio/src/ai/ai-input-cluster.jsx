@@ -225,8 +225,16 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     transition: border-color var(--lm-duration-fast, 120ms);
 }
 .lm-ai-cluster__field[data-focused="true"] {
-    border-color: var(--lm-accent, #B85B33);
-    box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+    /* Plainer focus (2026-06-13, UX). This design system is deliberately FLAT
+       — hairline borders are removed studio-wide (--lm-border is transparent;
+       see colors_and_type.css) and separation comes from surface tiers + the
+       shadow scale, not lines. The old loud terracotta border + glow fought
+       that, so it's replaced by a single SOFT NEUTRAL ring: plainer, on-system,
+       no accent — still a clear focus affordance (a11y SC 2.4.7). A neutral
+       (not accent) ring also can't rely on --lm-border, which is transparent.
+       NB: focus-visible can't gate this — a text input always matches it even
+       on mouse click — so we keep ONE calm focus state for everyone. */
+    box-shadow: 0 0 0 2px rgba(26, 23, 20, 0.12);
 }
 .lm-ai-cluster__field[data-absent="true"] {
     background: var(--lm-bg-secondary, #F2EEE6);
