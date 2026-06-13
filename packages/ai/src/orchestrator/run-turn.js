@@ -182,6 +182,7 @@ export function createVaultResolver({ folderId }) {
  *   onContinueDecision?: (info: { turnsUsed: number, spentTokens: number }) => Promise<boolean>,
  *   attachments?: Array<{ type: string }>,
  *   mode?: 'ask' | 'inspect',
+ *   currentPage?: string,   // the page the user is viewing — default location for NEW assets (Epic 9 follow-up)
  *   folderId?: string,
  *   projectRoot?: string,
  *   fs?: object,
@@ -198,6 +199,7 @@ export async function* runTurn({
     onContinueDecision,
     attachments,
     mode,
+    currentPage,
     folderId,
     projectRoot,
     fs,
@@ -317,6 +319,7 @@ export async function* runTurn({
                 prompt,
                 scope,
                 mode,
+                currentPage,
                 attachments,
                 providerHandle,
                 signal: effectiveSignal,

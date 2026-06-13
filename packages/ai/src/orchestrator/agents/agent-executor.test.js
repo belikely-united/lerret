@@ -103,6 +103,27 @@ describe('buildLoopSystemPrompt', () => {
         expect(sys).toContain('"brand":"#111"');
     });
 
+    it('adds the current-page default-location block ONLY when nothing else locates the work', () => {
+        // Truly-unscoped: the block fires and names the page folder.
+        const unscoped = buildLoopSystemPrompt({ prompt: 'create a linkedin banner', currentPage: '/abs/.lerret/kit' });
+        expect(unscoped).toMatch(/currently viewing the kit page \(\.lerret\/kit\/\)/);
+        expect(unscoped).toMatch(/CREATE NEW assets and the request does not name or clearly imply/);
+
+        // A selected asset (scopedFile) wins — no current-page nudge (you're editing, not creating).
+        const scoped = buildLoopSystemPrompt(
+            { prompt: 'recolor this', currentPage: '/abs/.lerret/kit', scope: { kind: 'file', filePath: 'social/a.jsx' } },
+            { path: '.lerret/social/a.jsx', content: 'X' },
+        );
+        expect(scoped).not.toMatch(/currently viewing/);
+
+        // A page/artboards scope label already locates the work — no double signal.
+        const pageScoped = buildLoopSystemPrompt({ prompt: 'p', currentPage: '/abs/.lerret/kit', scope: { kind: 'page', label: 'kit page' } });
+        expect(pageScoped).not.toMatch(/currently viewing/);
+
+        // No currentPage → no block at all.
+        expect(buildLoopSystemPrompt({ prompt: 'p' })).not.toMatch(/currently viewing/);
+    });
+
     it('folds the selected asset with precedence + pinpoint; page scope gets the label line', () => {
         const scoped = { path: '.lerret/kit/a.jsx', content: 'CONTENT' };
         const sys = buildLoopSystemPrompt(

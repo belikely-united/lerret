@@ -47,6 +47,7 @@ export const TurnState = Annotation.Root({
     prompt: Annotation(),
     scope: Annotation(),
     mode: Annotation(),
+    currentPage: Annotation(),
     attachments: Annotation(),
     providerHandle: Annotation(),
     signal: Annotation(),

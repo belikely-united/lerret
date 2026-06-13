@@ -69,6 +69,7 @@ import { useAiContext } from './ai-context.jsx';
 import { createCliAiFs } from './ai-fs.js';
 import { inCliMode } from '../runtime/write-client.js';
 import { useSelectionScope, fileScope } from './selection-scope-context.jsx';
+import { useProjectPages } from '../components/dock/project-pages-context.jsx';
 import { SetupScreen } from './setup-screen.jsx';
 import { PrivacyDisclosure } from './privacy-disclosure.jsx';
 import { EditorSheet } from '../components/editors/editor-sheet.jsx';
@@ -1046,6 +1047,12 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
 export function AiInputCluster({ onOpenRevertTimeline }) {
     const aiCtx = useAiContext();
     const { scope, clearScope, setScope } = useSelectionScope();
+    // The page the user is currently viewing (Epic 9 follow-up). Ambient — NOT
+    // the selection chip: it's "where I'm looking", which becomes the default
+    // location for newly-created assets so they appear on-screen rather than
+    // off on a folder the model invents. `null` when no project is loaded.
+    const projectPages = useProjectPages();
+    const currentPage = projectPages?.current ?? null;
     const reducedMotion = useReducedMotion();
     const narrow = useNarrowWindow();
     const inputId = React.useId();
@@ -1454,6 +1461,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     prompt,
                     scope: turnScope,
                     mode: turnMode,
+                    // The page being viewed → default location for new assets
+                    // (so "create a LinkedIn banner" lands where the user is
+                    // looking, not on an invented folder). A soft default the
+                    // request or a selection chip can override.
+                    ...(currentPage ? { currentPage } : null),
                     signal: controller.signal,
                     // The vault identity — without it the orchestrator's
                     // provider resolver cannot list this folder's configs.
@@ -1691,7 +1703,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 if (mountedRef.current) setTurnProgress(null);
             }
         },
-        [scope, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding, requestContinueDecision],
+        [scope, currentPage, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding, requestContinueDecision],
     );
 
     // ── Gating: first-run setup + cloud disclosure (consumes Story 8.1) ─────

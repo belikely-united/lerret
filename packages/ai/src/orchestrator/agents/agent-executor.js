@@ -105,6 +105,29 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
             ? `\n\nThe user has scoped this request to: ${String(state.scope.label).slice(0, 80)}. ` +
               `Keep new/edited files within that scope; do not retheme the whole project.`
             : '';
+    // Current-page default for NEW assets (Epic 9 follow-up). Precedence:
+    // an explicit/implied location in the request wins, then a selection
+    // (scopedFile / page-scope label), then this ambient default. So it only
+    // fires when nothing else locates the work — the truly-unscoped case
+    // ("create a LinkedIn banner" while viewing the kit page) — and steers
+    // creation to where the user is looking instead of an invented folder.
+    const rawPageFolder = !scopedFile && !scopeLabel ? canonLerretPath(state.currentPage) : null;
+    // Normalize to a trailing slash so the folder reads unambiguously in the
+    // prompt (`.lerret/kit/`, never `.lerret/kit`).
+    const pageFolder =
+        rawPageFolder && rawPageFolder !== '.lerret/'
+            ? rawPageFolder.endsWith('/')
+                ? rawPageFolder
+                : `${rawPageFolder}/`
+            : null;
+    const currentPageBlock =
+        pageFolder
+            ? `\n\nThe user is currently viewing the ${pageFolder.replace(/^\.lerret\//, '').replace(/\/$/, '')} page ` +
+              `(${pageFolder}). When you CREATE NEW assets and the request does not name or clearly imply a ` +
+              `different location, create them under that page's folder so they appear where the user is looking. ` +
+              `A request that implies its own structure (a launch kit, a multi-platform set, an explicitly named ` +
+              `folder or page) may create new folders as needed.`
+            : '';
     return (
         'You are Lerret\'s in-studio design agent. You work INSIDE the user\'s project ' +
         'using the provided tools (list_dir, read_file, write_file, delete_file). All ' +
@@ -132,6 +155,7 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
         'keep its existing structure and change only the values the request targets.' +
         brand +
         context +
+        currentPageBlock +
         scopeLabel +
         scoped
     );

@@ -56,6 +56,7 @@ import {
     _setBabelParserLoader,
 } from './ai-input-cluster.jsx';
 import { AiContextProvider } from './ai-context.jsx';
+import { ProjectPagesContext } from '../components/dock/project-pages-context.jsx';
 import {
     SelectionScopeProvider,
     useSelectionScope,
@@ -1889,6 +1890,30 @@ describe('AiInputCluster — runTurn receives folderId (+ fs/projectRoot in CLI 
         // jsdom default: no __LERRET_CLI_MODE__ → the CLI bridge must not ride.
         expect('fs' in call).toBe(false);
         expect('projectRoot' in call).toBe(false);
+        // No ProjectPagesContext provided → no currentPage passed.
+        expect('currentPage' in call).toBe(false);
+        cleanup();
+    });
+
+    it('passes the current page from ProjectPagesContext as runTurn.currentPage (Epic 9 follow-up)', async () => {
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [] };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        const pagesNav = {
+            pages: [{ id: '/Users/me/proj/.lerret/kit', label: 'kit' }],
+            current: '/Users/me/proj/.lerret/kit',
+            onNavigate: () => {},
+        };
+        const { container, cleanup } = renderToDom(
+            <ProjectPagesContext.Provider value={pagesNav}>
+                <Harness />
+            </ProjectPagesContext.Provider>,
+        );
+        await tick();
+        await submitPrompt(container, 'create a linkedin banner');
+        expect(runTurnSpy).toHaveBeenCalledTimes(1);
+        expect(runTurnSpy.mock.calls[0][0].currentPage).toBe('/Users/me/proj/.lerret/kit');
         cleanup();
     });
 
