@@ -6,6 +6,16 @@
 // A graph node, a LangGraph state object, or an agent's intermediate reasoning
 // is NEVER yielded as a TurnEvent; only the turn-level outcomes below.
 //
+// Epic 9 follow-up (#3 — "show the orchestration"): the `phase` event is the
+// one deliberate nuance to that rule. It carries a small, STABLE, user-facing
+// PROGRESS vocabulary (understanding | context | brand | working | exploring)
+// — NOT the internal graph node CLASS names. The studio maps each slug to a
+// friendly present-tense line ("Checking your brand"); "Orchestrator" /
+// "DSCurator" / "AgentExecutor" still never reach the UI. So FR57 ("one AI,
+// topology not exposed") holds in spirit while an agent that ACTS over many
+// steps shows its work instead of being a black box (the addendum-2 retro
+// lesson: an agent that acts needs a way to show its work).
+//
 // ─── Vision-fallback response mechanism (the documented choice) ──────────────
 //
 // When the orchestrator needs vision but the active model lacks it, it yields a
@@ -37,6 +47,7 @@
  */
 export const TURN_EVENT_TYPES = Object.freeze([
     'thinking',
+    'phase',
     'reading',
     'writing',
     'deleting',
@@ -60,6 +71,7 @@ export const TURN_EVENT_TYPES = Object.freeze([
 
 /**
  * @typedef {{ type: 'thinking' }
+ *   | { type: 'phase', phase: 'understanding'|'context'|'brand'|'working'|'exploring' }
  *   | { type: 'reading', file: string }
  *   | { type: 'writing', file: string }
  *   | { type: 'deleting', file: string }
@@ -79,6 +91,23 @@ export const TURN_EVENT_TYPES = Object.freeze([
 /** @returns {TurnEvent} */
 export function thinking() {
     return Object.freeze({ type: 'thinking' });
+}
+
+/**
+ * A coarse PROGRESS phase for the live activity feed (Epic 9 follow-up #3 —
+ * the user asked to "see which agent is thinking, what's going on"). `name` is
+ * a small, STABLE, user-facing progress vocabulary
+ * (`understanding | context | brand | working | exploring`), DECOUPLED from the
+ * internal graph node class names — the studio maps each slug to a friendly
+ * present-tense line, so raw node identity is never rendered (see header note;
+ * FR57 holds in spirit). Feed-only: never a pill state, never blocks, the turn
+ * always proceeds. Emitted once at each node's entry by the graph seam.
+ *
+ * @param {'understanding'|'context'|'brand'|'working'|'exploring'} name
+ * @returns {TurnEvent}
+ */
+export function phase(name) {
+    return Object.freeze({ type: 'phase', phase: String(name ?? '') });
 }
 
 /** @param {string} file @returns {TurnEvent} */

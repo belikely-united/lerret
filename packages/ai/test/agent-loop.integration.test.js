@@ -135,10 +135,26 @@ describe('agent loop integration — multi-turn discovery + write (matrix: Ask /
         ]);
         expect(handle.complete).not.toHaveBeenCalled();
 
-        // Sane event order: thinking opens; list → read → write tool calls in
-        // script order; each read surfaces as reading{file}; the Worker's
-        // writing lands after the write tool-call; done is terminal.
-        expect(events[0].type).toBe('thinking');
+        // Sane event order. Epic 9 follow-up #3 (orchestration visibility):
+        // each node's entry opens with a user-facing PROGRESS phase, so the
+        // turn opens on 'understanding' (Orchestrator) and threads
+        // context → brand → working down the Ask branch; the 'working' phase
+        // precedes every loop tool call. thinking still fires inside the nodes.
+        // list → read → write tool calls follow in script order; each read
+        // surfaces as reading{file}; the Worker's writing lands after the write
+        // tool-call; done is terminal.
+        expect(events[0]).toEqual({ type: 'phase', phase: 'understanding' });
+        expect(events.filter((e) => e.type === 'phase').map((e) => e.phase)).toEqual([
+            'understanding',
+            'context',
+            'brand',
+            'working',
+        ]);
+        expect(events.some((e) => e.type === 'thinking')).toBe(true);
+        const idxWorkingPhase = events.findIndex((e) => e.type === 'phase' && e.phase === 'working');
+        const idxFirstToolCall = events.findIndex((e) => e.type === 'tool-call');
+        expect(idxWorkingPhase).toBeGreaterThanOrEqual(0);
+        expect(idxFirstToolCall).toBeGreaterThan(idxWorkingPhase);
         expect(events.filter((e) => e.type === 'tool-call').map((e) => e.name)).toEqual([
             'list_dir',
             'read_file',

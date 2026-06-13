@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
     TURN_EVENT_TYPES,
     thinking,
+    phase,
     reading,
     writing,
     deleting,
@@ -25,6 +26,21 @@ describe('TURN_EVENT_TYPES', () => {
         expect(TURN_EVENT_TYPES).toContain('needs-vision-fallback');
         expect(TURN_EVENT_TYPES).toContain('stopped');
         expect(TURN_EVENT_TYPES).toContain('inspector-response');
+        expect(TURN_EVENT_TYPES).toContain('phase');
+    });
+});
+
+describe('phase event (Epic 9 follow-up — orchestration visibility)', () => {
+    it('carries the user-facing progress slug, frozen, never a node class name', () => {
+        const ev = phase('brand');
+        expect(ev).toEqual({ type: 'phase', phase: 'brand' });
+        expect(Object.isFrozen(ev)).toBe(true);
+        // The vocabulary is decoupled from the graph topology: no internal node
+        // class name ever appears in a phase payload.
+        for (const slug of ['understanding', 'context', 'brand', 'working', 'exploring']) {
+            expect(phase(slug).phase).toBe(slug);
+        }
+        expect(phase(undefined).phase).toBe('');
     });
 });
 
@@ -32,6 +48,7 @@ describe('event factories', () => {
     it('every factory yields a frozen object whose type is in TURN_EVENT_TYPES', () => {
         const samples = [
             thinking(),
+            phase('working'),
             reading('a'),
             writing('b'),
             deleting('c'),

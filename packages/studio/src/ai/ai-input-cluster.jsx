@@ -870,6 +870,45 @@ function activityLabel(kind) {
 }
 
 /**
+ * The tool-step kinds that count toward the frozen thread-trail summary
+ * ("N steps · R read · W written"). The Epic 9 follow-up #3 timeline also
+ * carries `phase` and `decision` rows in the SAME ordered list for the LIVE
+ * feed — those are orchestration flavor, not tool work, so the frozen card
+ * (counts + expanded rows) filters them out and stays byte-for-byte what it
+ * was before this change.
+ */
+const TOOL_STEP_KINDS = Object.freeze(
+    new Set(['read', 'write', 'delete', 'list', 'call', 'ask']),
+);
+
+/**
+ * Friendly present-tense label for an orchestration PHASE slug (Epic 9
+ * follow-up #3 — "show which agent is thinking"). The `@lerret/ai` graph emits
+ * a stable progress vocabulary at each node's entry; the studio owns the
+ * human translation here, so raw node class names ("DSCurator") never render
+ * (FR57 spirit). An unknown slug degrades to a calm generic line.
+ *
+ * @param {string} slug
+ * @returns {string}
+ */
+function phaseLabel(slug) {
+    switch (slug) {
+        case 'understanding':
+            return 'Understanding your request';
+        case 'context':
+            return 'Loading your project context';
+        case 'brand':
+            return 'Checking your brand';
+        case 'working':
+            return 'Working on your files';
+        case 'exploring':
+            return 'Exploring your project';
+        default:
+            return 'Working';
+    }
+}
+
+/**
  * Collapsed one-line tool trail for an ask-lane thread card (Story 9.4, UX
  * §4): `N steps · R read · W written` (list+read count as read; write+delete
  * as written; 'call' counts toward N only). Clicking toggles a quiet expanded
@@ -882,9 +921,12 @@ function activityLabel(kind) {
  */
 function ThreadTrail({ steps, onOpenPath }) {
     const [expanded, setExpanded] = React.useState(false);
-    const readCount = steps.filter((s) => s.kind === 'read' || s.kind === 'list').length;
-    const writtenCount = steps.filter((s) => s.kind === 'write' || s.kind === 'delete').length;
-    const line = `${steps.length} ${steps.length === 1 ? 'step' : 'steps'} · ${readCount} read · ${writtenCount} written`;
+    // Only TOOL steps count + render in the frozen card; phase/decision rows
+    // (Epic 9 follow-up #3) are live-feed-only flavor (see TOOL_STEP_KINDS).
+    const toolSteps = steps.filter((s) => TOOL_STEP_KINDS.has(s.kind));
+    const readCount = toolSteps.filter((s) => s.kind === 'read' || s.kind === 'list').length;
+    const writtenCount = toolSteps.filter((s) => s.kind === 'write' || s.kind === 'delete').length;
+    const line = `${toolSteps.length} ${toolSteps.length === 1 ? 'step' : 'steps'} · ${readCount} read · ${writtenCount} written`;
     return (
         <>
             <button
@@ -898,7 +940,7 @@ function ThreadTrail({ steps, onOpenPath }) {
             </button>
             {expanded && (
                 <ul className="lm-ai-thread__trail-list" data-testid="ai-thread-trail-list">
-                    {steps.map((s, i) => (
+                    {toolSteps.map((s, i) => (
                         <li className="lm-ai-thread__trail-row" key={i}>
                             <span>{STEP_SLUGS[s.kind] ?? STEP_SLUGS.call}</span>
                             {s.file &&
@@ -1150,14 +1192,19 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     const [turnProgress, setTurnProgress] = React.useState(
         /** @type {{ turn: number, maxTurns: number | null, spentTokens: number } | null} */ (null),
     );
-    // Live activity feed (Epic 9 follow-up, Design B): the turn's steps as they
-    // happen, for the opt-in "Show activity" disclosure. Mirrors the per-turn
-    // `turnSteps` (which feeds the post-hoc thread trail) so the live view and
-    // the frozen trail are the same content. `null` at rest.
+    // Live activity feed (Epic 9 follow-up #3 — the user asked to see the
+    // orchestration continuously, not behind a toggle). The turn's ordered
+    // timeline as it happens: PHASE markers ("Checking your brand"), the tool
+    // steps, and DECISION lines (brand-conflict notes). Superset of the
+    // per-turn `turnSteps` (which feeds the post-hoc thread trail — that stays
+    // tool-only). `null` at rest.
     const [liveSteps, setLiveSteps] = React.useState(
-        /** @type {Array<{ kind: string, file?: string }> | null} */ (null),
+        /** @type {Array<{ kind: string, file?: string, label?: string }> | null} */ (null),
     );
-    const [showActivity, setShowActivity] = React.useState(false);
+    // Default ON: the agentic turn shows its work by default (continuous
+    // visibility was the explicit ask). "Hide activity" remains the calm
+    // escape hatch — and once set within a session it sticks.
+    const [showActivity, setShowActivity] = React.useState(true);
     // Non-null while the needs-continue inline row is open (the loop hit its
     // step cap and blocks awaiting the user's call).
     const [continuePrompt, setContinuePrompt] = React.useState(
@@ -1621,6 +1668,25 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         case 'thinking':
                             setStatus((s) => (s === 'stopping' ? s : 'thinking'));
                             break;
+                        case 'phase': {
+                            // Epic 9 follow-up #3: a node's entry, as a friendly
+                            // progress marker for the live timeline ("Checking
+                            // your brand"). NOT a pill state (the pill keeps its
+                            // thinking/reading/writing cadence) and NOT a tool
+                            // step (the frozen trail filters phase rows out via
+                            // TOOL_STEP_KINDS). Dedupe a repeated phase so a
+                            // re-entered node never stutters the feed. Phases
+                            // arrive at node boundaries, never between a
+                            // tool-call and its paired file event, so the
+                            // pendingStepIdx fill below is undisturbed.
+                            const phaseText = phaseLabel(ev.phase);
+                            const last = turnSteps[turnSteps.length - 1];
+                            if (!(last && last.kind === 'phase' && last.label === phaseText)) {
+                                turnSteps.push({ kind: 'phase', label: phaseText });
+                                setLiveSteps([...turnSteps]);
+                            }
+                            break;
+                        }
                         case 'reading':
                             // Fill the pending tool-call step's file (loop
                             // reads); a standalone reading event (the Memory
@@ -1721,7 +1787,17 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             // architecture surface): a calm factual line for
                             // the thread card. Never a pill state, never a
                             // modal — the turn proceeds.
-                            if (typeof ev.note === 'string' && ev.note) turnNotes.push(ev.note);
+                            if (typeof ev.note === 'string' && ev.note) {
+                                turnNotes.push(ev.note);
+                                // Epic 9 follow-up #3: ALSO surface it live as a
+                                // DECISION row in the activity timeline ("what
+                                // decisions were taken"). It still lands in
+                                // turnNotes for the frozen card (the trail
+                                // filters decision rows out — TOOL_STEP_KINDS),
+                                // so there's no double-render at rest.
+                                turnSteps.push({ kind: 'decision', label: ev.note });
+                                setLiveSteps([...turnSteps]);
+                            }
                             break;
                         case 'inspector-response':
                             // Story 8.9: the read-only answer (FR58). Always
@@ -2395,10 +2471,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 </span>
             )}
 
-            {/* Design B (Epic 9 follow-up): the opt-in live activity feed — the
-                agent thinking out loud. Same content as the thread card's
-                frozen trail, live. Friendly present-tense lines, never raw node
-                names; the current step (no file yet) reads as in-progress. */}
+            {/* Epic 9 follow-up #3: the live activity timeline — the agent
+                showing its work, on by default. An ordered mix of PHASE markers
+                (friendly node names — "Checking your brand"), the tool STEPS
+                nested beneath, and DECISION lines (brand conflicts). Same
+                content as the thread card's frozen trail (tool rows), plus the
+                orchestration flavor. Friendly present-tense, never raw node
+                names; the current tool step (no file yet) reads as in-progress. */}
             {running && showActivity && Array.isArray(liveSteps) && liveSteps.length > 0 && (
                 <ul
                     className="lm-ai-cluster__activity"
@@ -2411,13 +2490,48 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         color: 'var(--lm-text-tertiary, #6E6960)',
                     }}
                 >
-                    {liveSteps.map((step, i) => (
-                        <li key={i} data-testid="ai-activity-row">
-                            {i === liveSteps.length - 1 && !step.file ? '◐ ' : '✓ '}
-                            {activityLabel(step.kind)}
-                            {step.file ? ` ${step.file}` : ''}
-                        </li>
-                    ))}
+                    {liveSteps.map((step, i) => {
+                        if (step.kind === 'phase') {
+                            // Orchestration stage header — the "which agent is
+                            // thinking now" line.
+                            return (
+                                <li
+                                    key={i}
+                                    data-testid="ai-activity-phase"
+                                    style={{
+                                        marginTop: i === 0 ? 0 : 5,
+                                        color: 'var(--lm-text-secondary, #3A3530)',
+                                        fontWeight: 500,
+                                    }}
+                                >
+                                    {`▸ ${step.label ?? ''}`}
+                                </li>
+                            );
+                        }
+                        if (step.kind === 'decision') {
+                            // "What decisions were taken" — a noticed line,
+                            // calmly accented, indented under its phase.
+                            return (
+                                <li
+                                    key={i}
+                                    data-testid="ai-activity-decision"
+                                    style={{
+                                        paddingLeft: 14,
+                                        color: 'var(--lm-accent, #B85B33)',
+                                    }}
+                                >
+                                    {`◆ ${step.label ?? ''}`}
+                                </li>
+                            );
+                        }
+                        return (
+                            <li key={i} data-testid="ai-activity-row" style={{ paddingLeft: 14 }}>
+                                {i === liveSteps.length - 1 && !step.file ? '◐ ' : '✓ '}
+                                {activityLabel(step.kind)}
+                                {step.file ? ` ${step.file}` : ''}
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 

@@ -30,6 +30,7 @@
 
 import { StateGraph, Annotation, START, END } from '@langchain/langgraph';
 
+import * as events from './events.js';
 import { createOrchestratorNode, routeFromOrchestrator } from './agents/orchestrator.js';
 import { createMemoryNode } from './agents/memory.js';
 import { createDsCuratorNode } from './agents/ds-curator.js';
@@ -87,25 +88,45 @@ export function createTurnGraph({
     onContinueDecision,
     onClarify,
 }) {
+    // Phase seam (Epic 9 follow-up #3): announce each node's entry as a
+    // user-facing PROGRESS phase so the dock's live activity feed can show the
+    // orchestration in friendly terms ("Checking your brand"). The slug is a
+    // stable progress vocabulary, NOT the node class name — the studio owns the
+    // friendly translation, so raw topology never reaches the UI (FR57 spirit;
+    // see events.js header). Args are forwarded verbatim so LangGraph's
+    // (state, config) call shape is preserved.
+    const withPhase =
+        (name, node) =>
+        (...args) => {
+            emit(events.phase(name));
+            return node(...args);
+        };
+
     const graph = new StateGraph(TurnState)
-        .addNode('Orchestrator', createOrchestratorNode({ emit }))
-        .addNode('Memory', createMemoryNode({ sandbox, emit }))
-        .addNode('DSCurator', createDsCuratorNode({ sandbox, emit }))
+        .addNode('Orchestrator', withPhase('understanding', createOrchestratorNode({ emit })))
+        .addNode('Memory', withPhase('context', createMemoryNode({ sandbox, emit })))
+        .addNode('DSCurator', withPhase('brand', createDsCuratorNode({ sandbox, emit })))
         .addNode(
             'AgentExecutor',
-            createAgentExecutorNode({
-                providerHandle,
-                emit,
-                requestVisionDecision,
-                onContinueDecision,
-                onClarify,
-                sandbox,
-                fs,
-                projectRoot,
-                snapshot,
-            }),
+            withPhase(
+                'working',
+                createAgentExecutorNode({
+                    providerHandle,
+                    emit,
+                    requestVisionDecision,
+                    onContinueDecision,
+                    onClarify,
+                    sandbox,
+                    fs,
+                    projectRoot,
+                    snapshot,
+                }),
+            ),
         )
-        .addNode('Inspector', createInspectorNode({ sandbox, providerHandle, emit }))
+        .addNode(
+            'Inspector',
+            withPhase('exploring', createInspectorNode({ sandbox, providerHandle, emit })),
+        )
         .addEdge(START, 'Orchestrator')
         .addEdge('Orchestrator', 'Memory')
         .addConditionalEdges('Memory', routeFromOrchestrator, {

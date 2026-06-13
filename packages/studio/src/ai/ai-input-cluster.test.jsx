@@ -2643,17 +2643,24 @@ describe('AiInputCluster — mid-turn clarifying question', () => {
     });
 });
 
-// ── Live activity feed (Epic 9 follow-up, Design B) ──────────────────────────
+// ── Live activity timeline (Epic 9 follow-up #3 — orchestration visibility) ───
 
-describe('AiInputCluster — live activity feed', () => {
-    it('toggles a live feed of friendly step lines while a turn runs', async () => {
+describe('AiInputCluster — live activity timeline', () => {
+    it('shows phases + steps + decisions by default; Hide collapses; cleared at rest', async () => {
         const gate = deferred();
         aiMock.current = makeAi({
             runTurnImpl: async function* () {
+                // The real graph emits a phase at each node's entry; the dock
+                // renders friendly labels and never raw node names.
+                yield { type: 'phase', phase: 'understanding' };
+                yield { type: 'phase', phase: 'context' };
+                yield { type: 'phase', phase: 'brand' };
+                yield { type: 'phase', phase: 'working' };
                 yield { type: 'thinking' };
                 yield { type: 'tool-call', name: 'list_dir' };
                 yield { type: 'reading', file: '.lerret/' };
                 yield { type: 'turn-progress', turn: 1, maxTurns: 10, spentTokens: 1200 };
+                yield { type: 'clarifying-note', note: 'Hot pink conflicts with your brand blue.' };
                 yield { type: 'tool-call', name: 'write_file' };
                 yield { type: 'writing', file: 'kit/a.jsx' };
                 yield { type: 'turn-progress', turn: 2, maxTurns: 10, spentTokens: 3400 };
@@ -2665,24 +2672,73 @@ describe('AiInputCluster — live activity feed', () => {
         await tick();
         await submitPrompt(container, 'make a banner');
         await tick(40);
-        // Spend line carries the activity toggle; feed hidden until opened.
+
+        // Default ON — the timeline is visible WITHOUT clicking; the toggle
+        // reads "Hide activity" (the continuous-visibility ask).
+        expect(container.querySelector('[data-testid="ai-activity-feed"]')).not.toBeNull();
         const toggle = container.querySelector('[data-testid="ai-activity-toggle"]');
-        expect(toggle).not.toBeNull();
-        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
-        await act(async () => {
-            toggle.click();
-        });
+        expect(toggle.textContent).toBe('Hide activity');
+
+        // Phase markers — "which agent is thinking", in friendly terms only.
+        const phases = [...container.querySelectorAll('[data-testid="ai-activity-phase"]')].map(
+            (r) => r.textContent.trim(),
+        );
+        expect(phases.some((t) => t.includes('Understanding your request'))).toBe(true);
+        expect(phases.some((t) => t.includes('Checking your brand'))).toBe(true);
+        expect(phases.some((t) => t.includes('Working on your files'))).toBe(true);
+        expect(phases.join(' ')).not.toMatch(/Orchestrator|DSCurator|AgentExecutor|Memory|Inspector/);
+
+        // Tool steps — friendly present-tense with files, never raw tool names.
         const rows = [...container.querySelectorAll('[data-testid="ai-activity-row"]')].map((r) =>
             r.textContent.trim(),
         );
-        // Friendly present-tense labels with files; never raw tool names.
         expect(rows.some((t) => t.includes('Looking through') && t.includes('.lerret/'))).toBe(true);
         expect(rows.some((t) => t.includes('Writing') && t.includes('kit/a.jsx'))).toBe(true);
         expect(rows.join(' ')).not.toMatch(/list_dir|write_file/);
+
+        // Decision line — "what decisions were taken".
+        const decisions = [
+            ...container.querySelectorAll('[data-testid="ai-activity-decision"]'),
+        ].map((r) => r.textContent.trim());
+        expect(decisions.some((t) => t.includes('Hot pink conflicts'))).toBe(true);
+
+        // Hide collapses the timeline and flips the toggle label.
+        await act(async () => {
+            toggle.click();
+        });
+        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        expect(container.querySelector('[data-testid="ai-activity-toggle"]').textContent).toBe(
+            'Show activity',
+        );
+
         gate.resolve();
         await tick(40);
         // Cleared at rest — the frozen trail lives in the thread card now.
         expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        cleanup();
+    });
+
+    it('frozen thread trail counts ONLY tool steps — phase/decision rows never inflate it', async () => {
+        aiMock.current = makeAi({
+            events: [
+                { type: 'phase', phase: 'understanding' },
+                { type: 'phase', phase: 'working' },
+                { type: 'tool-call', name: 'list_dir' },
+                { type: 'reading', file: '.lerret/' },
+                { type: 'clarifying-note', note: 'A decision happened.' },
+                { type: 'tool-call', name: 'write_file' },
+                { type: 'writing', file: 'kit/a.jsx' },
+                { type: 'done', files: [{ op: 'edit', path: 'kit/a.jsx' }], turnId: 't-trail2' },
+            ],
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'make a banner');
+        await tick(40);
+        await openThread(container);
+        const trail = document.querySelector('[data-testid="ai-thread-trail"]');
+        // 2 tool steps (list + write) — the 2 phases and 1 decision are excluded.
+        expect(trail.textContent).toBe('2 steps · 1 read · 1 written');
         cleanup();
     });
 });
