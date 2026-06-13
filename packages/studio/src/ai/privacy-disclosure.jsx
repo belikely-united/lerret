@@ -21,6 +21,7 @@
  */
 
 import React from 'react';
+import * as ReactDOM from 'react-dom';
 
 import { useAiContext, PROVIDER_LABELS, PROVIDER_VARIANTS, OLLAMA_DEFAULT_BASE_URL } from './ai-context.jsx';
 
@@ -218,7 +219,13 @@ export function PrivacyDisclosure({
         onAck?.();
     };
 
-    return (
+    // The dock (and EditorSheet) set `backdrop-filter`, which makes them the
+    // containing block for `position: fixed` descendants — so a disclosure
+    // rendered inside the dock got trapped in the dock's short bar and bled
+    // through it (the reported bug). Portal to <body> so the fixed backdrop is
+    // viewport-relative, matching revert-timeline.jsx and the dock's other
+    // own-dialog overlays (page-picker, the brand menu).
+    return ReactDOM.createPortal(
         <div className="lm-ai-disclosure-backdrop" data-testid="lm-ai-disclosure-backdrop">
             <div
                 ref={dialogRef}
@@ -291,6 +298,7 @@ export function PrivacyDisclosure({
                     </>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }

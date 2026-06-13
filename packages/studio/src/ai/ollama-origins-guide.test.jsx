@@ -114,6 +114,25 @@ describe('OLLAMA_ORIGINS_COMMAND', () => {
     });
 });
 
+// ── Portal escape (dock containing-block regression) ─────────────────────────
+
+describe('OllamaOriginsGuide — portals to <body>', () => {
+    it('renders its fixed backdrop as a direct child of <body>, not its mount container', async () => {
+        // Same trap as privacy-disclosure: the guide is a sibling inside
+        // SetupScreen, which mounts in the dock — whose `backdrop-filter` is a
+        // containing block for `position: fixed`. Without a portal the backdrop
+        // clips to the dock's bar. The fixed backdrop MUST live on <body>.
+        const { container, cleanup } = renderToDom(
+            <OllamaOriginsGuide open {...noopHandlers} />,
+        );
+        const backdrop = document.querySelector('.lm-ollama-guide-backdrop');
+        expect(backdrop).not.toBeNull();
+        expect(backdrop.parentElement).toBe(document.body);
+        expect(container.contains(backdrop)).toBe(false);
+        cleanup();
+    });
+});
+
 // ── Step copy (verbatim) ─────────────────────────────────────────────────────
 
 describe('OllamaOriginsGuide — steps + verbatim copy', () => {

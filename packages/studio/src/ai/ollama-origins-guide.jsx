@@ -27,6 +27,7 @@
  */
 
 import React from 'react';
+import * as ReactDOM from 'react-dom';
 
 // ─── Single sources of truth (verbatim contract — do NOT duplicate) ──────────
 
@@ -375,7 +376,12 @@ export function OllamaOriginsGuide({ open, onRetry, onSuccess, onUseDifferentPro
         setRetryState('failed');
     };
 
-    return (
+    // Portal to <body>: rendered as a sibling inside SetupScreen, which mounts
+    // inside the dock — and the dock's `backdrop-filter` is a containing block
+    // for `position: fixed`, so an un-portaled backdrop gets trapped in the
+    // dock's bar and clips. Same fix/pattern as privacy-disclosure.jsx and
+    // revert-timeline.jsx.
+    return ReactDOM.createPortal(
         <div className="lm-ollama-guide-backdrop" data-testid="lm-ollama-guide-backdrop">
             <div
                 ref={dialogRef}
@@ -522,6 +528,7 @@ export function OllamaOriginsGuide({ open, onRetry, onSuccess, onUseDifferentPro
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }

@@ -89,6 +89,23 @@ describe('PrivacyDisclosure — cloud copy', () => {
         );
         cleanup();
     });
+
+    it('portals its backdrop to <body> — escapes the dock backdrop-filter trap', () => {
+        // Regression guard for the "disclosure copy bleeding into the bottom
+        // dock" bug: the dock's `backdrop-filter` is a containing block for
+        // `position: fixed`, so a non-portaled backdrop rendered inside the
+        // dock gets confined to the dock's short bar and clips. The fixed
+        // backdrop MUST be a direct child of <body>, never nested in its mount
+        // container.
+        const { container, cleanup } = renderToDom(
+            <PrivacyDisclosure open providerName="openai" onAck={() => {}} onCancel={() => {}} />,
+        );
+        const backdrop = document.querySelector('.lm-ai-disclosure-backdrop');
+        expect(backdrop).not.toBeNull();
+        expect(backdrop.parentElement).toBe(document.body);
+        expect(container.contains(backdrop)).toBe(false);
+        cleanup();
+    });
 });
 
 // ── Ollama copy ──────────────────────────────────────────────────────────────
