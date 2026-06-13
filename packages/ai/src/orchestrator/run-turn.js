@@ -180,6 +180,7 @@ export function createVaultResolver({ folderId }) {
  *   providerOverride?: string,
  *   onVisionDecision?: (ev: object) => Promise<{ accept: boolean, providerOverride?: string }>,
  *   onContinueDecision?: (info: { turnsUsed: number, spentTokens: number }) => Promise<boolean>,
+ *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
  *   attachments?: Array<{ type: string }>,
  *   mode?: 'ask' | 'inspect',
  *   currentPage?: string,   // the page the user is viewing — default location for NEW assets (Epic 9 follow-up)
@@ -197,6 +198,7 @@ export async function* runTurn({
     providerOverride,
     onVisionDecision,
     onContinueDecision,
+    onClarify,
     attachments,
     mode,
     currentPage,
@@ -305,6 +307,7 @@ export async function* runTurn({
         snapshot,
         requestVisionDecision,
         onContinueDecision,
+        onClarify,
     });
 
     let graphError;

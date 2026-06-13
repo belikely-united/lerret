@@ -72,6 +72,7 @@ export const TurnState = Annotation.Root({
  *   snapshot: object,
  *   requestVisionDecision: () => Promise<object>,
  *   onContinueDecision?: (info: { turnsUsed: number, spentTokens: number }) => Promise<boolean>,
+ *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
  * }} deps
  * @returns {object} The compiled LangGraph graph (has `.stream` / `.invoke`).
  */
@@ -84,6 +85,7 @@ export function createTurnGraph({
     snapshot,
     requestVisionDecision,
     onContinueDecision,
+    onClarify,
 }) {
     const graph = new StateGraph(TurnState)
         .addNode('Orchestrator', createOrchestratorNode({ emit }))
@@ -96,6 +98,7 @@ export function createTurnGraph({
                 emit,
                 requestVisionDecision,
                 onContinueDecision,
+                onClarify,
                 sandbox,
                 fs,
                 projectRoot,

@@ -148,19 +148,65 @@ export const DELETE_FILE_TOOL = deepFreeze({
 });
 
 /**
+ * Pause and ask the USER a question at a genuine decision fork (Epic 9
+ * follow-up). The loop blocks on a dock affordance; the user's pick (or typed
+ * answer) returns as this tool's result, and the SAME turn continues. The
+ * prescriptive description is the guardrail against over-asking — an agent
+ * that interrogates is worse than one that picks a sensible default.
+ *
+ * Ask lane only — the Inspect lane answers in one shot and never pauses, so
+ * `ask_user` is absent from READ_TOOLS by construction.
+ *
+ * @type {ToolDef}
+ */
+export const ASK_USER_TOOL = deepFreeze({
+    name: 'ask_user',
+    description:
+        'Ask the user a SHORT question and wait for their answer — ONLY at a genuine fork where ' +
+        'proceeding on a default could betray their intent: a brand/design conflict (their request ' +
+        'fights the design system), a genuinely ambiguous target, or a destructive/irreversible scope. ' +
+        'Do NOT ask about trivia, formatting, or anything a tool (list_dir/read_file) can answer — ' +
+        'prefer to act on the most sensible default and mention it in your summary. Offer 2–4 concrete ' +
+        '`options` when there is a clear set of choices; the user can always type their own. Ask at ' +
+        'most a couple of times per task.',
+    parameters: {
+        type: 'object',
+        properties: {
+            question: {
+                type: 'string',
+                description: 'The single, specific question to ask — one sentence, no preamble.',
+            },
+            options: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Optional 2–4 concrete choices the user can pick from (short labels).',
+            },
+        },
+        required: ['question'],
+        additionalProperties: false,
+    },
+});
+
+/**
  * The Inspect lane's ENTIRE tool surface — read-only by construction
- * (ADR-006 §4). The write tools are absent, not disabled.
+ * (ADR-006 §4). The write tools (and ask_user) are absent, not disabled.
  *
  * @type {readonly ToolDef[]}
  */
 export const READ_TOOLS = Object.freeze([LIST_DIR_TOOL, READ_FILE_TOOL]);
 
 /**
- * The Ask lane's tool surface — the only four (ADR-006 §2).
+ * The Ask lane's tool surface — the four file tools plus the ask_user fork
+ * (ADR-006 §2 + Epic 9 follow-up).
  *
  * @type {readonly ToolDef[]}
  */
-export const ALL_TOOLS = Object.freeze([...READ_TOOLS, WRITE_FILE_TOOL, DELETE_FILE_TOOL]);
+export const ALL_TOOLS = Object.freeze([
+    ...READ_TOOLS,
+    WRITE_FILE_TOOL,
+    DELETE_FILE_TOOL,
+    ASK_USER_TOOL,
+]);
 
 /**
  * Format `list_dir` entries as the model-facing `name · kind · size` listing

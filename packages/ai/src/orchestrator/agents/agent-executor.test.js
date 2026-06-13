@@ -215,6 +215,51 @@ describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
         expect(listing.content).toContain('a.jsx');
     });
 
+    it('ask_user awaits onClarify, bounds per turn, and never hangs headless', async () => {
+        const onClarify = vi.fn(async ({ question, options }) => {
+            expect(question).toBe('Green fights your brand blue — which way?');
+            expect(options).toEqual(['Use green', 'Keep blue']);
+            return 'Use green';
+        });
+        const withClarify = buildExecutors({
+            sandbox: makeSandbox(),
+            workerNode: vi.fn(),
+            manifestRef: { current: {} },
+            writtenFiles: [],
+            signal: undefined,
+            onClarify,
+            maxQuestions: 2,
+        });
+        const ok = await withClarify.ask_user({
+            question: 'Green fights your brand blue — which way?',
+            options: ['Use green', 'Keep blue'],
+        });
+        expect(onClarify).toHaveBeenCalledTimes(1);
+        expect(ok.content).toBe('The user answered: Use green');
+        expect(ok.meta).toEqual({ op: 'ask' });
+
+        // Second question allowed (budget 2); third is hard-stopped without
+        // calling onClarify — no interrogation loop.
+        await withClarify.ask_user({ question: 'q2' });
+        const blocked = await withClarify.ask_user({ question: 'q3' });
+        expect(onClarify).toHaveBeenCalledTimes(2);
+        expect(blocked.content).toMatch(/already asked enough questions/);
+
+        // Empty question → isError; headless (no onClarify) → safe default, no hang.
+        const empty = await withClarify.ask_user({ question: '   ' });
+        expect(empty.isError).toBe(true);
+        const headless = buildExecutors({
+            sandbox: makeSandbox(),
+            workerNode: vi.fn(),
+            manifestRef: { current: {} },
+            writtenFiles: [],
+            signal: undefined,
+        });
+        const def = await headless.ask_user({ question: 'anything?' });
+        expect(def.isError).toBeUndefined();
+        expect(def.content).toMatch(/No user is available/);
+    });
+
     it('delete_file failures surface as isError results, never throws', async () => {
         const { executors } = makeExecEnv();
         const res = await executors.delete_file({ path: 'kit/ghost.jsx' });

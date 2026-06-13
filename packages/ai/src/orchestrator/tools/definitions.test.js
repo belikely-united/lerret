@@ -83,20 +83,30 @@ describe('READ_TOOLS / ALL_TOOLS subsets', () => {
         expect(Object.isFrozen(READ_TOOLS)).toBe(true);
     });
 
-    it('READ_TOOLS structurally contains no mutating tool', () => {
+    it('READ_TOOLS structurally contains no mutating tool — and no ask_user (Inspect never pauses)', () => {
         const names = READ_TOOLS.map((t) => t.name);
         expect(names).not.toContain('write_file');
         expect(names).not.toContain('delete_file');
+        expect(names).not.toContain('ask_user');
     });
 
-    it('ALL_TOOLS is the four tools in order, frozen', () => {
+    it('ALL_TOOLS is the four file tools plus ask_user, in order, frozen', () => {
         expect(ALL_TOOLS.map((t) => t.name)).toEqual([
             'list_dir',
             'read_file',
             'write_file',
             'delete_file',
+            'ask_user',
         ]);
         expect(Object.isFrozen(ALL_TOOLS)).toBe(true);
+    });
+
+    it('ask_user requires a question, allows optional options, and discourages over-asking', () => {
+        const ask = ALL_TOOLS.find((t) => t.name === 'ask_user');
+        expect(ask.parameters.required).toEqual(['question']);
+        expect(ask.parameters.properties.options.type).toBe('array');
+        expect(ask.description).toMatch(/ONLY at a genuine fork/);
+        expect(ask.description).toMatch(/brand\/design conflict/);
     });
 });
 

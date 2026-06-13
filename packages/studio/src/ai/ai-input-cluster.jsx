@@ -833,6 +833,7 @@ const STEP_SLUGS = Object.freeze({
  */
 function stepKindForTool(name) {
     const n = String(name ?? '').toLowerCase();
+    if (n.includes('ask')) return 'ask';
     if (n.includes('list')) return 'list';
     if (n.includes('read')) return 'read';
     if (n.includes('delete') || n.includes('remove')) return 'delete';
@@ -840,6 +841,32 @@ function stepKindForTool(name) {
         return 'write';
     }
     return 'call';
+}
+
+/**
+ * Human present-tense label for a live-activity / trail step kind — the
+ * friendly translation of an internal tool/event (Epic 9 follow-up, Design
+ * B). Never raw node names: "Checking the folder", not "list_dir". `file` is
+ * appended by the caller when known.
+ *
+ * @param {'read'|'write'|'delete'|'list'|'ask'|'call'} kind
+ * @returns {string}
+ */
+function activityLabel(kind) {
+    switch (kind) {
+        case 'list':
+            return 'Looking through';
+        case 'read':
+            return 'Reading';
+        case 'write':
+            return 'Writing';
+        case 'delete':
+            return 'Deleting';
+        case 'ask':
+            return 'Asked you a question';
+        default:
+            return 'Working';
+    }
 }
 
 /**
@@ -974,6 +1001,22 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
                                         }`}
                                     </p>
                                 )}
+                                {/* Clarifying-question exchanges (Epic 9
+                                    follow-up): the agent asked, the user
+                                    answered — kept as a quiet Q→A record. */}
+                                {Array.isArray(turn.clarifications) &&
+                                    turn.clarifications.map((c, i) => (
+                                        <p
+                                            className="lm-ai-thread__meta"
+                                            data-testid="ai-thread-clarification"
+                                            key={`${turn.id}-clarify-${i}`}
+                                            style={{ color: 'var(--lm-text-tertiary, #6E6960)' }}
+                                        >
+                                            {`Asked: ${c.question}${
+                                                c.answer ? ` → You: ${c.answer}` : ' → (dismissed)'
+                                            }`}
+                                        </p>
+                                    ))}
                                 {/* DS Curator clarifying notes — calm one-liners
                                     (brand-authority conflicts; the turn proceeded
                                     with the design-system value). */}
@@ -1107,6 +1150,14 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     const [turnProgress, setTurnProgress] = React.useState(
         /** @type {{ turn: number, maxTurns: number | null, spentTokens: number } | null} */ (null),
     );
+    // Live activity feed (Epic 9 follow-up, Design B): the turn's steps as they
+    // happen, for the opt-in "Show activity" disclosure. Mirrors the per-turn
+    // `turnSteps` (which feeds the post-hoc thread trail) so the live view and
+    // the frozen trail are the same content. `null` at rest.
+    const [liveSteps, setLiveSteps] = React.useState(
+        /** @type {Array<{ kind: string, file?: string }> | null} */ (null),
+    );
+    const [showActivity, setShowActivity] = React.useState(false);
     // Non-null while the needs-continue inline row is open (the loop hit its
     // step cap and blocks awaiting the user's call).
     const [continuePrompt, setContinuePrompt] = React.useState(
@@ -1197,8 +1248,51 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
         continueDeferredRef.current = null;
     }, []);
 
+    // ── Clarifying-question state (Epic 9 follow-up) ────────────────────────
+    // The agent hit a genuine fork (e.g. the request fights the design system)
+    // and called the `ask_user` tool; the loop blocks awaiting the user's
+    // answer. Same resolver shape as the continue/vision affordances — an
+    // inline card, never a modal — resolving an answer STRING (or null when
+    // dismissed/stopped). The Q&A is recorded on the turn so the thread keeps
+    // the exchange in its history.
+    const [clarifyPrompt, setClarifyPrompt] = React.useState(
+        /** @type {{ question: string, options: string[] } | null} */ (null),
+    );
+    const clarifyDeferredRef = React.useRef(
+        /** @type {{ promise: Promise<string|null>, resolve: (v: string|null) => void, reject: (e?: unknown) => void } | null} */ (null),
+    );
+    // Q&A pairs answered during the in-flight turn — folded into the record at
+    // finish so the thread card can show "Asked: … → You: …".
+    const turnClarificationsRef = React.useRef(/** @type {Array<{ question: string, answer: string|null }>} */ ([]));
+    /**
+     * The `onClarify` callback passed INTO runTurn. Opens the inline question
+     * card and resolves with the user's answer (or null if dismissed). The
+     * stop path settles it null before aborting, so it never dangles.
+     */
+    const requestClarifyDecision = React.useCallback(async ({ question, options } = {}) => {
+        clarifyDeferredRef.current?.resolve(null);
+        const d = createDeferred();
+        clarifyDeferredRef.current = d;
+        setClarifyPrompt({
+            question: typeof question === 'string' ? question : '',
+            options: Array.isArray(options) ? options.filter((o) => typeof o === 'string' && o.trim()).slice(0, 4) : [],
+        });
+        return d.promise;
+    }, []);
+    /** Settle the open question card with the user's answer (or null) + record it. */
+    const onClarifyAnswer = React.useCallback((answer) => {
+        const text = typeof answer === 'string' && answer.trim() ? answer.trim() : null;
+        setClarifyPrompt((q) => {
+            if (q) turnClarificationsRef.current.push({ question: q.question, answer: text });
+            return null;
+        });
+        clarifyDeferredRef.current?.resolve(text);
+        clarifyDeferredRef.current = null;
+    }, []);
+
     // ── Refs ────────────────────────────────────────────────────────────────
     const inputRef = React.useRef(null);
+    const clarifyInputRef = React.useRef(/** @type {HTMLInputElement | null} */ (null));
     const controllerRef = React.useRef(/** @type {AbortController | null} */ (null));
     const terminalTimerRef = React.useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
     const revertTimerRef = React.useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
@@ -1236,6 +1330,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             const cont = continueDeferredRef.current;
             continueDeferredRef.current = null;
             cont?.resolve(false);
+            // And a pending clarifying question (Epic 9 follow-up): resolve
+            // null (dismissed) so the awaiting ask_user executor releases.
+            const clarify = clarifyDeferredRef.current;
+            clarifyDeferredRef.current = null;
+            clarify?.resolve(null);
         };
     }, []);
 
@@ -1261,6 +1360,14 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             continueDeferredRef.current = null;
             pendingContinue.resolve(false);
             setContinuePrompt(null);
+        }
+        // Same for a pending clarifying question — settle null and close the
+        // card so the awaiting ask_user executor releases before the abort.
+        const pendingClarify = clarifyDeferredRef.current;
+        if (pendingClarify) {
+            clarifyDeferredRef.current = null;
+            pendingClarify.resolve(null);
+            setClarifyPrompt(null);
         }
         // The pill keeps moving: Writing files… → Stopping… → Stopped. The
         // in-flight write finishes per NFR18, so we show the transient
@@ -1291,17 +1398,27 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     onVisionCancel();
                     return;
                 }
+                // A mid-turn question open? Esc dismisses it (null answer) —
+                // the agent proceeds with its default; a second Esc stops.
+                if (clarifyDeferredRef.current) {
+                    onClarifyAnswer(null);
+                    return;
+                }
                 requestStop();
             }
         };
         window.addEventListener('keydown', onKey, true);
         return () => window.removeEventListener('keydown', onKey, true);
-    }, [running, requestStop, onVisionCancel]);
+    }, [running, requestStop, onVisionCancel, onClarifyAnswer]);
 
     // ── Terminal handling: dwell on label, then idle + 4s revert window ─────
     const finishTurn = React.useCallback(
         (terminalStatus, files, prompt, turnId, errorInfo, extra = {}) => {
             setStatus(terminalStatus);
+            // The live activity feed is a during-the-turn surface; the frozen
+            // trail in the thread card is the post-hoc record (Design B). Clear
+            // it at rest so the dock returns to calm.
+            setLiveSteps(null);
             setRunning(false);
             controllerRef.current = null;
 
@@ -1355,6 +1472,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 // DS Curator clarifying notes (brand-authority conflicts) —
                 // shown as calm lines under the outcome (FR53/FR54 surface).
                 notes: Array.isArray(extra.notes) ? extra.notes.slice(0, 6) : [],
+                // Clarifying-question exchanges (Epic 9 follow-up): the agent
+                // asked, the user answered — kept in the thread as history.
+                clarifications: Array.isArray(extra.clarifications)
+                    ? extra.clarifications.slice(0, 6)
+                    : [],
                 turnId: turnId ?? null,
                 error: terminalStatus === 'error' ? (errorInfo ?? null) : null,
             };
@@ -1427,6 +1549,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             // factual lines the thread card shows under the outcome.
             /** @type {string[]} */
             const turnNotes = [];
+            // Fresh clarifying-question log for this turn (the ask_user
+            // exchanges accumulate in the ref as the user answers them).
+            turnClarificationsRef.current = [];
+            // Reset the live activity feed (Design B).
+            setLiveSteps([]);
             // Files observed via writing/deleting events DURING the run. The
             // `stopped` event carries no files, but an in-flight write may
             // have completed before the stop took effect (NFR18) — so the
@@ -1485,6 +1612,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     // Story 9.4 §3: the step-cap decision rides this callback
                     // (the needs-continue event itself is informational).
                     onContinueDecision: requestContinueDecision,
+                    // Epic 9 follow-up: the agent's mid-turn clarifying question
+                    // (the ask_user tool) blocks on this resolver.
+                    onClarify: requestClarifyDecision,
                 })) {
                     if (!mountedRef.current) break;
                     switch (ev.type) {
@@ -1507,6 +1637,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                     file: ev.file,
                                 };
                                 pendingStepIdx = -1;
+                                setLiveSteps([...turnSteps]);
                             }
                             setStatus((s) => (s === 'stopping' ? s : 'reading'));
                             break;
@@ -1531,6 +1662,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                     file: ev.file,
                                 };
                                 pendingStepIdx = -1;
+                                setLiveSteps([...turnSteps]);
                             }
                             setStatus((s) => (s === 'stopping' ? s : 'writing'));
                             break;
@@ -1543,6 +1675,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             const kind = stepKindForTool(ev.name);
                             turnSteps.push({ kind });
                             pendingStepIdx = turnSteps.length - 1;
+                            setLiveSteps([...turnSteps]);
                             const nextStatus =
                                 kind === 'read' || kind === 'list'
                                     ? 'reading'
@@ -1610,6 +1743,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                 spentTokens: tokensSpent,
                                 turns: turnsSeen,
                                 steps: turnSteps,
+                                clarifications: turnClarificationsRef.current,
                             });
                             break;
                         case 'stopped':
@@ -1623,6 +1757,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                 spentTokens: tokensSpent,
                                 turns: turnsSeen,
                                 steps: turnSteps,
+                                clarifications: turnClarificationsRef.current,
                             });
                             break;
                         case 'error':
@@ -1633,6 +1768,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                 spentTokens: tokensSpent,
                                 turns: turnsSeen,
                                 steps: turnSteps,
+                                clarifications: turnClarificationsRef.current,
                             });
                             break;
                         default:
@@ -1656,6 +1792,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         spentTokens: tokensSpent,
                         turns: turnsSeen,
                         steps: turnSteps,
+                                clarifications: turnClarificationsRef.current,
                     });
                 }
             } catch (err) {
@@ -1675,6 +1812,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                             spentTokens: tokensSpent,
                             turns: turnsSeen,
                             steps: turnSteps,
+                                clarifications: turnClarificationsRef.current,
                         },
                     );
                 }
@@ -1703,7 +1841,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 if (mountedRef.current) setTurnProgress(null);
             }
         },
-        [scope, currentPage, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding, requestContinueDecision],
+        [scope, currentPage, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding, requestContinueDecision, requestClarifyDecision],
     );
 
     // ── Gating: first-run setup + cloud disclosure (consumes Story 8.1) ─────
@@ -2085,7 +2223,68 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     decision is pending, the calm inline row takes the pill's
                     slot (same pattern family as the vision prompt — never a
                     modal); Esc / the stop button still abort the whole turn. */}
-                {continuePrompt ? (
+                {clarifyPrompt ? (
+                    // Epic 9 follow-up: the agent paused at a genuine fork and
+                    // asked. The card takes the pill's slot (never a modal) —
+                    // option chips when offered + a free-text field; Esc / the
+                    // stop button dismiss it (the agent proceeds on its
+                    // default). Highest priority among the inline affordances.
+                    <span
+                        className="lm-ai-cluster__continue"
+                        data-testid="ai-clarify-prompt"
+                        role="status"
+                        aria-live="polite"
+                        style={{ flexWrap: 'wrap', maxWidth: 520 }}
+                    >
+                        <span data-testid="ai-clarify-question" style={{ fontWeight: 500 }}>
+                            {clarifyPrompt.question}
+                        </span>
+                        {clarifyPrompt.options.map((opt, i) => (
+                            <button
+                                key={`${opt}-${i}`}
+                                type="button"
+                                className="lm-ai-cluster__continue-btn"
+                                data-testid="ai-clarify-option"
+                                onClick={() => onClarifyAnswer(opt)}
+                            >
+                                {opt}
+                            </button>
+                        ))}
+                        <input
+                            ref={clarifyInputRef}
+                            type="text"
+                            className="lm-ai-cluster__clarify-input"
+                            data-testid="ai-clarify-input"
+                            placeholder="or type your answer…"
+                            aria-label="Type your answer"
+                            style={{
+                                flex: '1 1 120px',
+                                minWidth: 100,
+                                font: 'inherit',
+                                padding: '2px 6px',
+                                border: '1px solid var(--lm-border, #D8D2C4)',
+                                borderRadius: 6,
+                                background: 'var(--lm-bg-primary, #FAF8F2)',
+                                color: 'var(--lm-text-primary, #1A1714)',
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onClarifyAnswer(e.currentTarget.value);
+                                }
+                            }}
+                        />
+                        <button
+                            type="button"
+                            className="lm-ai-cluster__continue-btn"
+                            data-testid="ai-clarify-send"
+                            onClick={() => onClarifyAnswer(clarifyInputRef.current?.value)}
+                        >
+                            Send
+                        </button>
+                    </span>
+                ) : continuePrompt ? (
                     <span
                         className="lm-ai-cluster__continue"
                         data-testid="ai-continue-prompt"
@@ -2170,7 +2369,56 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             {running && turnProgress && turnProgress.spentTokens > 0 && (
                 <span className="lm-ai-cluster__spend" data-testid="ai-spend-line">
                     {`~${formatTokens(turnProgress.spentTokens)} tokens`}
+                    {Array.isArray(liveSteps) && liveSteps.length > 0 && (
+                        <>
+                            {' · '}
+                            <button
+                                type="button"
+                                className="lm-ai-cluster__activity-toggle"
+                                data-testid="ai-activity-toggle"
+                                aria-expanded={showActivity}
+                                onClick={() => setShowActivity((v) => !v)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 0,
+                                    font: 'inherit',
+                                    color: 'inherit',
+                                    textDecoration: 'underline',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {showActivity ? 'Hide activity' : 'Show activity'}
+                            </button>
+                        </>
+                    )}
                 </span>
+            )}
+
+            {/* Design B (Epic 9 follow-up): the opt-in live activity feed — the
+                agent thinking out loud. Same content as the thread card's
+                frozen trail, live. Friendly present-tense lines, never raw node
+                names; the current step (no file yet) reads as in-progress. */}
+            {running && showActivity && Array.isArray(liveSteps) && liveSteps.length > 0 && (
+                <ul
+                    className="lm-ai-cluster__activity"
+                    data-testid="ai-activity-feed"
+                    style={{
+                        listStyle: 'none',
+                        margin: '2px 0 0',
+                        padding: 0,
+                        font: '400 11px/1.5 var(--lm-font-sans, sans-serif)',
+                        color: 'var(--lm-text-tertiary, #6E6960)',
+                    }}
+                >
+                    {liveSteps.map((step, i) => (
+                        <li key={i} data-testid="ai-activity-row">
+                            {i === liveSteps.length - 1 && !step.file ? '◐ ' : '✓ '}
+                            {activityLabel(step.kind)}
+                            {step.file ? ` ${step.file}` : ''}
+                        </li>
+                    ))}
+                </ul>
             )}
 
             {/* Story 8.7 State A inline note: vision required, no cloud

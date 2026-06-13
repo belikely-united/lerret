@@ -138,6 +138,13 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
         'WITHOUT tool calls, replying with a short summary (1–3 sentences) of what you ' +
         'did. If the request is impossible or unclear, finish with one sentence saying ' +
         'what you need. Never ask a question you can answer with a tool.\n\n' +
+        'Bias strongly toward ACTING on a sensible default rather than asking. Use the ' +
+        'ask_user tool ONLY at a genuine fork where a wrong default would betray the ' +
+        "user's intent — most importantly when their request conflicts with the design " +
+        'system (e.g. they ask for a colour the brand does not use): pause and ask with ' +
+        '2–4 concrete options rather than silently overriding their brand or silently ' +
+        'ignoring their request. Otherwise proceed and note any assumption in your ' +
+        'summary.\n\n' +
         'Lerret renders each .jsx file in a page folder as an artboard. Every asset ' +
         'you write MUST be a self-contained React component file at ' +
         '.lerret/<page>/<asset-name>.jsx with exactly this shape:\n' +
@@ -170,20 +177,84 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
  * throw (the loop feeds errors back to the model — self-correction, not a
  * dead turn).
  *
+ * `onClarify` (optional) is the dock's clarifying-question resolver — the
+ * `ask_user` executor awaits it; headless/test runs without it fall back to
+ * "use your best judgment" so a turn never hangs. `askBudget` caps questions
+ * per turn (the prompt also discourages over-asking; this is the hard stop).
+ *
  * @param {{
  *   sandbox: object,
  *   workerNode: (state: object) => Promise<{ manifest: object, writtenFiles: Array<object> }>,
  *   manifestRef: { current: object },
  *   writtenFiles: Array<{ path: string, op: string }>,
  *   signal: AbortSignal | undefined,
+ *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
+ *   maxQuestions?: number,
  * }} deps
  */
-export function buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles, signal }) {
+export function buildExecutors({
+    sandbox,
+    workerNode,
+    manifestRef,
+    writtenFiles,
+    signal,
+    onClarify,
+    maxQuestions = 3,
+}) {
     const badPath = (p) => ({
         content: `Invalid path "${String(p)}" — paths must be inside .lerret/ (e.g. "social/card.jsx").`,
         isError: true,
     });
+    let questionsAsked = 0;
     return {
+        ask_user: async (args) => {
+            const question = typeof args?.question === 'string' ? args.question.trim() : '';
+            if (!question) {
+                return { content: 'ask_user needs a non-empty `question`.', isError: true };
+            }
+            const options = Array.isArray(args?.options)
+                ? args.options.filter((o) => typeof o === 'string' && o.trim()).slice(0, 4)
+                : undefined;
+            // Hard budget — past it, stop offering the fork and tell the model
+            // to decide. Prevents an interrogation loop regardless of prompt.
+            if (questionsAsked >= maxQuestions) {
+                return {
+                    content:
+                        'You have already asked enough questions this turn. Proceed with your best ' +
+                        'judgment using a sensible default, and note the choice in your summary.',
+                    meta: { op: 'ask' },
+                };
+            }
+            // Headless / no UI resolver: never block — default to "use your
+            // best judgment" so cron/test runs complete deterministically.
+            if (typeof onClarify !== 'function') {
+                return {
+                    content:
+                        'No user is available to answer right now. Proceed with the most sensible ' +
+                        'default and note the assumption in your summary.',
+                    meta: { op: 'ask' },
+                };
+            }
+            questionsAsked += 1;
+            let answer;
+            try {
+                answer = await onClarify({ question, options });
+            } catch {
+                answer = null;
+            }
+            if (signal?.aborted) {
+                // The user stopped the turn instead of answering — let the
+                // loop's pre-execution abort check terminate it cleanly.
+                return { content: 'The user stopped the turn.', isError: true, meta: { op: 'ask' } };
+            }
+            const text = typeof answer === 'string' && answer.trim() ? answer.trim() : null;
+            return {
+                content: text
+                    ? `The user answered: ${text}`
+                    : 'The user dismissed the question without answering — proceed with your best default.',
+                meta: { op: 'ask' },
+            };
+        },
         list_dir: async (args) => {
             const p = canonLerretPath(args?.path ?? '.lerret/');
             if (!p) return badPath(args?.path);
@@ -274,6 +345,7 @@ export function buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles,
  *   emit: (ev: unknown) => void,
  *   requestVisionDecision: () => Promise<object>,
  *   onContinueDecision?: (info: { turnsUsed: number, spentTokens: number }) => Promise<boolean>,
+ *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
  *   sandbox: object,
  *   fs: object,
  *   projectRoot: string,
@@ -287,6 +359,7 @@ export function createAgentExecutorNode({
     emit,
     requestVisionDecision,
     onContinueDecision,
+    onClarify,
     sandbox,
     fs,
     projectRoot,
@@ -392,6 +465,7 @@ export function createAgentExecutorNode({
             manifestRef,
             writtenFiles,
             signal: state.signal,
+            onClarify,
         });
 
         if (state?.signal?.aborted) return { writtenFiles, answer: '', plan: [] };

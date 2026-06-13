@@ -2541,3 +2541,148 @@ describe('AiInputCluster — inspect pill never shows Writing (review M1)', () =
         cleanup();
     });
 });
+
+// ── Clarifying questions (Epic 9 follow-up — ask_user fork) ──────────────────
+
+describe('AiInputCluster — mid-turn clarifying question', () => {
+    it('renders the question card, resolves an option click, and records the Q&A in the thread', async () => {
+        let resolvedAnswer = null;
+        aiMock.current = makeAi({
+            runTurnImpl: async function* (opts) {
+                yield { type: 'thinking' };
+                resolvedAnswer = await opts.onClarify({
+                    question: 'Green fights your brand blue — which way?',
+                    options: ['Use green', 'Keep blue'],
+                });
+                yield {
+                    type: 'done',
+                    files: [{ op: 'edit', path: 'kit/a.jsx' }],
+                    turnId: 't-ask',
+                    summary: `Went with ${resolvedAnswer}.`,
+                };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'retheme the banner green');
+        await tick(40);
+        // The card takes the pill slot with the question + option buttons.
+        const card = container.querySelector('[data-testid="ai-clarify-prompt"]');
+        expect(card).not.toBeNull();
+        expect(container.querySelector('[data-testid="ai-clarify-question"]').textContent).toMatch(
+            /which way/,
+        );
+        const opts = container.querySelectorAll('[data-testid="ai-clarify-option"]');
+        expect([...opts].map((b) => b.textContent)).toEqual(['Use green', 'Keep blue']);
+        // Pick the first option → the loop resumes with that answer.
+        await act(async () => {
+            opts[0].click();
+        });
+        await tick(40);
+        expect(resolvedAnswer).toBe('Use green');
+        // The card is gone and the turn finished.
+        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).toBeNull();
+        // The thread records the exchange.
+        await openThread(container);
+        const clar = document.querySelector('[data-testid="ai-thread-clarification"]');
+        expect(clar).not.toBeNull();
+        expect(clar.textContent).toBe('Asked: Green fights your brand blue — which way? → You: Use green');
+        cleanup();
+    });
+
+    it('resolves a typed free-text answer via Enter', async () => {
+        let answer = null;
+        aiMock.current = makeAi({
+            runTurnImpl: async function* (opts) {
+                yield { type: 'thinking' };
+                answer = await opts.onClarify({ question: 'What accent colour?' });
+                yield { type: 'done', files: [], turnId: 't-txt' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'add an accent');
+        await tick(40);
+        const input = container.querySelector('[data-testid="ai-clarify-input"]');
+        expect(input).not.toBeNull();
+        await act(async () => {
+            setReactInputValue(input, 'warm amber');
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        });
+        await tick(40);
+        expect(answer).toBe('warm amber');
+        cleanup();
+    });
+
+    it('Esc dismisses the question (null answer) and the agent proceeds; a second Esc stops', async () => {
+        let answer = 'unset';
+        const gate = deferred();
+        aiMock.current = makeAi({
+            runTurnImpl: async function* (opts) {
+                yield { type: 'thinking' };
+                answer = await opts.onClarify({ question: 'Proceed how?' });
+                await gate.promise;
+                yield { type: 'done', files: [], turnId: 't-esc' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'do the thing');
+        await tick(40);
+        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).not.toBeNull();
+        // First Esc → dismiss the question (null), turn keeps running.
+        await act(async () => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        });
+        await tick(20);
+        expect(answer).toBeNull();
+        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).toBeNull();
+        gate.resolve();
+        await tick(40);
+        cleanup();
+    });
+});
+
+// ── Live activity feed (Epic 9 follow-up, Design B) ──────────────────────────
+
+describe('AiInputCluster — live activity feed', () => {
+    it('toggles a live feed of friendly step lines while a turn runs', async () => {
+        const gate = deferred();
+        aiMock.current = makeAi({
+            runTurnImpl: async function* () {
+                yield { type: 'thinking' };
+                yield { type: 'tool-call', name: 'list_dir' };
+                yield { type: 'reading', file: '.lerret/' };
+                yield { type: 'turn-progress', turn: 1, maxTurns: 10, spentTokens: 1200 };
+                yield { type: 'tool-call', name: 'write_file' };
+                yield { type: 'writing', file: 'kit/a.jsx' };
+                yield { type: 'turn-progress', turn: 2, maxTurns: 10, spentTokens: 3400 };
+                await gate.promise;
+                yield { type: 'done', files: [{ op: 'edit', path: 'kit/a.jsx' }], turnId: 't-act' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'make a banner');
+        await tick(40);
+        // Spend line carries the activity toggle; feed hidden until opened.
+        const toggle = container.querySelector('[data-testid="ai-activity-toggle"]');
+        expect(toggle).not.toBeNull();
+        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        await act(async () => {
+            toggle.click();
+        });
+        const rows = [...container.querySelectorAll('[data-testid="ai-activity-row"]')].map((r) =>
+            r.textContent.trim(),
+        );
+        // Friendly present-tense labels with files; never raw tool names.
+        expect(rows.some((t) => t.includes('Looking through') && t.includes('.lerret/'))).toBe(true);
+        expect(rows.some((t) => t.includes('Writing') && t.includes('kit/a.jsx'))).toBe(true);
+        expect(rows.join(' ')).not.toMatch(/list_dir|write_file/);
+        gate.resolve();
+        await tick(40);
+        // Cleared at rest — the frozen trail lives in the thread card now.
+        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        cleanup();
+    });
+});
