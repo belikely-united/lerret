@@ -521,7 +521,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  background: 'rgba(255,255,255,0.88)',
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
- borderRadius: 999,
+ borderRadius: 24, // capped from 999 so a tall dock becomes a rounded rect, never a giant white CIRCLE over the canvas (the activity feed also floats above the dock now)
  padding: '6px 10px',
  boxShadow: '0 4px 18px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)',
  display: 'flex',

@@ -2741,4 +2741,18 @@ describe('AiInputCluster — live activity timeline', () => {
         expect(trail.textContent).toBe('2 steps · 1 read · 1 written');
         cleanup();
     });
+
+    it('the activity timeline is position:absolute (floats above the dock, never grows the pill)', () => {
+        // Layout regression guard for the "giant white circle during a turn" bug:
+        // the dock is a border-radius pill with a translucent-white blurred
+        // background, so a TALL in-flow child balloons it into a huge white
+        // circle over the canvas. The feed MUST be position:absolute (out of the
+        // dock's flex flow), anchored to the position:relative .lm-ai-cluster.
+        // jsdom can't measure layout, so assert the injected CSS contract.
+        const css = document.getElementById('ai-input-cluster-styles')?.textContent || '';
+        const clusterRule = css.match(/\.lm-ai-cluster\s*\{[^}]*\}/)?.[0] || '';
+        const activityRule = css.match(/\.lm-ai-cluster__activity\s*\{[^}]*\}/)?.[0] || '';
+        expect(clusterRule).toMatch(/position:\s*relative/);
+        expect(activityRule).toMatch(/position:\s*absolute/);
+    });
 });

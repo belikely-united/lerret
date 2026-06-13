@@ -207,6 +207,9 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     s.id = 'ai-input-cluster-styles';
     s.textContent = `
 .lm-ai-cluster {
+    position: relative; /* anchor the floating activity timeline — it must NOT
+       grow the dock pill (the dock is a border-radius:999px white bar; a tall
+       in-flow child turns it into a giant white circle). */
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -377,6 +380,35 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     font: 400 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
     color: var(--lm-text-tertiary, #6E6960);
     white-space: nowrap;
+}
+/* Epic 9 follow-up #3: the live activity timeline FLOATS above the dock as its
+   own panel (absolute, out of flow) — same primitive as the vision-fallback
+   prompt. It must never be an in-flow child of the dock: the dock is a
+   border-radius:999px translucent-white bar, so a tall in-flow timeline grew it
+   into a giant soft white circle ballooning over the canvas. Anchored to the
+   position:relative .lm-ai-cluster; capped + scrollable so a long turn can't run
+   off-screen; carries its own surface so it's legible over the canvas. */
+.lm-ai-cluster__activity {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    z-index: 60;
+    list-style: none;
+    margin: 0;
+    padding: 8px 12px;
+    min-width: 240px;
+    max-width: 380px;
+    max-height: 40vh;
+    overflow-y: auto;
+    /* Frosted dock-family surface so the panel reads as floating ABOVE the
+       canvas (a plain --lm-bg-primary fill blends into the same-toned canvas). */
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+    border-radius: var(--lm-radius-md, 10px);
+    box-shadow: 0 6px 20px rgba(26, 23, 20, 0.14), 0 1px 3px rgba(26, 23, 20, 0.08);
+    font: 400 11px/1.5 var(--lm-font-sans, -apple-system, sans-serif);
+    color: var(--lm-text-tertiary, #6E6960);
 }
 /* Story 9.4 §3: the needs-continue inline row (takes the pill's slot). */
 .lm-ai-cluster__continue {
@@ -2490,13 +2522,6 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 <ul
                     className="lm-ai-cluster__activity"
                     data-testid="ai-activity-feed"
-                    style={{
-                        listStyle: 'none',
-                        margin: '2px 0 0',
-                        padding: 0,
-                        font: '400 11px/1.5 var(--lm-font-sans, sans-serif)',
-                        color: 'var(--lm-text-tertiary, #6E6960)',
-                    }}
                 >
                     {liveSteps.map((step, i) => {
                         if (step.kind === 'phase') {
