@@ -2227,7 +2227,7 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
         await tick(20);
         // The row takes the pill's slot, mid-turn: input disabled, stop
         // button still present (retro addendum-4 order-of-use).
-        const row = container.querySelector('[data-testid="ai-continue-prompt"]');
+        const row = document.querySelector('[data-testid="ai-continue-prompt"]');
         expect(row).not.toBeNull();
         expect(row.getAttribute('role')).toBe('status');
         expect(row.textContent).toContain('Paused after 10 steps · ~18k tokens');
@@ -2235,11 +2235,11 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
         expect(container.querySelector('[data-testid="ai-stop"]')).not.toBeNull();
         // Continue → resolves true, the row clears, the loop runs on to done.
         await act(async () => {
-            container.querySelector('[data-testid="ai-continue-yes"]').click();
+            document.querySelector('[data-testid="ai-continue-yes"]').click();
         });
         await tick(20);
         expect(decisions).toEqual([true]);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
         expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
             .toBe('done');
         cleanup();
@@ -2265,13 +2265,13 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
         await tick();
         await submitPrompt(container);
         await tick(20);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]')).not.toBeNull();
         await act(async () => {
-            container.querySelector('[data-testid="ai-continue-stop"]').click();
+            document.querySelector('[data-testid="ai-continue-stop"]').click();
         });
         await tick(20);
         expect(decisions).toEqual([false]);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
         expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
             .toBe('done');
         // The input re-enabled after the choice ended the turn.
@@ -2296,14 +2296,14 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
         await tick();
         await submitPrompt(container);
         await tick(20);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]')).not.toBeNull();
         await act(async () => {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         });
         await tick(20);
         expect(aborted).toBe(true);
         expect(decisions).toEqual([false]);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
         await tick(20);
         expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
             .toBe('stopped');
@@ -2325,7 +2325,7 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
         await tick();
         await submitPrompt(container);
         await tick(20);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]').textContent)
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]').textContent)
             .toContain('Paused after 4 steps · ~900 tokens');
         await act(async () => {
             container.querySelector('[data-testid="ai-stop"]').click();
@@ -2333,7 +2333,7 @@ describe('AiInputCluster — continue affordance (Story 9.4 AC-3)', () => {
         await tick(40);
         expect(aborted).toBe(true);
         expect(decisions).toEqual([false]);
-        expect(container.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-continue-prompt"]')).toBeNull();
         expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
             .toBe('stopped');
         cleanup();
@@ -2567,12 +2567,12 @@ describe('AiInputCluster — mid-turn clarifying question', () => {
         await submitPrompt(container, 'retheme the banner green');
         await tick(40);
         // The card takes the pill slot with the question + option buttons.
-        const card = container.querySelector('[data-testid="ai-clarify-prompt"]');
+        const card = document.querySelector('[data-testid="ai-clarify-prompt"]');
         expect(card).not.toBeNull();
-        expect(container.querySelector('[data-testid="ai-clarify-question"]').textContent).toMatch(
+        expect(document.querySelector('[data-testid="ai-clarify-question"]').textContent).toMatch(
             /which way/,
         );
-        const opts = container.querySelectorAll('[data-testid="ai-clarify-option"]');
+        const opts = document.querySelectorAll('[data-testid="ai-clarify-option"]');
         expect([...opts].map((b) => b.textContent)).toEqual(['Use green', 'Keep blue']);
         // Pick the first option → the loop resumes with that answer.
         await act(async () => {
@@ -2581,7 +2581,7 @@ describe('AiInputCluster — mid-turn clarifying question', () => {
         await tick(40);
         expect(resolvedAnswer).toBe('Use green');
         // The card is gone and the turn finished.
-        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-clarify-prompt"]')).toBeNull();
         // The thread records the exchange.
         await openThread(container);
         const clar = document.querySelector('[data-testid="ai-thread-clarification"]');
@@ -2603,7 +2603,7 @@ describe('AiInputCluster — mid-turn clarifying question', () => {
         await tick();
         await submitPrompt(container, 'add an accent');
         await tick(40);
-        const input = container.querySelector('[data-testid="ai-clarify-input"]');
+        const input = document.querySelector('[data-testid="ai-clarify-input"]');
         expect(input).not.toBeNull();
         await act(async () => {
             setReactInputValue(input, 'warm amber');
@@ -2629,14 +2629,14 @@ describe('AiInputCluster — mid-turn clarifying question', () => {
         await tick();
         await submitPrompt(container, 'do the thing');
         await tick(40);
-        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-clarify-prompt"]')).not.toBeNull();
         // First Esc → dismiss the question (null), turn keeps running.
         await act(async () => {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
         });
         await tick(20);
         expect(answer).toBeNull();
-        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-clarify-prompt"]')).toBeNull();
         gate.resolve();
         await tick(40);
         cleanup();
@@ -2675,12 +2675,18 @@ describe('AiInputCluster — live activity timeline', () => {
 
         // Default ON — the timeline is visible WITHOUT clicking; the toggle
         // reads "Hide activity" (the continuous-visibility ask).
-        expect(container.querySelector('[data-testid="ai-activity-feed"]')).not.toBeNull();
-        const toggle = container.querySelector('[data-testid="ai-activity-toggle"]');
+        expect(document.querySelector('[data-testid="ai-activity-feed"]')).not.toBeNull();
+        // §6.5 fix: the feed is PORTALED to <body> (escapes the dock's clip), so
+        // it is NOT a descendant of the cluster — b997399's absolute-in-dock
+        // float stayed inside the dock and was clipped invisible.
+        expect(
+            document.querySelector('[data-testid="ai-activity-feed"]').closest('.lm-ai-cluster'),
+        ).toBeNull();
+        const toggle = document.querySelector('[data-testid="ai-activity-toggle"]');
         expect(toggle.textContent).toBe('Hide activity');
 
         // Phase markers — "which agent is thinking", in friendly terms only.
-        const phases = [...container.querySelectorAll('[data-testid="ai-activity-phase"]')].map(
+        const phases = [...document.querySelectorAll('[data-testid="ai-activity-phase"]')].map(
             (r) => r.textContent.trim(),
         );
         expect(phases.some((t) => t.includes('Understanding your request'))).toBe(true);
@@ -2690,7 +2696,7 @@ describe('AiInputCluster — live activity timeline', () => {
 
         // §6.5: COMPLETED tool steps live in the bounded history; the CURRENT
         // step is the pinned now-line. Friendly present-tense, never raw names.
-        const rows = [...container.querySelectorAll('[data-testid="ai-activity-row"]')].map((r) =>
+        const rows = [...document.querySelectorAll('[data-testid="ai-activity-row"]')].map((r) =>
             r.textContent.trim(),
         );
         expect(rows.some((t) => t.includes('Looking through') && t.includes('.lerret/'))).toBe(true);
@@ -2698,7 +2704,7 @@ describe('AiInputCluster — live activity timeline', () => {
 
         // §6.5 the PRESENT: the pinned now-line narrates the current action
         // (the latest step — the write), always visible regardless of viewport.
-        const now = container.querySelector('[data-testid="ai-activity-now"]');
+        const now = document.querySelector('[data-testid="ai-activity-now"]');
         expect(now).not.toBeNull();
         expect(now.textContent).toMatch(/Writing/);
         expect(now.textContent).toContain('kit/a.jsx');
@@ -2706,13 +2712,13 @@ describe('AiInputCluster — live activity timeline', () => {
 
         // §6.5 the count header reflects COMPLETED tool steps (the list_dir);
         // phases + decisions never inflate it (TOOL_STEP_KINDS).
-        const count = container.querySelector('[data-testid="ai-activity-count"]');
+        const count = document.querySelector('[data-testid="ai-activity-count"]');
         expect(count).not.toBeNull();
         expect(count.textContent).toMatch(/1 step done/);
 
         // Decision line — "what decisions were taken".
         const decisions = [
-            ...container.querySelectorAll('[data-testid="ai-activity-decision"]'),
+            ...document.querySelectorAll('[data-testid="ai-activity-decision"]'),
         ].map((r) => r.textContent.trim());
         expect(decisions.some((t) => t.includes('Hot pink conflicts'))).toBe(true);
 
@@ -2720,15 +2726,15 @@ describe('AiInputCluster — live activity timeline', () => {
         await act(async () => {
             toggle.click();
         });
-        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
-        expect(container.querySelector('[data-testid="ai-activity-toggle"]').textContent).toBe(
+        expect(document.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-activity-toggle"]').textContent).toBe(
             'Show activity',
         );
 
         gate.resolve();
         await tick(40);
         // Cleared at rest — the frozen trail lives in the thread card now.
-        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
         cleanup();
     });
 
@@ -2756,24 +2762,20 @@ describe('AiInputCluster — live activity timeline', () => {
         cleanup();
     });
 
-    it('the activity timeline is position:absolute (floats above the dock, never grows the pill)', () => {
-        // Layout regression guard for the "giant white circle during a turn" bug:
-        // the dock is a border-radius pill with a translucent-white blurred
-        // background, so a TALL in-flow child balloons it into a huge white
-        // circle over the canvas. The feed MUST be position:absolute (out of the
-        // dock's flex flow), anchored to the position:relative .lm-ai-cluster.
+    it('both dock overlays portal to <body> as position:fixed (escape the dock clip)', () => {
+        // Regression guard for "the activity feed / clarify card went invisible
+        // inside the dock." The dock has overflow:auto + maxWidth + a
+        // backdrop-filter containing block, so ANYTHING positioned inside it —
+        // absolute OR fixed — is clipped/contained (b997399 made the clarify card
+        // absolute-in-dock and it was STILL clipped). Both overlays must portal
+        // to <body> and be position:fixed, placed from the measured dock rect.
         // jsdom can't measure layout, so assert the injected CSS contract.
         const css = document.getElementById('ai-input-cluster-styles')?.textContent || '';
-        const clusterRule = css.match(/\.lm-ai-cluster\s*\{[^}]*\}/)?.[0] || '';
         const activityRule = css.match(/\.lm-ai-cluster__activity\s*\{[^}]*\}/)?.[0] || '';
-        // The clarify-question / needs-continue card shares the SAME float
-        // contract (§6.5 fix): inline, a wrapped clarify card grew the dock to
-        // ~111px and ran its options off-screen. It MUST be position:absolute.
         const continueRule = css.match(/\.lm-ai-cluster__continue\s*\{[^}]*\}/)?.[0] || '';
-        expect(clusterRule).toMatch(/position:\s*relative/);
-        expect(activityRule).toMatch(/position:\s*absolute/);
-        expect(continueRule).toMatch(/position:\s*absolute/);
-        // …and it caps its own width to the viewport so it can't overflow.
+        expect(activityRule).toMatch(/position:\s*fixed/);
+        expect(continueRule).toMatch(/position:\s*fixed/);
+        // …and the card caps its own width to the viewport so it can't overflow.
         expect(continueRule).toMatch(/max-width:\s*min\(/);
     });
 
@@ -2807,7 +2809,7 @@ describe('AiInputCluster — live activity timeline', () => {
         await submitPrompt(container, 'fix the headline');
         await tick(40);
 
-        const now = container.querySelector('[data-testid="ai-activity-now"]');
+        const now = document.querySelector('[data-testid="ai-activity-now"]');
         expect(now).not.toBeNull();
         // Friendly verb + the target path…
         expect(now.textContent).toMatch(/Writing/);
@@ -2846,16 +2848,16 @@ describe('AiInputCluster — live activity timeline', () => {
 
         // The clarify card floats to the same slot above the dock → the
         // timeline yields while it is open (the loop is paused on the user).
-        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).not.toBeNull();
-        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-clarify-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
 
         // Answer → the card closes, the turn resumes, the timeline returns.
         await act(async () => {
-            container.querySelector('[data-testid="ai-clarify-option"]').click();
+            document.querySelector('[data-testid="ai-clarify-option"]').click();
         });
         await tick(20);
         expect(answer).toBe('Gold');
-        expect(container.querySelector('[data-testid="ai-activity-feed"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-activity-feed"]')).not.toBeNull();
 
         gate.resolve();
         await tick(40);

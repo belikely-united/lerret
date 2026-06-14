@@ -77,6 +77,11 @@ import { ModeToggle, useInspectMode, MODE_INSPECT } from './mode-toggle.jsx';
 import { VisionAttachButton } from './vision-attach-button.jsx';
 import { VisionFallbackPrompt } from './vision-fallback-prompt.jsx';
 import { useVisionGate, VISION_PILL_LABEL } from './use-vision-gate.js';
+// §6.5 fix: the activity feed must PORTAL to <body>. The dock has overflow:auto
+// + backdrop-filter (a containing block), so a feed positioned inside it — even
+// absolute/fixed — is CLIPPED (it rendered into the void above the dock and was
+// invisible). Same escape the privacy-disclosure / ollama-origins overlays use.
+import { createPortal } from 'react-dom';
 
 // ─── Tokens / copy ────────────────────────────────────────────────────────────
 
@@ -381,17 +386,17 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     color: var(--lm-text-tertiary, #6E6960);
     white-space: nowrap;
 }
-/* Epic 9 follow-up #3: the live activity timeline FLOATS above the dock as its
-   own panel (absolute, out of flow) — same primitive as the vision-fallback
-   prompt. It must never be an in-flow child of the dock: the dock is a
-   border-radius:999px translucent-white bar, so a tall in-flow timeline grew it
-   into a giant soft white circle ballooning over the canvas. Anchored to the
-   position:relative .lm-ai-cluster; capped + scrollable so a long turn can't run
-   off-screen; carries its own surface so it's legible over the canvas. */
+/* Epic 9 follow-up #3 + §6.5 fix: the live activity timeline floats above the
+   dock as its own panel — but it is PORTALED to <body> and positioned FIXED
+   (left/bottom set inline from the dock's measured rect). It must NOT live
+   inside the dock: the dock has overflow:auto + a backdrop-filter containing
+   block, so an in-dock absolute/fixed float is CLIPPED — the feed rendered into
+   the void above the dock and was invisible ("it went within the dock"). Same
+   escape the privacy-disclosure / ollama-origins overlays use. Capped +
+   scrollable so a long turn can't run off-screen; carries its own surface so
+   it's legible over the canvas. */
 .lm-ai-cluster__activity {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 0;
+    position: fixed;
     z-index: 60;
     display: flex;
     flex-direction: column;
@@ -484,18 +489,16 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     }
 }
 /* Story 9.4 §3 + §6.5 fix: the clarify-question / needs-continue affordances
-   FLOAT above the dock — the same primitive as the activity timeline and the
-   vision prompt — NEVER inline in the dock's flex row. Inline (the old
-   behavior), a wrapped clarify card grew the dock from ~47px to ~111px AND ran
-   its option chips + Send button off the right edge at narrow viewports (the
-   "growable content nested in the dock pill" anti-pattern, same family as the
-   white-circle bug). Out of flow + anchored left + viewport-capped width: the
-   dock stays a pill, the card can wrap and can never overflow off-screen. */
+   FLOAT above the dock — same primitive as the activity timeline — and are
+   PORTALED to <body>, positioned fixed (left/bottom set inline from the dock's
+   measured rect). They must NOT live inside the dock: it has overflow:auto +
+   maxWidth + a backdrop-filter containing block, so anything inside it is
+   clipped/contained — b997399 made this card position:absolute but left it IN
+   the dock, so it was still clipped (and earlier, inline, it grew the dock to
+   ~111px and ran its chips + Send off-screen). Out of the dock + viewport-capped
+   width + clamped left: the dock stays a pill, the card wraps, never overflows. */
 .lm-ai-cluster__continue {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 0;
-    right: auto;
+    position: fixed;
     z-index: 61;
     display: inline-flex;
     flex-wrap: wrap;
@@ -1536,6 +1539,51 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
 
     // ── Refs ────────────────────────────────────────────────────────────────
     const inputRef = React.useRef(null);
+    // §6.5 fix: BOTH dock overlays — the activity feed AND the clarify/continue
+    // card — must portal to <body>. The dock has overflow:auto + maxWidth +
+    // backdrop-filter (a containing block), so ANYTHING positioned inside it
+    // (absolute OR fixed) is clipped/contained — b997399 "floated" the clarify
+    // card with position:absolute but it stayed inside the dock and so was still
+    // clipped. The two overlays share ONE slot (only one shows at a time), so a
+    // single measured position serves both: fixed, 8px above the dock's top,
+    // left-aligned to it but CLAMPED into the viewport so a wide card can never
+    // run off-screen. Measured whenever a turn runs; the dock's own resize (it
+    // grows as the spend line appears) re-measures it via ResizeObserver.
+    const [dockOverlayPos, setDockOverlayPos] = React.useState(
+        /** @type {{ left: number, bottom: number } | null} */ (null),
+    );
+    React.useLayoutEffect(() => {
+        if (!running) {
+            setDockOverlayPos(null);
+            return undefined;
+        }
+        const measure = () => {
+            const anchor =
+                document.querySelector('[data-tour="dock"]') ||
+                inputRef.current?.closest?.('.lm-ai-cluster') ||
+                inputRef.current;
+            if (!anchor) return;
+            const r = anchor.getBoundingClientRect();
+            const OVERLAY_MAX = 380; // ~matches the overlay max-widths
+            const left = Math.max(8, Math.min(r.left, window.innerWidth - OVERLAY_MAX - 8));
+            setDockOverlayPos({
+                left: Math.round(left),
+                bottom: Math.round(window.innerHeight - r.top + 8),
+            });
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        let ro;
+        const dock = document.querySelector('[data-tour="dock"]');
+        if (dock && typeof ResizeObserver !== 'undefined') {
+            ro = new ResizeObserver(measure);
+            ro.observe(dock);
+        }
+        return () => {
+            window.removeEventListener('resize', measure);
+            ro?.disconnect?.();
+        };
+    }, [running]);
     const clarifyInputRef = React.useRef(/** @type {HTMLInputElement | null} */ (null));
     const controllerRef = React.useRef(/** @type {AbortController | null} */ (null));
     const terminalTimerRef = React.useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
@@ -2515,11 +2563,13 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     // option chips when offered + a free-text field; Esc / the
                     // stop button dismiss it (the agent proceeds on its
                     // default). Highest priority among the inline affordances.
+                    createPortal(
                     <span
                         className="lm-ai-cluster__continue"
                         data-testid="ai-clarify-prompt"
                         role="status"
                         aria-live="polite"
+                        style={{ left: dockOverlayPos?.left ?? 16, bottom: dockOverlayPos?.bottom ?? 80 }}
                     >
                         <span data-testid="ai-clarify-question" style={{ fontWeight: 500 }}>
                             {clarifyPrompt.question}
@@ -2568,13 +2618,17 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         >
                             Send
                         </button>
-                    </span>
+                    </span>,
+                    document.body,
+                    )
                 ) : continuePrompt ? (
+                    createPortal(
                     <span
                         className="lm-ai-cluster__continue"
                         data-testid="ai-continue-prompt"
                         role="status"
                         aria-live="polite"
+                        style={{ left: dockOverlayPos?.left ?? 16, bottom: dockOverlayPos?.bottom ?? 80 }}
                     >
                         <span>
                             {`Paused after ${continuePrompt.turnsUsed} steps · ~${formatTokens(continuePrompt.spentTokens)} tokens — `}
@@ -2595,7 +2649,9 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         >
                             Stop here
                         </button>
-                    </span>
+                    </span>,
+                    document.body,
+                    )
                 ) : (
                     <StatusPill
                         status={pillStatus}
@@ -2697,14 +2753,21 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 // paused on the user), so the timeline yields to avoid overlap.
                 !clarifyPrompt &&
                 !continuePrompt &&
+                dockOverlayPos &&
                 (() => {
                     const current = liveSteps[liveSteps.length - 1];
                     const history = liveSteps.slice(0, -1);
                     const doneToolCount = history.filter((s) =>
                         TOOL_STEP_KINDS.has(s.kind),
                     ).length;
-                    return (
-                        <div className="lm-ai-cluster__activity" data-testid="ai-activity-feed">
+                    // Portaled to <body> so the dock's overflow/backdrop-filter
+                    // can't clip it; positioned fixed from the measured dock rect.
+                    return createPortal(
+                        <div
+                            className="lm-ai-cluster__activity"
+                            data-testid="ai-activity-feed"
+                            style={{ left: dockOverlayPos.left, bottom: dockOverlayPos.bottom }}
+                        >
                             {doneToolCount > 0 && (
                                 <div
                                     className="lm-ai-cluster__activity-count"
@@ -2791,7 +2854,8 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                     </span>
                                 </div>
                             )}
-                        </div>
+                        </div>,
+                        document.body,
                     );
                 })()}
 
