@@ -156,6 +156,7 @@ function validateInsideLerret(projectRoot, normalized, attemptedPath, allowDirEq
  *   writeFile: (path: string, data: string | Uint8Array, options?: object) => Promise<void>,
  *   deleteFile: (path: string) => Promise<void>,
  *   mkdir: (path: string) => Promise<void>,
+ *   removeDir: (path: string) => Promise<void>,
  *   readFile: (path: string, options?: object) => Promise<string | Uint8Array>,
  *   exists: (path: string) => Promise<boolean>,
  * }} Sandbox
@@ -163,8 +164,8 @@ function validateInsideLerret(projectRoot, normalized, attemptedPath, allowDirEq
 
 /**
  * Create a sandbox over a `FilesystemAccess` backend. Every write / delete /
- * mkdir / read call is path-validated SYNCHRONOUSLY before the backend is
- * touched. Violations throw `SandboxViolationError`.
+ * mkdir / removeDir / read call is path-validated SYNCHRONOUSLY before the
+ * backend is touched. Violations throw `SandboxViolationError`.
  *
  * The factory itself throws plain `Error` (not `SandboxViolationError`) when
  * its own arguments are malformed — those are programming errors in the
@@ -219,6 +220,30 @@ export function createSandbox({ projectRoot, fs } = {}) {
             const normalized = normalizePath(projectRoot, path);
             validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ true);
             return fs.mkdir(normalized);
+        },
+        // Remove an EMPTY directory under `.lerret/` — the backend's `removeDir`
+        // is the empty-only `rmdir` primitive (it rejects a non-empty
+        // directory; recursion is the AGENT executor's job, file-by-file
+        // through the snapshotted delete path, so no un-snapshotted data can be
+        // lost here). Path validation allows directory equality so a page
+        // folder normalized to a bare dir passes — BUT the `.lerret/` root
+        // itself is then explicitly refused: removing it would erase the whole
+        // project tree, and it is never a page.
+        removeDir: async (path) => {
+            const normalized = normalizePath(projectRoot, path);
+            validateInsideLerret(projectRoot, normalized, path, /* allowDirEquality */ true);
+            const lerretDir = projectRoot + '/.lerret';
+            if (normalized === lerretDir) {
+                throw new SandboxViolationError({
+                    code: 'OUTSIDE_PROJECT',
+                    attemptedPath: path,
+                    normalizedPath: normalized,
+                    message:
+                        `path '${path}' (normalized: '${normalized}') is the .lerret/ root — ` +
+                        `removeDir refuses to remove the project root directory`,
+                });
+            }
+            return fs.removeDir(normalized);
         },
         readFile: async (path, options) => {
             const normalized = normalizePath(projectRoot, path);

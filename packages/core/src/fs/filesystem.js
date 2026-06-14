@@ -263,6 +263,18 @@
  *   the backend cannot create directories. Added in Epic 8 (Story 8.5) for
  *   the snapshot store's `.lerret/.state/history/` bootstrap.
  *
+ * @property {(dirPath: LerretPath) => Promise<void>} [removeDir]
+ *   Remove an EMPTY directory at `dirPath` — the POSIX `rmdir` semantic.
+ *   NON-recursive by contract: rejects if the directory is non-empty (the
+ *   Node backend surfaces `ENOTEMPTY`, the FSA backend an
+ *   `InvalidModificationError`), if the path is missing, or if it is a file.
+ *   This empty-only guarantee means the primitive can never erase
+ *   un-snapshotted data; the AI `delete_dir` tool achieves safe recursion
+ *   ABOVE this layer (deleting each file through the snapshotted Worker delete
+ *   path first, then removing the emptied directories bottom-up). OPTIONAL —
+ *   added in the Epic 9 follow-up for `delete_dir`; older / partial backends
+ *   that predate it still conform (callers that need it probe for the method).
+ *
  * @property {(targetPath: LerretPath) => Promise<boolean>} exists
  *   Check whether a file OR directory exists at `targetPath`. Resolves with
  *   `true` if anything exists there, `false` otherwise. Distinguishing file
@@ -325,6 +337,17 @@ const REQUIRED_METHODS = [
 ];
 
 /**
+ * OPTIONAL {@link FilesystemAccess} methods: if a backend exposes one it MUST
+ * be a function, but its absence is NOT a contract violation — older / partial
+ * backends that predate the method still conform. `removeDir` (the empty-only
+ * `rmdir` primitive backing the Epic 9 `delete_dir` tool) is checked here so
+ * adding it to a backend is validated, while not breaking any backend that has
+ * not adopted it yet.
+ * @type {readonly string[]}
+ */
+const OPTIONAL_METHODS = ['removeDir'];
+
+/**
  * The boolean flags every {@link FilesystemCapabilities} object must declare.
  * @type {readonly string[]}
  */
@@ -356,6 +379,13 @@ export function findFilesystemContractViolations(backend) {
   for (const method of REQUIRED_METHODS) {
     if (typeof backend[method] !== 'function') {
       problems.push(`missing or non-function method: ${method}()`);
+    }
+  }
+
+  // Optional methods: present-but-wrong-type is a violation; absent is fine.
+  for (const method of OPTIONAL_METHODS) {
+    if (method in backend && typeof backend[method] !== 'function') {
+      problems.push(`optional method ${method}() is present but not a function`);
     }
   }
 

@@ -24,6 +24,7 @@ import { writing, deleting, mkdir as mkdirEvent } from '../events.js';
  *   writeFile: (path: string, data: string | Uint8Array, options?: object) => Promise<void>,
  *   deleteFile: (path: string) => Promise<void>,
  *   mkdir: (path: string) => Promise<void>,
+ *   removeDir: (path: string) => Promise<void>,
  *   readFile: (path: string, options?: object) => Promise<string | Uint8Array>,
  *   exists: (path: string) => Promise<boolean>,
  * }} Sandbox
@@ -36,6 +37,7 @@ import { writing, deleting, mkdir as mkdirEvent } from '../events.js';
  * @typedef {{ op: 'write', path: string, content: string | Uint8Array }
  *           | { op: 'delete', path: string }
  *           | { op: 'mkdir', path: string }
+ *           | { op: 'rmdir', path: string }
  *           | { op: string, [key: string]: unknown }
  *          } WorkerStep
  */
@@ -119,6 +121,15 @@ export function createWorker({ sandbox } = {}) {
                 case 'mkdir':
                     await sandbox.mkdir(step.path);
                     yield { type: 'mkdir', dir: step.path };
+                    return;
+                case 'rmdir':
+                    // Remove an EMPTY directory (the `delete_dir` tool's
+                    // bottom-up folder removal). A removed folder reads as
+                    // "deleting" in the UI — reuse the deleting event rather
+                    // than widen the surface. Revert is handled by the
+                    // accompanying per-file deletes, so no snapshot capture.
+                    await sandbox.removeDir(step.path);
+                    yield { type: 'deleting', file: step.path };
                     return;
                 default:
                     yield { type: 'error', error: 'unsupported-op', op: step.op };
@@ -218,9 +229,21 @@ export function createWorkerNode({ sandbox, fs, projectRoot, emit, snapshot }) {
             } else if (step.op === 'mkdir') {
                 await sandbox.mkdir(step.path);
                 emit(mkdirEvent(step.path));
+            } else if (step.op === 'rmdir') {
+                // Remove an EMPTY directory — the `delete_dir` tool's bottom-up
+                // folder removal, AFTER its per-file deletes emptied the tree.
+                // No snapshot capture: reverting the per-file deletes recreates
+                // the directory tree (write auto-mkdirs), so the rmdir needs no
+                // separate before-image. A removed folder reads as "deleting"
+                // in the UI (reuse `deleting`, minimize the event surface). Not
+                // counted in writtenFiles — the deleted FILES are the outcome,
+                // the emptied folder is bookkeeping.
+                await sandbox.removeDir(step.path);
+                emit(deleting(step.path));
             }
             // Unknown ops are silently skipped — the Planner is trusted to
-            // emit only write/delete/mkdir; a stray op does not fail the turn.
+            // emit only write/delete/mkdir/rmdir; a stray op does not fail the
+            // turn.
         }
 
         return { manifest, writtenFiles };

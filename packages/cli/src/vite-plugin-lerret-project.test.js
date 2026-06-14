@@ -21,6 +21,7 @@ import {
   MOVE_ENDPOINT,
   PROJECT_ASSET_BASE_URL,
   READ_FILE_ENDPOINT,
+  REMOVE_DIR_ENDPOINT,
   RENAME_ENDPOINT,
   REVEAL_ENDPOINT,
   VIRTUAL_MODULE_ID,
@@ -39,6 +40,7 @@ import {
   createReadConfigMiddleware,
   createReadFileMiddleware,
   createRecentProjectsMiddleware,
+  createRemoveDirMiddleware,
   createRenameMiddleware,
   createRevealMiddleware,
   createSwitchFolderMiddleware,
@@ -293,6 +295,7 @@ describe('configureServer — initial scan + watcher → HMR forwarding', () => 
     expect(paths).toContain(LIST_DIR_ENDPOINT);
     expect(paths).toContain(EXISTS_ENDPOINT);
     expect(paths).toContain(MKDIR_ENDPOINT);
+    expect(paths).toContain(REMOVE_DIR_ENDPOINT);
   });
 });
 
@@ -820,6 +823,78 @@ describe('createDeleteMiddleware', () => {
     const result = await call(mw, { path: `${lerretDir}/../escape.jsx` });
     expect(result.status).toBe(400);
     expect(result.body.error).toContain('..');
+  });
+});
+
+describe('createRemoveDirMiddleware — empty-only rmdir bridge (delete_dir)', () => {
+  let lerretAbs;
+  beforeEach(async () => {
+    lerretAbs = join(workDir, LERRET_DIR_NAME);
+    await fsp.mkdir(lerretAbs, { recursive: true });
+  });
+
+  async function call(middleware, body) {
+    const { EventEmitter } = await import('node:events');
+    const req = new EventEmitter();
+    req.method = 'POST';
+    req.destroy = () => {};
+    const captured = { headers: {} };
+    const res = {
+      get statusCode() { return captured.status; },
+      set statusCode(v) { captured.status = v; },
+      setHeader(name, value) { captured.headers[name] = value; },
+      end(payload) { captured.body = payload; captured.done = true; },
+    };
+    middleware(req, res, () => {});
+    await new Promise((r) => setImmediate(r));
+    req.emit('data', Buffer.from(JSON.stringify(body), 'utf-8'));
+    req.emit('end');
+    const deadline = Date.now() + 5000;
+    while (!captured.done && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    return { status: captured.status, body: captured.body ? JSON.parse(captured.body) : null };
+  }
+
+  it('removes an empty directory', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createRemoveDirMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'page'), { recursive: true });
+    const result = await call(mw, { path: `${lerretDir}/page` });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+    await expect(fsp.access(join(lerretAbs, 'page'))).rejects.toThrow();
+  });
+
+  it('REFUSES a non-empty directory (500, never rm -rf — data survives)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createRemoveDirMiddleware({ lerretDir });
+    await fsp.mkdir(join(lerretAbs, 'page'), { recursive: true });
+    await fsp.writeFile(join(lerretAbs, 'page', 'a.jsx'), 'A');
+    const result = await call(mw, { path: `${lerretDir}/page` });
+    expect(result.status).toBe(500);
+    expect(result.body.ok).toBe(false);
+    // The folder and its file are untouched.
+    await expect(fsp.readFile(join(lerretAbs, 'page', 'a.jsx'), 'utf-8')).resolves.toBe('A');
+  });
+
+  it('REFUSES the .lerret/ root itself (400 — checkWritePath gate)', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createRemoveDirMiddleware({ lerretDir });
+    const result = await call(mw, { path: lerretDir });
+    expect(result.status).toBe(400);
+    expect(result.body.ok).toBe(false);
+  });
+
+  it('rejects a path outside .lerret/ and `..` traversal', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const mw = createRemoveDirMiddleware({ lerretDir });
+    const outside = await call(mw, { path: '/etc' });
+    expect(outside.status).toBe(400);
+    expect(outside.body.error).toContain('outside the project');
+    const traversal = await call(mw, { path: `${lerretDir}/../escape` });
+    expect(traversal.status).toBe(400);
+    expect(traversal.body.error).toContain('..');
   });
 });
 

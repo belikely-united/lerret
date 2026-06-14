@@ -2,12 +2,15 @@
 //
 // Replaces the Planner→Worker hand-off in the graph with ONE node that runs
 // the bounded agentic tool loop: the model iteratively lists, reads, writes,
-// and deletes inside `.lerret/` until the request is satisfied (or a cap /
-// stop lands). The graph drops from six nodes to five; the Worker survives
-// as the MUTATION MODULE — every `write_file`/`delete_file` tool execution
-// is a `createWorkerNode` single-step run, so snapshot pre-capture, NFR18
-// finish-the-write semantics, `writing`/`deleting` events, and the
-// single-mutator guarantee are inherited verbatim, not re-implemented.
+// deletes, and removes pages inside `.lerret/` until the request is satisfied
+// (or a cap / stop lands). The graph drops from six nodes to five; the Worker
+// survives as the MUTATION MODULE — every `write_file`/`delete_file`/
+// `delete_dir` tool execution is a `createWorkerNode` plan run, so snapshot
+// pre-capture, NFR18 finish-the-write semantics, `writing`/`deleting` events,
+// and the single-mutator guarantee are inherited verbatim, not re-implemented.
+// `delete_dir` removes a page (a directory): it deletes every file under the
+// folder through the snapshotted delete path, then `rmdir`s the emptied
+// folders bottom-up — fully revertible as one turn.
 //
 // Three branches, in cost order (mirrors the Epic 8 planner exactly where it
 // can):
@@ -130,8 +133,14 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
             : '';
     return (
         'You are Lerret\'s in-studio design agent. You work INSIDE the user\'s project ' +
-        'using the provided tools (list_dir, read_file, write_file, delete_file). All ' +
-        'paths MUST be under .lerret/.\n\n' +
+        'using the provided tools (list_dir, read_file, write_file, delete_file, delete_dir). ' +
+        'All paths MUST be under .lerret/.\n\n' +
+        'A page is a DIRECTORY under .lerret/ (e.g. .lerret/social/ is the "social" page); its ' +
+        '.jsx files are its assets. To remove a PAGE or folder, use delete_dir on that directory — ' +
+        'it removes the folder and everything inside. Deleting a page\'s individual assets with ' +
+        'delete_file does NOT remove the page (the empty folder remains, still shown as an empty ' +
+        'page). When the user says "the other pages", they mean every page EXCEPT the current one ' +
+        '(the page named below, if any).\n\n' +
         'How to work: if you do not know the project structure, start with ' +
         'list_dir(".lerret/"). ALWAYS read_file before rewriting an existing file. ' +
         'Complete the ENTIRE request — including multi-step requests — then finish ' +
@@ -169,7 +178,80 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
 }
 
 /**
- * Build the four tool executors. Reads hit the sandbox directly; mutations
+ * Canonical `.lerret/`-relative paths `delete_dir` must REFUSE: the protected
+ * project files (brand authority, project context, root config — they live at
+ * the `.lerret/` root, not inside a page, but guard anyway) and the snapshot
+ * sidecar root. A page is never one of these, so removing one is always a
+ * mistake or a model misfire.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const PROTECTED_DIR_TARGETS = new Set([
+    '.lerret/_design-system.md',
+    '.lerret/_context.md',
+    '.lerret/config.json',
+    '.lerret/.state',
+]);
+
+/**
+ * True when a canonical `.lerret/<rel>` path is a protected project file or the
+ * snapshot sidecar (`.lerret/.state` itself OR anything under it) — i.e. NOT a
+ * removable page/folder. Used by the `delete_dir` executor as a hard refusal
+ * on top of the sandbox's own validation.
+ *
+ * @param {string} p  A canonical `.lerret/<rel>` path (from `canonLerretPath`).
+ * @returns {boolean}
+ */
+export function isProtectedDirTarget(p) {
+    if (PROTECTED_DIR_TARGETS.has(p)) return true;
+    // The whole `.state/` sidecar tree is off-limits (snapshot history blobs).
+    return p === '.lerret/.state' || p.startsWith('.lerret/.state/');
+}
+
+/**
+ * Walk a directory subtree via the sandbox's non-mutating `listDir`, gathering
+ * every FILE path (to delete through the snapshotted Worker path) and every
+ * DIRECTORY path (to `rmdir` bottom-up). Directories are returned DEEPEST
+ * FIRST and include `root` itself last, so applying `rmdir` in array order
+ * always removes an already-empty directory. Iterative (an explicit stack) so
+ * a deep tree cannot blow the call stack.
+ *
+ * @param {{ listDir: (p: string) => Promise<Array<{ name: string, kind: 'file'|'dir' }>> }} sandbox
+ * @param {string} root  The canonical `.lerret/<rel>` directory to remove.
+ * @returns {Promise<{ files: string[], dirs: string[] }>}
+ *   `files` in discovery order; `dirs` deepest-first, ending with `root`.
+ */
+export async function collectTreeForRemoval(sandbox, root) {
+    /** @type {string[]} */
+    const files = [];
+    /** @type {string[]} */
+    const dirsByDepth = [];
+    // Each frame: a directory to expand. We record its depth so the final
+    // bottom-up order is a stable depth-descending sort.
+    /** @type {Array<{ path: string, depth: number }>} */
+    const stack = [{ path: root, depth: 0 }];
+    while (stack.length > 0) {
+        const { path: dir, depth } = stack.pop();
+        dirsByDepth.push({ path: dir, depth });
+        const entries = await sandbox.listDir(dir);
+        for (const e of entries) {
+            const childPath = `${dir.replace(/\/$/, '')}/${e.name}`;
+            if (e.kind === 'dir') {
+                stack.push({ path: childPath, depth: depth + 1 });
+            } else {
+                files.push(childPath);
+            }
+        }
+    }
+    // Bottom-up: deepest directories first; the root (depth 0) lands last.
+    const dirs = dirsByDepth
+        .sort((a, b) => b.depth - a.depth)
+        .map((d) => d.path);
+    return { files, dirs };
+}
+
+/**
+ * Build the tool executors. Reads hit the sandbox directly; mutations
  * run through a single-step Worker plan so snapshot/NFR18/event semantics are
  * the Worker's, not ours. The Worker emits `writing`/`deleting` itself, so
  * mutation results carry NO meta (the loop only emits for read/list metas —
@@ -332,6 +414,61 @@ export function buildExecutors({
                 return { content: `Deleted ${p}.` };
             } catch (err) {
                 return { content: `Could not delete ${p}: ${err?.message ?? err}`, isError: true };
+            }
+        },
+        delete_dir: async (args) => {
+            const p = canonLerretPath(args?.path);
+            if (!p || p === '.lerret/') return badPath(args?.path);
+            // Refuse the protected project files (they live at `.lerret/` root,
+            // not in a page, but guard anyway) and the snapshot sidecar — these
+            // are never pages and removing them would corrupt the project.
+            if (isProtectedDirTarget(p)) {
+                return {
+                    content:
+                        `Refusing to remove ${p} — that path is a protected project file or the ` +
+                        `snapshot store, not a page. Only pages/folders can be removed with delete_dir.`,
+                    isError: true,
+                };
+            }
+            try {
+                if (!(await sandbox.exists(p))) {
+                    return {
+                        content: `No such page/folder: ${p}. Use list_dir on a parent to see what exists.`,
+                        isError: true,
+                    };
+                }
+                // Walk the tree: collect every FILE (to delete through the
+                // snapshotted path) and every DIRECTORY (to rmdir bottom-up,
+                // deepest first, including the target itself).
+                const { files, dirs } = await collectTreeForRemoval(sandbox, p);
+                // One plan: all file deletes FIRST (each snapshotted +
+                // revertible), then the rmdirs deepest-first so every directory
+                // is empty by the time it is removed. Reverting the per-file
+                // deletes recreates the tree, so the rmdirs need no snapshot.
+                const plan = [
+                    ...files.map((f) => ({ op: 'delete', path: f })),
+                    ...dirs.map((d) => ({ op: 'rmdir', path: d })),
+                ];
+                const res = await workerNode({ manifest: manifestRef.current, signal, plan });
+                manifestRef.current = res.manifest;
+                writtenFiles.push(...res.writtenFiles);
+                // `writtenFiles` counts only the deleted FILES (rmdir steps are
+                // bookkeeping). A turn that stops mid-removal applies NOTHING —
+                // detect that as "had files to delete, but none came back". An
+                // EMPTY page legitimately yields zero deletes (just an rmdir),
+                // so guard on the file count, not the whole plan length.
+                if (files.length > 0 && res.writtenFiles.length === 0) {
+                    return {
+                        content: `Removal of ${p} was not applied (turn stopping).`,
+                        isError: true,
+                    };
+                }
+                const n = res.writtenFiles.length;
+                return {
+                    content: `Removed ${p} (${n} file${n === 1 ? '' : 's'} + the folder).`,
+                };
+            } catch (err) {
+                return { content: `Could not remove ${p}: ${err?.message ?? err}`, isError: true };
             }
         },
     };

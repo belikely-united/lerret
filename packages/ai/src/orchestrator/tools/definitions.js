@@ -1,7 +1,9 @@
 // Tool contract — the neutral ToolDef/ToolCall/ToolResult shapes plus the
-// ONLY four tool definitions the agent loop ever offers a model (ADR-006 §2:
-// list_dir / read_file / write_file / delete_file — no shell per FR51, no
-// grep/glob, no string-replace edit in v1; unneeded at `.lerret/` scale).
+// file tool definitions the agent loop offers a model (ADR-006 §2:
+// list_dir / read_file / write_file / delete_file, plus delete_dir for
+// removing a page/folder — Epic 9 follow-up — and the ask_user fork; no shell
+// per FR51, no grep/glob, no string-replace edit in v1; unneeded at
+// `.lerret/` scale).
 //
 // Descriptions are PRESCRIPTIVE on purpose (Anthropic tool-writing guidance):
 // they tell the model WHEN and HOW to act ("ALWAYS call this before
@@ -148,6 +150,39 @@ export const DELETE_FILE_TOOL = deepFreeze({
 });
 
 /**
+ * Remove a PAGE — a directory under `.lerret/` — and EVERYTHING inside it
+ * (Epic 9 follow-up). A Lerret page IS a folder; deleting a page's individual
+ * assets with `delete_file` empties the page but leaves the folder, which still
+ * shows as an empty page — so this is the ONLY way to remove the page itself.
+ * The executor deletes every file under the folder through the snapshotted
+ * delete path (fully revertible) and then removes the emptied directories, so
+ * the whole operation is one revertible turn. Prescriptive on purpose: this is
+ * the most destructive tool, gated to explicit user intent.
+ *
+ * Ask lane only — the Inspect lane is read-only by construction, so
+ * `delete_dir` is absent from READ_TOOLS.
+ *
+ * @type {ToolDef}
+ */
+export const DELETE_DIR_TOOL = deepFreeze({
+    name: 'delete_dir',
+    description:
+        'Remove a page/folder and EVERYTHING inside it. Use ONLY when the user explicitly asks to ' +
+        'delete or remove a page or folder. Deleting a page\'s individual assets does NOT remove ' +
+        'the page — use this to remove the page itself. This is irreversible from the model\'s side ' +
+        '(the user can still revert the whole turn), so never call it to "clean up" or restructure ' +
+        'unless the user clearly asked to delete the page/folder.',
+    parameters: {
+        type: 'object',
+        properties: {
+            path: { type: 'string', description: PATH_DESCRIPTION },
+        },
+        required: ['path'],
+        additionalProperties: false,
+    },
+});
+
+/**
  * Pause and ask the USER a question at a genuine decision fork (Epic 9
  * follow-up). The loop blocks on a dock affordance; the user's pick (or typed
  * answer) returns as this tool's result, and the SAME turn continues. The
@@ -196,8 +231,10 @@ export const ASK_USER_TOOL = deepFreeze({
 export const READ_TOOLS = Object.freeze([LIST_DIR_TOOL, READ_FILE_TOOL]);
 
 /**
- * The Ask lane's tool surface — the four file tools plus the ask_user fork
- * (ADR-006 §2 + Epic 9 follow-up).
+ * The Ask lane's tool surface — the file tools (list/read/write/delete-file +
+ * delete-dir) plus the ask_user fork (ADR-006 §2 + Epic 9 follow-ups).
+ * `delete_dir` is Ask-only and absent from {@link READ_TOOLS}, so the Inspect
+ * lane can never remove a page — the read-only asymmetry stays structural.
  *
  * @type {readonly ToolDef[]}
  */
@@ -205,6 +242,7 @@ export const ALL_TOOLS = Object.freeze([
     ...READ_TOOLS,
     WRITE_FILE_TOOL,
     DELETE_FILE_TOOL,
+    DELETE_DIR_TOOL,
     ASK_USER_TOOL,
 ]);
 

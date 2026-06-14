@@ -36,6 +36,7 @@ function makeMockSandbox() {
         writeFile: vi.fn().mockResolvedValue(undefined),
         deleteFile: vi.fn().mockResolvedValue(undefined),
         mkdir: vi.fn().mockResolvedValue(undefined),
+        removeDir: vi.fn().mockResolvedValue(undefined),
         readFile: vi.fn().mockResolvedValue(''),
         exists: vi.fn().mockResolvedValue(true),
     };
@@ -103,6 +104,19 @@ describe('Worker executeStep dispatch', () => {
         expect(sandbox.mkdir).toHaveBeenCalledTimes(1);
         expect(sandbox.mkdir).toHaveBeenCalledWith('.lerret/social');
         expect(events).toEqual([{ type: 'mkdir', dir: '.lerret/social' }]);
+    });
+
+    it('rmdir step calls sandbox.removeDir and reuses the deleting event (a removed folder reads as deleting)', async () => {
+        const sandbox = makeMockSandbox();
+        const worker = createWorker({ sandbox });
+        const events = await drain(worker.executeStep({ op: 'rmdir', path: '.lerret/social' }));
+        expect(sandbox.removeDir).toHaveBeenCalledTimes(1);
+        expect(sandbox.removeDir).toHaveBeenCalledWith('.lerret/social');
+        // The rmdir op surfaces as `deleting` — the dock shows a removed folder
+        // the same way it shows a removed file (minimal event surface).
+        expect(events).toEqual([{ type: 'deleting', file: '.lerret/social' }]);
+        // rmdir never touches the file-delete path.
+        expect(sandbox.deleteFile).not.toHaveBeenCalled();
     });
 
     it('null step yields { type: error, error: invalid-step } instead of throwing TypeError', async () => {

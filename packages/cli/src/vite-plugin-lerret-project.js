@@ -219,16 +219,18 @@ export const EXPORT_PDF_ENDPOINT = '/__lerret/export-pdf';
 /**
  * Filesystem-bridge endpoints powering the studio's CLI-mode AI adapter
  * (`packages/studio/src/ai/ai-fs.js`). The AI orchestrator's snapshot store
- * and Worker need a real `FilesystemAccess` in the browser; these four
- * endpoints are its Node-side half. Each accepts a POST with a small JSON
- * body, validates every path with the SAME `.lerret/`-tree gate the write
- * endpoint uses ({@link checkWritePath} / {@link validateMoveDest}), and
- * returns the same calm `{ ok, error? }` JSON shape on failure.
+ * and Worker need a real `FilesystemAccess` in the browser; these endpoints
+ * are its Node-side half. Each accepts a POST with a small JSON body,
+ * validates every path with the SAME `.lerret/`-tree gate the write endpoint
+ * uses ({@link checkWritePath} / {@link validateMoveDest}), and returns the
+ * same calm `{ ok, error? }` JSON shape on failure. `remove-dir` is the
+ * empty-only `rmdir` half of the `delete_dir` tool (Epic 9 follow-up).
  */
 export const READ_FILE_ENDPOINT = '/__lerret/read-file';
 export const LIST_DIR_ENDPOINT = '/__lerret/list-dir';
 export const EXISTS_ENDPOINT = '/__lerret/exists';
 export const MKDIR_ENDPOINT = '/__lerret/mkdir';
+export const REMOVE_DIR_ENDPOINT = '/__lerret/remove-dir';
 
 /**
  * Runtime folder-switch endpoint. `POST` `{ folder: <os path> | null }`:
@@ -802,13 +804,14 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       server.middlewares.use(READ_CONFIG_ENDPOINT, createReadConfigMiddleware({ getLerretDir }));
       server.middlewares.use(EXPORT_PDF_ENDPOINT, createExportPdfMiddleware({ getLerretDir }));
 
-      // The AI filesystem bridge (read / list / exists / mkdir) — the Node
-      // half of the studio's CLI-mode FilesystemAccess adapter. Same live
-      // getter, same `.lerret/`-tree sandboxing as the endpoints above.
+      // The AI filesystem bridge (read / list / exists / mkdir / remove-dir) —
+      // the Node half of the studio's CLI-mode FilesystemAccess adapter. Same
+      // live getter, same `.lerret/`-tree sandboxing as the endpoints above.
       server.middlewares.use(READ_FILE_ENDPOINT, createReadFileMiddleware({ getLerretDir }));
       server.middlewares.use(LIST_DIR_ENDPOINT, createListDirMiddleware({ getLerretDir }));
       server.middlewares.use(EXISTS_ENDPOINT, createExistsMiddleware({ getLerretDir }));
       server.middlewares.use(MKDIR_ENDPOINT, createMkdirMiddleware({ getLerretDir }));
+      server.middlewares.use(REMOVE_DIR_ENDPOINT, createRemoveDirMiddleware({ getLerretDir }));
 
       // Recent-projects list (persisted under the user's home) — read by the
       // studio's connect screen so re-opening a folder is one click.
@@ -1577,6 +1580,54 @@ export function createMkdirMiddleware(opts) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[lerret] mkdir failed:', message);
       sendJson(res, 500, { ok: false, error: `mkdir failed: ${message}` });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/remove-dir` — body `{ path: LerretPath }`.
+ *
+ * Removes an EMPTY directory inside the project's `.lerret/` tree — the POSIX
+ * `rmdir` semantic. NON-recursive: the Node backend's `removeDir` rejects a
+ * non-empty directory (ENOTEMPTY), so this can never erase un-snapshotted
+ * data. The AI `delete_dir` tool deletes a page's files first (each through
+ * the snapshotted delete path) and then calls this bottom-up to remove the
+ * emptied folders. Path safety is the SAME server-side gate as `/delete`:
+ * `checkWritePath` refuses traversal AND the bare `.lerret/` root itself (a
+ * directory entry, never a remove target).
+ *
+ * Response (always JSON):
+ *   • 200 `{ ok: true }`
+ *   • 400 `{ ok: false, error }` — bad / escaping path (or the `.lerret/` root).
+ *   • 500 `{ ok: false, error }` — non-empty directory or other fs failure.
+ *
+ * @param {object} opts
+ * @param {string | null} opts.lerretDir
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createRemoveDirMiddleware(opts) {
+  const backend = createNodeBackend();
+  return withJsonBody(async (_req, res, body) => {
+    const lerretDir = resolveLerretDir(opts);
+    const { path: requestPath } = body;
+    if (typeof requestPath !== 'string') {
+      sendJson(res, 400, { ok: false, error: 'path must be a string' });
+      return;
+    }
+    // checkWritePath (NOT validateMoveDest) — the bare `.lerret/` root must be
+    // refused here too, mirroring the empty-only `removeDir` primitive's rule.
+    const check = checkWritePath(requestPath, lerretDir);
+    if (!check.ok) {
+      sendJson(res, 400, { ok: false, error: check.error });
+      return;
+    }
+    try {
+      await backend.removeDir(check.normalized);
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[lerret] remove-dir failed:', message);
+      sendJson(res, 500, { ok: false, error: `remove-dir failed: ${message}` });
     }
   });
 }

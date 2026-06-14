@@ -310,6 +310,32 @@ async function mkdir(rootHandle, dirPath) {
 }
 
 /**
+ * Remove an EMPTY directory via the PARENT directory handle's
+ * `removeEntry(name)` — called WITHOUT `{ recursive: true }`, so the FSA API
+ * throws `InvalidModificationError` when the directory still has children.
+ * This mirrors the Node backend's non-recursive `rmdir`: the primitive can
+ * never erase un-snapshotted data; the `delete_dir` agent tool achieves safe
+ * recursion above this layer. Throws if the path is missing or non-empty.
+ *
+ * Added in Epic 9 follow-up for the `delete_dir` tool (removing a page).
+ *
+ * @param {FileSystemDirectoryHandle} rootHandle
+ * @param {string} dirPath A LerretPath (forward slashes).
+ * @returns {Promise<void>}
+ */
+async function removeDir(rootHandle, dirPath) {
+ const segments = splitPath(dirPath);
+ const dirName = segments.pop();
+ if (!dirName) {
+ throw new Error(`fsa-backend: cannot remove an empty path: "${dirPath}"`);
+ }
+ const parentHandle = await traverseDirs(rootHandle, segments);
+ // No { recursive: true } — removeEntry rejects on a non-empty directory,
+ // the browser equivalent of POSIX rmdir's ENOTEMPTY.
+ await parentHandle.removeEntry(dirName);
+}
+
+/**
  * Test whether a file OR directory exists at `targetPath`. Tries a file
  * handle first (the most common case); on `NotFoundError` falls back to a
  * directory handle probe.
@@ -445,6 +471,12 @@ export function createFsaBackend(rootHandle) {
  mkdir(dirPath) {
  return ensurePermission(rootHandle).then(() =>
  mkdir(rootHandle, dirPath),
+ );
+ },
+
+ removeDir(dirPath) {
+ return ensurePermission(rootHandle).then(() =>
+ removeDir(rootHandle, dirPath),
  );
  },
 

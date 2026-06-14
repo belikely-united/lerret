@@ -30,6 +30,7 @@ function makeMockFs() {
         watch: vi.fn().mockReturnValue({ close: vi.fn() }),
         deleteFile: vi.fn().mockResolvedValue(undefined),
         mkdir: vi.fn().mockResolvedValue(undefined),
+        removeDir: vi.fn().mockResolvedValue(undefined),
         exists: vi.fn().mockResolvedValue(false),
         capabilities: { canWrite: true, canWatch: true, canReveal: false },
     };
@@ -499,5 +500,62 @@ describe('listDir — validated, non-mutating discovery', () => {
             { name: '.state', path: `${PROJECT_ROOT}/.lerret/.state`, kind: 'directory', isFile: false, isDirectory: true },
         ]);
         expect(await sandbox.listDir('.lerret')).toEqual([{ name: '.state', kind: 'dir' }]);
+    });
+});
+
+// ─── removeDir — empty-only rmdir (Epic 9 follow-up, delete_dir) ──────────────
+
+describe('removeDir — validated, empty-only directory removal', () => {
+    it('removeDir of .lerret/social/old delegates to the backend', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.removeDir('.lerret/social/old');
+        expect(fs.removeDir).toHaveBeenCalledTimes(1);
+        expect(fs.removeDir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret/social/old`);
+    });
+
+    it('removeDir of a nested page folder normalizes a relative path before delegating', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await sandbox.removeDir('.lerret/kit/sub/..');
+        // `.lerret/kit/sub/..` normalizes to `.lerret/kit` (allowed — a page).
+        expect(fs.removeDir).toHaveBeenCalledWith(`${PROJECT_ROOT}/.lerret/kit`);
+    });
+
+    it('REFUSES the .lerret/ root itself — removing it would erase the project', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.removeDir('.lerret')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+            code: 'OUTSIDE_PROJECT',
+        });
+        await expect(sandbox.removeDir('.lerret/')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+        });
+        // Neither attempt reached the backend.
+        expect(fs.removeDir).not.toHaveBeenCalled();
+    });
+
+    it('rejects paths OUTSIDE .lerret/ and traversal escapes without touching the backend', async () => {
+        const { sandbox, fs } = makeSandbox();
+        await expect(sandbox.removeDir('/etc')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+            code: 'OUTSIDE_PROJECT',
+        });
+        await expect(sandbox.removeDir('.lerret/../src')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+        });
+        await expect(sandbox.removeDir('src')).rejects.toMatchObject({
+            name: 'SandboxViolationError',
+        });
+        expect(fs.removeDir).not.toHaveBeenCalled();
+    });
+
+    it('propagates a backend rejection (e.g. ENOTEMPTY) — the empty-only guarantee', async () => {
+        const { sandbox, fs } = makeSandbox();
+        const enotempty = Object.assign(new Error('ENOTEMPTY: directory not empty'), {
+            code: 'ENOTEMPTY',
+        });
+        fs.removeDir.mockRejectedValueOnce(enotempty);
+        await expect(sandbox.removeDir('.lerret/social')).rejects.toMatchObject({
+            code: 'ENOTEMPTY',
+        });
     });
 });

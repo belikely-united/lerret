@@ -22,6 +22,8 @@ import {
     createAgentExecutorNode,
     buildExecutors,
     buildLoopSystemPrompt,
+    collectTreeForRemoval,
+    isProtectedDirTarget,
 } from './agent-executor.js';
 import { createPlannerNode } from './planner.js';
 
@@ -46,6 +48,7 @@ function makeSandbox(files = {}) {
             delete files[p];
         }),
         mkdir: vi.fn(async () => {}),
+        removeDir: vi.fn(async () => {}),
         listDir: vi.fn(async () => []),
     };
 }
@@ -276,6 +279,172 @@ describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
         const failed = await throwing.delete_file({ path: 'kit/a.jsx' });
         expect(failed.isError).toBe(true);
         expect(failed.content).toContain('boom');
+    });
+
+    // ── delete_dir — recursive page removal through the snapshotted path ─────────
+
+    it('delete_dir recursively deletes files first, then rmdirs bottom-up; summary counts files', async () => {
+        // A page with a nested subfolder: social/ has b.jsx + sub/a.jsx.
+        const sandbox = makeSandbox({
+            '.lerret/social': true, // exists() probe
+            '.lerret/social/b.jsx': 'B',
+            '.lerret/social/sub/a.jsx': 'A',
+        });
+        // listDir drives the tree walk: root → [b.jsx, sub]; sub → [a.jsx].
+        sandbox.listDir = vi.fn(async (p) => {
+            if (p === '.lerret/social') {
+                return [
+                    { name: 'b.jsx', kind: 'file' },
+                    { name: 'sub', kind: 'dir' },
+                ];
+            }
+            if (p === '.lerret/social/sub') return [{ name: 'a.jsx', kind: 'file' }];
+            return [];
+        });
+        const workerNode = vi.fn(async ({ manifest, plan }) => ({
+            manifest,
+            writtenFiles: plan
+                .filter((s) => s.op === 'delete')
+                .map((s) => ({ path: s.path, op: 'delete' })),
+        }));
+        const writtenFiles = [];
+        const executors = buildExecutors({
+            sandbox,
+            workerNode,
+            manifestRef: { current: { id: 'm1' } },
+            writtenFiles,
+            signal: undefined,
+        });
+
+        const res = await executors.delete_dir({ path: 'social' });
+        expect(res.isError).toBeUndefined();
+        // ONE worker plan: both file deletes FIRST, then rmdirs deepest-first
+        // ending at the page root.
+        expect(workerNode).toHaveBeenCalledTimes(1);
+        const plan = workerNode.mock.calls[0][0].plan;
+        const deletes = plan.filter((s) => s.op === 'delete').map((s) => s.path);
+        const rmdirs = plan.filter((s) => s.op === 'rmdir').map((s) => s.path);
+        expect(new Set(deletes)).toEqual(
+            new Set(['.lerret/social/b.jsx', '.lerret/social/sub/a.jsx']),
+        );
+        // Every delete precedes every rmdir.
+        const firstRmdirIdx = plan.findIndex((s) => s.op === 'rmdir');
+        expect(plan.slice(0, firstRmdirIdx).every((s) => s.op === 'delete')).toBe(true);
+        // rmdirs bottom-up: the deepest dir before its parent; root removed last.
+        expect(rmdirs).toEqual(['.lerret/social/sub', '.lerret/social']);
+        // Summary counts the FILES (+ the folder); writtenFiles got the deletes.
+        expect(res.content).toBe('Removed .lerret/social (2 files + the folder).');
+        expect(writtenFiles).toHaveLength(2);
+    });
+
+    it('delete_dir on an empty page removes just the folder (0 files)', async () => {
+        const sandbox = makeSandbox({ '.lerret/empty': true });
+        sandbox.listDir = vi.fn(async () => []);
+        const workerNode = vi.fn(async ({ manifest, plan }) => ({
+            manifest,
+            writtenFiles: plan.filter((s) => s.op === 'delete').map((s) => ({ path: s.path, op: 'delete' })),
+        }));
+        const executors = buildExecutors({
+            sandbox,
+            workerNode,
+            manifestRef: { current: {} },
+            writtenFiles: [],
+            signal: undefined,
+        });
+        const res = await executors.delete_dir({ path: 'empty' });
+        // No "turn stopping" false-positive: the plan is just one rmdir, which
+        // produces zero writtenFiles legitimately.
+        expect(res.isError).toBeUndefined();
+        expect(res.content).toBe('Removed .lerret/empty (0 files + the folder).');
+        expect(workerNode.mock.calls[0][0].plan).toEqual([{ op: 'rmdir', path: '.lerret/empty' }]);
+    });
+
+    it('delete_dir rejects the .lerret/ root, a missing folder, and protected targets', async () => {
+        const sandbox = makeSandbox({}); // nothing exists
+        const workerNode = vi.fn();
+        const executors = buildExecutors({
+            sandbox,
+            workerNode,
+            manifestRef: { current: {} },
+            writtenFiles: [],
+            signal: undefined,
+        });
+        // Root.
+        const root = await executors.delete_dir({ path: '.lerret/' });
+        expect(root.isError).toBe(true);
+        // Protected files + the snapshot sidecar — refused BEFORE any fs touch.
+        for (const p of ['_design-system.md', '_context.md', 'config.json', '.state', '.state/history']) {
+            const out = await executors.delete_dir({ path: p });
+            expect(out.isError, p).toBe(true);
+            expect(out.content, p).toMatch(/protected project file or the snapshot store/);
+        }
+        // Missing folder → clear isError, never a silent success.
+        const missing = await executors.delete_dir({ path: 'ghost-page' });
+        expect(missing.isError).toBe(true);
+        expect(missing.content).toMatch(/No such page\/folder/);
+        // None of the rejections reached the Worker.
+        expect(workerNode).not.toHaveBeenCalled();
+    });
+
+    it('delete_dir surfaces a Worker throw as isError, never throws', async () => {
+        const sandbox = makeSandbox({ '.lerret/social': true });
+        sandbox.listDir = vi.fn(async () => []);
+        const executors = buildExecutors({
+            sandbox,
+            workerNode: vi.fn(async () => {
+                throw new Error('kaboom');
+            }),
+            manifestRef: { current: {} },
+            writtenFiles: [],
+            signal: undefined,
+        });
+        const failed = await executors.delete_dir({ path: 'social' });
+        expect(failed.isError).toBe(true);
+        expect(failed.content).toContain('kaboom');
+    });
+});
+
+// ── delete_dir helpers (pure) ───────────────────────────────────────────────────
+
+describe('collectTreeForRemoval', () => {
+    it('returns files in discovery order and dirs deepest-first ending at the root', async () => {
+        const tree = {
+            '.lerret/p': [
+                { name: 'top.jsx', kind: 'file' },
+                { name: 'a', kind: 'dir' },
+            ],
+            '.lerret/p/a': [
+                { name: 'mid.jsx', kind: 'file' },
+                { name: 'deep', kind: 'dir' },
+            ],
+            '.lerret/p/a/deep': [{ name: 'leaf.jsx', kind: 'file' }],
+        };
+        const sandbox = { listDir: vi.fn(async (p) => tree[p] ?? []) };
+        const { files, dirs } = await collectTreeForRemoval(sandbox, '.lerret/p');
+        expect(new Set(files)).toEqual(
+            new Set(['.lerret/p/top.jsx', '.lerret/p/a/mid.jsx', '.lerret/p/a/deep/leaf.jsx']),
+        );
+        // Deepest dir first; root last — so each rmdir hits an empty directory.
+        expect(dirs[dirs.length - 1]).toBe('.lerret/p');
+        expect(dirs.indexOf('.lerret/p/a/deep')).toBeLessThan(dirs.indexOf('.lerret/p/a'));
+        expect(dirs.indexOf('.lerret/p/a')).toBeLessThan(dirs.indexOf('.lerret/p'));
+    });
+});
+
+describe('isProtectedDirTarget', () => {
+    it('flags the protected project files and the whole .state sidecar', () => {
+        expect(isProtectedDirTarget('.lerret/_design-system.md')).toBe(true);
+        expect(isProtectedDirTarget('.lerret/_context.md')).toBe(true);
+        expect(isProtectedDirTarget('.lerret/config.json')).toBe(true);
+        expect(isProtectedDirTarget('.lerret/.state')).toBe(true);
+        expect(isProtectedDirTarget('.lerret/.state/history/manifests')).toBe(true);
+    });
+
+    it('does NOT flag a normal page/folder', () => {
+        expect(isProtectedDirTarget('.lerret/social')).toBe(false);
+        expect(isProtectedDirTarget('.lerret/kit/sub')).toBe(false);
+        // A page whose name merely starts with `.state` but is not the sidecar.
+        expect(isProtectedDirTarget('.lerret/.stately')).toBe(false);
     });
 });
 

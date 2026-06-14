@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 
 import { runTurn } from './run-turn.js';
 import * as snapshot from '../snapshot/index.js';
+import { READ_TOOLS, ALL_TOOLS } from './tools/definitions.js';
 import {
     createInMemoryFs,
     seedFs,
@@ -500,5 +501,26 @@ describe('inspect mode — agent-loop structural guarantee (Epic 9)', () => {
         expect(INSPECTOR_SOURCE).toMatch(
             /import\s*\{[^}]*\bREAD_TOOLS\b[^}]*\}\s*from\s*['"]\.\.\/tools\/definitions\.js['"]/,
         );
+    });
+
+    it('delete_dir is an Ask-lane tool ONLY — present in ALL_TOOLS, ABSENT from READ_TOOLS', () => {
+        // The Inspect lane is handed READ_TOOLS, so delete_dir simply does not
+        // exist in its registry — the read-only lane can never remove a page.
+        expect(ALL_TOOLS.map((t) => t.name)).toContain('delete_dir');
+        expect(READ_TOOLS.map((t) => t.name)).not.toContain('delete_dir');
+    });
+
+    it("the Inspector's read-only executor map registers no delete_dir (only list_dir + read_file)", () => {
+        // Structural at the executor layer too: the Inspector builds a literal
+        // { list_dir, read_file } executor object — no mutators of any kind.
+        // (The Ask lane's buildExecutors is the only place delete_dir executes.)
+        const execMatch = INSPECTOR_SOURCE.match(/const executors = \{([\s\S]*?)\n {12}\};/);
+        expect(execMatch, 'inspector executor literal not found').toBeTruthy();
+        const execBlock = execMatch[1];
+        expect(execBlock).toMatch(/\blist_dir\b/);
+        expect(execBlock).toMatch(/\bread_file\b/);
+        expect(execBlock).not.toMatch(/\bdelete_dir\b/);
+        expect(execBlock).not.toMatch(/\bdelete_file\b/);
+        expect(execBlock).not.toMatch(/\bwrite_file\b/);
     });
 });

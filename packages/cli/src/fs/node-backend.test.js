@@ -50,6 +50,44 @@ describe('createNodeBackend', () => {
   });
 });
 
+describe('removeDir — empty-only rmdir (delete_dir primitive)', () => {
+  it('removes an empty directory', async () => {
+    const dir = join(workDir, 'page');
+    await fsp.mkdir(dir);
+    const backend = createNodeBackend();
+    await backend.removeDir(asLerretPath(dir));
+    await expect(fsp.access(dir)).rejects.toThrow();
+  });
+
+  it('REJECTS a non-empty directory (ENOTEMPTY) — the empty-only guarantee, never rm -rf', async () => {
+    const dir = join(workDir, 'page');
+    await fsp.mkdir(dir);
+    await fsp.writeFile(join(dir, 'a.jsx'), 'A', 'utf-8');
+    const backend = createNodeBackend();
+    await expect(backend.removeDir(asLerretPath(dir))).rejects.toMatchObject({
+      code: 'ENOTEMPTY',
+    });
+    // The directory and its file are untouched — no data was lost.
+    await expect(fsp.readFile(join(dir, 'a.jsx'), 'utf-8')).resolves.toBe('A');
+  });
+
+  it('rejects a missing directory (ENOENT)', async () => {
+    const backend = createNodeBackend();
+    await expect(
+      backend.removeDir(asLerretPath(join(workDir, 'ghost'))),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('rejects a path that is a FILE (ENOTDIR)', async () => {
+    const file = join(workDir, 'a.jsx');
+    await fsp.writeFile(file, 'A', 'utf-8');
+    const backend = createNodeBackend();
+    await expect(backend.removeDir(asLerretPath(file))).rejects.toMatchObject({
+      code: 'ENOTDIR',
+    });
+  });
+});
+
 describe('readDir', () => {
   it('distinguishes files from subdirectories', async () => {
     await fsp.writeFile(join(workDir, 'Button.jsx'), 'export default 1;');

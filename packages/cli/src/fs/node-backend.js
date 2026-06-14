@@ -280,6 +280,26 @@ async function mkdir(dirPath) {
 }
 
 /**
+ * Remove an EMPTY directory at `dirPath` — the POSIX `rmdir` semantic.
+ * NON-recursive by design: `fs.promises.rmdir` rejects with `ENOTEMPTY` when
+ * the directory still has children, which is exactly what we want — the
+ * primitive can never erase un-snapshotted data. The `delete_dir` agent tool
+ * achieves safe recursion ABOVE this layer (deleting every file individually
+ * through the snapshotted Worker delete path first, then removing the
+ * now-empty directories bottom-up via this method). Rejects if `dirPath` is
+ * missing, is a file, or the directory is non-empty.
+ *
+ * Added in Epic 9 follow-up for the `delete_dir` tool (removing a page —
+ * a directory under `.lerret/`).
+ *
+ * @param {string} dirPath A contract-level (forward-slash) directory path.
+ * @returns {Promise<void>}
+ */
+async function removeDir(dirPath) {
+  await fsp.rmdir(toNativePath(dirPath));
+}
+
+/**
  * Test whether a file OR directory exists at `targetPath`. Resolves with
  * `true` if anything is at the path, `false` otherwise. Genuine I/O errors
  * (permission denied, etc.) re-reject so callers can distinguish 'absent'
@@ -394,6 +414,7 @@ export function createNodeBackend() {
     watch,
     deleteFile,
     mkdir,
+    removeDir,
     exists,
     capabilities: NODE_CAPABILITIES,
   };

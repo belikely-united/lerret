@@ -123,14 +123,15 @@ describe('agent loop integration — multi-turn discovery + write (matrix: Ask /
             }),
         );
 
-        // The loop ran all four scripted turns against ALL_TOOLS (the four
-        // file tools + the ask_user fork, Epic 9 follow-up).
+        // The loop ran all four scripted turns against ALL_TOOLS (the file
+        // tools incl. delete_dir + the ask_user fork, Epic 9 follow-ups).
         expect(handle.calls).toHaveLength(4);
         expect(handle.calls[0].tools.map((t) => t.name)).toEqual([
             'list_dir',
             'read_file',
             'write_file',
             'delete_file',
+            'delete_dir',
             'ask_user',
         ]);
         expect(handle.complete).not.toHaveBeenCalled();

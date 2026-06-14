@@ -61,11 +61,12 @@ export const SWITCH_FOLDER_ENDPOINT = '/__lerret/switch-folder';
 export const RECENT_PROJECTS_ENDPOINT = '/__lerret/recent-projects';
 
 /**
- * AI filesystem-bridge endpoints (read / list / exists / mkdir). The CLI-mode
- * FilesystemAccess adapter (`src/ai/ai-fs.js`) is their only intended caller:
- * the AI orchestrator's snapshot store and Worker need real file reads,
- * directory listings, existence probes, and directory creation in the
- * browser. Path safety stays server-side, same as every endpoint above.
+ * AI filesystem-bridge endpoints (read / list / exists / mkdir / remove-dir).
+ * The CLI-mode FilesystemAccess adapter (`src/ai/ai-fs.js`) is their only
+ * intended caller: the AI orchestrator's snapshot store and Worker need real
+ * file reads, directory listings, existence probes, directory creation, and
+ * (for the `delete_dir` tool) empty-directory removal in the browser. Path
+ * safety stays server-side, same as every endpoint above.
  *
  * @type {string}
  */
@@ -73,6 +74,7 @@ export const READ_FILE_ENDPOINT = '/__lerret/read-file';
 export const LIST_DIR_ENDPOINT = '/__lerret/list-dir';
 export const EXISTS_ENDPOINT = '/__lerret/exists';
 export const MKDIR_ENDPOINT = '/__lerret/mkdir';
+export const REMOVE_DIR_ENDPOINT = '/__lerret/remove-dir';
 
 /**
  * Detect CLI mode from the same flag the CLI's plugin injects in
@@ -396,6 +398,27 @@ export async function mkdirProject(path, opts = {}) {
  return { ok: false, error: 'mkdirProject: path must be a non-empty string' };
  }
  const result = await callLifecycleEndpoint(MKDIR_ENDPOINT, { path }, opts);
+ return result.ok ? { ok: true } : { ok: false, error: result.error };
+}
+
+/**
+ * Remove an EMPTY directory inside the project's `.lerret/` tree — the POSIX
+ * `rmdir` semantic. NON-recursive: the server rejects a non-empty directory.
+ * The AI `delete_dir` tool deletes the page's files first (each through the
+ * snapshotted delete path), then calls this bottom-up to remove the emptied
+ * folders. The bare `.lerret/` root is refused server-side.
+ *
+ * @param {string} path
+ * The directory's {@link LerretPath}.
+ * @param {object} [opts]
+ * @param {typeof fetch} [opts.fetch]
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function removeDirProject(path, opts = {}) {
+ if (typeof path !== 'string' || path.length === 0) {
+ return { ok: false, error: 'removeDirProject: path must be a non-empty string' };
+ }
+ const result = await callLifecycleEndpoint(REMOVE_DIR_ENDPOINT, { path }, opts);
  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 

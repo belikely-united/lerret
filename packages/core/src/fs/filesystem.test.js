@@ -103,7 +103,28 @@ describe('findFilesystemContractViolations', () => {
     const problems = findFilesystemContractViolations({});
     // 7 missing methods (readDir, readFile, writeFile, watch + the Epic 8
     // additions deleteFile/mkdir/exists) + 1 missing capabilities object.
+    // The OPTIONAL removeDir is NOT counted — its absence is conformant.
     expect(problems.length).toBe(8);
+  });
+
+  it('treats removeDir as OPTIONAL — its absence is NOT a violation', () => {
+    const backend = makeConformingBackend();
+    expect('removeDir' in backend).toBe(false);
+    expect(findFilesystemContractViolations(backend)).toEqual([]);
+  });
+
+  it('accepts a backend that DOES expose removeDir as a function', () => {
+    const backend = makeConformingBackend();
+    backend.removeDir = async () => {};
+    expect(findFilesystemContractViolations(backend)).toEqual([]);
+  });
+
+  it('flags removeDir only when present but not a function', () => {
+    const backend = makeConformingBackend();
+    backend.removeDir = 'nope';
+    expect(findFilesystemContractViolations(backend)).toContain(
+      'optional method removeDir() is present but not a function',
+    );
   });
 });
 

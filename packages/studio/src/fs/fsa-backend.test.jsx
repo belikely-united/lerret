@@ -214,6 +214,19 @@ function makeMockDirHandle(tree, permState = {}, writableOpts = {}) {
  return makeMockFileHandle(tree, name, writableOpts);
  },
 
+ // removeEntry — models the FSA API used by deleteFile and removeDir. WITHOUT
+ // { recursive: true } it rejects a non-empty directory with
+ // InvalidModificationError (the browser equivalent of POSIX rmdir's
+ // ENOTEMPTY); a missing entry rejects NotFoundError.
+ async removeEntry(name, { recursive = false } = {}) {
+ if (!tree.has(name)) throw new DOMException(`${name} not found`, 'NotFoundError');
+ const node = tree.get(name);
+ if (node instanceof Map && node.size > 0 && !recursive) {
+ throw new DOMException(`${name} is not empty`, 'InvalidModificationError');
+ }
+ tree.delete(name);
+ },
+
  async queryPermission(_opts) { return state.query; },
  async requestPermission(_opts) { return state.request; },
  };
@@ -590,5 +603,39 @@ describe('permission handling', () => {
  await backend.readFile('a.txt');
 
  expect(requestSpy).not.toHaveBeenCalled();
+ });
+});
+
+describe('removeDir — empty-only rmdir (delete_dir primitive)', () => {
+ it('is part of the backend surface (the optional FilesystemAccess extension)', () => {
+ const backend = createFsaBackend(makeMockDirHandle(makeTree({})));
+ expect(typeof backend.removeDir).toBe('function');
+ });
+
+ it('removes an empty directory via the parent handle removeEntry', async () => {
+ const tree = makeTree({ pages: { empty: {} } });
+ const backend = createFsaBackend(makeMockDirHandle(tree));
+ await backend.removeDir('pages/empty');
+ // The directory is gone from its parent.
+ expect(tree.get('pages').has('empty')).toBe(false);
+ });
+
+ it('REJECTS a non-empty directory (no { recursive: true }) — never rm -rf', async () => {
+ const tree = makeTree({ pages: { full: { 'a.jsx': 'A' } } });
+ const backend = createFsaBackend(makeMockDirHandle(tree));
+ await expect(backend.removeDir('pages/full')).rejects.toThrow();
+ // The directory and its file survive — no data lost.
+ expect(tree.get('pages').has('full')).toBe(true);
+ expect(tree.get('pages').get('full').has('a.jsx')).toBe(true);
+ });
+
+ it('rejects a missing directory', async () => {
+ const backend = createFsaBackend(makeMockDirHandle(makeTree({ pages: {} })));
+ await expect(backend.removeDir('pages/ghost')).rejects.toThrow();
+ });
+
+ it('refuses an empty path (the root is never a remove target here)', async () => {
+ const backend = createFsaBackend(makeMockDirHandle(makeTree({})));
+ await expect(backend.removeDir('')).rejects.toThrow(/cannot remove an empty path/);
  });
 });

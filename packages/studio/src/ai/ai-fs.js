@@ -7,10 +7,11 @@
  * the turn's files. In CLI mode the actual filesystem lives on the Node side
  * of `@lerret/cli dev`, behind the dev server's `__lerret/*` endpoints. This
  * adapter composes the write-client wrappers (read-file / write / delete /
- * list-dir / exists / mkdir) into the v1 `FilesystemAccess` shape
+ * list-dir / exists / mkdir / remove-dir) into the v1 `FilesystemAccess` shape
  * (`@lerret/core`'s contract: readDir, readFile, writeFile, watch,
- * deleteFile, mkdir, exists + capabilities) so `createSandbox({ projectRoot,
- * fs })` accepts it unchanged.
+ * deleteFile, mkdir, exists + capabilities, plus the `removeDir` extension for
+ * the `delete_dir` tool) so `createSandbox({ projectRoot, fs })` accepts it
+ * unchanged.
  *
  * ── Path discipline ─────────────────────────────────────────────────────────
  * The orchestrator speaks ABSOLUTE POSIX paths (`<projectRoot>/.lerret/...`).
@@ -38,6 +39,7 @@ import {
     listProjectDir,
     mkdirProject,
     readProjectFile,
+    removeDirProject,
     writeProjectFile,
 } from '../runtime/write-client.js';
 
@@ -224,6 +226,20 @@ export function createCliAiFs({ projectRoot } = {}) {
             const res = await mkdirProject(p);
             if (!res.ok) {
                 throw fsOpError('mkdir', res.error);
+            }
+        },
+
+        /**
+         * Remove an EMPTY directory (POSIX `rmdir` semantic) — non-recursive,
+         * so the server rejects a non-empty directory. The `delete_dir` tool
+         * empties the page's files first (each through the snapshotted delete
+         * path) and then calls this bottom-up on the emptied folders.
+         */
+        async removeDir(dirPath) {
+            const p = ensureInside(dirPath);
+            const res = await removeDirProject(p);
+            if (!res.ok) {
+                throw fsOpError('removeDir', res.error);
             }
         },
 

@@ -18,6 +18,7 @@ function makeSandbox(overrides = {}) {
         writeFile: vi.fn().mockResolvedValue(undefined),
         deleteFile: vi.fn().mockResolvedValue(undefined),
         mkdir: vi.fn().mockResolvedValue(undefined),
+        removeDir: vi.fn().mockResolvedValue(undefined),
         readFile: vi.fn().mockResolvedValue(''),
         exists: vi.fn().mockResolvedValue(false),
         ...overrides,
@@ -134,6 +135,51 @@ describe('createWorkerNode — delete + mkdir', () => {
         expect(deps.sandbox.mkdir).toHaveBeenCalledWith('.lerret/social');
         expect(deps.emit).toHaveBeenCalledWith(expect.objectContaining({ type: 'mkdir', dir: '.lerret/social' }));
         expect(out.writtenFiles).toEqual([]);
+    });
+
+    it('rmdir calls removeDir, emits deleting, captures NO before-image, and is NOT in writtenFiles', async () => {
+        const deps = DEPS();
+        const node = createWorkerNode(deps);
+        const out = await node({
+            manifest: { id: 't1', files: [] },
+            plan: [{ op: 'rmdir', path: '.lerret/social' }],
+        });
+        expect(deps.sandbox.removeDir).toHaveBeenCalledWith('.lerret/social');
+        // A removed folder reuses the `deleting` event (minimal surface).
+        expect(deps.emit).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'deleting', file: '.lerret/social' }),
+        );
+        // No snapshot pre-capture — revert is handled by the per-file deletes.
+        expect(deps.snapshot.captureBeforeImage).not.toHaveBeenCalled();
+        // rmdir is bookkeeping, not a written file (the deleted FILES are).
+        expect(out.writtenFiles).toEqual([]);
+    });
+
+    it('a delete_dir-shaped plan deletes files (snapshotted) then rmdirs bottom-up; writtenFiles counts only the files', async () => {
+        const deps = DEPS({ sandbox: makeSandbox({ exists: vi.fn().mockResolvedValue(true) }) });
+        const node = createWorkerNode(deps);
+        // The shape the agent executor builds: all file deletes first, then
+        // rmdirs deepest-first ending at the page root.
+        const plan = [
+            { op: 'delete', path: '.lerret/social/sub/a.jsx' },
+            { op: 'delete', path: '.lerret/social/b.jsx' },
+            { op: 'rmdir', path: '.lerret/social/sub' },
+            { op: 'rmdir', path: '.lerret/social' },
+        ];
+        const out = await node({ manifest: { id: 't1', files: [] }, plan });
+        // Both files were captured (revertible) and deleted.
+        expect(deps.snapshot.captureBeforeImage).toHaveBeenCalledTimes(2);
+        expect(deps.sandbox.deleteFile).toHaveBeenCalledTimes(2);
+        // Both folders removed, deepest first.
+        expect(deps.sandbox.removeDir.mock.calls.map((c) => c[0])).toEqual([
+            '.lerret/social/sub',
+            '.lerret/social',
+        ]);
+        // writtenFiles carries only the two deleted FILES — folders are bookkeeping.
+        expect(out.writtenFiles).toEqual([
+            { path: '.lerret/social/sub/a.jsx', op: 'delete' },
+            { path: '.lerret/social/b.jsx', op: 'delete' },
+        ]);
     });
 });
 

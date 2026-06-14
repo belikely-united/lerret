@@ -16,6 +16,7 @@ import {
  MOVE_ENDPOINT,
  READ_FILE_ENDPOINT,
  RECENT_PROJECTS_ENDPOINT,
+ REMOVE_DIR_ENDPOINT,
  RENAME_ENDPOINT,
  REVEAL_ENDPOINT,
  SWITCH_FOLDER_ENDPOINT,
@@ -30,6 +31,7 @@ import {
  mkdirProject,
  moveProjectFile,
  readProjectFile,
+ removeDirProject,
  renameProjectFile,
  revealProjectFile,
  switchProject,
@@ -339,6 +341,43 @@ describe('deleteProjectFile', () => {
  it('rejects empty path before fetching', async () => {
  const fetchMock = vi.fn();
  const result = await deleteProjectFile('', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('removeDirProject', () => {
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ vi.restoreAllMocks();
+ });
+
+ it('posts { path } to the remove-dir endpoint', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200, json: async () => ({ ok: true }),
+ });
+ const result = await removeDirProject('/x/.lerret/social', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true });
+ const [url, init] = fetchMock.mock.calls[0];
+ expect(url).toBe(REMOVE_DIR_ENDPOINT);
+ expect(JSON.parse(init.body)).toEqual({ path: '/x/.lerret/social' });
+ });
+
+ it('surfaces a server error (e.g. ENOTEMPTY) as { ok: false, error }', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: false, status: 500, json: async () => ({ ok: false, error: 'remove-dir failed: ENOTEMPTY' }),
+ });
+ const result = await removeDirProject('/x/.lerret/social', { fetch: fetchMock });
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('ENOTEMPTY');
+ });
+
+ it('rejects empty path before fetching', async () => {
+ const fetchMock = vi.fn();
+ const result = await removeDirProject('', { fetch: fetchMock });
  expect(result.ok).toBe(false);
  expect(fetchMock).not.toHaveBeenCalled();
  });

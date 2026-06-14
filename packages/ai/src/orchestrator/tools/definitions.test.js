@@ -5,6 +5,7 @@ import {
     READ_FILE_TOOL,
     WRITE_FILE_TOOL,
     DELETE_FILE_TOOL,
+    DELETE_DIR_TOOL,
     READ_TOOLS,
     ALL_TOOLS,
     LIST_DIR_MAX_ENTRIES,
@@ -75,6 +76,32 @@ describe('the four tool definitions', () => {
     });
 });
 
+describe('DELETE_DIR_TOOL — page/folder removal (Epic 9 follow-up)', () => {
+    it('is named delete_dir with one required `path` param using the shared description', () => {
+        expect(DELETE_DIR_TOOL.name).toBe('delete_dir');
+        expect(DELETE_DIR_TOOL.parameters).toMatchObject({ type: 'object' });
+        expect(DELETE_DIR_TOOL.parameters.required).toEqual(['path']);
+        expect(DELETE_DIR_TOOL.parameters.additionalProperties).toBe(false);
+        const path = DELETE_DIR_TOOL.parameters.properties.path;
+        expect(path.type).toBe('string');
+        expect(path.description).toContain('project-relative path under .lerret/');
+    });
+
+    it('has a prescriptive description: removes a page + contents, explicit-intent only, distinct from delete_file', () => {
+        const d = DELETE_DIR_TOOL.description;
+        expect(d).toContain('Remove a page/folder and EVERYTHING inside it');
+        expect(d).toContain('ONLY when the user explicitly asks');
+        // The load-bearing distinction the killer-feature relies on.
+        expect(d).toContain("Deleting a page's individual assets does NOT remove the page");
+    });
+
+    it('is deeply frozen — a translator cannot reshape it', () => {
+        expect(Object.isFrozen(DELETE_DIR_TOOL)).toBe(true);
+        expect(Object.isFrozen(DELETE_DIR_TOOL.parameters)).toBe(true);
+        expect(Object.isFrozen(DELETE_DIR_TOOL.parameters.properties)).toBe(true);
+    });
+});
+
 describe('READ_TOOLS / ALL_TOOLS subsets', () => {
     it('READ_TOOLS is exactly [list_dir, read_file] — the Inspect lane surface', () => {
         expect(READ_TOOLS).toHaveLength(2);
@@ -87,15 +114,17 @@ describe('READ_TOOLS / ALL_TOOLS subsets', () => {
         const names = READ_TOOLS.map((t) => t.name);
         expect(names).not.toContain('write_file');
         expect(names).not.toContain('delete_file');
+        expect(names).not.toContain('delete_dir');
         expect(names).not.toContain('ask_user');
     });
 
-    it('ALL_TOOLS is the four file tools plus ask_user, in order, frozen', () => {
+    it('ALL_TOOLS is the file tools (incl. delete_dir) plus ask_user, in order, frozen', () => {
         expect(ALL_TOOLS.map((t) => t.name)).toEqual([
             'list_dir',
             'read_file',
             'write_file',
             'delete_file',
+            'delete_dir',
             'ask_user',
         ]);
         expect(Object.isFrozen(ALL_TOOLS)).toBe(true);

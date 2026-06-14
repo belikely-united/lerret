@@ -16,6 +16,7 @@ vi.mock('../runtime/write-client.js', () => ({
     listProjectDir: vi.fn(),
     mkdirProject: vi.fn(),
     readProjectFile: vi.fn(),
+    removeDirProject: vi.fn(),
     writeProjectFile: vi.fn(),
 }));
 
@@ -25,6 +26,7 @@ import {
     listProjectDir,
     mkdirProject,
     readProjectFile,
+    removeDirProject,
     writeProjectFile,
 } from '../runtime/write-client.js';
 import { createCliAiFs, bytesToBase64, base64ToBytes } from './ai-fs.js';
@@ -68,12 +70,14 @@ describe('createCliAiFs — path containment (ENOENT-shaped)', () => {
         await expect(fs.readDir('/elsewhere')).rejects.toMatchObject({ code: 'ENOENT' });
         await expect(fs.deleteFile('/elsewhere/y')).rejects.toMatchObject({ code: 'ENOENT' });
         await expect(fs.mkdir('/elsewhere/dir')).rejects.toMatchObject({ code: 'ENOENT' });
+        await expect(fs.removeDir('/elsewhere/dir')).rejects.toMatchObject({ code: 'ENOENT' });
         await expect(fs.exists('/elsewhere/y')).rejects.toMatchObject({ code: 'ENOENT' });
         expect(readProjectFile).not.toHaveBeenCalled();
         expect(writeProjectFile).not.toHaveBeenCalled();
         expect(listProjectDir).not.toHaveBeenCalled();
         expect(deleteProjectFile).not.toHaveBeenCalled();
         expect(mkdirProject).not.toHaveBeenCalled();
+        expect(removeDirProject).not.toHaveBeenCalled();
         expect(existsProjectPath).not.toHaveBeenCalled();
     });
 
@@ -207,7 +211,7 @@ describe('createCliAiFs — readDir', () => {
     });
 });
 
-describe('createCliAiFs — exists / mkdir / deleteFile', () => {
+describe('createCliAiFs — exists / mkdir / deleteFile / removeDir', () => {
     it('exists resolves the boolean and never throws on probe failure', async () => {
         const fs = createCliAiFs({ projectRoot: ROOT });
         existsProjectPath.mockResolvedValue({ ok: true, exists: true, isDirectory: false });
@@ -236,6 +240,15 @@ describe('createCliAiFs — exists / mkdir / deleteFile', () => {
         expect(deleteProjectFile).toHaveBeenCalledWith(`${LERRET}/old.jsx`);
         deleteProjectFile.mockResolvedValue({ ok: false, error: 'denied' });
         await expect(fs.deleteFile(`${LERRET}/old.jsx`)).rejects.toThrow(/denied/);
+    });
+
+    it('removeDir delegates and throws on failure (e.g. ENOTEMPTY surfaced by the server)', async () => {
+        const fs = createCliAiFs({ projectRoot: ROOT });
+        removeDirProject.mockResolvedValue({ ok: true });
+        await fs.removeDir(`${LERRET}/social`);
+        expect(removeDirProject).toHaveBeenCalledWith(`${LERRET}/social`);
+        removeDirProject.mockResolvedValue({ ok: false, error: 'remove-dir failed: ENOTEMPTY' });
+        await expect(fs.removeDir(`${LERRET}/social`)).rejects.toThrow(/ENOTEMPTY/);
     });
 });
 
