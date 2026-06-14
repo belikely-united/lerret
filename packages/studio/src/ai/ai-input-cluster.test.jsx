@@ -2766,8 +2766,15 @@ describe('AiInputCluster — live activity timeline', () => {
         const css = document.getElementById('ai-input-cluster-styles')?.textContent || '';
         const clusterRule = css.match(/\.lm-ai-cluster\s*\{[^}]*\}/)?.[0] || '';
         const activityRule = css.match(/\.lm-ai-cluster__activity\s*\{[^}]*\}/)?.[0] || '';
+        // The clarify-question / needs-continue card shares the SAME float
+        // contract (§6.5 fix): inline, a wrapped clarify card grew the dock to
+        // ~111px and ran its options off-screen. It MUST be position:absolute.
+        const continueRule = css.match(/\.lm-ai-cluster__continue\s*\{[^}]*\}/)?.[0] || '';
         expect(clusterRule).toMatch(/position:\s*relative/);
         expect(activityRule).toMatch(/position:\s*absolute/);
+        expect(continueRule).toMatch(/position:\s*absolute/);
+        // …and it caps its own width to the viewport so it can't overflow.
+        expect(continueRule).toMatch(/max-width:\s*min\(/);
     });
 
     it('§6.5: the now-line narrates the current call with its target + the model\'s "why"', async () => {
@@ -2812,6 +2819,43 @@ describe('AiInputCluster — live activity timeline', () => {
         expect(now.textContent).not.toMatch(/write_file/);
         // A live per-step timer rides the now-line so the wait visibly moves.
         expect(now.querySelector('[class*="now-time"]')).not.toBeNull();
+
+        gate.resolve();
+        await tick(40);
+        cleanup();
+    });
+
+    it('§6.5 fix: the activity feed yields while a clarify card is open (no float overlap)', async () => {
+        const gate = deferred();
+        let answer;
+        aiMock.current = makeAi({
+            runTurnImpl: async function* (opts) {
+                yield { type: 'phase', phase: 'working' };
+                yield { type: 'tool-call', name: 'read_file' };
+                yield { type: 'reading', file: 'kit/banner.jsx' };
+                // Steps exist → the feed would normally show. Then the agent asks.
+                answer = await opts.onClarify({ question: 'Gold or blue?', options: ['Gold', 'Blue'] });
+                await gate.promise;
+                yield { type: 'done', files: [], turnId: 't-yield' };
+            },
+        });
+        const { container, cleanup } = renderToDom(<Harness />);
+        await tick();
+        await submitPrompt(container, 'make it gold');
+        await tick(40);
+
+        // The clarify card floats to the same slot above the dock → the
+        // timeline yields while it is open (the loop is paused on the user).
+        expect(container.querySelector('[data-testid="ai-clarify-prompt"]')).not.toBeNull();
+        expect(container.querySelector('[data-testid="ai-activity-feed"]')).toBeNull();
+
+        // Answer → the card closes, the turn resumes, the timeline returns.
+        await act(async () => {
+            container.querySelector('[data-testid="ai-clarify-option"]').click();
+        });
+        await tick(20);
+        expect(answer).toBe('Gold');
+        expect(container.querySelector('[data-testid="ai-activity-feed"]')).not.toBeNull();
 
         gate.resolve();
         await tick(40);

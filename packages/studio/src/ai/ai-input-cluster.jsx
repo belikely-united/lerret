@@ -483,14 +483,34 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
         animation: none;
     }
 }
-/* Story 9.4 §3: the needs-continue inline row (takes the pill's slot). */
+/* Story 9.4 §3 + §6.5 fix: the clarify-question / needs-continue affordances
+   FLOAT above the dock — the same primitive as the activity timeline and the
+   vision prompt — NEVER inline in the dock's flex row. Inline (the old
+   behavior), a wrapped clarify card grew the dock from ~47px to ~111px AND ran
+   its option chips + Send button off the right edge at narrow viewports (the
+   "growable content nested in the dock pill" anti-pattern, same family as the
+   white-circle bug). Out of flow + anchored left + viewport-capped width: the
+   dock stays a pill, the card can wrap and can never overflow off-screen. */
 .lm-ai-cluster__continue {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    right: auto;
+    z-index: 61;
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    font: 400 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
+    max-width: min(520px, calc(100vw - 32px));
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px) saturate(120%);
+    -webkit-backdrop-filter: blur(12px) saturate(120%);
+    border-radius: var(--lm-radius-md, 10px);
+    box-shadow: 0 6px 20px rgba(26, 23, 20, 0.14), 0 1px 3px rgba(26, 23, 20, 0.08);
+    font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
     color: var(--lm-text-secondary, #44403A);
-    white-space: nowrap;
+    white-space: normal;
 }
 .lm-ai-cluster__continue-btn {
     font: 500 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
@@ -2500,7 +2520,6 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         data-testid="ai-clarify-prompt"
                         role="status"
                         aria-live="polite"
-                        style={{ flexWrap: 'wrap', maxWidth: 520 }}
                     >
                         <span data-testid="ai-clarify-question" style={{ fontWeight: 500 }}>
                             {clarifyPrompt.question}
@@ -2673,6 +2692,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 showActivity &&
                 Array.isArray(liveSteps) &&
                 liveSteps.length > 0 &&
+                // The clarify/continue card floats to the SAME slot above the
+                // dock; while one is open it takes precedence (the loop is
+                // paused on the user), so the timeline yields to avoid overlap.
+                !clarifyPrompt &&
+                !continuePrompt &&
                 (() => {
                     const current = liveSteps[liveSteps.length - 1];
                     const history = liveSteps.slice(0, -1);
