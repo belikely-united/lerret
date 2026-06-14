@@ -70,4 +70,4 @@ pnpm --filter @lerret/ai measure
 
 ## License
 
-MIT © Belikely United LLP.
+AGPL-3.0 © Belikely United LLP. Commercial license available — see LICENSING.md.

@@ -220,7 +220,9 @@ If you reproduce a hang on no-network, please open an issue — it indicates the
 
 ## License of contributions
 
-By submitting a contribution you agree that it will be released under the project's [MIT license](LICENSE).
+Lerret is **dual-licensed** — open-source under AGPL-3.0 plus a commercial license (see [LICENSING.md](LICENSING.md)). For that to work, contributions are accepted under a Contributor License Agreement.
+
+By submitting a contribution you agree to the **[Contributor License Agreement](CLA.md)**: you keep the copyright in your work, your contribution is released to everyone under [AGPL-3.0](LICENSE), and you grant Belikely United LLP the right to also offer it under the commercial license. (No paperwork for typical PRs — opening the PR is your agreement; we may add a CLA-assistant check before launch.)
 
 ---
 

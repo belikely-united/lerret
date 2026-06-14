@@ -3,7 +3,7 @@
 > Scaffolder for new [Lerret](https://github.com/belikely-united/lerret) projects — an open-source design canvas where a folder of React component files renders as a visual canvas.
 
 [![npm](https://img.shields.io/npm/v/create-lerret.svg)](https://www.npmjs.com/package/create-lerret)
-[![License: MIT](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/belikely-united/lerret/blob/main/LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/belikely-united/lerret/blob/main/LICENSE)
 
 ## Usage
 
@@ -51,4 +51,4 @@ Each `.jsx` under `.lerret/` is an asset that renders as an artboard in the stud
 
 ## License
 
-[MIT](https://github.com/belikely-united/lerret/blob/main/LICENSE)
+[AGPL-3.0](https://github.com/belikely-united/lerret/blob/main/LICENSE) — free for self-host; [commercial license available](https://github.com/belikely-united/lerret/blob/main/LICENSING.md)
