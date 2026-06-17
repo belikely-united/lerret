@@ -34,6 +34,7 @@ import {
  removeDirProject,
  renameProjectFile,
  revealProjectFile,
+ setHostedWriter,
  switchProject,
  writeProjectFile,
 } from './write-client.js';
@@ -160,6 +161,32 @@ describe('writeProjectFile — standalone (no CLI) mode', () => {
  expect(result.ok).toBe(false);
  expect(result.error).toContain('standalone');
  expect(fetchMock).not.toHaveBeenCalled();
+ });
+});
+
+describe('writeProjectFile — hosted writer delegation (Epic 10 / H2)', () => {
+ beforeEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ });
+ afterEach(() => {
+ setHostedWriter(null);
+ });
+
+ it('delegates to the registered hosted writer instead of the disabled error', async () => {
+ const writeFile = vi.fn(async () => ({ ok: true }));
+ setHostedWriter({ writeFile });
+ const fetchMock = vi.fn();
+ const result = await writeProjectFile('/x/.lerret/y.data.json', '{"a":1}', { fetch: fetchMock });
+ expect(result).toEqual({ ok: true });
+ expect(writeFile).toHaveBeenCalledWith('/x/.lerret/y.data.json', '{"a":1}', { fetch: fetchMock });
+ expect(fetchMock).not.toHaveBeenCalled();
+ });
+
+ it('falls back to the disabled error once the writer is cleared', async () => {
+ setHostedWriter(null);
+ const result = await writeProjectFile('/x/.lerret/y.json', '{}', {});
+ expect(result.ok).toBe(false);
+ expect(result.error).toContain('standalone');
  });
 });
 

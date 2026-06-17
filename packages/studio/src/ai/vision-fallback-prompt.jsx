@@ -2,14 +2,23 @@
  * vision-fallback-prompt.jsx — UX-delta §4.7 State B one-off vision-fallback
  * prompt (Story 8.7, FR56).
  *
- * The "Inline-near-dock prompt" primitive: a small action card attached
- * visually DIRECTLY ABOVE the dock input — NOT a centered overlay, NOT a
- * backdropped modal, NOT `aria-modal`, NOT focus-trapped (Tab order is
- * Yes → Cancel → out of the prompt; deliberately unlike the Story 8.1
- * privacy-disclosure dialog, which IS trapped). It positions itself with
- * `bottom: calc(100% + 8px)` against the nearest positioned ancestor — mount
- * it inside the dock cluster's field wrapper (`.lm-ai-cluster__field`, already
- * `position: relative`).
+ * The "Inline-near-dock prompt" primitive: a small action card pinned visually
+ * DIRECTLY ABOVE the dock input — NOT a centered overlay, NOT a backdropped
+ * modal, NOT `aria-modal`, NOT focus-trapped (Tab order is Yes → Cancel → out
+ * of the prompt; deliberately unlike the Story 8.1 privacy-disclosure dialog,
+ * which IS trapped).
+ *
+ * §6.5 fix — it PORTALS to <body> and is `position: fixed`, placed from the
+ * measured dock rect (8px above the dock top, left-aligned + clamped into the
+ * viewport). It must NOT live inside the dock: the dock (`[data-tour="dock"]`)
+ * has `overflow: auto` + `maxWidth` + a `backdrop-filter` containing block, so
+ * ANY element positioned inside it — absolute OR fixed — is clipped/contained
+ * and renders invisibly above the dock (the exact trap the activity feed and
+ * clarify/continue card hit in 56d1276). Because this prompt shows BEFORE a
+ * turn runs (when the host sets `visionPromptProviders`, not during `running`),
+ * it can't reuse the cluster's running-gated `dockOverlayPos` — it measures the
+ * dock itself on mount + on resize. Same dock-escape the privacy-disclosure /
+ * dock-menu / PagePicker overlays use (anchor with `bottom: innerHeight - top`).
  *
  * Copy is the user-facing contract (verbatim, AC-11/12):
  *   This model can't see images. Run this turn with {ProviderName} ($) just this once?
@@ -34,6 +43,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 import { PROVIDER_LABELS } from './ai-context.jsx';
 
@@ -44,9 +54,12 @@ if (typeof document !== 'undefined' && !document.getElementById('vision-fallback
     s.id = 'vision-fallback-prompt-styles';
     s.textContent = `
 .lm-vision-fallback {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 0;
+    /* §6.5 fix: position:fixed + portaled to <body> (left/bottom set inline from
+       the measured dock rect). It must NOT be absolute-in-dock: the dock has
+       overflow:auto + maxWidth + a backdrop-filter containing block, so anything
+       positioned inside it — absolute OR fixed — is clipped/contained and renders
+       invisibly above the dock (the trap the feed + clarify card hit in 56d1276). */
+    position: fixed;
     z-index: 60;
     display: flex;
     flex-direction: column;
@@ -130,6 +143,18 @@ export function VisionFallbackPrompt({ eligibleProviders, onAccept, onCancel }) 
     const lead = Array.isArray(eligibleProviders) ? eligibleProviders[0] : undefined;
     const hasLead = Boolean(lead);
 
+    // §6.5 fix: the prompt is portaled to <body> + position:fixed, so it carries
+    // its own measured anchor. It shows BEFORE a turn runs (the host sets
+    // visionPromptProviders, not `running`), so it can't reuse the cluster's
+    // running-gated dockOverlayPos — it measures the dock here on mount + on
+    // resize. 8px above the dock top, left-aligned but clamped into the viewport
+    // so the (≤400px) card can never run off-screen. Same anchor math as the
+    // privacy-disclosure / dock-menu / PagePicker overlays (bottom: innerHeight
+    // - top). Null until measured → the inline fallback (left:16, bottom:80).
+    const [pos, setPos] = React.useState(
+        /** @type {{ left: number, bottom: number } | null} */ (null),
+    );
+
     // AC-16: default-focus the Yes button so a keyboard user confirms with
     // Enter without mousing. focusVisible:true asks for a visible ring where
     // supported; environments without the option just focus.
@@ -142,6 +167,32 @@ export function VisionFallbackPrompt({ eligibleProviders, onAccept, onCancel }) 
         } catch {
             btn.focus();
         }
+    }, [hasLead]);
+
+    // Measure the dock and pin the portaled card 8px above it (clamped into the
+    // viewport). Re-measure on resize; the dock is at rest while this prompt is
+    // open (it shows pre-turn, before the spend line grows the dock), so a
+    // window-resize listener suffices — no ResizeObserver needed.
+    React.useLayoutEffect(() => {
+        if (!hasLead) return undefined;
+        const measure = () => {
+            const anchor =
+                document.querySelector('[data-tour="dock"]') ||
+                document.querySelector('.lm-ai-cluster');
+            if (!anchor) return;
+            const r = anchor.getBoundingClientRect();
+            const OVERLAY_MAX = 400; // matches .lm-vision-fallback max-width
+            const left = Math.max(8, Math.min(r.left, window.innerWidth - OVERLAY_MAX - 8));
+            setPos({
+                left: Math.round(left),
+                bottom: Math.round(window.innerHeight - r.top + 8),
+            });
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        return () => {
+            window.removeEventListener('resize', measure);
+        };
     }, [hasLead]);
 
     if (!lead) return null;
@@ -160,13 +211,16 @@ export function VisionFallbackPrompt({ eligibleProviders, onAccept, onCancel }) 
         }
     };
 
-    return (
+    // Portaled to <body> so the dock's overflow/backdrop-filter can't clip it;
+    // positioned fixed from the measured dock rect (inline left/bottom).
+    return createPortal(
         <div
             className="lm-vision-fallback"
             role="group"
             aria-label="Vision fallback"
             data-testid="vision-fallback-prompt"
             onKeyDown={handleKeyDown}
+            style={{ left: pos?.left ?? 16, bottom: pos?.bottom ?? 80 }}
         >
             <p className="lm-vision-fallback__copy" data-testid="vision-fallback-copy">
                 {`This model can't see images. Run this turn with ${label} `}
@@ -194,7 +248,8 @@ export function VisionFallbackPrompt({ eligibleProviders, onAccept, onCancel }) 
                     Cancel
                 </button>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
 

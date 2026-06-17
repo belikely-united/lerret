@@ -51,25 +51,29 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  const s = document.createElement('style');
  s.id = 'dc-styles';
  s.textContent = [
- '.dc-editable{cursor:text;outline:none;white-space:nowrap;border-radius:3px;padding:0 2px;margin:0 -2px}',
- '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #c96442}',
+ // Figma-style label truncation: clip a name to its own box + ellipsis so it
+// never bleeds into the neighbour; the clamp lifts on focus so inline-rename
+// shows the full text while typing.
+'.dc-editable{cursor:text;outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block;border-radius:3px;padding:0 2px;margin:0 -2px}',
+ '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #c96442;overflow:visible;text-overflow:clip;max-width:none}',
  '[data-dc-slot]{transition:transform .18s cubic-bezier(.2,.7,.3,1)}',
  '[data-dc-slot].dc-dragging{transition:none;z-index:10;pointer-events:none}',
  '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #c96442;transform:scale(1.02)}',
  '.dc-card{transition:box-shadow .15s,transform .15s}',
  '.dc-card *{scrollbar-width:none}',
  '.dc-card *::-webkit-scrollbar{display:none}',
- '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px}',
+ '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px;overflow:hidden}',
+   '.dc-labelrow:focus-within{overflow:visible}',
  // Chrome stays a constant SCREEN size at any zoom: each group counter-scales by
  // --dc-inv (= 1/canvas-scale, set per-slot in DCArtboardFrame) from its own
  // corner, and offsets are ×--dc-inv so position holds too. Name anchors left,
  // the export buttons + chip cluster anchor right.
- '.dc-label-left{display:flex;align-items:center;gap:4px;transform:scale(var(--dc-inv, 1));transform-origin:left bottom}',
+ '.dc-label-left{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%;transform:scale(var(--dc-inv, 1));transform-origin:left bottom}',
  '.dc-grip{cursor:grab;display:flex;align-items:center;padding:5px 4px;border-radius:4px;transition:background .12s}',
  '.dc-grip:hover{background:rgba(0,0,0,.08)}',
  '.dc-grip:active{cursor:grabbing}',
  '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
- '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;transition:background .12s}',
+ '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;min-width:0;overflow:hidden;transition:background .12s}',
  '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
  '.dc-expand{position:absolute;bottom:100%;right:calc((var(--dc-cluster-w, 26px) + 6px) * var(--dc-inv, 1));margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
@@ -1010,53 +1014,54 @@ function DCZoomControls({ api }) {
  React.useEffect(() => api.subscribe((t) => setScale(t.scale)), [api]);
  const pct = Math.round(scale * 100);
 
+ // Compact VERTICAL stack (2026-06-14, UX): zoom in / readout / zoom out,
+ // then Fit. Narrow ~34px-wide capsule pinned bottom-right so it stops
+ // competing with the dock; buttons trimmed 28→26.
  const wrap = {
  position: 'fixed', right: 18, bottom: 18, zIndex: 55,
- display: 'flex', alignItems: 'center', gap: 2,
+ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
  background: 'rgba(255,255,255,0.88)',
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
- borderRadius: 999, padding: '4px 6px',
+ borderRadius: 14, padding: 4,
  boxShadow: '0 4px 18px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)',
  fontFamily: DC.font,
  };
  const iconBtn = {
- width: 28, height: 28, borderRadius: 999, border: 'none',
+ width: 26, height: 26, borderRadius: 8, border: 'none',
  background: 'transparent', color: '#3a3530', cursor: 'pointer',
  fontSize: 17, lineHeight: 1, display: 'inline-flex',
  alignItems: 'center', justifyContent: 'center',
  transition: 'background .12s',
  };
  const pctBtn = {
- minWidth: 52, height: 28, borderRadius: 8, border: 'none',
+ width: 26, height: 20, borderRadius: 6, border: 'none', padding: 0,
  background: 'transparent', color: '#3a3530', cursor: 'pointer',
- font: '600 12px/1 ' + DC.font, fontVariantNumeric: 'tabular-nums',
+ font: '600 10px/1 ' + DC.font, fontVariantNumeric: 'tabular-nums',
  transition: 'background .12s',
  };
  const fitBtn = {
- height: 28, padding: '0 12px', borderRadius: 999, border: 'none',
+ width: 26, height: 26, borderRadius: 8, border: 'none',
  background: 'transparent', color: '#3a3530', cursor: 'pointer',
- font: '600 12px/1 ' + DC.font,
- display: 'inline-flex', alignItems: 'center', gap: 6,
+ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
  transition: 'background .12s',
  };
  const hov = (on) => (e) => { e.currentTarget.style.background = on ? 'rgba(0,0,0,0.05)' : 'transparent'; };
 
  return (
  <div data-tour="zoom-controls" style={wrap}>
- <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => api.zoomBy(1 / 1.2)}
- style={iconBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>−</button>
- <button type="button" title="Reset to 100% (Shift+0)" aria-label="Reset zoom to 100%" onClick={() => api.reset100()}
- style={pctBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>{pct}%</button>
  <button type="button" title="Zoom in" aria-label="Zoom in" onClick={() => api.zoomBy(1.2)}
  style={iconBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>+</button>
- <div style={{ width: 1, height: 18, background: 'rgba(60,50,40,0.14)', margin: '0 2px' }} />
+ <button type="button" title="Reset to 100% (Shift+0)" aria-label="Reset zoom to 100%" onClick={() => api.reset100()}
+ style={pctBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>{pct}%</button>
+ <button type="button" title="Zoom out" aria-label="Zoom out" onClick={() => api.zoomBy(1 / 1.2)}
+ style={iconBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>−</button>
+ <div style={{ height: 1, width: 18, background: 'rgba(60,50,40,0.14)', margin: '2px 0' }} />
  <button type="button" title="Fit everything to screen (Shift+1)" aria-label="Fit to screen" onClick={() => api.fit()}
  style={fitBtn} onMouseEnter={hov(true)} onMouseLeave={hov(false)}>
  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
  <path d="M1.5 4.5v-3h3M11.5 4.5v-3h-3M1.5 8.5v3h3M11.5 8.5v3h-3" />
  </svg>
- Fit
  </button>
  </div>
  );

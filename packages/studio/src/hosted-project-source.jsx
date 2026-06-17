@@ -1,73 +1,232 @@
-// hosted-project-source.jsx — the hosted-mode project provider seam.
+// hosted-project-source.jsx — the hosted-mode project provider (Epic 10 / H1).
 //
-// ╔══════════════════════════════════════════════════════════════════════════╗
-// ║ THIS FILE IS A SEAM. It mirrors the pattern of: ║
-// ║ - dev-harness.jsx (standalone-studio / fixture mode) ║
-// ║ - cli-project-source.jsx (`@lerret/cli dev` CLI mode) ║
-// ║ fleshes out the full FSA → trust gate → loader → runtime ║
-// ║ → studio mount flow here. THIS story (5.3) establishes the seam and ║
-// ║ ensures the hosted runtime (and its service worker) ship in the bundle. ║
-// ╚══════════════════════════════════════════════════════════════════════════╝
+// Mounted by main.jsx when `__LERRET_HOSTED_MODE__` is set. Mirrors
+// `cli-project-source.jsx`, but the project SOURCE is the user's local folder
+// reached through the File System Access API instead of the CLI's virtual
+// module + HTTP endpoints:
 //
-// What this file does:
-// - Imports the hosted runtime + SW URL so Vite's bundler emits both as
-// static assets in `vite build`. Without this, the SW file would be a
-// dead file with no inbound edge in the build graph.
-// - Mounts the entry orchestrator which routes between the open-folder,
-// unsupported-browser, and canvas-mount screens.
+//   pick folder (EntryRoot) → bringUpHostedStudio(handle):
+//     FSA backend → service worker → React import map → load model → runtime
+//   → mount <ProjectStudio> → poll the folder (hosted watcher) → reload on change.
+//
+// The cold-start orchestration is unit-tested in `runtime/hosted-bringup.js`
+// with fakes; this file wires the real browser pieces and owns the React state
+// machine + the live-reload subscription.
 
-import {
- hostedRuntimeFactory,
- registerHostedServiceWorker,
- ServiceWorkerRegistrationError,
- setReactImportMap,
- HOSTED_SERVICE_WORKER_URL,
-} from './runtime/sucrase-runtime.js';
+import React from 'react';
 
-// Force-touch the runtime + SW URL so the bundler keeps both in the build
-// graph. `hostedRuntimeFactory` is the factory the future entry layer hands
-// to `<ProjectStudio>` (mirroring `viteRuntimeFactory`); `HOSTED_SERVICE_WORKER_URL`
-// is the build-emitted URL the entry layer passes to
-// `registerHostedServiceWorker`. Setting these on `window.__LERRET_HOSTED__`
-// at module load is the simplest way to make the import side-effect-visible
-// to the bundler without coupling production logic to a debug surface.
-if (typeof window !== 'undefined') {
- /** @type {any} */
- const w = window;
- w.__LERRET_HOSTED__ = {
- hostedRuntimeFactory,
- registerHostedServiceWorker,
- ServiceWorkerRegistrationError,
- setReactImportMap,
- serviceWorkerUrl: HOSTED_SERVICE_WORKER_URL,
- };
-}
-
-// Entry orchestrator — capability check → open-folder or unsupported-browser.
 import { EntryRoot } from './components/entry/entry-root.jsx';
+import { ProjectStudio } from './project-studio.jsx';
+import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx';
+import { AssetConfigProvider } from './components/canvas/asset-config-context.jsx';
+
+import { createFsaBackend, PermissionDeniedError } from './fs/fsa-backend.js';
+import { createHostedWriter } from './fs/hosted-writer.js';
+import {
+  registerHostedServiceWorker,
+  setReactImportMap,
+  createHostedRuntime,
+  ServiceWorkerRegistrationError,
+} from './runtime/sucrase-runtime.js';
+import { startHostedWatcher } from './runtime/hosted-watcher.js';
+import { loadHostedProject } from './runtime/hosted-loader.js';
+import { setHostedWriter } from './runtime/write-client.js';
+import { setHostedController } from './runtime/hosted-controller.js';
+import { rememberRecent } from './runtime/hosted-recents.js';
+import { bringUpHostedStudio } from './runtime/hosted-bringup.js';
+import { resolveReactImportMapUrls } from './runtime/hosted-react-urls.js';
+
+/**
+ * Production bring-up dependencies. The orchestration that consumes these is
+ * tested separately with fakes (`runtime/hosted-bringup.test.js`); here we bind
+ * the real browser-coupled implementations.
+ *
+ * @type {import('./runtime/hosted-bringup.js').HostedBringupDeps}
+ */
+const REAL_DEPS = {
+  createBackend: (handle) => createFsaBackend(handle),
+  registerServiceWorker: () => registerHostedServiceWorker(),
+  applyReactImportMap: setReactImportMap,
+  reactImportMapUrls: resolveReactImportMapUrls,
+  loadProject: loadHostedProject,
+  createRuntime: createHostedRuntime,
+};
 
 /**
  * The hosted-mode project provider.
  *
- * Mounts the entry orchestrator which detects File System Access API support
- * and shows the correct entry screen. When the user picks a valid Lerret folder
- * the `onReady` callback receives the handle. The trust-dialog will
- * compose its gate between this callback and the canvas mount; for now the
- * handle is logged so the integration seam is clear.
- *
- * @returns {import('react').ReactElement}
+ * @param {object} [props]
+ * @param {import('./runtime/hosted-bringup.js').HostedBringupDeps} [props.deps]
+ *   Injectable for tests/storybook; defaults to the real browser pieces.
+ * @returns {React.ReactElement}
  */
-export function HostedProjectSource() {
- function handleReady(handle) {
- // The full flow replaces this body with: trust-check → canvas mount.
- // For now, the seam is wired: the folder handle is available here.
- // We log it so the entry flow is visible in DevTools without a stub canvas.
- if (typeof window !== 'undefined') {
- console.info('[lerret:hosted] folder selected — handing off to trust gate / canvas mount', handle?.name);
- }
- }
+export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
+  const [phase, setPhase] = React.useState('entry'); // 'entry' | 'loading' | 'ready' | 'error'
+  const [studio, setStudio] = React.useState(null); // { runtime, project, cascadeEntries, assetConfigEntries }
+  const [error, setError] = React.useState(null);
 
- return <EntryRoot onReady={handleReady} />;
+  const backendRef = React.useRef(null);
+  const runtimeRef = React.useRef(null);
+  const watcherRef = React.useRef(null);
+
+  // Leave the current project for the home/connect screen (H7 switch + close).
+  const goHome = React.useCallback(() => {
+    watcherRef.current?.close?.();
+    runtimeRef.current?.dispose?.();
+    watcherRef.current = null;
+    runtimeRef.current = null;
+    backendRef.current = null;
+    setHostedWriter(null);
+    setStudio(null);
+    setError(null);
+    setPhase('entry');
+  }, []);
+
+  // Re-load the model after a watcher event (add/remove/rename/change on disk).
+  // v1 re-scans the whole project — correct and simple; an incremental
+  // applyWatchEvent patch (as CLI mode does) is a later optimization.
+  const reload = React.useCallback(
+    async (changedPath) => {
+      const backend = backendRef.current;
+      if (!backend) return;
+      try {
+        if (changedPath && runtimeRef.current?.notifyChange) {
+          runtimeRef.current.notifyChange(changedPath);
+        }
+        const next = await deps.loadProject(backend);
+        setStudio((prev) => (prev ? { ...prev, ...next } : prev));
+      } catch (err) {
+        setError(err);
+        setPhase('error');
+      }
+    },
+    [deps],
+  );
+
+  const onReady = React.useCallback(
+    async (handle) => {
+      setPhase('loading');
+      setError(null);
+      try {
+        const up = await bringUpHostedStudio(handle, deps);
+        backendRef.current = up.backend;
+        runtimeRef.current = up.runtime;
+        // Wire writes (data/config/meta + lifecycle) to local disk via FSA.
+        setHostedWriter(createHostedWriter(up.backend));
+        // Remember this project for recents + expose switching to the dock (H7).
+        rememberRecent(handle && handle.name ? handle.name : 'project', handle);
+        setHostedController({ openAnother: goHome, close: goHome });
+        setStudio({
+          runtime: up.runtime,
+          project: up.project,
+          cascadeEntries: up.cascadeEntries,
+          assetConfigEntries: up.assetConfigEntries,
+        });
+        setPhase('ready');
+        watcherRef.current = startHostedWatcher({
+          rootHandle: handle,
+          onEvent: (event) => reload(event && event.path),
+          onError: (err) => console.error('[lerret:hosted] watcher', err),
+        });
+      } catch (err) {
+        setError(err);
+        setPhase('error');
+      }
+    },
+    [deps, reload, goHome],
+  );
+
+  // Tear down the watcher + runtime when the provider unmounts.
+  React.useEffect(
+    () => () => {
+      watcherRef.current?.close?.();
+      runtimeRef.current?.dispose?.();
+      setHostedWriter(null);
+      setHostedController(null);
+    },
+    [],
+  );
+
+  if (phase === 'entry') return <EntryRoot onReady={onReady} />;
+  if (phase === 'loading') return <HostedSplash />;
+  if (phase === 'error') return <HostedError error={error} onRetry={() => setPhase('entry')} />;
+
+  return (
+    <CascadedConfigProvider cascadeEntries={studio.cascadeEntries}>
+      <AssetConfigProvider assetConfigEntries={studio.assetConfigEntries}>
+        <ProjectStudio project={studio.project} runtime={studio.runtime} />
+      </AssetConfigProvider>
+    </CascadedConfigProvider>
+  );
 }
+
+/** Calm full-screen "opening your project" splash. */
+function HostedSplash() {
+  return (
+    <div style={splashStyle} data-testid="hosted-splash">
+      <div style={{ fontSize: 14, color: 'var(--lm-text-secondary, #6E6960)' }}>
+        Opening your project…
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Typed, actionable error screen. Permission lapses and unsupported browsers
+ * get specific guidance; anything else shows the underlying message.
+ *
+ * @param {{ error: unknown, onRetry: () => void }} props
+ */
+function HostedError({ error, onRetry }) {
+  let title = 'Could not open your project';
+  let detail = error && error.message ? error.message : String(error);
+  let retryLabel = 'Try again';
+
+  if (error instanceof PermissionDeniedError) {
+    title = 'Permission needed';
+    detail = 'Lerret needs read & write access to this folder. Re-open it to continue editing.';
+    retryLabel = 'Re-open folder';
+  } else if (error instanceof ServiceWorkerRegistrationError) {
+    title = 'This browser can’t run the hosted studio';
+    detail =
+      'The hosted studio needs service workers, which this browser/context blocks. Try Chrome, or run `npx @lerret/cli@latest dev` locally.';
+  }
+
+  return (
+    <div style={splashStyle} data-testid="hosted-error">
+      <div style={{ maxWidth: 420, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--lm-text-primary, #1A1714)' }}>{title}</h2>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--lm-text-secondary, #6E6960)' }}>{detail}</p>
+        <div>
+          <button type="button" onClick={onRetry} style={retryBtnStyle} data-testid="hosted-error-retry">
+            {retryLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const splashStyle = {
+  position: 'fixed',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'var(--lm-bg-primary, #FAF8F2)',
+  fontFamily: 'var(--lm-font-sans, -apple-system, system-ui, sans-serif)',
+  padding: 24,
+};
+
+const retryBtnStyle = {
+  border: 'none',
+  borderRadius: 8,
+  padding: '8px 16px',
+  background: 'var(--lm-accent, #B85B33)',
+  color: '#fff',
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
 
 export default HostedProjectSource;

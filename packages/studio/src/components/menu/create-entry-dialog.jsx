@@ -171,6 +171,10 @@ const ASSET_TYPES = [
  *   Sibling entry names (folder names, or asset filenames) for an instant
  *   case-insensitive collision check. The server remains authoritative.
  * @param {'component'|'markdown'} [props.defaultAssetKind]
+ * @param {'create'|'rename'} [props.mode]
+ *   `rename` pre-fills the field with `initialName`, swaps the title/CTA to
+ *   "Rename", and keeps confirm disabled until the name actually changes.
+ * @param {string} [props.initialName]
  * @returns {React.ReactElement | null}
  */
 export function CreateEntryDialog({
@@ -180,11 +184,15 @@ export function CreateEntryDialog({
   parentLabel,
   existingNames,
   defaultAssetKind = 'component',
+  mode = 'create',
+  initialName = '',
 }) {
-  const copy = KIND_COPY[kind] || KIND_COPY.page;
   const isAsset = kind === 'asset';
+  const isRename = mode === 'rename';
+  const baseCopy = KIND_COPY[kind] || KIND_COPY.page;
+  const copy = isRename ? { ...baseCopy, title: `Rename ${kind}`, cta: 'Rename' } : baseCopy;
 
-  const [name, setName] = React.useState('');
+  const [name, setName] = React.useState(initialName);
   const [assetKind, setAssetKind] = React.useState(
     defaultAssetKind === 'markdown' ? 'markdown' : 'component',
   );
@@ -196,10 +204,11 @@ export function CreateEntryDialog({
   // reload doesn't reconcile this subtree away mid-interaction.
   React.useEffect(() => suspendLiveRefresh(), []);
 
-  // Autofocus the name field on mount.
+  // Autofocus the name field on mount; rename pre-selects so typing replaces.
   React.useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+    if (isRename) inputRef.current?.select();
+  }, [isRename]);
 
   // Esc closes (unless a create is in flight).
   React.useEffect(() => {
@@ -221,7 +230,9 @@ export function CreateEntryDialog({
     return existingNames.some((n) => String(n).toLowerCase() === lower);
   }, [validation, existingNames, isAsset, assetKind]);
 
-  const canCreate = trimmed.length > 0 && validation.ok && !collision && !pending;
+  // In rename mode the unchanged name is a no-op — keep confirm disabled.
+  const unchanged = isRename && validation.ok && validation.name === initialName;
+  const canCreate = trimmed.length > 0 && validation.ok && !collision && !unchanged && !pending;
 
   // Inline message: validation error or collision (only once the user typed).
   let inlineError = null;
@@ -363,7 +374,7 @@ export function CreateEntryDialog({
             disabled={!canCreate}
             data-testid="lm-create-confirm"
           >
-            {pending ? 'Creating…' : copy.cta}
+            {pending ? (isRename ? 'Renaming…' : 'Creating…') : copy.cta}
           </button>
         </div>
       </div>

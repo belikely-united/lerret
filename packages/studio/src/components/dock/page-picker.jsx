@@ -29,6 +29,7 @@ import {
   CreateEntryDialog,
   ConfirmDialog,
 } from '../menu/index.js';
+import { renameProjectFile, hostedWritesEnabled } from '../../runtime/write-client.js';
 
 // A small chevron — rotates when the picker is open.
 function PickerChevron({ open }) {
@@ -83,6 +84,31 @@ function TrashGlyph() {
   );
 }
 
+function PencilGlyph() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+      strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9.1 2.9l2 2M3 11l-.5 1.5L4 12l6.8-6.8-1.5-1.5L2.5 10.5z" />
+    </svg>
+  );
+}
+
+// Shared style for the per-row icon buttons (rename / delete).
+const rowIconBtnStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 24,
+  height: 24,
+  flex: 'none',
+  borderRadius: 6,
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--lm-text-tertiary, #6e6960)',
+  cursor: 'pointer',
+  transition: 'background .12s, color .12s',
+};
+
 /**
  * Find a page node in the project model by its path, returning child counts for
  * the delete warning.
@@ -113,7 +139,9 @@ function pageChildCounts(projectModel, pageId) {
  */
 export function PagePicker({ pages, current, onNavigate, projectModel }) {
   const list = Array.isArray(pages) ? pages : [];
-  const manage = inCliMode() && !!projectModel;
+  // Page lifecycle (create/rename/delete) is available wherever writes are —
+  // CLI mode OR hosted mode with a registered FSA writer (Epic 10 / H3).
+  const manage = (inCliMode() || hostedWritesEnabled()) && !!projectModel;
 
   // Zero pages: in CLI mode offer a "+ New page" entry point in the dock (the
   // canvas also shows a no-pages notice). Otherwise nothing to render.
@@ -233,6 +261,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
   // Create / delete dialog state.
   const [createOpen, setCreateOpen] = React.useState(false);
   const [deleteState, setDeleteState] = React.useState(null); // { id, label, groups, assets }
+  const [renameState, setRenameState] = React.useState(null); // { id, name }
   const rootRef = React.useRef(null);
   const triggerRef = React.useRef(null);
   const listRef = React.useRef(null);
@@ -271,14 +300,14 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
   React.useEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (e) => {
-      if (createOpen || deleteState) return;
+      if (createOpen || deleteState || renameState) return;
       const inTrigger = rootRef.current && rootRef.current.contains(e.target);
       const inList = listRef.current && listRef.current.contains(e.target);
       if (!inTrigger && !inList) setOpen(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open, createOpen, deleteState]);
+  }, [open, createOpen, deleteState, renameState]);
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -374,6 +403,18 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
       const next = pages.find((p) => p.id !== id);
       if (next) onNavigate(next.id);
     }
+  };
+
+  // Rename-page handler — renames the page folder, then re-navigates to the new
+  // path if the renamed page was the one on screen (its old path is now gone).
+  const onConfirmRename = async ({ name }) => {
+    const fromPath = renameState.id;
+    const slash = fromPath.lastIndexOf('/');
+    const toPath = slash >= 0 ? `${fromPath.slice(0, slash)}/${name}` : name;
+    const result = await renameProjectFile(fromPath, toPath);
+    if (!result?.ok) throw new Error(result?.error || 'Rename failed');
+    setOpen(false);
+    if (fromPath === current) onNavigate(toPath);
   };
 
   const listboxId = 'lerret-page-picker-listbox';
@@ -498,6 +539,31 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                     <button
                       type="button"
                       className="lm-focusable-inset"
+                      title={`Rename page "${page.label}"`}
+                      aria-label={`Rename page "${page.label}"`}
+                      data-testid="page-picker-rename"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const node = (projectModel?.pages || []).find((p) => p.path === page.id);
+                        setRenameState({ id: page.id, name: node ? node.name : page.label });
+                      }}
+                      style={rowIconBtnStyle}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
+                        e.currentTarget.style.color = 'var(--lm-text-secondary, #3a3530)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--lm-text-tertiary, #6e6960)';
+                      }}
+                    >
+                      <PencilGlyph />
+                    </button>
+                  )}
+                  {manage && (
+                    <button
+                      type="button"
+                      className="lm-focusable-inset"
                       title={`Delete page "${page.label}"`}
                       aria-label={`Delete page "${page.label}"`}
                       data-testid="page-picker-delete"
@@ -610,6 +676,17 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
           }
           onConfirm={onConfirmDelete}
           onClose={() => setDeleteState(null)}
+        />
+      )}
+
+      {renameState && (
+        <CreateEntryDialog
+          kind="page"
+          mode="rename"
+          initialName={renameState.name}
+          existingNames={pageNames.filter((n) => n !== renameState.name)}
+          onConfirm={onConfirmRename}
+          onClose={() => setRenameState(null)}
         />
       )}
     </span>

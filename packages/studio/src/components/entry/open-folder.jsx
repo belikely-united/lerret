@@ -44,6 +44,8 @@
 import React from 'react';
 
 import { switchProject, fetchRecentProjects } from '../../runtime/write-client.js';
+import { listRecents, forgetRecent } from '../../runtime/hosted-recents.js';
+import { createDemoProject } from '../../runtime/opfs-demo.js';
 
 // ---------------------------------------------------------------------------
 // Internal: validate that a directory handle contains a .lerret/ subdirectory
@@ -454,6 +456,41 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  // Hover states for inline-styled buttons
  const [primaryHover, setPrimaryHover] = React.useState(false);
  const [secondaryHover, setSecondaryHover] = React.useState(false);
+ // Why a blank-canvas init failed — surfaced, not swallowed. Chrome blocks
+ // File System Access writes to protected folders (Desktop/Documents/Downloads).
+ const [initError, setInitError] = React.useState(null);
+
+ // Recent hosted projects (H7) — persisted FSA handles, for one-click re-open.
+ const [recents, setRecents] = React.useState([]);
+ React.useEffect(() => {
+ if (cliMode) return undefined;
+ let live = true;
+ listRecents().then((list) => { if (live) setRecents(list); });
+ return () => { live = false; };
+ }, [cliMode]);
+
+ async function openRecent(entry) {
+ try {
+ if (entry.handle && typeof entry.handle.requestPermission === 'function') {
+ await entry.handle.requestPermission({ mode: 'readwrite' });
+ }
+ } catch { /* the bring-up surfaces a lingering permission error */ }
+ if (typeof onFolderPicked === 'function') await onFolderPicked(entry.handle);
+ }
+ async function handleForget(entry) {
+ await forgetRecent(entry.id);
+ setRecents((list) => list.filter((r) => r.id !== entry.id));
+ }
+
+ async function handleTryDemo() {
+ try {
+ const handle = await createDemoProject();
+ if (typeof onFolderPicked === 'function') await onFolderPicked(handle);
+ } catch (err) {
+ // eslint-disable-next-line no-console
+ console.warn('[lerret] demo project failed:', err);
+ }
+ }
 
  /**
  * Open the FSA directory picker, validate the selection, and call
@@ -512,6 +549,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  */
  async function handleInitializeBlank() {
  if (!_failedHandle) return;
+ setInitError(null);
  setState('initializing');
  try {
  const lerretDir = await _failedHandle.getDirectoryHandle('.lerret', { create: true });
@@ -528,10 +566,15 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  await writable.write(body + '\n');
  await writable.close();
  } catch (err) {
- // Honest degradation: keep the user on the error state with the
- // original "Pick another" CTA still available.
+ // Honest degradation: surface WHY (Chrome blocks Desktop/Documents/
+ // Downloads for FSA writes) and keep the "Pick another" CTA available.
  // eslint-disable-next-line no-console
  console.warn('[lerret/init] Blank canvas init failed:', err);
+ setInitError(
+ err && err.name === 'NotAllowedError'
+ ? 'Your browser blocked creating files here — Desktop, Documents and Downloads are protected. Pick a regular project folder instead.'
+ : `Could not initialize here: ${err && err.message ? err.message : 'unknown error'}.`,
+ );
  setState('not-lerret-project');
  return;
  }
@@ -554,6 +597,11 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  <code>npx create-lerret@latest my-canvas</code> (or{' '}
  <code>--preset producthunt</code>, <code>--preset social-media</code>, …).
  </p>
+ {initError && (
+ <p style={{ ...errorBodyStyle, color: 'var(--lm-error, #A8412B)', fontWeight: 600 }} data-testid="init-error">
+ {initError}
+ </p>
+ )}
  <div style={{ display: 'flex', gap: 'var(--lm-space-2, 8px)', flexWrap: 'wrap' }}>
  <button
  type="button"
@@ -689,6 +737,47 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  >
  {isPicking ? 'Opening…' : cliMode ? 'How to open' : 'Open a Lerret folder'}
  </button>
+ )}
+
+ {!cliMode && state === 'idle' && (
+ <button
+ type="button"
+ onClick={handleTryDemo}
+ data-testid="try-demo-button"
+ style={{ ...secondaryButtonStyle, marginTop: 'var(--lm-space-2, 8px)' }}
+ >
+ Try a demo — no folder needed
+ </button>
+ )}
+
+ {!cliMode && state === 'idle' && recents.length > 0 && (
+ <div style={{ width: '100%', marginTop: 'var(--lm-space-4, 16px)' }} data-testid="hosted-recents">
+ <p style={{ ...eyebrowStyle, marginBottom: 'var(--lm-space-2, 8px)' }} aria-hidden="true">Recent</p>
+ <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+ {recents.slice(0, 6).map((r) => (
+ <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+ <button
+ type="button"
+ onClick={() => openRecent(r)}
+ data-testid="hosted-recent"
+ title={`Open ${r.name}`}
+ style={{ flex: 1, textAlign: 'left', padding: '8px 12px', borderRadius: 'var(--lm-radius-sm, 8px)', border: 'none', background: 'var(--lm-bg-secondary, #F2EEE6)', color: 'var(--lm-text-primary, #1A1714)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+ >
+ {r.name}
+ </button>
+ <button
+ type="button"
+ onClick={() => handleForget(r)}
+ aria-label={`Forget ${r.name}`}
+ title="Remove from recents"
+ style={{ flex: 'none', width: 28, height: 28, borderRadius: 'var(--lm-radius-sm, 8px)', border: 'none', background: 'transparent', color: 'var(--lm-text-tertiary, #6E6960)', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}
+ >
+ ×
+ </button>
+ </div>
+ ))}
+ </div>
+ </div>
  )}
  </div>
 

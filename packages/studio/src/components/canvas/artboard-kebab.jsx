@@ -141,6 +141,29 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
  transform: scale(var(--dc-inv, 1));
  transform-origin: right bottom;
 }
+.lm-data-badge {
+ display: inline-flex;
+ align-items: center;
+ height: 20px;
+ padding: 2px 9px;
+ font-family: var(--lm-font-sans, ui-sans-serif, system-ui, sans-serif);
+ font-size: 11px;
+ font-weight: 600;
+ line-height: 1;
+ color: var(--lm-text-tertiary, #6E6960);
+ background: var(--lm-bg-secondary, #F2EEE6);
+ border: none;
+ border-radius: var(--lm-radius-pill, 999px);
+ cursor: pointer;
+ user-select: none;
+ outline: none;
+ transition: background var(--lm-duration-fast, 120ms) var(--lm-ease, ease), color var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
+}
+.lm-data-badge:hover {
+ background: var(--lm-surface-hover, rgba(26, 23, 20, 0.05));
+ color: var(--lm-text-secondary, #3A3530);
+}
+.lm-data-badge:focus-visible { box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20)); }
  `.trim();
  document.head.appendChild(s);
 }
@@ -521,13 +544,17 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
 
  const cliMode = inCliMode();
 
- const baseItems = React.useMemo(
- () => buildComponentItems({
- onEditData: () => {
+ // Open the data editor — shared by the kebab's "Edit data" item and the
+ // standalone "Data" quick-button in the cluster.
+ const openData = React.useCallback(() => {
  setFocusField(undefined);
  setFocusVariant(undefined);
  setDataOpen(true);
- },
+ }, []);
+
+ const baseItems = React.useMemo(
+ () => buildComponentItems({
+ onEditData: openData,
  onEditMeta: () => setMetaOpen(true),
  onLiveRefresh,
  liveRefreshLabel:
@@ -542,7 +569,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  onRevealFinder,
  cliMode,
  }),
- [onLiveRefresh, liveRefreshMs, onDuplicate, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
+ [openData, onLiveRefresh, liveRefreshMs, onDuplicate, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = React.useMemo(
@@ -602,6 +629,16 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  {liveRefreshMs != null && (
  <LiveRefreshBadge rateMs={liveRefreshMs} onActivate={onLiveRefresh} />
  )}
+ <button
+ type="button"
+ className="lm-data-badge"
+ data-testid="lm-artboard-data-btn"
+ title="Edit data"
+ aria-label={`Edit data for ${entry?.label || entry?.asset?.name || 'this asset'}`}
+ onClick={openData}
+ >
+ Data
+ </button>
  <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-end" />
  </div>
  );

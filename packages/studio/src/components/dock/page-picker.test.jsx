@@ -14,6 +14,14 @@ import { createRoot } from 'react-dom/client';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { PagePicker } from './page-picker.jsx';
+import { renameProjectFile } from '../../runtime/write-client.js';
+
+// page-picker calls renameProjectFile directly; mock just that export (keep the
+// rest real so the menu module's lifecycle helpers stay unaffected).
+vi.mock('../../runtime/write-client.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, renameProjectFile: vi.fn(async () => ({ ok: true })) };
+});
 
 /** Mount an element into a detached jsdom container; returns it + a teardown. */
 function renderToDom(element) {
@@ -41,6 +49,15 @@ function keyDown(node, key) {
  node.dispatchEvent(
  new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
  );
+ });
+}
+
+/** Set a controlled input's value the way React expects (native setter + event). */
+function setInputValue(input, value) {
+ const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+ setter.call(input, value);
+ act(() => {
+ input.dispatchEvent(new window.Event('input', { bubbles: true }));
  });
 }
 
@@ -259,6 +276,81 @@ describe('PagePicker — manager mode (CLI)', () => {
  );
  // One page, non-CLI → static label, no dropdown trigger, no manage affordances.
  expect(container.querySelector('[data-page-picker="static"]')).not.toBeNull();
+ cleanup();
+ });
+});
+
+describe('PagePicker — rename a page (CLI)', () => {
+ const PROJECT = {
+ path: '/.lerret',
+ pages: [
+ { path: '/p/home', name: 'home', groups: [{}], assets: [{}, {}] },
+ { path: '/p/about', name: 'about', groups: [], assets: [] },
+ ],
+ };
+ const pages = [
+ { id: '/p/home', label: 'home' },
+ { id: '/p/about', label: 'about' },
+ ];
+
+ beforeEach(() => {
+ globalThis.__LERRET_CLI_MODE__ = true;
+ renameProjectFile.mockClear();
+ });
+ afterEach(() => {
+ delete globalThis.__LERRET_CLI_MODE__;
+ document
+ .querySelectorAll('[role="listbox"],[data-testid="lm-create-dialog"]')
+ .forEach((el) => el.remove());
+ });
+
+ it('offers a per-page rename affordance alongside delete', () => {
+ const { container, cleanup } = renderToDom(
+ <PagePicker pages={pages} current="/p/home" onNavigate={() => {}} projectModel={PROJECT} />,
+ );
+ act(() => container.querySelector('button').click());
+ expect(document.querySelectorAll('[data-testid="page-picker-rename"]').length).toBe(2);
+ cleanup();
+ });
+
+ it('rename opens a pre-filled "Rename page" dialog and commits via renameProjectFile', async () => {
+ const onNavigate = vi.fn();
+ const { container, cleanup } = renderToDom(
+ <PagePicker pages={pages} current="/p/home" onNavigate={onNavigate} projectModel={PROJECT} />,
+ );
+ act(() => container.querySelector('button').click());
+ const renameBtn = document.querySelector('[data-testid="page-picker-rename"]');
+ act(() => renameBtn.click());
+
+ const dialog = document.querySelector('[data-testid="lm-create-dialog"]');
+ expect(dialog).not.toBeNull();
+ expect(dialog.textContent).toMatch(/rename page/i);
+ const input = dialog.querySelector('[data-testid="lm-create-name-input"]');
+ expect(input.value).toBe('home'); // pre-filled with the current folder name
+
+ // Type a new name and confirm.
+ setInputValue(input, 'landing');
+ const confirm = dialog.querySelector('[data-testid="lm-create-confirm"]');
+ await act(async () => {
+ confirm.click();
+ });
+
+ // Renames the page folder (parent path preserved, last segment swapped)…
+ expect(renameProjectFile).toHaveBeenCalledWith('/p/home', '/p/landing');
+ // …and re-navigates, since the on-screen page's old path is now gone.
+ expect(onNavigate).toHaveBeenCalledWith('/p/landing');
+ cleanup();
+ });
+
+ it('keeps confirm disabled until the name actually changes', () => {
+ const { container, cleanup } = renderToDom(
+ <PagePicker pages={pages} current="/p/home" onNavigate={() => {}} projectModel={PROJECT} />,
+ );
+ act(() => container.querySelector('button').click());
+ act(() => document.querySelector('[data-testid="page-picker-rename"]').click());
+ const confirm = document.querySelector('[data-testid="lm-create-confirm"]');
+ // Unchanged name ("home") is a no-op → confirm stays disabled.
+ expect(confirm.disabled).toBe(true);
  cleanup();
  });
 });

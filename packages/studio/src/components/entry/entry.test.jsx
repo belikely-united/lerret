@@ -171,9 +171,11 @@ describe('<OpenFolder>', () => {
  expect(btn).toBeTruthy();
  expect(btn.tagName).toBe('BUTTON');
 
- // Only one primary button on the initial state.
+ // Initial state: the primary "Open" action + the "Try a demo" (OPFS)
+ // shortcut. No recents yet, so exactly these two (Epic 10 / H8).
  const allButtons = container.querySelectorAll('button');
- expect(allButtons.length).toBe(1);
+ expect(allButtons.length).toBe(2);
+ expect(container.querySelector('[data-testid="try-demo-button"]')).toBeTruthy();
 
  cleanup();
  });

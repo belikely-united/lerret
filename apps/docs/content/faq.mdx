@@ -41,7 +41,7 @@ The in-studio editors do let you change **data** (props, theming variables) with
 
 ## Is there a hosted SaaS?
 
-There is a **hosted studio** at `app.lerret.belikely.com` (Chromium-only) — but it is not a SaaS in the usual sense. It is a **static site** that talks to your local filesystem through the browser's File System Access API. Your files never leave your machine. There is no backend, no database, no account.
+There is a **hosted studio** at `app.lerret.belikely.com` (Chromium-only) — but it is not a SaaS in the usual sense. It is a **static site** that talks to your local filesystem through the browser's File System Access API: you open a local folder and the studio both **renders and edits** it — change data/config/meta and create, rename, move, or delete pages and assets, all written straight back to your local files (no `@lerret/cli` required). Your files never leave your machine. There is no backend, no database, no account.
 
 You can also [self-host](/deploy/#self-host) the studio on your own infrastructure with the exact same static build.
 

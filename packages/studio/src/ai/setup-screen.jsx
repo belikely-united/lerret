@@ -3,8 +3,8 @@
  *
  * Summons the first time the user submits anything to the dock AI input on a
  * folder where no provider is configured. A centered Editor-sheet variant
- * (≈ 880 × 540), four provider cards side-by-side (OpenAI / Anthropic /
- * OpenRouter / Ollama). Selecting a provider commits the user's chosen turn;
+ * (≈ 880 × 540), four full-width provider cards stacked vertically (OpenAI /
+ * Anthropic / OpenRouter / Ollama). Selecting a provider commits the user's chosen turn;
  * `Skip for now` dismisses without writing.
  *
  * Per AC-13/14/15/16 and the verbatim copy specified in §4.2 + the story's
@@ -89,12 +89,9 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-setup-screen
     width: 100%;
 }
 .lm-ai-setup__cards {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: var(--lm-space-3, 12px);
-}
-@media (max-width: 880px) {
-    .lm-ai-setup__cards { grid-template-columns: repeat(2, 1fr); }
 }
 .lm-ai-setup__card {
     background: var(--lm-bg-secondary, #F2EEE6);
@@ -102,10 +99,18 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-setup-screen
     border-radius: var(--lm-radius-md, 8px);
     padding: var(--lm-space-4, 16px);
     display: flex;
-    flex-direction: column;
-    gap: var(--lm-space-2, 8px);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-space-5, 20px);
     cursor: pointer;
     transition: border-color var(--lm-duration-fast, 120ms), background var(--lm-duration-fast, 120ms);
+}
+@media (max-width: 760px) {
+    .lm-ai-setup__card {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
 .lm-ai-setup__card[data-selected="true"] {
     border-color: var(--lm-accent, #B85B33);
@@ -114,6 +119,13 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-setup-screen
 .lm-ai-setup__card:focus-visible {
     outline: 2px solid var(--lm-accent, #B85B33);
     outline-offset: 2px;
+}
+.lm-ai-setup__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lm-space-1, 4px);
+    flex: 1;
+    min-width: 0;
 }
 .lm-ai-setup__title {
     font: 600 16px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
@@ -130,13 +142,17 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-setup-screen
     font: 400 12px/1.45 var(--lm-font-sans);
     color: var(--lm-text-secondary, #44403A);
     margin: 0;
-    flex: 1;
+    max-width: 52ch;
 }
 .lm-ai-setup__inputs {
     display: flex;
     flex-direction: column;
     gap: var(--lm-space-2, 8px);
-    margin-top: var(--lm-space-2, 8px);
+    width: 280px;
+    flex: none;
+}
+@media (max-width: 760px) {
+    .lm-ai-setup__inputs { width: 100%; }
 }
 .lm-ai-setup__input-row {
     position: relative;
@@ -468,9 +484,11 @@ export function SetupScreen({ open, onClose, onCommit, onSkip }) {
                                 onClick={() => setSelected(name)}
                                 onKeyDown={(e) => onCardKeyDown(e, name)}
                             >
-                                <h3 className="lm-ai-setup__title">{PROVIDER_LABELS[name]}</h3>
-                                <p className="lm-ai-setup__subline">{copy.subline}</p>
-                                <p className="lm-ai-setup__desc">{copy.description}</p>
+                                <div className="lm-ai-setup__body">
+                                    <h3 className="lm-ai-setup__title">{PROVIDER_LABELS[name]}</h3>
+                                    <p className="lm-ai-setup__subline">{copy.subline}</p>
+                                    <p className="lm-ai-setup__desc">{copy.description}</p>
+                                </div>
                                 <div className="lm-ai-setup__inputs">
                                     {variant === 'cloud-byok' ? (
                                         <>

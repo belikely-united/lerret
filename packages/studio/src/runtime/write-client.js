@@ -87,6 +87,34 @@ function isCliMode() {
  return typeof globalThis !== 'undefined' && globalThis.__LERRET_CLI_MODE__ === true;
 }
 
+// ── Hosted writer registry (Epic 10 / H2) ──────────────────────────────────
+// In hosted mode there is no server. The hosted boot registers a writer backed
+// by the File System Access API; when present, the write + lifecycle helpers
+// delegate to it instead of returning the standalone-disabled error.
+let hostedWriter = null;
+
+/**
+ * Register (or clear, with null) the hosted-mode writer. It implements the same
+ * surface as these helpers — `writeFile` / `createEntry` / `renameEntry` /
+ * `deleteEntry` / `moveEntry` / `duplicateEntry` / `mkdir` / `removeDir` — and
+ * returns the same `{ ok, error?, ... }` shapes.
+ *
+ * @param {object | null} writer
+ */
+export function setHostedWriter(writer) {
+ hostedWriter = writer;
+}
+
+/**
+ * Whether hosted writes are available (a writer is registered). The studio gates
+ * write affordances on `inCliMode() || hostedWritesEnabled()`.
+ *
+ * @returns {boolean}
+ */
+export function hostedWritesEnabled() {
+ return hostedWriter !== null;
+}
+
 /**
  * Turn a thrown fetch error into a calm message. The browser's
  * connection-failure signatures ("Failed to fetch" on Chromium, "NetworkError
@@ -148,6 +176,7 @@ export async function writeProjectFile(path, content, opts = {}) {
  }
 
  if (!isCliMode()) {
+ if (hostedWriter) return hostedWriter.writeFile(path, content, opts);
  return {
  ok: false,
  error: 'writes are disabled in standalone mode (run `@lerret/cli dev` to enable)',
@@ -397,6 +426,7 @@ export async function mkdirProject(path, opts = {}) {
  if (typeof path !== 'string' || path.length === 0) {
  return { ok: false, error: 'mkdirProject: path must be a non-empty string' };
  }
+ if (!isCliMode() && hostedWriter) return hostedWriter.mkdir(path);
  const result = await callLifecycleEndpoint(MKDIR_ENDPOINT, { path }, opts);
  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
@@ -418,6 +448,7 @@ export async function removeDirProject(path, opts = {}) {
  if (typeof path !== 'string' || path.length === 0) {
  return { ok: false, error: 'removeDirProject: path must be a non-empty string' };
  }
+ if (!isCliMode() && hostedWriter) return hostedWriter.removeDir(path);
  const result = await callLifecycleEndpoint(REMOVE_DIR_ENDPOINT, { path }, opts);
  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
@@ -507,6 +538,7 @@ export async function renameProjectFile(fromPath, toPath, opts = {}) {
  if (typeof toPath !== 'string' || toPath.length === 0) {
  return { ok: false, error: 'renameProjectFile: to must be a non-empty string' };
  }
+ if (!isCliMode() && hostedWriter) return hostedWriter.renameEntry(fromPath, toPath);
  const result = await callLifecycleEndpoint(RENAME_ENDPOINT, { from: fromPath, to: toPath }, opts);
  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
@@ -524,6 +556,7 @@ export async function duplicateProjectFile(path, opts = {}) {
  if (typeof path !== 'string' || path.length === 0) {
  return { ok: false, error: 'duplicateProjectFile: path must be a non-empty string' };
  }
+ if (!isCliMode() && hostedWriter) return hostedWriter.duplicateEntry(path);
  const result = await callLifecycleEndpoint(DUPLICATE_ENDPOINT, { path }, opts);
  if (!result.ok) return { ok: false, error: result.error };
  return { ok: true, path: typeof result.path === 'string' ? result.path : undefined };
@@ -551,6 +584,7 @@ export async function moveProjectFile(fromPath, toFolderPath, opts = {}) {
  if (typeof toFolderPath !== 'string' || toFolderPath.length === 0) {
  return { ok: false, error: 'moveProjectFile: toFolderPath must be a non-empty string' };
  }
+ if (!isCliMode() && hostedWriter) return hostedWriter.moveEntry(fromPath, toFolderPath);
  const result = await callLifecycleEndpoint(MOVE_ENDPOINT, { fromPath, toFolderPath }, opts);
  if (!result.ok) return { ok: false, error: result.error };
  return {
@@ -588,6 +622,7 @@ export async function createProjectEntry(parentPath, name, kind, opts = {}) {
   if (kind !== 'folder' && kind !== 'asset') {
     return { ok: false, error: 'createProjectEntry: kind must be "folder" or "asset"' };
   }
+  if (!isCliMode() && hostedWriter) return hostedWriter.createEntry(parentPath, name, kind, opts);
   const reqBody = { parentPath, name, kind };
   if (kind === 'asset') {
     reqBody.assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
@@ -611,6 +646,7 @@ export async function deleteProjectFile(path, opts = {}) {
  if (typeof path !== 'string' || path.length === 0) {
  return { ok: false, error: 'deleteProjectFile: path must be a non-empty string' };
  }
+ if (!isCliMode() && hostedWriter) return hostedWriter.deleteEntry(path);
  const result = await callLifecycleEndpoint(DELETE_ENDPOINT, { path }, opts);
  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }

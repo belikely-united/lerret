@@ -35,6 +35,7 @@ import { RevertTimelinePanel } from './ai/revert-timeline.jsx';
 import { useCascadedConfig } from './components/canvas/cascade-context.jsx';
 import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 import { inCliMode, switchProject } from './runtime/write-client.js';
+import { getHostedController } from './runtime/hosted-controller.js';
 import { ConnectProjectDialog } from './components/entry/connect-project-dialog.jsx';
 // Import the extracted walkthrough overlay and offer.
 // The overlay and its step sequence now live in components/walkthrough/.
@@ -574,8 +575,8 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  menuRef={brandMenuRef}
  onDownloadLogo={() => { triggerDownload('/assets/lerret-logo.png', 'lerret-logo.png'); setBrandOpen(false); }}
  onTakeTour={() => { setBrandOpen(false); onHelp && onHelp(); }}
- onSwitchProject={cliMode ? () => { setBrandOpen(false); setConnectOpen(true); } : undefined}
- onCloseProject={cliMode && projectModel ? () => { setBrandOpen(false); switchProject(null); } : undefined}
+ onSwitchProject={cliMode ? () => { setBrandOpen(false); setConnectOpen(true); } : getHostedController() ? () => { setBrandOpen(false); getHostedController().openAnother(); } : undefined}
+ onCloseProject={cliMode && projectModel ? () => { setBrandOpen(false); switchProject(null); } : getHostedController() && projectModel ? () => { setBrandOpen(false); getHostedController().close(); } : undefined}
  onAiSettings={() => { setBrandOpen(false); setAiSettingsOpen(true); }}
  onAiRevertHistory={() => { setBrandOpen(false); setRevertTimelineFocusTurn(null); setRevertTimelineOpen(true); }}
  canExport={!!projectModel}

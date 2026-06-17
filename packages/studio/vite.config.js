@@ -114,9 +114,27 @@ function lerretSelfHostPlugin({ studioDir }) {
  handler(html, ctx) {
  // Only inject in the production build (ctx.server is absent).
  if (ctx.server) return html;
- const injection =
- '<script>globalThis.__LERRET_HOSTED_MODE__ = true;</script>';
- return html.replace('</head>', ` ${injection}\n </head>`);
+ const flag = '<script>globalThis.__LERRET_HOSTED_MODE__ = true;</script>';
+ let out = html.replace('</head>', ` ${flag}\n </head>`);
+ // Bake the React import map at BUILD time. Chrome commits a page's import
+ // map when it first processes the element at load, so populating it at
+ // runtime (setReactImportMap, after the folder pick) is too late — the live
+ // map is already committed empty. The stable entry-chunk names
+ // (rollupOptions.input + entryFileNames) make these URLs deterministic.
+ // (Epic 10 / Story H1.2.)
+ const importMap = JSON.stringify({
+ imports: {
+ react: './assets/react-instance.js',
+ 'react/jsx-runtime': './assets/react-jsx-runtime-instance.js',
+ 'react-dom': './assets/react-dom-instance.js',
+ 'react-dom/client': './assets/react-dom-client-instance.js',
+ },
+ });
+ out = out.replace(
+ /(<script type="importmap" id="lerret-import-map">)[\s\S]*?(<\/script>)/,
+ `$1${importMap}$2`,
+ );
+ return out;
  },
  },
 
@@ -213,6 +231,38 @@ export default defineConfig({
  // Default (hosted) build: only the spike guard.
  /spike\/hosted-runtime\//,
  ],
+ // Hosted build only: emit the React re-export modules (react-instance.js
+ // etc.) as STABLE-named entry chunks. Rolldown hoists the shared React
+ // into a common chunk that BOTH these entries and the studio import — one
+ // instance — and `hosted-react-urls.js` points the import map at the
+ // stable URLs so SW-served user assets resolve `react` to it. (Epic 10 / H1.2.)
+ ...(isCliBuild
+ ? {}
+ : {
+ // The re-export entries have no in-graph importer (the import map +
+ // service worker consume them at RUNTIME), so without this Rolldown
+ // tree-shakes their `export *` away, leaving empty chunks. Keep entry
+ // signatures so `react-instance.js` et al. actually re-export React.
+ preserveEntrySignatures: 'allow-extension',
+ input: {
+ index: resolve(studioDir, 'index.html'),
+ 'react-instance': resolve(studioDir, 'src/runtime/react-instance.js'),
+ 'react-jsx-runtime-instance': resolve(studioDir, 'src/runtime/react-jsx-runtime-instance.js'),
+ 'react-dom-instance': resolve(studioDir, 'src/runtime/react-dom-instance.js'),
+ 'react-dom-client-instance': resolve(studioDir, 'src/runtime/react-dom-client-instance.js'),
+ },
+ output: {
+ entryFileNames: (chunk) =>
+ [
+ 'react-instance',
+ 'react-jsx-runtime-instance',
+ 'react-dom-instance',
+ 'react-dom-client-instance',
+ ].includes(chunk.name)
+ ? 'assets/[name].js'
+ : 'assets/[name]-[hash].js',
+ },
+ }),
  },
  outDir: isCliBuild ? 'dist-cli' : 'dist',
  },

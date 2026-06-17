@@ -1121,82 +1121,6 @@ describe('AiInputCluster — reduced motion (AC-16)', () => {
 // ─── Phase 5 wiring integration (Stories 8.7 + 8.9 mounted into the cluster) ──
 
 describe('mode toggle wiring (Story 8.9)', () => {
-    it('renders the Ask/Inspect toggle; Inspect swaps the placeholder and passes mode to runTurn', async () => {
-        const runTurnSpy = vi.fn(async function* (args) {
-            void args;
-            yield { type: 'thinking' };
-            yield { type: 'inspector-response', answer: 'Three artboards use the brand color.' };
-            yield { type: 'done', files: [] }; // inspect: no files, NO turnId
-        });
-        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-
-        // The toggle is mounted in the field.
-        expect(container.querySelector('[data-testid="ai-mode-toggle"]')).toBeTruthy();
-
-        // Switch to Inspect → placeholder swaps (AC-2 of 8.9).
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        const input = container.querySelector('[data-testid="ai-input"]');
-        expect(input.placeholder).toBe('Ask Lerret about your project…');
-
-        // Submit → runTurn receives mode: 'inspect'.
-        act(() => setReactInputValue(input, 'how many artboards use our brand color?'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-        expect(runTurnSpy).toHaveBeenCalledTimes(1);
-        expect(runTurnSpy.mock.calls[0][0].mode).toBe('inspect');
-        cleanup();
-    });
-
-    it('an inspect turn renders the ANSWER as the thread-card body with no file actions and no quick-revert', async () => {
-        const answer = 'Three artboards use the brand color.';
-        aiMock.current = makeAi({
-            events: [
-                { type: 'thinking' },
-                { type: 'inspector-response', answer },
-                { type: 'done', files: [] },
-            ],
-        });
-        const onOpenRevertTimeline = vi.fn();
-        const { container, cleanup } = renderToDom(<Harness onOpenRevertTimeline={onOpenRevertTimeline} />);
-        await tick();
-
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        const input = container.querySelector('[data-testid="ai-input"]');
-        act(() => setReactInputValue(input, 'which artboards?'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-
-        // No quick-revert affordance: the inspect done carries no turnId.
-        expect(container.querySelector('[data-testid="ai-quick-revert"]')).toBeNull();
-
-        // Open the thread: the inspect card body is the ANSWER (FR58), revert
-        // disabled with the calm reason, file actions omitted.
-        act(() => {
-            container.querySelector('[data-testid="ai-thread-chevron"]').click();
-        });
-        await tick();
-        const card = document.querySelector('[data-testid="ai-thread-card"]');
-        expect(card.getAttribute('data-mode')).toBe('inspect');
-        expect(card.querySelector('[data-testid="ai-thread-outcome"]').textContent).toBe(answer);
-        const actions = [...card.querySelectorAll('.lm-ai-thread__action')];
-        const revertBtn = actions.find((b) => b.textContent === 'Revert this turn');
-        expect(revertBtn.disabled).toBe(true);
-        expect(revertBtn.title).toBe('Nothing to revert');
-        expect(actions.some((b) => b.textContent === 'View files')).toBe(false);
-        expect(actions.some((b) => b.textContent === 'Open revert timeline')).toBe(false);
-        cleanup();
-    });
-
     it('ask mode still passes mode: "ask" and keeps the file-outcome card', async () => {
         const runTurnSpy = vi.fn(async function* () {
             yield { type: 'writing', file: '.lerret/a.jsx' };
@@ -1282,11 +1206,11 @@ describe('vision gate wiring (Story 8.7)', () => {
         await tick(30);
 
         // The one-off fallback prompt is open; the turn has not run yet.
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).toBeTruthy();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).toBeTruthy();
         expect(runTurnSpy).not.toHaveBeenCalled();
 
         act(() => {
-            container.querySelector('[data-testid="vision-fallback-yes"]').click();
+            document.querySelector('[data-testid="vision-fallback-yes"]').click();
         });
         await tick(30);
         expect(runTurnSpy).toHaveBeenCalledTimes(1);
@@ -1298,7 +1222,7 @@ describe('vision gate wiring (Story 8.7)', () => {
         // …and the mid-turn decision mirror is wired for the orchestrator.
         expect(typeof call.onVisionDecision).toBe('function');
         // The prompt closed; the override was one-off (no vault write here).
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
         cleanup();
     });
 
@@ -1325,7 +1249,7 @@ describe('vision gate wiring (Story 8.7)', () => {
         });
         await tick(30);
         act(() => {
-            container.querySelector('[data-testid="vision-fallback-cancel"]').click();
+            document.querySelector('[data-testid="vision-fallback-cancel"]').click();
         });
         await tick(30);
         expect(runTurnSpy).not.toHaveBeenCalled();
@@ -1357,11 +1281,11 @@ describe('vision gate wiring (Story 8.7)', () => {
         });
         await tick(30);
         act(() => {
-            container.querySelector('[data-testid="vision-fallback-yes"]').click();
+            document.querySelector('[data-testid="vision-fallback-yes"]').click();
         });
         await tick(40);
         expect(runTurnSpy).toHaveBeenCalledTimes(1);
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
         // Turn 2: the SAME consent question is asked afresh — the ack from
         // turn 1 must not be remembered anywhere.
         act(() => setReactInputValue(input, 'match it again'));
@@ -1369,10 +1293,10 @@ describe('vision gate wiring (Story 8.7)', () => {
             input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
         });
         await tick(30);
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
         expect(runTurnSpy).toHaveBeenCalledTimes(1); // turn 2 still suspended
         act(() => {
-            container.querySelector('[data-testid="vision-fallback-yes"]').click();
+            document.querySelector('[data-testid="vision-fallback-yes"]').click();
         });
         await tick(40);
         expect(runTurnSpy).toHaveBeenCalledTimes(2);
@@ -1401,7 +1325,7 @@ describe('vision gate wiring (Story 8.7)', () => {
             input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
         });
         await tick(30);
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
         // While the prompt is open `running` is false and the input is
         // enabled — a second Enter must start NOTHING and consume NOTHING.
         act(() => setReactInputValue(input, 'and another thing'));
@@ -1410,12 +1334,12 @@ describe('vision gate wiring (Story 8.7)', () => {
         });
         await tick(30);
         expect(runTurnSpy).not.toHaveBeenCalled();
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
         expect(input.value).toBe('and another thing'); // second prompt untouched
         // The prompt is still answerable: accept resumes the FIRST submission
         // — exactly one turn.
         act(() => {
-            container.querySelector('[data-testid="vision-fallback-yes"]').click();
+            document.querySelector('[data-testid="vision-fallback-yes"]').click();
         });
         await tick(40);
         expect(runTurnSpy).toHaveBeenCalledTimes(1);
@@ -1464,7 +1388,7 @@ describe('AiInputCluster — Esc answers a mid-turn vision prompt before stoppin
         });
         await tick(20);
         // The mid-turn prompt is open WHILE the turn runs.
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
         expect(container.querySelector('[data-testid="ai-stop"]')).not.toBeNull();
         // Esc #1: answers the prompt (decline) — one action per keypress; the
         // turn is NOT aborted and the pill is NOT wedged on Stopping….
@@ -1472,7 +1396,7 @@ describe('AiInputCluster — Esc answers a mid-turn vision prompt before stoppin
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         });
         await tick(10);
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
         expect(decisions).toEqual([{ accept: false }]);
         expect(aborted).toBe(false);
         expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
@@ -1517,97 +1441,7 @@ describe('AiInputCluster — Esc answers a mid-turn vision prompt before stoppin
         // The turn ended (error pill); the orphaned prompt was closed with it.
         expect(container.querySelector('[data-testid="ai-status-pill"]').getAttribute('data-status'))
             .toBe('error');
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
-        cleanup();
-    });
-});
-
-// ── S3 + Story 8.9: mode-toggle gating ──────────────────────────────────────────
-
-describe('AiInputCluster — mode toggle gating (S3)', () => {
-    it('the toggle is disabled while a turn runs and re-enables after it ends', async () => {
-        const gate = deferred();
-        aiMock.current = makeAi({
-            runTurnImpl: async function* () {
-                yield { type: 'thinking' };
-                await gate.promise;
-                yield { type: 'done', files: [] };
-            },
-        });
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        const input = container.querySelector('[data-testid="ai-input"]');
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(false);
-        await act(async () => {
-            setReactInputValue(input, 'go');
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(20);
-        // Mid-run: the mode is pinned for the duration of the turn.
-        expect(container.querySelector('[data-testid="ai-mode-ask"]').disabled).toBe(true);
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(true);
-        await act(async () => { gate.resolve(); });
-        await tick(40);
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(false);
-        cleanup();
-    });
-
-    it('the toggle is disabled while a submit is suspended at the setup gate', async () => {
-        const runTurn = vi.fn(async function* () { yield { type: 'done', files: [] }; });
-        aiMock.current = {
-            runTurn,
-            vault: {
-                listProviderConfigs: async () => [], // no providers → setup gate
-                isDisclosureAcked: async () => false,
-            },
-        };
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        const input = container.querySelector('[data-testid="ai-input"]');
-        await act(async () => {
-            setReactInputValue(input, 'design something');
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-        // The setup gate holds a suspended submission that already captured
-        // its mode — the visible toggle must not be flippable underneath it.
-        expect(document.querySelector('[data-provider="openai"]')).not.toBeNull();
-        expect(container.querySelector('[data-testid="ai-mode-ask"]').disabled).toBe(true);
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(true);
-        // Discarding the gate releases the toggle.
-        const skip = document.querySelector('[data-testid="lm-ai-setup-skip"]');
-        await act(async () => { skip.click(); });
-        await tick(20);
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(false);
-        cleanup();
-    });
-
-    it('the toggle is disabled while the State B vision prompt is open', async () => {
-        aiMock.current = {
-            ...makeAi(),
-            vision: {
-                isVisionRequired: () => true,
-                supportsVision: () => false,
-                eligibleVisionProviders: () => [
-                    { providerName: 'openai', variant: 'cloud-byok', source: 'configured' },
-                ],
-            },
-        };
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        const input = container.querySelector('[data-testid="ai-input"]');
-        act(() => setReactInputValue(input, 'match this screenshot'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-        expect(container.querySelector('[data-testid="vision-fallback-prompt"]')).not.toBeNull();
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(true);
-        act(() => {
-            container.querySelector('[data-testid="vision-fallback-cancel"]').click();
-        });
-        await tick(20);
-        expect(container.querySelector('[data-testid="ai-mode-inspect"]').disabled).toBe(false);
+        expect(document.querySelector('[data-testid="vision-fallback-prompt"]')).toBeNull();
         cleanup();
     });
 });
@@ -1687,167 +1521,6 @@ describe('AiInputCluster — recognized workflow turns skip the vision gate (S4)
         expect(runTurnSpy).toHaveBeenCalledTimes(2);
         expect(runTurnSpy.mock.calls[1][0].attachments).toBeUndefined();
         expect(container.querySelector('[data-testid="ai-vision-note"]')).toBeNull();
-        cleanup();
-    });
-});
-
-// ── S6: inspect submits + staged attachments ────────────────────────────────────
-
-describe('AiInputCluster — inspect submits leave attachments staged (S6)', () => {
-    it('an inspect submit neither sends nor clears staged attachments; the next ask turn consumes them', async () => {
-        const runTurnSpy = vi.fn(async function* () {
-            yield { type: 'done', files: [] };
-        });
-        aiMock.current = makeAi({ runTurnImpl: runTurnSpy }); // no vision ns → gate fail-safe 'run'
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        await stageImageAttachment(container);
-        // Inspect submit: text-only — the staged image must NOT ride…
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        const input = container.querySelector('[data-testid="ai-input"]');
-        act(() => setReactInputValue(input, 'what pages exist?'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(40);
-        expect(runTurnSpy).toHaveBeenCalledTimes(1);
-        expect(runTurnSpy.mock.calls[0][0].mode).toBe('inspect');
-        expect(runTurnSpy.mock.calls[0][0].attachments).toBeUndefined();
-        // …and must still be staged for the NEXT ask submit.
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-ask"]').click();
-        });
-        act(() => setReactInputValue(input, 'use the image'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(40);
-        expect(runTurnSpy).toHaveBeenCalledTimes(2);
-        expect(runTurnSpy.mock.calls[1][0].attachments).toHaveLength(1);
-        expect(runTurnSpy.mock.calls[1][0].attachments[0].mimeType).toBe('image/png');
-        cleanup();
-    });
-
-    it('an inspect submit clears a stale State A note', async () => {
-        const runTurnSpy = vi.fn(async function* () {
-            yield { type: 'done', files: [] };
-        });
-        aiMock.current = {
-            ...makeAi({ runTurnImpl: runTurnSpy }),
-            vision: {
-                isVisionRequired: () => true,
-                supportsVision: () => false,
-                eligibleVisionProviders: () => [], // ask submits block as State A
-            },
-        };
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        const input = container.querySelector('[data-testid="ai-input"]');
-        // Arm State A via a blocked ask submit.
-        act(() => setReactInputValue(input, 'match this screenshot'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-        expect(runTurnSpy).not.toHaveBeenCalled();
-        expect(container.querySelector('[data-testid="ai-vision-note"]')).not.toBeNull();
-        // An inspect submit reads fresh: the stale note clears, the turn runs.
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        act(() => setReactInputValue(input, 'what pages exist?'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(40);
-        expect(container.querySelector('[data-testid="ai-vision-note"]')).toBeNull();
-        expect(runTurnSpy).toHaveBeenCalledTimes(1);
-        cleanup();
-    });
-});
-
-// ── S5 / AC-9: inspect answers — clickable file paths ───────────────────────────
-
-describe('AiInputCluster — inspect answers render file paths as actions (AC-9)', () => {
-    it('a detected path renders as a button; clicking scopes the next prompt and closes the thread', async () => {
-        // Reduced motion → the EditorSheet close is instant in jsdom.
-        vi.stubGlobal('matchMedia', reducedMotionStub(true));
-        const answer = 'The card lives at .lerret/social/card.jsx beside its page.';
-        aiMock.current = makeAi({
-            events: [
-                { type: 'thinking' },
-                { type: 'inspector-response', answer },
-                { type: 'done', files: [] },
-            ],
-        });
-        let scopeCtx;
-        const { container, cleanup } = renderToDom(
-            <Harness onScopeReady={(c) => { scopeCtx = c; }} />,
-        );
-        await tick();
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        const input = container.querySelector('[data-testid="ai-input"]');
-        act(() => setReactInputValue(input, 'where is the card?'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-        act(() => {
-            container.querySelector('[data-testid="ai-thread-chevron"]').click();
-        });
-        await tick();
-        // The path is an inline action inside the answer; the surrounding
-        // text stays plain (React-escaped) text.
-        const pathBtn = document.querySelector('[data-testid="ai-thread-path"]');
-        expect(pathBtn).not.toBeNull();
-        expect(pathBtn.tagName).toBe('BUTTON');
-        expect(pathBtn.textContent).toBe('.lerret/social/card.jsx');
-        expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent).toBe(answer);
-        // Click: the selection scope becomes the file; the thread closes.
-        await act(async () => { pathBtn.click(); });
-        await tick(20);
-        expect(scopeCtx.scope).toMatchObject({
-            kind: 'file',
-            filePath: '.lerret/social/card.jsx',
-            label: 'card.jsx',
-        });
-        expect(document.querySelector('[data-testid="ai-thread"]')).toBeNull();
-        // The chip reflects the new scope back at the dock.
-        expect(container.querySelector('[data-testid="ai-selection-chip"]').textContent)
-            .toContain('card.jsx');
-        cleanup();
-    });
-
-    it('an answer without paths renders as plain text — no action buttons', async () => {
-        const answer = 'Three artboards use the brand color.';
-        aiMock.current = makeAi({
-            events: [
-                { type: 'thinking' },
-                { type: 'inspector-response', answer },
-                { type: 'done', files: [] },
-            ],
-        });
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        const input = container.querySelector('[data-testid="ai-input"]');
-        act(() => setReactInputValue(input, 'how many?'));
-        act(() => {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        });
-        await tick(30);
-        act(() => {
-            container.querySelector('[data-testid="ai-thread-chevron"]').click();
-        });
-        await tick();
-        expect(document.querySelector('[data-testid="ai-thread-path"]')).toBeNull();
-        expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent).toBe(answer);
         cleanup();
     });
 });
@@ -2424,29 +2097,6 @@ describe('AiInputCluster — tool trail (Story 9.4 AC-4)', () => {
         expect(document.querySelector('[data-testid="ai-thread-trail"]')).toBeNull();
         cleanup();
     });
-
-    it('inspect cards stay trail-free (their loop is invisible by design)', async () => {
-        aiMock.current = makeAi({
-            events: [
-                { type: 'thinking' },
-                { type: 'reading', file: 'kit/banner.jsx' },
-                { type: 'inspector-response', answer: 'It uses the brand color.' },
-                { type: 'done', files: [] },
-            ],
-        });
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        await submitPrompt(container, 'what color does the banner use?');
-        await tick(40);
-        await openThread(container);
-        const card = document.querySelector('[data-testid="ai-thread-card"]');
-        expect(card.getAttribute('data-mode')).toBe('inspect');
-        expect(card.querySelector('[data-testid="ai-thread-trail"]')).toBeNull();
-        cleanup();
-    });
 });
 
 describe('AiInputCluster — done summary (Story 9.4 AC §5)', () => {
@@ -2509,35 +2159,6 @@ describe('AiInputCluster — done summary (Story 9.4 AC §5)', () => {
         expect(document.querySelector('[data-testid="ai-thread-outcome"]').textContent)
             .toBe('Nothing needed changing.');
         expect(document.querySelector('[data-testid="ai-thread-files-line"]')).toBeNull();
-        cleanup();
-    });
-});
-
-describe('AiInputCluster — inspect pill never shows Writing (review M1)', () => {
-    it('read-tool tool-calls drive the READING state in inspect mode', async () => {
-        const gate = deferred();
-        aiMock.current = makeAi({
-            runTurnImpl: async function* () {
-                yield { type: 'thinking' };
-                yield { type: 'tool-call', name: 'read_file' };
-                yield { type: 'reading', file: 'kit/banner.jsx' };
-                await gate.promise; // hold the turn open so the pill is observable
-                yield { type: 'inspector-response', answer: 'teal' };
-                yield { type: 'done', files: [] };
-            },
-        });
-        const { container, cleanup } = renderToDom(<Harness />);
-        await tick();
-        act(() => {
-            container.querySelector('[data-testid="ai-mode-inspect"]').click();
-        });
-        await submitPrompt(container, 'what color is the banner?');
-        await tick(30);
-        const pill = container.querySelector('[data-testid="ai-status-pill"]');
-        expect(pill.getAttribute('data-status')).toBe('reading');
-        gate.resolve();
-        await tick(30);
-        expect(pill.getAttribute('data-status')).toBe('done');
         cleanup();
     });
 });
