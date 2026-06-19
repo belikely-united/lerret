@@ -73,12 +73,15 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-grip:hover{background:rgba(0,0,0,.08)}',
  '.dc-grip:active{cursor:grabbing}',
  '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
- // Label truncation lives on the editable's own ABSOLUTE max-width (see
-// DCArtboardFrame): it ellipsizes ONLY when the text truly exceeds the artboard's
+ // Label truncation: an ABSOLUTE max-width on the editable (scoped rules below) —
+// reserves the always-visible right cluster + grip, and MORE when the hover/error
+// export badges show, so it ellipsizes ONLY when the text truly exceeds the artboard's
 // on-screen width (--dc-w / --dc-inv − grip). An absolute value, not max-width:100%,
 // which would form a cyclic constraint and collapse the label below its content.
 '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;transition:background .12s}',
  '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
+'.dc-labeltext .dc-editable{max-width:max(40px, calc(var(--dc-w, 260px) / var(--dc-inv, 1) - var(--dc-cluster-w, 71px) - 16px))}',
+'[data-dc-slot]:hover .dc-labeltext .dc-editable,[data-dc-slot]:has(.dc-dl[data-dc-error-disabled]) .dc-labeltext .dc-editable{max-width:max(40px, calc(var(--dc-w, 260px) / var(--dc-inv, 1) - var(--dc-cluster-w, 71px) - 230px))}',
  '.dc-expand{position:absolute;bottom:100%;right:calc((var(--dc-cluster-w, 26px) + 6px) * var(--dc-inv, 1));margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
  ' background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center}',
@@ -1694,7 +1697,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  </button>
  <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
  <DCEditable value={label} onChange={onRename} onClick={(e) => e.stopPropagation()}
- style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1.3, maxWidth: 'calc(var(--dc-w, 260px) / var(--dc-inv, 1) - 24px)' }} />
+ style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1.3 }} />
  </div>
  </div>
  </div>
