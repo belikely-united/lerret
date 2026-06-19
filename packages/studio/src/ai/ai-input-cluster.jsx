@@ -61,6 +61,7 @@ import React from 'react';
 import { getAi } from './lazy.js';
 import { useAiContext } from './ai-context.jsx';
 import { createCliAiFs } from './ai-fs.js';
+import { getHostedAiFs, HOSTED_AI_PROJECT_ROOT } from '../fs/hosted-ai-fs.js';
 import { inCliMode } from '../runtime/write-client.js';
 import { useSelectionScope, fileScope } from './selection-scope-context.jsx';
 import { useProjectPages } from '../components/dock/project-pages-context.jsx';
@@ -68,6 +69,7 @@ import { SetupScreen } from './setup-screen.jsx';
 import { PrivacyDisclosure } from './privacy-disclosure.jsx';
 import { EditorSheet } from '../components/editors/editor-sheet.jsx';
 import { VisionAttachButton } from './vision-attach-button.jsx';
+import { AttachmentPreview } from './attachment-preview.jsx';
 import { VisionFallbackPrompt } from './vision-fallback-prompt.jsx';
 import { useVisionGate, VISION_PILL_LABEL } from './use-vision-gate.js';
 // §6.5 fix: the activity feed must PORTAL to <body>. The dock has overflow:auto
@@ -1258,11 +1260,17 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
     // the adapter is NOT rebuilt every turn. Null outside CLI mode (or when
     // the folderId is not an absolute path) — runTurn then receives no
     // fs/projectRoot and reports the gap as a calm turn error.
-    const cliFsBinding = React.useMemo(() => {
-        if (!inCliMode()) return null;
-        const projectRoot = deriveProjectRoot(aiCtx.folderId);
-        if (!projectRoot) return null;
-        return { projectRoot, fs: createCliAiFs({ projectRoot }) };
+    const fsBinding = React.useMemo(() => {
+        if (inCliMode()) {
+            const projectRoot = deriveProjectRoot(aiCtx.folderId);
+            if (!projectRoot) return null;
+            return { projectRoot, fs: createCliAiFs({ projectRoot }) };
+        }
+        // Hosted mode: the FSA adapter registered at bring-up, addressed under
+        // a VIRTUAL projectRoot the adapter strips before each backend call.
+        const hostedFs = getHostedAiFs();
+        if (hostedFs) return { projectRoot: HOSTED_AI_PROJECT_ROOT, fs: hostedFs };
+        return null;
     }, [aiCtx.folderId]);
 
     // ── Local UI state ──────────────────────────────────────────────────────
@@ -1781,10 +1789,11 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     // The vault identity — without it the orchestrator's
                     // provider resolver cannot list this folder's configs.
                     folderId: aiCtx.folderId,
-                    // CLI mode: the snapshot store + Worker write through the
-                    // dev-server filesystem bridge (memoized per folderId).
-                    ...(cliFsBinding
-                        ? { projectRoot: cliFsBinding.projectRoot, fs: cliFsBinding.fs }
+                    // The snapshot store + Worker write through the filesystem
+                    // bridge — the dev server (CLI) or the FSA backend (hosted),
+                    // memoized per folderId.
+                    ...(fsBinding
+                        ? { projectRoot: fsBinding.projectRoot, fs: fsBinding.fs }
                         : null),
                     ...(Array.isArray(opts.attachments) && opts.attachments.length > 0
                         ? { attachments: opts.attachments }
@@ -2053,7 +2062,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                 if (mountedRef.current) setTurnProgress(null);
             }
         },
-        [scope, currentPage, finishTurn, clearTerminalTimers, aiCtx.folderId, cliFsBinding, requestContinueDecision, requestClarifyDecision],
+        [scope, currentPage, finishTurn, clearTerminalTimers, aiCtx.folderId, fsBinding, requestContinueDecision, requestClarifyDecision],
     );
 
     // ── Gating: first-run setup + cloud disclosure (consumes Story 8.1) ─────
@@ -2401,6 +2410,17 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     disabled-with-reason when the active model lacks vision. */}
                 <VisionAttachButton
                     onAttach={(items) => setPendingAttachments((prev) => [...prev, ...items])}
+                />
+
+                {/* Staged-image previews — visual feedback for what's attached,
+                    each with a remove (×). Portals above the dock; renders
+                    nothing when nothing is staged. Cleared when a turn consumes
+                    the attachments. */}
+                <AttachmentPreview
+                    attachments={pendingAttachments}
+                    onRemove={(idx) =>
+                        setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))
+                    }
                 />
 
                 {/* [ status pill | stop button ] — spec §4.1. The pill is

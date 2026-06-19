@@ -22,6 +22,8 @@ import { AssetConfigProvider } from './components/canvas/asset-config-context.js
 
 import { createFsaBackend, PermissionDeniedError } from './fs/fsa-backend.js';
 import { createHostedWriter } from './fs/hosted-writer.js';
+import { createHostedAiFs, setHostedAiFs } from './fs/hosted-ai-fs.js';
+import { createHostedDataReader, setHostedDataReader } from './runtime/hosted-data-reader.js';
 import {
   registerHostedServiceWorker,
   setReactImportMap,
@@ -77,6 +79,8 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
     runtimeRef.current = null;
     backendRef.current = null;
     setHostedWriter(null);
+    setHostedAiFs(null);
+    setHostedDataReader(null);
     setStudio(null);
     setError(null);
     setPhase('entry');
@@ -113,6 +117,11 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
         runtimeRef.current = up.runtime;
         // Wire writes (data/config/meta + lifecycle) to local disk via FSA.
         setHostedWriter(createHostedWriter(up.backend));
+        // Wire the AI agent's file loop to the same FSA backend (hosted AI).
+        setHostedAiFs(createHostedAiFs(up.backend));
+        // Wire the canvas's data-file reads to the FSA backend so AI-authored
+        // .data.json text is loaded + editable in hosted mode (no dev server).
+        setHostedDataReader(createHostedDataReader(up.backend));
         // Remember this project for recents + expose switching to the dock (H7).
         rememberRecent(handle && handle.name ? handle.name : 'project', handle);
         setHostedController({ openAnother: goHome, close: goHome });
@@ -142,6 +151,8 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
       watcherRef.current?.close?.();
       runtimeRef.current?.dispose?.();
       setHostedWriter(null);
+      setHostedAiFs(null);
+      setHostedDataReader(null);
       setHostedController(null);
     },
     [],

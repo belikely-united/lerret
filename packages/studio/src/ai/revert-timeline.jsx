@@ -56,6 +56,7 @@ import { getAi } from './lazy.js';
 import { useAiContext, PROVIDER_LABELS } from './ai-context.jsx';
 import { createCliAiFs } from './ai-fs.js';
 import { deriveProjectRoot } from './ai-input-cluster.jsx';
+import { getHostedAiFs, HOSTED_AI_PROJECT_ROOT } from '../fs/hosted-ai-fs.js';
 import { inCliMode } from '../runtime/write-client.js';
 
 // ─── Copy (single sources of truth — tests reference these exports) ──────────
@@ -422,12 +423,18 @@ export function RevertTimelinePanel({ open, onClose, focusTurnId = null }) {
     const cueTimerRef = React.useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
     const titleId = React.useId();
 
-    // ── CLI filesystem binding (same derivation as the dock cluster) ────────
+    // ── Filesystem binding (same derivation as the dock cluster) ────────────
+    // CLI mode derives the root from the absolute folderId; hosted mode uses
+    // the FSA adapter registered at bring-up, under a virtual projectRoot.
     const binding = React.useMemo(() => {
-        if (!inCliMode()) return null;
-        const projectRoot = deriveProjectRoot(folderId);
-        if (!projectRoot) return null;
-        return { projectRoot, fs: createCliAiFs({ projectRoot }) };
+        if (inCliMode()) {
+            const projectRoot = deriveProjectRoot(folderId);
+            if (!projectRoot) return null;
+            return { projectRoot, fs: createCliAiFs({ projectRoot }) };
+        }
+        const hostedFs = getHostedAiFs();
+        if (hostedFs) return { projectRoot: HOSTED_AI_PROJECT_ROOT, fs: hostedFs };
+        return null;
     }, [folderId]);
 
     // ── Manifest (re-)listing ────────────────────────────────────────────────

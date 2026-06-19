@@ -57,6 +57,7 @@ import {
 } from './ai-input-cluster.jsx';
 import { AiContextProvider } from './ai-context.jsx';
 import { ProjectPagesContext } from '../components/dock/project-pages-context.jsx';
+import { setHostedAiFs, HOSTED_AI_PROJECT_ROOT } from '../fs/hosted-ai-fs.js';
 import {
     SelectionScopeProvider,
     useSelectionScope,
@@ -1547,6 +1548,7 @@ describe('AiInputCluster — runTurn receives folderId (+ fs/projectRoot in CLI 
 
     afterEach(() => {
         delete globalThis.__LERRET_CLI_MODE__;
+        setHostedAiFs(null);
     });
 
     it('passes the context folderId and OMITS fs/projectRoot outside CLI mode', async () => {
@@ -1565,6 +1567,26 @@ describe('AiInputCluster — runTurn receives folderId (+ fs/projectRoot in CLI 
         expect('projectRoot' in call).toBe(false);
         // No ProjectPagesContext provided → no currentPage passed.
         expect('currentPage' in call).toBe(false);
+        cleanup();
+    });
+
+    it('hosted mode + a registered FSA adapter: passes the virtual projectRoot and the hosted fs', async () => {
+        // No __LERRET_CLI_MODE__ → not CLI; a hosted adapter is registered at
+        // bring-up. The filesystem bridge must ride with the VIRTUAL projectRoot
+        // so the snapshot store + Worker write straight to the picked folder.
+        const hostedFs = { marker: 'hosted-fs' };
+        setHostedAiFs(hostedFs);
+        const runTurnSpy = vi.fn(async function* () {
+            yield { type: 'done', files: [] };
+        });
+        aiMock.current = makeAi({ runTurnImpl: runTurnSpy });
+        const { container, cleanup } = renderToDom(<Harness folderId=".lerret" />);
+        await tick();
+        await submitPrompt(container);
+        expect(runTurnSpy).toHaveBeenCalledTimes(1);
+        const call = runTurnSpy.mock.calls[0][0];
+        expect(call.projectRoot).toBe(HOSTED_AI_PROJECT_ROOT);
+        expect(call.fs).toBe(hostedFs);
         cleanup();
     });
 
