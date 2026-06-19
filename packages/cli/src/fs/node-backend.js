@@ -35,6 +35,7 @@ import {
   serializeJson,
   assetFileName,
   starterAssetContent,
+  starterAssetData,
 } from '@lerret/core';
 
 // ---------------------------------------------------------------------------
@@ -1187,6 +1188,12 @@ async function createEntry(parentPath, name, kind, opts = {}) {
   // temp-file-then-rename write lands cleanly).
   const content = starterAssetContent(name, assetKind);
   await writeFile(toLerretPath(targetNative), content, { encoding: 'utf-8' });
+  // Component assets ship a companion `.data.json` so their text is editable
+  // without touching code (Tier 1) and updates live on save. Markdown: none.
+  if (targetNative.endsWith('.jsx')) {
+    const dataNative = `${targetNative.slice(0, -'.jsx'.length)}.data.json`;
+    await writeFile(toLerretPath(dataNative), starterAssetData(name), { encoding: 'utf-8' });
+  }
   return { path: toLerretPath(targetNative) };
 }
 

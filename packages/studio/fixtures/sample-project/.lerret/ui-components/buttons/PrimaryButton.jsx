@@ -1,8 +1,21 @@
 // Fixture asset — a `.jsx` component inside a nested GROUP folder
 // (`ui-components/buttons/`). Proves a group asset renders inside its group's
 // section, not just a top-level page asset.
+//
+// Data-driven: the button label is a meta.propsSchema field read as a prop
+// (current text as the default); the real value lives in PrimaryButton.data.json.
 
-export default function PrimaryButton() {
+export const meta = {
+ propsSchema: {
+  label: {
+   type: 'string',
+   default: 'Get started',
+   description: 'Text shown inside the primary button.',
+  },
+ },
+};
+
+export default function PrimaryButton({ label = 'Get started' }) {
  return (
  <div
  style={{
@@ -29,7 +42,7 @@ export default function PrimaryButton() {
  boxShadow: '0 4px 14px rgba(184,91,51,0.35)',
  }}
  >
- Get started
+ {label}
  </button>
  </div>
  );

@@ -17,7 +17,7 @@
 //   component-prefixed images — mirroring the Node backend's contract).
 // (Epic 10 / H2–H4.)
 
-import { validateEntryName, assetFileName, starterAssetContent } from '@lerret/core';
+import { validateEntryName, assetFileName, starterAssetContent, starterAssetData } from '@lerret/core';
 
 import { PermissionDeniedError } from './fsa-backend.js';
 
@@ -191,6 +191,12 @@ export function createHostedWriter(backend) {
         const path = joinPath(parentPath, fileName);
         if (await backend.exists(path)) return { ok: false, error: `"${fileName}" already exists here.` };
         await backend.writeFile(path, starterAssetContent(v.name, assetKind), { encoding: 'utf-8' });
+        // Component assets ship a companion `.data.json` (Tier-1 text, editable
+        // without code + live on save). Markdown has none.
+        if (path.endsWith('.jsx')) {
+          const dataPath = `${path.slice(0, -'.jsx'.length)}.data.json`;
+          await backend.writeFile(dataPath, starterAssetData(v.name), { encoding: 'utf-8' });
+        }
         return { ok: true, path };
       } catch (err) {
         return hostedWriteFailure(err);

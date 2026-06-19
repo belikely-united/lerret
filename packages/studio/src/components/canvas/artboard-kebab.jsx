@@ -56,6 +56,7 @@ import { useCascadedConfig } from './cascade-context.jsx';
 import { useAssetConfig } from './asset-config-context.jsx';
 import { bindOneShotRename } from './use-inline-rename.js';
 import { onLerretChange } from '../../runtime/cli-hmr.js';
+import { getHostedDataReader } from '../../runtime/hosted-data-reader.js';
 import {
  LiveRefreshBadge,
  LiveRefreshPopover,
@@ -232,9 +233,31 @@ function cssEscape(value) {
 const defaultImportModule = (url) => import(/* @vite-ignore */ url);
 
 /**
- * Best-effort load of the asset's co-located `.data.json` file. Used by the
+ * Strip a data-file path down to the leaf the studio's Vite aliases serve.
+ * The substring after `/.lerret/` is the URL leaf appended to each candidate
+ * base; a path with no `/.lerret/` marker is used as-is (leading slashes
+ * trimmed) so non-project fixtures still resolve.
+ *
+ * @param {string} dataPath
+ * @returns {string}
+ */
+function dataPathToLeaf(dataPath) {
+ const idx = dataPath.indexOf('/.lerret/');
+ return idx === -1 ? dataPath.replace(/^\/+/, '') : dataPath.slice(idx + '/.lerret/'.length);
+}
+
+/**
+ * Best-effort load of an asset's co-located data file. Used by the
  * component-artboard wrapper to drive prop resolution for the rendered
  * component.
+ *
+ * Honors core's `.data.js`-over-`.data.json` precedence (FR22, see
+ * `core/src/data/loader.js`): `candidatePaths` is tried IN ORDER and the first
+ * one that loads to an object wins. The studio cannot stat the filesystem from
+ * the browser, so "which variant exists" is discovered empirically — the
+ * dynamic `import()` of a non-existent file rejects (404), and we fall through
+ * to the next candidate. The caller passes `[<Name>.data.js, <Name>.data.json]`
+ * so `.data.js` takes precedence exactly as core records it.
  *
  * Uses dynamic `import()` rather than `fetch()` so that the Vite alias
  * `'/@lerret-project'` (and `'/@fixture-lerret'`) — declared by
@@ -242,49 +265,81 @@ const defaultImportModule = (url) => import(/* @vite-ignore */ url);
  * honored. Vite's `resolve.alias` is applied to module-imports only;
  * a raw `fetch()` against the same URL bypasses the alias and falls through
  * to the studio's SPA `index.html` (200 text/html), silently masking the
- * data file. Vite serves `.json` files as ES modules whose default export
- * is the parsed value.
+ * data file. Vite serves `.json` files as ES modules whose default export is
+ * the parsed value, and a `.data.js` module default-exports its data object —
+ * so the same `.default`-or-top-level unwrapping handles both forms.
  *
  * A `?t=<timestamp>` query is appended to defeat the module-import cache,
  * matching the `studio/runtime/data-loader.js` reload-token convention so
  * each call re-evaluates the current file.
  *
- * Returns `{}` on every failure mode (file missing, parse error, alias not
- * configured) — the caller treats `{}` as "no Tier-1 data" and the
- * propsSchema defaults take over for that render.
+ * Returns `{ value, resolvedPath }`. `value` is the parsed data object, or `{}`
+ * on every failure mode (no candidate file present, parse error, alias not
+ * configured) — the caller treats `{}` as "no Tier-1 data" and the propsSchema
+ * defaults take over for that render. `resolvedPath` is the candidate path that
+ * actually loaded (so the caller can subscribe the RIGHT variant to live
+ * reload), or `null` when none loaded.
  *
- * @param {string} dataPath
- *   The asset's `.data.json` file path on disk (absolute, with `.lerret/`
- *   somewhere in the prefix). The substring after `/.lerret/` becomes the
- *   URL leaf appended to each candidate base.
+ * @param {string | string[]} candidatePaths
+ *   One or more data-file paths on disk (absolute, with `.lerret/` somewhere in
+ *   the prefix), in precedence order. A bare string is treated as a single
+ *   candidate. The substring after `/.lerret/` becomes the URL leaf appended to
+ *   each candidate base.
  * @param {object} [deps]
  *   Test-only injection seam.
  * @param {(url: string) => Promise<unknown>} [deps.importModule]
  *   Override the dynamic import — used by unit tests to assert URL shape
  *   without booting a real Vite server.
- * @returns {Promise<Record<string, unknown>>}
- *   The parsed JSON value, or `{}` when the file could not be loaded.
+ * @returns {Promise<{ value: Record<string, unknown>, resolvedPath: string | null }>}
+ *   `{ value }` is the parsed data, or `{}` when nothing loaded. `resolvedPath`
+ *   is the on-disk path that resolved, or `null`.
  */
-export async function fetchDataValue(dataPath, deps = {}) {
- const idx = dataPath.indexOf('/.lerret/');
- const rel = idx === -1 ? dataPath.replace(/^\/+/, '') : dataPath.slice(idx + '/.lerret/'.length);
+export async function fetchDataValue(candidatePaths, deps = {}) {
+ const candidates = Array.isArray(candidatePaths) ? candidatePaths : [candidatePaths];
+ // Hosted mode: no dev server, so the Vite-alias dynamic import below 404s.
+ // Read the data file from the user's folder via the FSA backend (registered at
+ // bring-up). Tests inject via deps.hostedDataReader.
+ const hostedDataReader = deps.hostedDataReader || getHostedDataReader();
+ if (hostedDataReader) {
+ for (const candidate of candidates) {
+ if (typeof candidate !== 'string' || candidate.length === 0) continue;
+ try {
+ const value = await hostedDataReader(candidate);
+ if (value && typeof value === 'object') return { value, resolvedPath: candidate };
+ } catch {
+ // reader failed for this candidate — try the next
+ }
+ }
+ return { value: {}, resolvedPath: null };
+ }
  const bust = `?t=${Date.now()}`;
  const importModule = deps.importModule || defaultImportModule;
+ for (const candidate of candidates) {
+ if (typeof candidate !== 'string' || candidate.length === 0) continue;
+ const rel = dataPathToLeaf(candidate);
  for (const base of ['/@lerret-project', '/@fixture-lerret']) {
  try {
  const mod = await importModule(`${base}/${rel}${bust}`);
  // Vite serves `.json` files as ES modules where the default export is
- // the parsed value. Some bundlers expose the value at the top level
- // instead — handle both shapes defensively.
+ // the parsed value, and a `.data.js` module default-exports its data
+ // object. Some bundlers expose the value at the top level instead —
+ // handle both shapes defensively.
  const value = mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod;
- if (value && typeof value === 'object') return value;
- return {};
+ if (value && typeof value === 'object') return { value, resolvedPath: candidate };
+ // The module loaded but its value is not an object (e.g. a primitive
+ // default export). Treat this candidate as present-but-unusable and
+ // stop — do NOT fall through to a lower-precedence variant, which
+ // would contradict the file that actually exists on disk.
+ return { value: {}, resolvedPath: candidate };
  } catch {
  // The import rejected — most commonly the file does not exist at this
- // base (404), or the URL did not match either alias. Try the next base.
+ // base (404), or the URL did not match either alias. Try the next
+ // base; if both bases reject, fall through to the next candidate
+ // (lower-precedence data variant).
  }
  }
- return {};
+ }
+ return { value: {}, resolvedPath: null };
 }
 
 function computeResolvedProps(entry, dataValue) {
@@ -316,9 +371,15 @@ function computeResolvedProps(entry, dataValue) {
  * wrapped component (already inside an AssetErrorBoundary).
  * @param {React.ReactNode} [props.children]
  * Optional siblings rendered after the component (the re-render cue overlay).
+ * @param {(url: string) => Promise<unknown>} [props.importModule]
+ * TEST-ONLY injection seam forwarded to {@link fetchDataValue}. Production
+ * call sites omit it, so the real `import()` (alias-honoring, see
+ * `fetchDataValue`) is used. Unit tests pass a deterministic fake to exercise
+ * `.data.js` / `.data.json` resolution + the live-reload re-fetch without a
+ * running Vite server.
  * @returns {React.ReactElement}
  */
-export function ComponentArtboardKebab({ entry, renderComponent, children }) {
+export function ComponentArtboardKebab({ entry, renderComponent, children, importModule }) {
  const [dataOpen, setDataOpen] = React.useState(false);
  const [metaOpen, setMetaOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
@@ -327,37 +388,56 @@ export function ComponentArtboardKebab({ entry, renderComponent, children }) {
  const [focusField, setFocusField] = React.useState(undefined);
  const [focusVariant, setFocusVariant] = React.useState(undefined);
 
- // Data fetch (same logic as the removed `EditableComponentArtboard`).
+ // Data fetch (same logic as the removed `EditableComponentArtboard`, now
+ // honoring `.data.js` precedence — see `fetchDataValue`).
  const [dataValue, setDataValue] = React.useState(null);
- const dataPath = React.useMemo(() => {
+ // The candidate data files for this asset, in core's precedence order:
+ // `.data.js` WINS over `.data.json` (FR22). The studio cannot stat the
+ // filesystem, so both are constructed and `fetchDataValue` discovers which
+ // one actually exists by attempting the import (404 → try next).
+ const dataCandidates = React.useMemo(() => {
  const asset = entry?.asset;
  if (!asset || typeof asset.path !== 'string') return null;
  const slash = asset.path.lastIndexOf('/');
  const dir = slash === -1 ? '' : asset.path.slice(0, slash + 1);
- return `${dir}${asset.name}.data.json`;
+ return [`${dir}${asset.name}.data.js`, `${dir}${asset.name}.data.json`];
  }, [entry]);
 
  React.useEffect(() => {
- if (!dataPath) return undefined;
+ if (!dataCandidates) return undefined;
  let cancelled = false;
+ // The path of the variant that actually loaded last time — the live-reload
+ // subscription watches THIS so editing the present `.data.js` (or
+ // `.data.json`) re-renders. Starts null (nothing loaded yet); a `change`
+ // event on EITHER candidate also re-runs the fetch so a freshly-created
+ // data file (none resolved before) is picked up too.
+ let resolvedPath = null;
  const reload = async () => {
- const value = await fetchDataValue(dataPath);
- if (!cancelled) setDataValue(value);
+ const result = await fetchDataValue(
+ dataCandidates,
+ importModule ? { importModule } : undefined,
+ );
+ if (cancelled) return;
+ resolvedPath = result.resolvedPath;
+ setDataValue(result.value);
  };
  reload();
- // Re-fetch this asset's `.data.json` when the CLI watcher reports it
- // changed. Subscribed via `onLerretChange` (not `import.meta.hot`) so live
- // data edits keep working from the pre-built `dist-studio` bundle the
- // published CLI serves — see `runtime/cli-hmr.js`.
+ // Re-fetch this asset's data when the CLI watcher reports the relevant file
+ // changed. We re-run on a change to the resolved variant (the one currently
+ // feeding the canvas) OR to any candidate (so creating/removing a higher-
+ // precedence `.data.js` re-resolves). Subscribed via `onLerretChange` (not
+ // `import.meta.hot`) so live data edits keep working from the pre-built
+ // `dist-studio` bundle the published CLI serves — see `runtime/cli-hmr.js`.
  const unsubscribe = onLerretChange((payload) => {
  if (!payload || !payload.event || typeof payload.event.path !== 'string') return;
- if (payload.event.path === dataPath) reload();
+ const changed = payload.event.path;
+ if (changed === resolvedPath || dataCandidates.includes(changed)) reload();
  });
  return () => {
  cancelled = true;
  unsubscribe();
  };
- }, [dataPath, entry?.id, entry?.Component]);
+ }, [dataCandidates, entry?.id, entry?.Component, importModule]);
 
  const resolvedProps = React.useMemo(
  () => computeResolvedProps(entry, dataValue),

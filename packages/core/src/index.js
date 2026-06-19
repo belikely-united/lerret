@@ -93,6 +93,7 @@ export {
   assetFileName,
   componentIdentifier,
   starterAssetContent,
+  starterAssetData,
   MAX_ENTRY_NAME_LENGTH,
 } from './loader/entry-name.js';
 

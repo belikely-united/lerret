@@ -7,6 +7,7 @@ import {
   assetFileName,
   componentIdentifier,
   starterAssetContent,
+  starterAssetData,
   MAX_ENTRY_NAME_LENGTH,
 } from './entry-name.js';
 
@@ -94,22 +95,37 @@ describe('componentIdentifier', () => {
 });
 
 describe('starterAssetContent', () => {
-  it('component starter is a valid renderable module', () => {
+  it('component starter is a valid, data-driven renderable module', () => {
     const src = starterAssetContent('tw-banner', 'component');
     expect(src).toContain('export const meta');
-    expect(src).toContain('export default function TwBanner()');
-    // The label is JSON-encoded so any character is JSX-safe.
-    expect(src).toContain('{"tw-banner"}');
+    // Data-driven: declares a `title` prop in propsSchema and reads it, so the
+    // text comes from the companion data file (Tier 1), not a baked-in literal.
+    expect(src).toContain('propsSchema');
+    expect(src).toContain('export default function TwBanner({ title = "tw-banner" })');
+    expect(src).toContain('{title}');
   });
 
-  it('markdown starter is a heading + prompt', () => {
+  it('markdown starter is a heading + prompt (no data file)', () => {
     const src = starterAssetContent('Notes', 'markdown');
     expect(src.startsWith('# Notes')).toBe(true);
+    expect(src).not.toContain('propsSchema');
   });
 
   it('escapes a hostile display label safely', () => {
-    // A quote in the name must not break the generated JSX string.
+    // A quote in the name must not break the generated JS string (prop default).
     const src = starterAssetContent('a"b', 'component');
-    expect(src).toContain('{"a\\"b"}');
+    expect(src).toContain('"a\\"b"');
+  });
+});
+
+describe('starterAssetData', () => {
+  it('is the companion JSON holding the title text, keyed to the title prop', () => {
+    const data = starterAssetData('tw-banner');
+    expect(JSON.parse(data)).toEqual({ title: 'tw-banner' });
+  });
+
+  it('round-trips a name containing quotes through valid JSON', () => {
+    const data = starterAssetData('a"b');
+    expect(JSON.parse(data)).toEqual({ title: 'a"b' });
   });
 });

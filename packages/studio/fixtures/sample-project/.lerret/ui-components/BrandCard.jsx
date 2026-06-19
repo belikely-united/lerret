@@ -19,9 +19,21 @@ export const meta = {
  dimensions: { width: 320, height: 160 },
  label: 'Brand Card (vars demo)',
  tags: ['brand', 'vars'],
+ propsSchema: {
+  kicker: {
+   type: 'string',
+   default: 'vars demo',
+   description: 'Small uppercase eyebrow label.',
+  },
+  title: {
+   type: 'string',
+   default: 'Brand Card',
+   description: 'Card title line.',
+  },
+ },
 };
 
-export default function BrandCard() {
+export default function BrandCard({ kicker = 'vars demo', title = 'Brand Card' }) {
  return (
  <div
  data-brand-card
@@ -49,10 +61,10 @@ export default function BrandCard() {
  opacity: 0.85,
  }}
  >
- vars demo
+ {kicker}
  </div>
  <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>
- Brand Card
+ {title}
  </div>
  <div style={{ fontSize: 12, opacity: 0.75 }}>
  Background uses <code style={{ fontFamily: 'monospace' }}>var(--brandColor)</code>

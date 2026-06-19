@@ -4,8 +4,8 @@
 // This is *user content*. It proves NFR8: a `meta` with missing fields is
 // never an error — the absent `label` falls back to the file-derived name
 // ("PricingTile") while the declared `dimensions` still size the artboard.
-// (The sibling fixtures `StatCard.jsx` / `LogoLockup.jsx` cover the
-// no-`meta`-at-all case.)
+// (The sibling fixture `LogoLockup.jsx` covers the no-`meta`-at-all case;
+// `StatCard.jsx` declares a `meta` with only `propsSchema`.)
 
 // Partial meta — `dimensions` only. The other three well-known keys are
 // deliberately absent; `parseMeta` fills them with defaults.

@@ -146,9 +146,16 @@ export function starterAssetContent(name, assetKind) {
     `// ${id} — new component. Edit me; the canvas re-renders on save.`,
     'export const meta = {',
     '  dimensions: { width: 800, height: 450 },',
+    '  propsSchema: {',
+    '    title: {',
+    "      type: 'string',",
+    `      default: ${label},`,
+    "      description: 'The card text. Edit it in the data file.',",
+    '    },',
+    '  },',
     '};',
     '',
-    `export default function ${id}() {`,
+    `export default function ${id}({ title = ${label} }) {`,
     '  return (',
     '    <div',
     '      style={{',
@@ -165,10 +172,24 @@ export function starterAssetContent(name, assetKind) {
     "        letterSpacing: '-0.02em',",
     '      }}',
     '    >',
-    `      {${label}}`,
+    "      {title}",
     '    </div>',
     '  );',
     '}',
     '',
   ].join('\n');
+}
+
+/**
+ * The companion `.data.json` for a freshly-created COMPONENT asset — the Tier-1
+ * data its starter component reads through the `title` prop. Pairing every new
+ * asset with a data file makes its text editable WITHOUT touching code (and it
+ * updates live on save), the same contract the create-lerret templates model.
+ * Markdown assets have no data file.
+ *
+ * @param {string} name  Validated base name.
+ * @returns {string}  Pretty-printed JSON, newline-terminated.
+ */
+export function starterAssetData(name) {
+  return `${JSON.stringify({ title: String(name) }, null, 2)}\n`;
 }

@@ -1,7 +1,20 @@
 // Fixture asset — a second `.jsx` component in the `buttons/` group, so the
 // group section has more than one artboard.
+//
+// Data-driven: the button label is a meta.propsSchema field read as a prop
+// (current text as the default); the real value lives in GhostButton.data.json.
 
-export default function GhostButton() {
+export const meta = {
+ propsSchema: {
+  label: {
+   type: 'string',
+   default: 'Learn more',
+   description: 'Text shown inside the ghost button.',
+  },
+ },
+};
+
+export default function GhostButton({ label = 'Learn more' }) {
  return (
  <div
  style={{
@@ -27,7 +40,7 @@ export default function GhostButton() {
  cursor: 'pointer',
  }}
  >
- Learn more
+ {label}
  </button>
  </div>
  );

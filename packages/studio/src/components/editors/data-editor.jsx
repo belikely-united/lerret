@@ -64,6 +64,7 @@ import { EditorSheet } from './editor-sheet.jsx';
 import { VariantTabs } from './variant-tabs.jsx';
 import { FormControl } from '../forms/index.js';
 import { writeProjectFile } from '../../runtime/write-client.js';
+import { getHostedDataReader } from '../../runtime/hosted-data-reader.js';
 
 /**
  * Default reader for the asset's data file. Performs a same-origin GET via
@@ -75,6 +76,16 @@ import { writeProjectFile } from '../../runtime/write-client.js';
  * @returns {Promise<{ ok: boolean, value: unknown, missing?: boolean, error?: string }>}
  */
 async function defaultReadDataFile(dataPath) {
+ // Hosted mode: no dev server, so the alias fetch below returns the SPA
+ // index.html (read as "missing"). Read the file straight from the user's
+ // folder via the FSA backend instead, so the editor shows the real data.
+ const hostedDataReader = getHostedDataReader();
+ if (hostedDataReader) {
+ const value = await hostedDataReader(dataPath);
+ return value && typeof value === 'object'
+ ? { ok: true, value }
+ : { ok: true, value: {}, missing: true };
+ }
  if (typeof globalThis === 'undefined' || typeof globalThis.fetch !== 'function') {
  return { ok: false, value: {}, error: 'no fetch implementation available' };
  }

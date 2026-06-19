@@ -825,8 +825,12 @@ describe('createEntry', () => {
     });
     expect(result.path).toBe(asLerretPath(join(workDir, 'tw-banner.jsx')));
     const src = await fsp.readFile(join(workDir, 'tw-banner.jsx'), 'utf-8');
-    expect(src).toContain('export default function TwBanner()');
+    expect(src).toContain('export default function TwBanner({ title = "tw-banner" })');
     expect(src).toContain('export const meta');
+    expect(src).toContain('propsSchema');
+    // A component ships a companion data file holding its text (Tier 1).
+    const data = JSON.parse(await fsp.readFile(join(workDir, 'tw-banner.data.json'), 'utf-8'));
+    expect(data).toEqual({ title: 'tw-banner' });
   });
 
   it('creates a markdown asset (.md)', async () => {
@@ -836,6 +840,8 @@ describe('createEntry', () => {
     expect(result.path).toBe(asLerretPath(join(workDir, 'notes.md')));
     const src = await fsp.readFile(join(workDir, 'notes.md'), 'utf-8');
     expect(src.startsWith('# notes')).toBe(true);
+    // Markdown has no props, so no companion data file is written.
+    await expect(fsp.access(join(workDir, 'notes.data.json'))).rejects.toThrow();
   });
 
   it('defaults asset kind to component', async () => {

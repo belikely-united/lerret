@@ -1250,8 +1250,11 @@ describe('createCreateMiddleware', () => {
     expect(result.status).toBe(200);
     expect(result.body.path).toBe(`${lerretDir}/landing/hero.jsx`);
     expect(await fsp.readFile(join(lerretAbs, 'landing', 'hero.jsx'), 'utf-8')).toContain(
-      'export default function Hero()',
+      'export default function Hero({ title = "hero" })',
     );
+    // The create endpoint also writes the companion data file (Tier-1 text).
+    const data = JSON.parse(await fsp.readFile(join(lerretAbs, 'landing', 'hero.data.json'), 'utf-8'));
+    expect(data).toEqual({ title: 'hero' });
   });
 
   it('rejects a reserved page name (leading underscore) with 400', async () => {
