@@ -62,18 +62,21 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-card{transition:box-shadow .15s,transform .15s}',
  '.dc-card *{scrollbar-width:none}',
  '.dc-card *::-webkit-scrollbar{display:none}',
- '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px;overflow:hidden}',
+ '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px}',
    '.dc-labelrow:focus-within{overflow:visible}',
  // Chrome stays a constant SCREEN size at any zoom: each group counter-scales by
  // --dc-inv (= 1/canvas-scale, set per-slot in DCArtboardFrame) from its own
  // corner, and offsets are ×--dc-inv so position holds too. Name anchors left,
  // the export buttons + chip cluster anchor right.
- '.dc-label-left{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%;transform:scale(var(--dc-inv, 1));transform-origin:left bottom}',
+ '.dc-label-left{display:flex;align-items:center;gap:4px;transform:scale(var(--dc-inv, 1));transform-origin:left bottom}',
  '.dc-grip{cursor:grab;display:flex;align-items:center;padding:5px 4px;border-radius:4px;transition:background .12s}',
  '.dc-grip:hover{background:rgba(0,0,0,.08)}',
  '.dc-grip:active{cursor:grabbing}',
  '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
- '.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;min-width:0;overflow:hidden;transition:background .12s}',
+ // Truncate the label to the artboard's ON-SCREEN width (--dc-w is the artboard
+// width in px; ÷ --dc-inv converts it to screen px since the row counter-scales),
+// minus the grip. Width-bound, not a clip box, so the text never clips vertically.
+'.dc-labeltext{cursor:pointer;border-radius:4px;padding:3px 6px;display:flex;align-items:center;min-width:0;max-width:calc(var(--dc-w, 260px) / var(--dc-inv, 1) - 24px);overflow:hidden;transition:background .12s}',
  '.dc-labeltext:hover{background:rgba(0,0,0,.05)}',
  '.dc-expand{position:absolute;bottom:100%;right:calc((var(--dc-cluster-w, 26px) + 6px) * var(--dc-inv, 1));margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
@@ -1656,7 +1659,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  };
 
  return (
- <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} {...(assetPath ? { 'data-dc-asset-path': assetPath } : {})} style={{ position: 'relative', flexShrink: 0 }}>
+ <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} {...(assetPath ? { 'data-dc-asset-path': assetPath } : {})} style={{ position: 'relative', flexShrink: 0, '--dc-w': `${width}px` }}>
  {/* Labelrow stretches the full card width so the portaled kebab
  (artboard-kebab.jsx) can right-align inside it via margin-left:auto.
  The right-edge button cluster (ANIM/JPG/PNG/expand/kebab) is rendered
@@ -1690,7 +1693,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  </button>
  <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
  <DCEditable value={label} onChange={onRename} onClick={(e) => e.stopPropagation()}
- style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1 }} />
+ style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1.3 }} />
  </div>
  </div>
  </div>
