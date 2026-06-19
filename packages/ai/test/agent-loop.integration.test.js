@@ -129,7 +129,9 @@ describe('agent loop integration — multi-turn discovery + write (matrix: Ask /
         expect(handle.calls[0].tools.map((t) => t.name)).toEqual([
             'list_dir',
             'read_file',
+            'search',
             'write_file',
+            'save_attachment',
             'delete_file',
             'delete_dir',
             'ask_user',
@@ -460,7 +462,7 @@ describe('agent loop integration — inspect lane zero mutations (matrix: Inspec
 
         // STRUCTURAL: the inspect lane's registry offered the read pair only —
         // the write tools do not exist in its tool list.
-        expect(handle.calls[0].tools.map((t) => t.name)).toEqual(['list_dir', 'read_file']);
+        expect(handle.calls[0].tools.map((t) => t.name)).toEqual(['list_dir', 'read_file', 'search']);
         // The inspect loop runs at its own (6-turn) cap, not the Ask default.
         const progress = events.filter((e) => e.type === 'turn-progress');
         expect(progress.length).toBeGreaterThan(0);

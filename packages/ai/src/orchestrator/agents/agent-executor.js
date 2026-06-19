@@ -34,6 +34,7 @@ import {
     LIST_DIR_MAX_ENTRIES,
     formatListing,
     capFileContent,
+    formatSearch,
 } from '../tools/definitions.js';
 import { supportsTools } from '../../providers/tool-support.js';
 import { createWorkerNode } from './worker.js';
@@ -131,9 +132,24 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
               `A request that implies its own structure (a launch kit, a multi-platform set, an explicitly named ` +
               `folder or page) may create new folders as needed.`
             : '';
+    // When the user attached images, name them and steer the model to PERSIST
+    // them as-is (save_attachment) + reference the saved file with <img src>,
+    // instead of redrawing the artwork as inline SVG (Issue: brand logos).
+    const attachmentNames = Array.isArray(state.attachments)
+        ? state.attachments.filter((a) => a && a.name).map((a) => a.name)
+        : [];
+    const attachmentsBlock = attachmentNames.length
+        ? `\n\nThe user ATTACHED ${attachmentNames.length} image${attachmentNames.length === 1 ? '' : 's'}: ` +
+          `${attachmentNames.join(', ')}. These are REAL files the user wants USED, not just visual ` +
+          `reference. When the request is to use them as-is — a logo, brand image, icon, or photo — call ` +
+          `save_attachment with the image's filename and a destination path to write the ORIGINAL bytes, ` +
+          `then reference the saved file from your JSX with <img src="./<file>"> (relative to the asset's ` +
+          `folder). NEVER re-draw an attached image as inline SVG or CSS — that discards the user's actual ` +
+          `artwork. (An <img src> to a saved file is allowed; it is NOT a JS import.)`
+        : '';
     return (
         'You are Lerret\'s in-studio design agent. You work INSIDE the user\'s project ' +
-        'using the provided tools (list_dir, read_file, write_file, delete_file, delete_dir). ' +
+        'using the provided tools (list_dir, read_file, search, write_file, save_attachment, delete_file, delete_dir). ' +
         'All paths MUST be under .lerret/.\n\n' +
         'A page is a DIRECTORY under .lerret/ (e.g. .lerret/social/ is the "social" page); its ' +
         '.jsx files are its assets. To remove a PAGE or folder, use delete_dir on that directory — ' +
@@ -143,6 +159,10 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
         '(the page named below, if any).\n\n' +
         'How to work: if you do not know the project structure, start with ' +
         'list_dir(".lerret/"). ALWAYS read_file before rewriting an existing file. ' +
+        'For any PROJECT-WIDE change (a rebrand, a rename, a colour or tagline swap), FIRST ' +
+        'call search to find EVERY occurrence across all files, edit each hit, then call ' +
+        'search again to confirm none remain before finishing — never change only the obvious ' +
+        'asset and assume the rest are done. ' +
         'Complete the ENTIRE request — including multi-step requests — then finish ' +
         'WITHOUT tool calls, replying with a short summary (1–3 sentences) of what you ' +
         'did. If the request is impossible or unclear, finish with one sentence saying ' +
@@ -155,13 +175,23 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
         'ignoring their request. Otherwise proceed and note any assumption in your ' +
         'summary.\n\n' +
         'Lerret renders each .jsx file in a page folder as an artboard. Every asset ' +
-        'you write MUST be a self-contained React component file at ' +
-        '.lerret/<page>/<asset-name>.jsx with exactly this shape:\n' +
-        '  export const meta = { dimensions: { width: <px>, height: <px> }, label: "<Title>" };\n' +
-        '  export default function AssetName() { return ( <div style={{...}}>...</div> ); }\n' +
+        'you write MUST be a self-contained, DATA-DRIVEN React component file at ' +
+        '.lerret/<page>/<asset-name>.jsx — its text comes from props, never hard-coded in ' +
+        'the JSX — with exactly this shape:\n' +
+        '  export const meta = { dimensions: { width: <px>, height: <px> }, label: "<Title>",\n' +
+        '    propsSchema: { headline: { type: "string", default: "Headline" } /* one entry per text field */ } };\n' +
+        '  export default function AssetName({ headline /* one param per prop */ }) {\n' +
+        '    return ( <div style={{...}}>{headline}</div> ); }\n' +
+        'AND co-write a sibling data file .lerret/<page>/<asset-name>.data.json holding the REAL ' +
+        'text, keyed by the SAME names: { "headline": "Light the trail this autumn." }. Put EVERY ' +
+        'meaningful piece of text — headline, tagline, body, CTA, brand name, price, date — in ' +
+        'propsSchema + the .data.json and read it from props; NEVER hard-code that text in the JSX. ' +
+        'This is what makes text editable in the studio Data editor and re-themeable in one place. ' +
+        'Decorative literals (arrows, fixed labels) may stay inline. To change an asset\'s TEXT, edit ' +
+        'its .data.json; to change its structure or style, edit the .jsx.\n' +
         'Rules: inline style objects only (no <style> tags, no CSS files, no className); ' +
         'no imports of any kind; no <html>/<head>/<body>; the root <div> fills the full ' +
-        'meta dimensions. Edit an existing asset by rewriting its .jsx in place. Never ' +
+        'meta dimensions. Never ' +
         'write .html files. Markdown (.md) is allowed only when the user asks for notes/docs ' +
         '— with ONE exception: .lerret/_design-system.md is the project\'s brand authority ' +
         '(the colors/typography/voice tokens every asset reads). ONLY when no asset is ' +
@@ -173,7 +203,8 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
         context +
         currentPageBlock +
         scopeLabel +
-        scoped
+        scoped +
+        attachmentsBlock
     );
 }
 
@@ -271,9 +302,25 @@ export async function collectTreeForRemoval(sandbox, root) {
  *   writtenFiles: Array<{ path: string, op: string }>,
  *   signal: AbortSignal | undefined,
  *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
+ *   attachments?: Array<{ name?: string, base64?: string, mimeType?: string }>,
  *   maxQuestions?: number,
  * }} deps
  */
+/**
+ * Decode a base64 string to raw bytes — browser + Node, no Buffer dependency.
+ * Used by save_attachment to turn an attachment's base64 payload back into the
+ * original file bytes for a byte-exact write.
+ *
+ * @param {string} base64
+ * @returns {Uint8Array}
+ */
+function base64ToBytes(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
 export function buildExecutors({
     sandbox,
     workerNode,
@@ -281,6 +328,7 @@ export function buildExecutors({
     writtenFiles,
     signal,
     onClarify,
+    attachments,
     maxQuestions = 3,
 }) {
     const badPath = (p) => ({
@@ -366,6 +414,20 @@ export function buildExecutors({
                 return { content: `Could not read ${p}: ${err?.message ?? err}`, isError: true };
             }
         },
+        search: async (args) => {
+            const query = typeof args?.query === 'string' ? args.query : '';
+            if (!query.trim()) {
+                return { content: 'search requires a non-empty `query` string.', isError: true };
+            }
+            // A bad/empty scope falls back to the whole project rather than erroring.
+            const scope = args?.path ? canonLerretPath(args.path) : undefined;
+            try {
+                const matches = await sandbox.search(query, scope || undefined);
+                return { content: formatSearch(matches), meta: { op: 'search' } };
+            } catch (err) {
+                return { content: `Could not search: ${err?.message ?? err}`, isError: true };
+            }
+        },
         write_file: async (args) => {
             const p = canonLerretPath(args?.path);
             if (!p || p === '.lerret/') return badPath(args?.path);
@@ -395,6 +457,55 @@ export function buildExecutors({
                 return { content: `Wrote ${p} (${res.writtenFiles[0].op}).` };
             } catch (err) {
                 return { content: `Could not write ${p}: ${err?.message ?? err}`, isError: true };
+            }
+        },
+        save_attachment: async (args) => {
+            const p = canonLerretPath(args?.path);
+            if (!p || p === '.lerret/') return badPath(args?.path);
+            const wanted = typeof args?.name === 'string' ? args.name.trim() : '';
+            if (!wanted) {
+                return { content: 'save_attachment requires the attachment `name` (its filename).', isError: true };
+            }
+            const list = Array.isArray(attachments) ? attachments : [];
+            const wantedBase = wanted.split('/').pop();
+            // Match by exact filename, then basename; if there is exactly ONE
+            // attachment, take it (the model named it loosely).
+            const att =
+                list.find((a) => a && (a.name === wanted || a.name === wantedBase)) ||
+                (list.length === 1 ? list[0] : null);
+            if (!att || typeof att.base64 !== 'string') {
+                const names = list.map((a) => a && a.name).filter(Boolean);
+                return {
+                    content: names.length
+                        ? `No attached image named "${wanted}". Attached: ${names.join(', ')}.`
+                        : 'No images are attached to this turn — save_attachment only persists user-attached images.',
+                    isError: true,
+                };
+            }
+            try {
+                const bytes = base64ToBytes(att.base64);
+                // Parent auto-create, exactly like write_file (one mkdir only
+                // when the parent is actually absent).
+                const parent = p.split('/').slice(0, -1).join('/');
+                const needsMkdir = parent && parent !== '.lerret' && !(await sandbox.exists(parent));
+                const plan = [
+                    ...(needsMkdir ? [{ op: 'mkdir', path: parent }] : []),
+                    { op: 'write', path: p, content: bytes },
+                ];
+                const res = await workerNode({ manifest: manifestRef.current, signal, plan });
+                manifestRef.current = res.manifest;
+                writtenFiles.push(...res.writtenFiles);
+                if (res.writtenFiles.length === 0) {
+                    return { content: `Save of ${p} was not applied (turn stopping).`, isError: true };
+                }
+                const savedBase = p.split('/').pop();
+                return {
+                    content:
+                        `Saved ${att.name} → ${p} (${bytes.length} B). Reference it from an asset in the ` +
+                        `same folder with <img src="./${savedBase}">.`,
+                };
+            } catch (err) {
+                return { content: `Could not save ${wanted} to ${p}: ${err?.message ?? err}`, isError: true };
             }
         },
         delete_file: async (args) => {
@@ -603,6 +714,7 @@ export function createAgentExecutorNode({
             writtenFiles,
             signal: state.signal,
             onClarify,
+            attachments: state.attachments,
         });
 
         if (state?.signal?.aborted) return { writtenFiles, answer: '', plan: [] };

@@ -50,6 +50,7 @@ function makeSandbox(files = {}) {
         mkdir: vi.fn(async () => {}),
         removeDir: vi.fn(async () => {}),
         listDir: vi.fn(async () => []),
+        search: vi.fn(async () => []),
     };
 }
 
@@ -102,6 +103,13 @@ describe('buildLoopSystemPrompt', () => {
         expect(sys).toMatch(/ONLY when no asset is\s+selected/);
         expect(sys).toContain('list_dir(".lerret/")');
         expect(sys).toMatch(/read_file before rewriting an existing file/);
+        // Data-driven authoring contract (2026-06-14): propsSchema + co-located .data.json.
+        expect(sys).toContain('propsSchema');
+        expect(sys).toContain('.data.json');
+        expect(sys).toMatch(/never hard-code that text in the JSX/i);
+        // search tool offered + the inventory/verify protocol for project-wide changes.
+        expect(sys).toContain('list_dir, read_file, search, write_file, save_attachment, delete_file, delete_dir');
+        expect(sys).toMatch(/call\s+search again to confirm none remain/);
         expect(sys).toContain('CTX');
         expect(sys).toContain('"brand":"#111"');
     });
@@ -143,6 +151,22 @@ describe('buildLoopSystemPrompt', () => {
         expect(pageSys).toMatch(/scoped this request to: kit page/);
     });
 
+    it('names attached images and steers to save_attachment + <img src>, not redrawing', () => {
+        const sys = buildLoopSystemPrompt({
+            prompt: 'use these as the brand',
+            attachments: [
+                { kind: 'image', name: 'fox-logo.png', base64: 'AA' },
+                { kind: 'image', name: 'hero.png', base64: 'BB' },
+            ],
+        });
+        expect(sys).toContain('fox-logo.png, hero.png');
+        expect(sys).toMatch(/call save_attachment/);
+        expect(sys).toMatch(/<img src=/);
+        expect(sys).toMatch(/NEVER re-draw an attached image as inline SVG/i);
+        // No attachments → no block.
+        expect(buildLoopSystemPrompt({ prompt: 'p' })).not.toContain('The user ATTACHED');
+    });
+
     it('stays in sync with the planner fallback prompt (shared invariants cannot drift)', async () => {
         const handle = makeHandle();
         await createPlannerNode({ providerHandle: handle, emit: vi.fn(), requestVisionDecision: vi.fn() })({
@@ -155,6 +179,8 @@ describe('buildLoopSystemPrompt', () => {
             'inline style objects only',
             '_design-system.md',
             'Never write .html files',
+            'propsSchema',
+            '.data.json',
         ]) {
             expect(plannerSys).toContain(fragment);
             expect(loopSys).toContain(fragment);
@@ -165,7 +191,7 @@ describe('buildLoopSystemPrompt', () => {
 // ── buildExecutors ────────────────────────────────────────────────────────────
 
 describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
-    function makeExecEnv(files = {}) {
+    function makeExecEnv(files = {}, attachments = []) {
         const sandbox = makeSandbox(files);
         const workerNode = vi.fn(async ({ manifest, plan }) => ({
             manifest,
@@ -175,7 +201,7 @@ describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
         }));
         const manifestRef = { current: { id: 'm1' } };
         const writtenFiles = [];
-        const executors = buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles, signal: undefined });
+        const executors = buildExecutors({ sandbox, workerNode, manifestRef, writtenFiles, signal: undefined, attachments });
         return { sandbox, workerNode, manifestRef, writtenFiles, executors };
     }
 
@@ -205,6 +231,46 @@ describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
         expect(workerNode).toHaveBeenCalledTimes(1);
     });
 
+    it('save_attachment writes the attachment ORIGINAL bytes (base64-decoded) to the path', async () => {
+        const { executors, workerNode } = makeExecEnv({}, [{ name: 'fox-logo.png', base64: btoa('PNGDATA') }]);
+        const res = await executors.save_attachment({ name: 'fox-logo.png', path: 'social/card-logo.png' });
+        expect(res.isError).toBeUndefined();
+        const writeStep = workerNode.mock.calls[0][0].plan.find((s) => s.op === 'write');
+        expect(writeStep.path).toBe('.lerret/social/card-logo.png');
+        expect(writeStep.content).toBeInstanceOf(Uint8Array);
+        expect(new TextDecoder().decode(writeStep.content)).toBe('PNGDATA');
+        // The result nudges toward referencing the saved file, not redrawing it.
+        expect(res.content).toMatch(/<img src="\.\/card-logo\.png">/);
+    });
+
+    it('save_attachment errors (without touching the Worker) when no attachment matches the name', async () => {
+        const { executors, workerNode } = makeExecEnv({}, [
+            { name: 'fox-logo.png', base64: btoa('X') },
+            { name: 'hero.png', base64: btoa('Y') },
+        ]);
+        const res = await executors.save_attachment({ name: 'missing.png', path: 'a.png' });
+        expect(res.isError).toBe(true);
+        expect(res.content).toMatch(/No attached image named "missing.png"/);
+        expect(res.content).toContain('fox-logo.png');
+        expect(workerNode).not.toHaveBeenCalled();
+    });
+
+    it('save_attachment errors when nothing is attached', async () => {
+        const { executors } = makeExecEnv({}, []);
+        const res = await executors.save_attachment({ name: 'x.png', path: 'a.png' });
+        expect(res.isError).toBe(true);
+        expect(res.content).toMatch(/No images are attached/);
+    });
+
+    it('save_attachment takes the sole attachment when the model names it loosely', async () => {
+        const { executors, workerNode } = makeExecEnv({}, [{ name: 'logo.png', base64: btoa('Z') }]);
+        const res = await executors.save_attachment({ name: 'whatever-they-typed', path: '_assets/logo.png' });
+        expect(res.isError).toBeUndefined();
+        const writeStep = workerNode.mock.calls[0][0].plan.find((s) => s.op === 'write');
+        expect(writeStep.path).toBe('.lerret/_assets/logo.png');
+        expect(new TextDecoder().decode(writeStep.content)).toBe('Z');
+    });
+
     it('read_file caps content and reports ENOENT as isError; list_dir formats entries with meta', async () => {
         const { executors, sandbox } = makeExecEnv({ '.lerret/kit/a.jsx': 'BODY' });
         const ok = await executors.read_file({ path: 'kit/a.jsx' });
@@ -216,6 +282,24 @@ describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
         const listing = await executors.list_dir({});
         expect(listing.meta).toEqual({ op: 'list', file: '.lerret/' });
         expect(listing.content).toContain('a.jsx');
+    });
+
+    it('search delegates to sandbox.search (canonicalized scope) and formats matches; empty query is guarded', async () => {
+        const { executors, sandbox } = makeExecEnv();
+        sandbox.search.mockResolvedValue([
+            { path: '.lerret/a.jsx', line: 2, text: 'GLIMS.IO brand' },
+            { path: '.lerret/social/card.jsx', line: 1, text: 'visit glims.io' },
+        ]);
+        const res = await executors.search({ query: 'glims.io', path: 'social' });
+        expect(sandbox.search).toHaveBeenCalledWith('glims.io', expect.stringContaining('social'));
+        expect(res.meta).toEqual({ op: 'search' }); // no meta.file → loop emits no per-file status
+        expect(res.content).toContain('.lerret/a.jsx:2: GLIMS.IO brand');
+        expect(res.content).toContain('.lerret/social/card.jsx:1: visit glims.io');
+
+        sandbox.search.mockClear();
+        const bad = await executors.search({ query: '   ' });
+        expect(bad.isError).toBe(true);
+        expect(sandbox.search).not.toHaveBeenCalled();
     });
 
     it('ask_user awaits onClarify, bounds per turn, and never hangs headless', async () => {

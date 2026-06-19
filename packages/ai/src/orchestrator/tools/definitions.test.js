@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
     LIST_DIR_TOOL,
     READ_FILE_TOOL,
+    SEARCH_TOOL,
     WRITE_FILE_TOOL,
     DELETE_FILE_TOOL,
     DELETE_DIR_TOOL,
@@ -10,8 +11,10 @@ import {
     ALL_TOOLS,
     LIST_DIR_MAX_ENTRIES,
     READ_FILE_CHAR_CAP,
+    SEARCH_MAX_MATCHES,
     formatListing,
     capFileContent,
+    formatSearch,
 } from './definitions.js';
 
 const FOUR_TOOLS = [LIST_DIR_TOOL, READ_FILE_TOOL, WRITE_FILE_TOOL, DELETE_FILE_TOOL];
@@ -103,10 +106,11 @@ describe('DELETE_DIR_TOOL — page/folder removal (Epic 9 follow-up)', () => {
 });
 
 describe('READ_TOOLS / ALL_TOOLS subsets', () => {
-    it('READ_TOOLS is exactly [list_dir, read_file] — the Inspect lane surface', () => {
-        expect(READ_TOOLS).toHaveLength(2);
+    it('READ_TOOLS is exactly [list_dir, read_file, search] — the read-only Inspect lane surface', () => {
+        expect(READ_TOOLS).toHaveLength(3);
         expect(READ_TOOLS[0]).toBe(LIST_DIR_TOOL);
         expect(READ_TOOLS[1]).toBe(READ_FILE_TOOL);
+        expect(READ_TOOLS[2]).toBe(SEARCH_TOOL);
         expect(Object.isFrozen(READ_TOOLS)).toBe(true);
     });
 
@@ -116,13 +120,17 @@ describe('READ_TOOLS / ALL_TOOLS subsets', () => {
         expect(names).not.toContain('delete_file');
         expect(names).not.toContain('delete_dir');
         expect(names).not.toContain('ask_user');
+        // search is read-only, so it rides in the Inspect lane too.
+        expect(names).toContain('search');
     });
 
-    it('ALL_TOOLS is the file tools (incl. delete_dir) plus ask_user, in order, frozen', () => {
+    it('ALL_TOOLS is the file tools (incl. search + delete_dir) plus ask_user, in order, frozen', () => {
         expect(ALL_TOOLS.map((t) => t.name)).toEqual([
             'list_dir',
             'read_file',
+            'search',
             'write_file',
+            'save_attachment',
             'delete_file',
             'delete_dir',
             'ask_user',
@@ -136,6 +144,39 @@ describe('READ_TOOLS / ALL_TOOLS subsets', () => {
         expect(ask.parameters.properties.options.type).toBe('array');
         expect(ask.description).toMatch(/ONLY at a genuine fork/);
         expect(ask.description).toMatch(/brand\/design conflict/);
+    });
+});
+
+describe('SEARCH_TOOL + formatSearch (inventory + verify surface)', () => {
+    it('SEARCH_TOOL requires query, allows optional path scope, frozen, read-only-shaped', () => {
+        expect(SEARCH_TOOL.name).toBe('search');
+        expect(SEARCH_TOOL.parameters.required).toEqual(['query']);
+        expect(SEARCH_TOOL.parameters.properties.query.type).toBe('string');
+        expect(SEARCH_TOOL.parameters.properties.path).toBeTruthy();
+        expect(SEARCH_TOOL.parameters.additionalProperties).toBe(false);
+        expect(SEARCH_TOOL.description).toMatch(/before a project-wide change/i);
+        expect(Object.isFrozen(SEARCH_TOOL)).toBe(true);
+        expect(Object.isFrozen(SEARCH_TOOL.parameters)).toBe(true);
+    });
+
+    it('formatSearch renders grep-style path:line: text, "(no matches)" when empty', () => {
+        expect(formatSearch([])).toBe('(no matches)');
+        expect(formatSearch(null)).toBe('(no matches)');
+        expect(
+            formatSearch([{ path: '.lerret/a.jsx', line: 3, text: 'Glims.io' }]),
+        ).toBe('.lerret/a.jsx:3: Glims.io');
+    });
+
+    it('formatSearch caps at SEARCH_MAX_MATCHES with a guidance line naming how to narrow', () => {
+        const many = Array.from({ length: SEARCH_MAX_MATCHES + 5 }, (_, i) => ({
+            path: `.lerret/f${i}.jsx`,
+            line: 1,
+            text: 'x',
+        }));
+        const lines = formatSearch(many).split('\n');
+        expect(lines).toHaveLength(SEARCH_MAX_MATCHES + 1);
+        expect(lines[lines.length - 1]).toContain(`${SEARCH_MAX_MATCHES} of ${SEARCH_MAX_MATCHES + 5}`);
+        expect(lines[lines.length - 1]).toMatch(/narrow/i);
     });
 });
 

@@ -1,9 +1,10 @@
 // Tool contract — the neutral ToolDef/ToolCall/ToolResult shapes plus the
 // file tool definitions the agent loop offers a model (ADR-006 §2:
 // list_dir / read_file / write_file / delete_file, plus delete_dir for
-// removing a page/folder — Epic 9 follow-up — and the ask_user fork; no shell
-// per FR51, no grep/glob, no string-replace edit in v1; unneeded at
-// `.lerret/` scale).
+// removing a page/folder — Epic 9 follow-up — the ask_user fork, and a
+// read-only `search` (grep across files, added 2026-06-14, for whole-project
+// inventory before a change + verification after it); no shell per FR51, no
+// string-replace edit in v1.
 //
 // Descriptions are PRESCRIPTIVE on purpose (Anthropic tool-writing guidance):
 // they tell the model WHEN and HOW to act ("ALWAYS call this before
@@ -63,6 +64,14 @@ export const LIST_DIR_MAX_ENTRIES = 200;
  */
 export const READ_FILE_CHAR_CAP = 12000;
 
+/**
+ * Hard ceiling on matches one `search` result may carry — the result re-sends
+ * on every later iteration, so it is bounded like the other tools; the cut
+ * carries a guidance line telling the model how to narrow.
+ * @type {number}
+ */
+export const SEARCH_MAX_MATCHES = 100;
+
 // Every path parameter uses the SAME description — one identity shape at the
 // seam (retro addendum-5 lesson); the executors normalize either spelling via
 // toProjectRelativeLerretPath.
@@ -114,6 +123,45 @@ export const READ_FILE_TOOL = deepFreeze({
     },
 });
 
+/**
+ * Read-only full-text search across the project — the inventory + verify
+ * surface (added 2026-06-14). The loop has no grep otherwise, so before a
+ * project-wide change (a rebrand, a colour swap) the model can locate EVERY
+ * occurrence in one call instead of reading files one by one, then re-run it
+ * afterward to confirm none remain. Substring, case-insensitive — not a regex.
+ *
+ * Read-only, so it rides in {@link READ_TOOLS} (both lanes), not just Ask.
+ *
+ * @type {ToolDef}
+ */
+export const SEARCH_TOOL = deepFreeze({
+    name: 'search',
+    description:
+        'Search the TEXT of every project file for a substring (case-insensitive). Returns ' +
+        'matching files with line numbers and the matching line. Use this to find EVERY place ' +
+        'something appears before a project-wide change — a brand name, tagline, price, or colour ' +
+        '— then edit each hit and call search again to confirm none remain. Cheaper than reading ' +
+        'files one by one. Substring match, not a regex; read-only.',
+    parameters: {
+        type: 'object',
+        properties: {
+            query: {
+                type: 'string',
+                description:
+                    'The text to find (case-insensitive substring; not a regular expression).',
+            },
+            path: {
+                type: 'string',
+                description:
+                    'Optional folder to limit the search to (e.g. social/ or .lerret/social/); ' +
+                    'omit to search the whole project.',
+            },
+        },
+        required: ['query'],
+        additionalProperties: false,
+    },
+});
+
 /** @type {ToolDef} */
 export const WRITE_FILE_TOOL = deepFreeze({
     name: 'write_file',
@@ -130,6 +178,50 @@ export const WRITE_FILE_TOOL = deepFreeze({
             },
         },
         required: ['path', 'content'],
+        additionalProperties: false,
+    },
+});
+
+/**
+ * Persist a user-ATTACHED image into the project AS-IS — the ONLY way an
+ * attached file's bytes can reach disk (they otherwise arrive only as vision
+ * pixels the model can see but not write). When the user attaches images and
+ * wants them used — a logo, brand image, photo — this saves the ORIGINAL bytes
+ * so the JSX can reference them with <img src>, instead of the model redrawing
+ * a lossy SVG approximation.
+ *
+ * Ask lane only — it writes, so it is absent from READ_TOOLS.
+ *
+ * @type {ToolDef}
+ */
+export const SAVE_ATTACHMENT_TOOL = deepFreeze({
+    name: 'save_attachment',
+    description:
+        'Save a user-ATTACHED image into the project with its ORIGINAL bytes (no redrawing). ' +
+        'Use this whenever the user attaches image files and wants them used as-is — a logo, brand ' +
+        'image, icon, or photo. NEVER re-create an attached image as inline SVG or CSS; save it with ' +
+        'this tool, then reference the saved path from your JSX via <img src="./<file>"> (or a CSS ' +
+        'background-image). Identify which attachment by its filename, exactly as shown in the ' +
+        'attachments list.',
+    parameters: {
+        type: 'object',
+        properties: {
+            name: {
+                type: 'string',
+                description:
+                    'The filename of the attached image to save, exactly as listed in the ' +
+                    'attachments (e.g. "fox-logo.png").',
+            },
+            path: {
+                type: 'string',
+                description:
+                    'project-relative path under .lerret/ to save the image at — prefer a companion ' +
+                    'next to the asset that uses it (e.g. social/card-logo.png next to social/card.jsx) ' +
+                    'so it travels with the asset on move; for a logo reused across many assets, save ' +
+                    'under .lerret/_assets/.',
+            },
+        },
+        required: ['name', 'path'],
         additionalProperties: false,
     },
 });
@@ -224,11 +316,13 @@ export const ASK_USER_TOOL = deepFreeze({
 
 /**
  * The Inspect lane's ENTIRE tool surface — read-only by construction
- * (ADR-006 §4). The write tools (and ask_user) are absent, not disabled.
+ * (ADR-006 §4). list_dir + read_file + search are all non-mutating; the write
+ * tools (and ask_user) are absent, not disabled. `search` rides here because it
+ * only reads, and "where does X appear?" is a core inspect question.
  *
  * @type {readonly ToolDef[]}
  */
-export const READ_TOOLS = Object.freeze([LIST_DIR_TOOL, READ_FILE_TOOL]);
+export const READ_TOOLS = Object.freeze([LIST_DIR_TOOL, READ_FILE_TOOL, SEARCH_TOOL]);
 
 /**
  * The Ask lane's tool surface — the file tools (list/read/write/delete-file +
@@ -241,6 +335,7 @@ export const READ_TOOLS = Object.freeze([LIST_DIR_TOOL, READ_FILE_TOOL]);
 export const ALL_TOOLS = Object.freeze([
     ...READ_TOOLS,
     WRITE_FILE_TOOL,
+    SAVE_ATTACHMENT_TOOL,
     DELETE_FILE_TOOL,
     DELETE_DIR_TOOL,
     ASK_USER_TOOL,
@@ -292,4 +387,27 @@ export function capFileContent(content) {
     const text = typeof content === 'string' ? content : String(content ?? '');
     if (text.length <= READ_FILE_CHAR_CAP) return text;
     return `${text.slice(0, READ_FILE_CHAR_CAP)}\n…[truncated at ${READ_FILE_CHAR_CAP} chars — the file continues]`;
+}
+
+/**
+ * Format `search` matches as grep-style `path:line: text` lines, sorted by the
+ * sandbox (file walk order), capped at {@link SEARCH_MAX_MATCHES} with a
+ * guidance line naming how to narrow. Pure — the executor (Story 9.3) feeds it
+ * the sandbox's match objects.
+ *
+ * @param {Array<{ path: string, line: number, text: string }>} matches
+ * @returns {string}
+ */
+export function formatSearch(matches) {
+    const list = Array.isArray(matches) ? matches.filter((m) => m && typeof m === 'object') : [];
+    if (list.length === 0) return '(no matches)';
+    const lines = list
+        .slice(0, SEARCH_MAX_MATCHES)
+        .map((m) => `${m.path}:${m.line}: ${m.text}`);
+    if (list.length > SEARCH_MAX_MATCHES) {
+        lines.push(
+            `…[${SEARCH_MAX_MATCHES} of ${list.length} matches shown — narrow with a more specific query or a path scope]`,
+        );
+    }
+    return lines.join('\n');
 }

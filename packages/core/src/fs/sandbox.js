@@ -159,6 +159,7 @@ function validateInsideLerret(projectRoot, normalized, attemptedPath, allowDirEq
  *   removeDir: (path: string) => Promise<void>,
  *   readFile: (path: string, options?: object) => Promise<string | Uint8Array>,
  *   exists: (path: string) => Promise<boolean>,
+ *   search: (query: string, scopePath?: string) => Promise<Array<{ path: string, line: number, text: string }>>,
  * }} Sandbox
  */
 
@@ -279,6 +280,76 @@ export function createSandbox({ projectRoot, fs } = {}) {
                     ...(typeof e.size === 'number' ? { size: e.size } : {}),
                 }))
                 .sort((a, b) => a.name.localeCompare(b.name));
+        },
+        // Read-only full-text search across the `.lerret/` tree (Epic 9
+        // follow-up, 2026-06-14) — the agent loop's `search` tool reads through
+        // this. It COMPOSES the backend's readDir + readFile (no new backend
+        // method, so it works identically across CLI / hosted / FSA), walking
+        // from the project root (or a scoped folder) and matching a
+        // case-insensitive SUBSTRING in text files only. `.state/` is skipped
+        // (as in listDir); binary + oversized files are skipped; the match
+        // count is bounded so one tool result stays small.
+        search: async (query, scopePath) => {
+            const needle = String(query ?? '').toLowerCase();
+            if (!needle) return [];
+            const startAbs = scopePath
+                ? normalizePath(projectRoot, scopePath)
+                : `${projectRoot}/.lerret`;
+            if (scopePath) {
+                validateInsideLerret(projectRoot, startAbs, scopePath, /* allowDirEquality */ true);
+            }
+            const stateRoot = `${projectRoot}/.lerret/.state`;
+            const TEXT_EXT = new Set([
+                '.jsx', '.tsx', '.js', '.ts', '.mjs', '.cjs',
+                '.json', '.md', '.mdx', '.txt', '.css', '.html', '.svg',
+            ]);
+            const MAX_MATCHES = 200;
+            const MAX_FILE_BYTES = 256 * 1024;
+            const rootRel = startAbs.slice(projectRoot.length + 1);
+            const results = [];
+            const walk = async (relDir) => {
+                if (results.length >= MAX_MATCHES) return;
+                const abs = `${projectRoot}/${relDir}`;
+                if (abs === stateRoot || abs.startsWith(`${stateRoot}/`)) return;
+                let entries;
+                try {
+                    entries = await fs.readDir(abs);
+                } catch {
+                    return; // missing / not a directory → contributes nothing
+                }
+                for (const e of entries) {
+                    if (results.length >= MAX_MATCHES) return;
+                    const childRel = `${relDir}/${e.name}`;
+                    if (e.isDirectory === true) {
+                        await walk(childRel);
+                        continue;
+                    }
+                    const dot = e.name.lastIndexOf('.');
+                    const ext = dot >= 0 ? e.name.slice(dot).toLowerCase() : '';
+                    if (!TEXT_EXT.has(ext)) continue;
+                    if (typeof e.size === 'number' && e.size > MAX_FILE_BYTES) continue;
+                    let content;
+                    try {
+                        content = await fs.readFile(`${projectRoot}/${childRel}`, { encoding: 'utf-8' });
+                    } catch {
+                        continue;
+                    }
+                    const text = typeof content === 'string' ? content : '';
+                    const lines = text.split('\n');
+                    for (let i = 0; i < lines.length; i += 1) {
+                        if (lines[i].toLowerCase().includes(needle)) {
+                            results.push({
+                                path: childRel,
+                                line: i + 1,
+                                text: lines[i].trim().slice(0, 200),
+                            });
+                            if (results.length >= MAX_MATCHES) break;
+                        }
+                    }
+                }
+            };
+            await walk(rootRel);
+            return results;
         },
     };
 }

@@ -119,13 +119,22 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
                 // plausible-but-unloadable files (.html pages, bare snippets);
                 // found by the Epic 8 close live-model session.
                 'Lerret renders each .jsx file in a page folder as an artboard. Every asset ' +
-                'you write MUST be a self-contained React component file at ' +
-                '.lerret/<page>/<asset-name>.jsx with exactly this shape:\n' +
-                '  export const meta = { dimensions: { width: <px>, height: <px> }, label: "<Title>" };\n' +
-                '  export default function AssetName() { return ( <div style={{...}}>...</div> ); }\n' +
+                'you write MUST be a self-contained, DATA-DRIVEN React component file at ' +
+                '.lerret/<page>/<asset-name>.jsx — its text comes from props, never hard-coded ' +
+                'in the JSX — with exactly this shape:\n' +
+                '  export const meta = { dimensions: { width: <px>, height: <px> }, label: "<Title>",\n' +
+                '    propsSchema: { headline: { type: "string", default: "Headline" } /* one entry per text field */ } };\n' +
+                '  export default function AssetName({ headline /* one param per prop */ }) {\n' +
+                '    return ( <div style={{...}}>{headline}</div> ); }\n' +
+                'For EACH asset emit TWO write steps: the .jsx above AND a sibling ' +
+                '.lerret/<page>/<asset-name>.data.json holding the REAL text, keyed by the SAME ' +
+                'names: { "headline": "Light the trail this autumn." }. Put EVERY meaningful piece ' +
+                'of text — headline, tagline, body, CTA, brand name, price, date — in propsSchema + ' +
+                'the .data.json and read it from props; NEVER hard-code that text in the JSX. ' +
+                'Decorative literals (arrows, fixed labels) may stay inline.\n' +
                 'Rules: inline style objects only (no <style> tags, no CSS files, no className); ' +
                 'no imports of any kind; no <html>/<head>/<body>; the root <div> fills the full ' +
-                'meta dimensions. Edit an existing asset by rewriting its .jsx in place. Never ' +
+                'meta dimensions. Never ' +
                 'write .html files. Markdown (.md) is allowed only when the user asks for notes/docs ' +
                 '— with ONE exception: .lerret/_design-system.md is the project\'s brand authority ' +
                 '(the colors/typography/voice tokens every asset reads; when present, its text ' +

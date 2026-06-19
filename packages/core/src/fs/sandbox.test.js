@@ -46,6 +46,80 @@ function makeSandbox(overrides = {}) {
     return { sandbox, fs };
 }
 
+describe('search — read-only full-text inventory (Epic 9 follow-up, 2026-06-14)', () => {
+    const R = PROJECT_ROOT;
+    function searchFs(dirs, files) {
+        const fs = makeMockFs();
+        fs.readDir.mockImplementation(async (abs) => {
+            if (Object.prototype.hasOwnProperty.call(dirs, abs)) return dirs[abs];
+            throw new Error(`ENOENT: ${abs}`);
+        });
+        fs.readFile.mockImplementation(async (abs) => {
+            if (Object.prototype.hasOwnProperty.call(files, abs)) return files[abs];
+            throw new Error(`ENOENT: ${abs}`);
+        });
+        return fs;
+    }
+
+    it('finds case-insensitive substring matches across the tree (path:line: text); skips binary files', async () => {
+        const fs = searchFs(
+            {
+                [`${R}/.lerret`]: [
+                    { name: 'social', isDirectory: true },
+                    { name: 'a.jsx', isDirectory: false, size: 40 },
+                    { name: 'logo.png', isDirectory: false, size: 999 },
+                ],
+                [`${R}/.lerret/social`]: [{ name: 'card.jsx', isDirectory: false, size: 30 }],
+            },
+            {
+                [`${R}/.lerret/a.jsx`]: 'top\nGLIMS.IO brand\nbottom',
+                [`${R}/.lerret/social/card.jsx`]: 'visit glims.io now\nfooter',
+                [`${R}/.lerret/logo.png`]: 'binary-glims.io-not-text',
+            },
+        );
+        const sandbox = createSandbox({ projectRoot: R, fs });
+        const hits = await sandbox.search('glims.io');
+        expect(hits.map((h) => `${h.path}:${h.line}`).sort()).toEqual([
+            '.lerret/a.jsx:2',
+            '.lerret/social/card.jsx:1',
+        ]);
+        expect(hits.find((h) => h.path.endsWith('a.jsx')).text).toBe('GLIMS.IO brand');
+        // The .png is not a text extension — never read, never matched.
+        expect(fs.readFile).not.toHaveBeenCalledWith(`${R}/.lerret/logo.png`);
+    });
+
+    it('honors a folder scope and never descends into the .state sidecar', async () => {
+        const fs = searchFs(
+            {
+                [`${R}/.lerret`]: [
+                    { name: 'social', isDirectory: true },
+                    { name: '.state', isDirectory: true },
+                    { name: 'a.jsx', isDirectory: false, size: 10 },
+                ],
+                [`${R}/.lerret/social`]: [{ name: 'card.jsx', isDirectory: false, size: 10 }],
+                [`${R}/.lerret/.state`]: [{ name: 'snap.jsx', isDirectory: false, size: 10 }],
+            },
+            {
+                [`${R}/.lerret/a.jsx`]: 'glims.io',
+                [`${R}/.lerret/social/card.jsx`]: 'glims.io',
+                [`${R}/.lerret/.state/snap.jsx`]: 'glims.io',
+            },
+        );
+        const sandbox = createSandbox({ projectRoot: R, fs });
+        const scoped = await sandbox.search('glims.io', '.lerret/social');
+        expect(scoped.map((h) => h.path)).toEqual(['.lerret/social/card.jsx']);
+        const all = await sandbox.search('glims.io');
+        expect(all.map((h) => h.path).sort()).toEqual(['.lerret/a.jsx', '.lerret/social/card.jsx']);
+        expect(fs.readFile).not.toHaveBeenCalledWith(`${R}/.lerret/.state/snap.jsx`);
+    });
+
+    it('returns [] for an empty query without touching the backend', async () => {
+        const { sandbox, fs } = makeSandbox();
+        expect(await sandbox.search('')).toEqual([]);
+        expect(fs.readDir).not.toHaveBeenCalled();
+    });
+});
+
 describe('Happy path — paths inside .lerret/', () => {
     it('row 1: write to .lerret/social/twitter-card.jsx', async () => {
         const { sandbox, fs } = makeSandbox();
