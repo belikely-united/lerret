@@ -59,6 +59,18 @@ describe('bringUpHostedStudio', () => {
     expect(deps.applyReactImportMap).toHaveBeenCalledWith({ react: '/r.js', jsxRuntime: '/j.js' });
   });
 
+  it('registers project images with the SW AFTER the runtime is built (when provided)', async () => {
+    const order = [];
+    const { deps, backend, sw } = makeDeps({
+      createRuntime: vi.fn((project, options) => { order.push('createRuntime'); return { project, options }; }),
+      registerImages: vi.fn(async () => { order.push('registerImages'); }),
+    });
+    await bringUpHostedStudio({}, deps);
+    expect(deps.registerImages).toHaveBeenCalledWith(backend, sw);
+    // Only after the runtime exists, so the SW is ready to serve them.
+    expect(order).toEqual(['createRuntime', 'registerImages']);
+  });
+
   it('propagates a service-worker registration failure (no runtime built)', async () => {
     const { deps } = makeDeps({
       registerServiceWorker: vi.fn(async () => { throw new Error('SW unsupported'); }),

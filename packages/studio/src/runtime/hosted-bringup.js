@@ -64,6 +64,7 @@ export async function bringUpHostedStudio(handle, deps) {
     reactImportMapUrls,
     loadProject,
     createRuntime,
+    registerImages,
   } = deps;
 
   const backend = createBackend(handle);
@@ -75,6 +76,10 @@ export async function bringUpHostedStudio(handle, deps) {
 
   const { project, cascadeEntries, assetConfigEntries } = await loadProject(backend);
   const runtime = createRuntime(project, { fs: backend, sw });
+
+  // Register the project's image files with the SW so `<img src>` references in
+  // assets resolve in hosted mode (no dev server serves project statics).
+  if (typeof registerImages === 'function') await registerImages(backend, sw);
 
   return { backend, sw, runtime, project, cascadeEntries, assetConfigEntries };
 }

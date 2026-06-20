@@ -161,6 +161,25 @@ describe('module-sw pre-register protocol', () => {
  expect(resolved.headers.get('Content-Type')).toBe('text/css');
  });
 
+ it('REGISTER_BINARY serves image bytes with its MIME, tolerant of the <img> ../ depth', async () => {
+ dispatchMessage(sw.handlers.message[0], {
+ type: 'REGISTER_BINARY',
+ key: '_assets/logo.png',
+ bytes: new Uint8Array([137, 80, 78, 71]),
+ contentType: 'image/png',
+ });
+ // Canonical path under /__lerret/asset/ …
+ const a = await dispatchFetch(sw.handlers.fetch[0], 'https://x.com/__lerret/asset/_assets/logo.png');
+ expect(a.status).toBe(200);
+ expect(a.headers.get('Content-Type')).toBe('image/png');
+ expect(Array.from(new Uint8Array(await a.arrayBuffer()))).toEqual([137, 80, 78, 71]);
+ // … and the URL an `<img src="../../_assets/logo.png">` escapes to resolves to
+ // the SAME registered image (path-tolerant tail lookup).
+ const b = await dispatchFetch(sw.handlers.fetch[0], 'https://x.com/__lerret/_assets/logo.png');
+ expect(b.status).toBe(200);
+ expect(Array.from(new Uint8Array(await b.arrayBuffer()))).toEqual([137, 80, 78, 71]);
+ });
+
  it('a fetch for an unregistered URL serves a 404 stub that throws on evaluation', async () => {
  const url = '/__lerret/asset/missing.jsx?h=xyz';
  const resolved = await dispatchFetch(sw.handlers.fetch[0], `https://example.com${url}`);

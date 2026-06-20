@@ -79,6 +79,16 @@
 const ASSET_URL_PREFIX = '/__lerret/asset/';
 
 /**
+ * The broader prefix the SW intercepts so an asset's `<img src="…/logo.png">`
+ * is served too. An `<img>` relative URL resolves against the asset's
+ * `/__lerret/asset/…` module URL, so depending on its `../` depth it lands
+ * under `/__lerret/asset/…` OR escapes to `/__lerret/…`; intercepting at
+ * `/__lerret/` covers both (image lookup is by the path tail, so the depth does
+ * not matter — see `imageKeyFromPath`).
+ */
+const LERRET_PREFIX = '/__lerret/';
+
+/**
  * Maximum number of registered modules to keep in memory before FIFO
  * eviction kicks in. A realistic project has ≤200 assets × ≤a-handful of
  * cache-busted versions; 2000 is generous and bounds the memory footprint.
@@ -95,6 +105,15 @@ const MAX_MODULES = 2000;
 
 /** @type {Map<string, ModuleEntry>} */
 const moduleStore = new Map();
+
+/**
+ * Binary asset (image) store, keyed by the file's project-relative path
+ * (e.g. `_assets/logo.png`, `social/card-logo.png`) — NOT the full request URL,
+ * so the lookup tolerates the `../` depth in the `<img src>` that produced it.
+ *
+ * @type {Map<string, { bytes: Uint8Array, contentType: string }>}
+ */
+const binaryStore = new Map();
 
 /**
  * Insert `entry` for `url`, evicting the oldest entry if the store would
@@ -167,6 +186,19 @@ self.addEventListener('message', (event) => {
  });
  break;
  }
+ case 'REGISTER_BINARY': {
+ // A binary asset (image) keyed by its project-relative path. `bytes` is a
+ // Uint8Array (structured-cloned across postMessage); served verbatim.
+ if (typeof data.key !== 'string' || !data.bytes) return;
+ binaryStore.set(data.key, {
+ bytes: data.bytes,
+ contentType:
+ typeof data.contentType === 'string' && data.contentType.length > 0
+ ? data.contentType
+ : 'application/octet-stream',
+ });
+ break;
+ }
  case 'INVALIDATE': {
  if (typeof data.url !== 'string') return;
  moduleStore.delete(data.url);
@@ -180,6 +212,9 @@ self.addEventListener('message', (event) => {
  if (key.startsWith(data.prefix)) toDelete.push(key);
  }
  for (const key of toDelete) moduleStore.delete(key);
+ // A prefix invalidation means the project is unmounting/remounting; its
+ // images are stale too, so clear them wholesale (re-registered on remount).
+ binaryStore.clear();
  break;
  }
  case 'CLAIM': {
@@ -209,20 +244,80 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
  const url = event.request.url;
  // Cheap substring check first to avoid URL parsing for every studio fetch.
- if (url.indexOf(ASSET_URL_PREFIX) === -1) return;
+ if (url.indexOf(LERRET_PREFIX) === -1) return;
 
  // The pathname is the lookup key (origin / scheme are runtime-specific).
+ let pathname;
  let pathAndQuery;
  try {
  const parsed = new URL(url);
+ pathname = parsed.pathname;
  pathAndQuery = parsed.pathname + parsed.search;
  } catch {
  return;
  }
- if (pathAndQuery.indexOf(ASSET_URL_PREFIX) !== 0) return;
+ if (pathname.indexOf(LERRET_PREFIX) !== 0) return;
 
+ // A registered JS module is keyed by the FULL URL (incl. the `?h=` cache-bust).
+ if (moduleStore.has(pathAndQuery)) {
+ event.respondWith(serveModule(pathAndQuery));
+ return;
+ }
+ // Otherwise, maybe a binary asset (image): look it up by its project-relative
+ // tail so the `<img src>`'s `../` depth doesn't matter.
+ const key = imageKeyFromPath(pathname);
+ if (key && binaryStore.has(key)) {
+ event.respondWith(serveBinary(key));
+ return;
+ }
+ // Module miss — serve the JS stub so the import rejects cleanly.
  event.respondWith(serveModule(pathAndQuery));
 });
+
+/**
+ * Reduce a `/__lerret/…` request pathname to a binary-store key: the path after
+ * `/__lerret/asset/` or, when the `<img>`'s `../` escaped that base, after
+ * `/__lerret/`. Both collapse to the same project-relative tail.
+ *
+ * @param {string} pathname
+ * @returns {string | null}
+ */
+function imageKeyFromPath(pathname) {
+ let rest;
+ if (pathname.indexOf(ASSET_URL_PREFIX) === 0) {
+ rest = pathname.slice(ASSET_URL_PREFIX.length);
+ } else if (pathname.indexOf(LERRET_PREFIX) === 0) {
+ rest = pathname.slice(LERRET_PREFIX.length);
+ } else {
+ return null;
+ }
+ if (!rest) return null;
+ try {
+ return decodeURIComponent(rest);
+ } catch {
+ return rest;
+ }
+}
+
+/**
+ * Serve a registered binary asset (image) by its project-relative key.
+ *
+ * @param {string} key
+ * @returns {Promise<Response>}
+ */
+async function serveBinary(key) {
+ const entry = binaryStore.get(key);
+ if (!entry) {
+ return new Response('', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+ }
+ return new Response(entry.bytes, {
+ status: 200,
+ headers: {
+ 'Content-Type': entry.contentType,
+ 'Cache-Control': 'no-store',
+ },
+ });
+}
 
 /**
  * Serve a registered module by URL. A miss returns a JavaScript stub that

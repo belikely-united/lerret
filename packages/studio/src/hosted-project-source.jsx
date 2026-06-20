@@ -37,6 +37,7 @@ import { setHostedController } from './runtime/hosted-controller.js';
 import { rememberRecent } from './runtime/hosted-recents.js';
 import { bringUpHostedStudio } from './runtime/hosted-bringup.js';
 import { resolveReactImportMapUrls } from './runtime/hosted-react-urls.js';
+import { registerProjectImages, imageMime } from './runtime/hosted-images.js';
 
 /**
  * Production bring-up dependencies. The orchestration that consumes these is
@@ -52,6 +53,7 @@ const REAL_DEPS = {
   reactImportMapUrls: resolveReactImportMapUrls,
   loadProject: loadHostedProject,
   createRuntime: createHostedRuntime,
+  registerImages: registerProjectImages,
 };
 
 /**
@@ -70,6 +72,7 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
   const backendRef = React.useRef(null);
   const runtimeRef = React.useRef(null);
   const watcherRef = React.useRef(null);
+  const swRef = React.useRef(null);
 
   // Leave the current project for the home/connect screen (H7 switch + close).
   const goHome = React.useCallback(() => {
@@ -78,6 +81,7 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
     watcherRef.current = null;
     runtimeRef.current = null;
     backendRef.current = null;
+    swRef.current = null;
     setHostedWriter(null);
     setHostedAiFs(null);
     setHostedDataReader(null);
@@ -98,6 +102,11 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
           runtimeRef.current.notifyChange(changedPath);
         }
         const next = await deps.loadProject(backend);
+        // A new/changed image (e.g. a save_attachment write) needs (re-)registering
+        // with the SW so its <img src> resolves; skip the walk for non-image edits.
+        if (swRef.current && deps.registerImages && (!changedPath || imageMime(changedPath))) {
+          await deps.registerImages(backend, swRef.current);
+        }
         setStudio((prev) => (prev ? { ...prev, ...next } : prev));
       } catch (err) {
         setError(err);
@@ -115,6 +124,7 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
         const up = await bringUpHostedStudio(handle, deps);
         backendRef.current = up.backend;
         runtimeRef.current = up.runtime;
+        swRef.current = up.sw;
         // Wire writes (data/config/meta + lifecycle) to local disk via FSA.
         setHostedWriter(createHostedWriter(up.backend));
         // Wire the AI agent's file loop to the same FSA backend (hosted AI).
