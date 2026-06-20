@@ -243,8 +243,13 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
  const url = event.request.url;
- // Cheap substring check first to avoid URL parsing for every studio fetch.
- if (url.indexOf(LERRET_PREFIX) === -1) return;
+ // We intercept two things: our own `/__lerret/…` module URLs, AND any image
+ // request once a project's images are registered — because an asset renders in
+ // the studio's MAIN document, so `<img src="../_assets/x.png">` resolves
+ // PAGE-relative (e.g. `/_assets/x.png`), not against the module URL.
+ const isLerret = url.indexOf(LERRET_PREFIX) !== -1;
+ const isImage = binaryStore.size > 0 && /\.(png|jpe?g|gif|svg|webp|avif)(\?|$)/i.test(url);
+ if (!isLerret && !isImage) return;
 
  // The pathname is the lookup key (origin / scheme are runtime-specific).
  let pathname;
@@ -256,47 +261,54 @@ self.addEventListener('fetch', (event) => {
  } catch {
  return;
  }
- if (pathname.indexOf(LERRET_PREFIX) !== 0) return;
 
  // A registered JS module is keyed by the FULL URL (incl. the `?h=` cache-bust).
- if (moduleStore.has(pathAndQuery)) {
+ if (isLerret && pathname.indexOf(LERRET_PREFIX) === 0 && moduleStore.has(pathAndQuery)) {
  event.respondWith(serveModule(pathAndQuery));
  return;
  }
- // Otherwise, maybe a binary asset (image): look it up by its project-relative
- // tail so the `<img src>`'s `../` depth doesn't matter.
- const key = imageKeyFromPath(pathname);
- if (key && binaryStore.has(key)) {
+ // A registered binary asset (image), matched however its `<img src>` resolved.
+ const key = matchBinaryKey(pathname);
+ if (key) {
  event.respondWith(serveBinary(key));
  return;
  }
- // Module miss — serve the JS stub so the import rejects cleanly.
+ // A `/__lerret/` module miss → the JS stub; any other request passes through.
+ if (isLerret && pathname.indexOf(LERRET_PREFIX) === 0) {
  event.respondWith(serveModule(pathAndQuery));
+ }
 });
 
 /**
- * Reduce a `/__lerret/…` request pathname to a binary-store key: the path after
- * `/__lerret/asset/` or, when the `<img>`'s `../` escaped that base, after
- * `/__lerret/`. Both collapse to the same project-relative tail.
+ * Match a request pathname to a registered binary (image) key. An asset's
+ * `<img src>` can resolve several ways: PAGE-relative (`/_assets/x.png`, the
+ * common case — the asset renders in the main document), module-relative
+ * (`/__lerret/asset/_assets/x.png`), or escaped (`/__lerret/_assets/x.png`). All
+ * reduce to the registered project-relative key (`_assets/x.png`). Only image-
+ * extension paths are considered, so studio routes are never intercepted.
  *
  * @param {string} pathname
  * @returns {string | null}
  */
-function imageKeyFromPath(pathname) {
- let rest;
- if (pathname.indexOf(ASSET_URL_PREFIX) === 0) {
- rest = pathname.slice(ASSET_URL_PREFIX.length);
- } else if (pathname.indexOf(LERRET_PREFIX) === 0) {
- rest = pathname.slice(LERRET_PREFIX.length);
- } else {
+function matchBinaryKey(pathname) {
+ if (binaryStore.size === 0 || !/\.(png|jpe?g|gif|svg|webp|avif)$/i.test(pathname)) {
  return null;
  }
- if (!rest) return null;
- try {
- return decodeURIComponent(rest);
- } catch {
- return rest;
+ const candidates = [];
+ if (pathname.indexOf(ASSET_URL_PREFIX) === 0) {
+ candidates.push(pathname.slice(ASSET_URL_PREFIX.length));
+ } else if (pathname.indexOf(LERRET_PREFIX) === 0) {
+ candidates.push(pathname.slice(LERRET_PREFIX.length));
  }
+ candidates.push(pathname.replace(/^\/+/, '')); // page-relative (strip leading /)
+ const at = pathname.indexOf('_assets/');
+ if (at >= 0) candidates.push(pathname.slice(at)); // the `_assets/…` tail
+ for (let candidate of candidates) {
+ let key = candidate;
+ try { key = decodeURIComponent(candidate); } catch { /* keep raw */ }
+ if (binaryStore.has(key)) return key;
+ }
+ return null;
 }
 
 /**

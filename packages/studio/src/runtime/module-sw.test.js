@@ -178,6 +178,12 @@ describe('module-sw pre-register protocol', () => {
  const b = await dispatchFetch(sw.handlers.fetch[0], 'https://x.com/__lerret/_assets/logo.png');
  expect(b.status).toBe(200);
  expect(Array.from(new Uint8Array(await b.arrayBuffer()))).toEqual([137, 80, 78, 71]);
+ // … and the PAGE-relative URL the <img> ACTUALLY resolves to in the studio's
+ // main document (`/_assets/logo.png`) — the common, real case.
+ const c = await dispatchFetch(sw.handlers.fetch[0], 'https://x.com/_assets/logo.png');
+ expect(c.status).toBe(200);
+ expect(c.headers.get('Content-Type')).toBe('image/png');
+ expect(Array.from(new Uint8Array(await c.arrayBuffer()))).toEqual([137, 80, 78, 71]);
  });
 
  it('a fetch for an unregistered URL serves a 404 stub that throws on evaluation', async () => {

@@ -25,6 +25,7 @@ export default function Welcome() {
         cursor: 'pointer',
       }}
     >
+      <img src="../_assets/lerret-mark.svg" width="84" height="84" alt="Lerret" style={{ display: 'block' }} />
       <div style={{ fontSize: 64, fontWeight: 700, color: '#1A1714' }}>Welcome to Lerret</div>
       <div style={{ fontSize: 24, fontWeight: 600, color: '#B85B33' }}>
         Your folder is a canvas. Clicks: {clicks}
@@ -36,6 +37,13 @@ export default function Welcome() {
   );
 }
 `;
+
+// A tiny brand mark shipped with the demo so `<img src>` (and the whole hosted
+// image pipeline) is exercised out of the box — an orange rounded square + "L".
+const LERRET_MARK_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">' +
+  '<rect width="96" height="96" rx="22" fill="#B85B33"/>' +
+  '<path d="M34 26h10v36h22v10H34z" fill="#FAF8F2"/></svg>\n';
 
 /**
  * The File System Access API exposes permission methods on real
@@ -81,5 +89,9 @@ export async function createDemoProject() {
   await writeFileTo(lerret, 'config.json', JSON.stringify({ vars: { brand: '#B85B33' } }, null, 2));
   const page = await lerret.getDirectoryHandle('welcome', { create: true });
   await writeFileTo(page, 'Welcome.jsx', DEMO_SOURCE);
+  // A shared brand mark under `_assets/` that Welcome.jsx references via
+  // `<img src="../_assets/lerret-mark.svg">` — exercises hosted image serving.
+  const assets = await lerret.getDirectoryHandle('_assets', { create: true });
+  await writeFileTo(assets, 'lerret-mark.svg', LERRET_MARK_SVG);
   return grantedHandle(root);
 }
