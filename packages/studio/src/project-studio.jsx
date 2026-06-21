@@ -7,7 +7,7 @@
 // canvas shows — driven by the hash (`useHashRoute`), so the route
 // survives reload and is shareable, with zero router config;
 // • it renders the brownfield `StudioShell` (the floating dock, the
-// walkthrough, the kept `#storyboard` dev page);
+// walkthrough);
 // • it publishes the project's page list to the dock — via
 // `ProjectPagesContext` — so the dock shows the page picker (UX-DR1);
 // • the `StudioShell` page that holds the project renders `ProjectCanvas`
@@ -23,9 +23,7 @@
 // The studio uses a single hash route. On the project page the hash holds the
 // *current project page's* `LerretPath`; `StudioShell` treats any hash it does
 // not recognize as its own as a fall-through to its default page (the project
-// page), so the two routing layers coexist on one hash with no collision. The
-// brownfield `#storyboard` dev page is the one studio-shell route, and the
-// project canvas is not mounted while it is shown.
+// page), so the two routing layers coexist on one hash with no collision.
 //
 // ── Custom fonts ───────────────────────────────────────────────
 // The `core` loader records font files from the reserved `_fonts/` folder onto
@@ -38,7 +36,6 @@
 import React from 'react';
 
 import { StudioShell, useHashRoute } from './studio-shell.jsx';
-import { storyboard } from './fixtures/storyboard.jsx';
 import { ProjectCanvas, resolvePage } from './components/canvas/project-canvas.jsx';
 import { ProjectPagesContext } from './components/dock/project-pages-context.jsx';
 import { ProjectModelContext } from './components/dock/project-model-context.jsx';
@@ -98,32 +95,26 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  const currentPage = resolvePage(project, route);
  const currentPageId = currentPage ? currentPage.path : null;
 
- // True when a non-project studio-shell page is showing (the brownfield
- // `#storyboard` dev page). The project canvas is not mounted then.
- const onShellPage = route === 'storyboard';
-
  // The page navigation object the dock's picker consumes. `id` is each
  // page's `LerretPath`; navigating sets the hash to it. Memoized so the dock
- // does not see a new object every render. `null` while a studio-shell page
- // is showing — the dock then falls back to its page buttons (which give a
- // route back to the project).
+ // does not see a new object every render. `null` when the project has no
+ // pages.
  const projectPagesNav = React.useMemo(() => {
- if (pages.length === 0 || onShellPage) return null;
+ if (pages.length === 0) return null;
  return {
  pages: pages.map((p) => ({ id: p.path, label: p.name })),
  current: currentPageId,
  onNavigate: (id) => navigate(id),
  };
- }, [pages, currentPageId, navigate, onShellPage]);
+ }, [pages, currentPageId, navigate]);
 
- // The studio-shell page registry. The project canvas is the default page;
- // the brownfield launch-assets storyboard is kept reachable at #storyboard.
+ // The studio-shell page registry — just the project canvas now (the
+ // brownfield launch-assets storyboard dev page has been removed).
  const shellPages = {
  [PROJECT_ROUTE]: {
  label: project ? project.name : 'Project',
  node: <ProjectCanvas project={project} runtime={runtime} pageId={currentPageId} />,
  },
- storyboard: { label: 'Storyboard', node: storyboard },
  };
 
  // The AI subsystem's folder identity. The dock cluster + setup screen + key

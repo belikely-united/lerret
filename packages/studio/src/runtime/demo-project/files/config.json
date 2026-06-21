@@ -1,0 +1,15 @@
+{
+  "_meta": {
+    "preset": "lerret-demo-v1"
+  },
+  "vars": {
+    "brand": "Lerret",
+    "brandColor": "#B85B33",
+    "accentColor": "#F1EDE5",
+    "neutralDark": "#1A1714",
+    "neutralLight": "#FAF8F2",
+    "displayName": "Lerret",
+    "handle": "@lerret",
+    "tagline": "Your folder is a canvas."
+  }
+}

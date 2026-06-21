@@ -1,0 +1,12 @@
+{
+  "default": {
+    "title": "maker",
+    "email": "hello@belikely.com"
+  },
+  "Complete": {
+    "name": "Ada Lovelace",
+    "title": "designer of designs",
+    "email": "ada@belikely.com",
+    "location": "London / 1843"
+  }
+}

@@ -2,48 +2,34 @@
 // File System, for "Try a demo" on the hosted entry screen. No folder pick, no
 // permission prompt — a first-time visitor sees the studio working in one click.
 // (Epic 10 / H8.)
+//
+// The demo's CONTENT lives as real files under `./demo-project/files/**` — a
+// genuine multi-page `.lerret/` project (welcome · brand · social · live ·
+// launch) that exercises data-driven props, auto-refresh, multi-format social,
+// and Markdown. They are pulled in as raw text at build time and written
+// verbatim into OPFS, so "Try a demo" loads through the EXACT same scan → render
+// path as a real folder — nothing about the demo is special-cased in the studio.
 
-const DEMO_SOURCE = `import { useState } from 'react';
+// Every file under demo-project/files, as raw text. `import.meta.glob` inlines
+// them into the bundle at build time (the same `?raw` mechanism the dev-harness
+// uses for its fixture). Keys look like './demo-project/files/welcome/Welcome.jsx'.
+const RAW_FILES = import.meta.glob('./demo-project/files/**/*', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
 
-export const meta = { dimensions: { width: 1200, height: 630 } };
+const FILES_PREFIX = './demo-project/files/';
 
-export default function Welcome() {
-  const [clicks, setClicks] = useState(0);
-  return (
-    <div
-      onClick={() => setClicks((c) => c + 1)}
-      style={{
-        width: 1200,
-        height: 630,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 18,
-        background: '#FAF8F2',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        cursor: 'pointer',
-      }}
-    >
-      <img src="../_assets/lerret-mark.svg" width="84" height="84" alt="Lerret" style={{ display: 'block' }} />
-      <div style={{ fontSize: 64, fontWeight: 700, color: '#1A1714' }}>Welcome to Lerret</div>
-      <div style={{ fontSize: 24, fontWeight: 600, color: '#B85B33' }}>
-        Your folder is a canvas. Clicks: {clicks}
-      </div>
-      <div style={{ fontSize: 15, color: '#6E6960' }}>
-        Edit .lerret/welcome/Welcome.jsx and it re-renders.
-      </div>
-    </div>
-  );
-}
-`;
-
-// A tiny brand mark shipped with the demo so `<img src>` (and the whole hosted
-// image pipeline) is exercised out of the box — an orange rounded square + "L".
-const LERRET_MARK_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">' +
-  '<rect width="96" height="96" rx="22" fill="#B85B33"/>' +
-  '<path d="M34 26h10v36h22v10H34z" fill="#FAF8F2"/></svg>\n';
+/**
+ * The demo project as a flat `{ '<path under .lerret/>': '<file text>' }` map —
+ * e.g. `{ 'config.json': '…', 'welcome/Welcome.jsx': '…' }`. Exported so the
+ * seed manifest can be asserted in tests without touching OPFS.
+ * @type {Record<string, string>}
+ */
+export const DEMO_FILES = Object.fromEntries(
+  Object.entries(RAW_FILES).map(([key, text]) => [key.slice(FILES_PREFIX.length), text]),
+);
 
 /**
  * The File System Access API exposes permission methods on real
@@ -73,8 +59,27 @@ async function writeFileTo(dir, name, content) {
 }
 
 /**
- * Seed (replacing any prior demo) a one-page sample `.lerret/` project in OPFS
- * and return a permission-granted root handle ready for the hosted bring-up.
+ * Write `content` to `relPath` (forward-slash, relative to the project root),
+ * creating every intermediate directory on the way — e.g. 'social/og-card.jsx'
+ * creates the `social/` folder then writes `og-card.jsx`.
+ *
+ * @param {FileSystemDirectoryHandle} root
+ * @param {string} relPath
+ * @param {string} content
+ */
+async function writeNested(root, relPath, content) {
+  const parts = relPath.split('/');
+  const fileName = parts.pop();
+  let dir = root;
+  for (const part of parts) {
+    dir = await dir.getDirectoryHandle(part, { create: true });
+  }
+  await writeFileTo(dir, fileName, content);
+}
+
+/**
+ * Seed (replacing any prior demo) the sample `.lerret/` project in OPFS and
+ * return a permission-granted root handle ready for the hosted bring-up.
  *
  * @returns {Promise<FileSystemDirectoryHandle>}
  */
@@ -86,12 +91,8 @@ export async function createDemoProject() {
     /* nothing to clear */
   }
   const lerret = await root.getDirectoryHandle('.lerret', { create: true });
-  await writeFileTo(lerret, 'config.json', JSON.stringify({ vars: { brand: '#B85B33' } }, null, 2));
-  const page = await lerret.getDirectoryHandle('welcome', { create: true });
-  await writeFileTo(page, 'Welcome.jsx', DEMO_SOURCE);
-  // A shared brand mark under `_assets/` that Welcome.jsx references via
-  // `<img src="../_assets/lerret-mark.svg">` — exercises hosted image serving.
-  const assets = await lerret.getDirectoryHandle('_assets', { create: true });
-  await writeFileTo(assets, 'lerret-mark.svg', LERRET_MARK_SVG);
+  for (const [relPath, content] of Object.entries(DEMO_FILES)) {
+    await writeNested(lerret, relPath, content);
+  }
   return grantedHandle(root);
 }

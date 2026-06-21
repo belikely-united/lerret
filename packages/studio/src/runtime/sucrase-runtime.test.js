@@ -21,6 +21,7 @@ import {
  hostedRuntimeFactory,
  hostedAssetModuleUrl,
  registerHostedServiceWorker,
+ createNavigatorServiceWorkerBridge,
  ServiceWorkerRegistrationError,
  HOSTED_ASSET_URL_PREFIX,
  setReactImportMap,
@@ -551,6 +552,44 @@ describe('registerHostedServiceWorker', () => {
  name: 'ServiceWorkerRegistrationError',
  cause,
  });
+ } finally {
+ Object.defineProperty(navigator, 'serviceWorker', { value: original, configurable: true });
+ }
+ });
+});
+
+describe('createNavigatorServiceWorkerBridge', () => {
+ it('falls back to the active worker when there is no controller yet (first load)', async () => {
+ if (typeof navigator === 'undefined') return; // skip in non-DOM
+ const original = navigator.serviceWorker;
+ const active = { postMessage: vi.fn() };
+ Object.defineProperty(navigator, 'serviceWorker', {
+ value: { controller: null, ready: Promise.resolve({ active }) },
+ configurable: true,
+ });
+ try {
+ const msg = { type: 'REGISTER_BINARY', key: '_assets/logo.svg' };
+ createNavigatorServiceWorkerBridge().postMessage(msg);
+ await navigator.serviceWorker.ready;
+ await Promise.resolve();
+ expect(active.postMessage).toHaveBeenCalledWith(msg);
+ } finally {
+ Object.defineProperty(navigator, 'serviceWorker', { value: original, configurable: true });
+ }
+ });
+
+ it('posts straight to the controller when one is present', () => {
+ if (typeof navigator === 'undefined') return; // skip in non-DOM
+ const original = navigator.serviceWorker;
+ const controller = { postMessage: vi.fn() };
+ Object.defineProperty(navigator, 'serviceWorker', {
+ value: { controller, ready: Promise.resolve({}) },
+ configurable: true,
+ });
+ try {
+ const msg = { type: 'REGISTER_MODULE', key: 'x' };
+ createNavigatorServiceWorkerBridge().postMessage(msg);
+ expect(controller.postMessage).toHaveBeenCalledWith(msg);
  } finally {
  Object.defineProperty(navigator, 'serviceWorker', { value: original, configurable: true });
  }

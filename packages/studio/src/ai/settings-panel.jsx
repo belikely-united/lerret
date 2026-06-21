@@ -40,9 +40,10 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-settings-pan
     s.textContent = `
 .lm-ai-settings {
     display: grid;
-    grid-template-columns: 35% 1fr;
-    gap: var(--lm-space-5, 20px);
-    min-height: 400px;
+    grid-template-columns: 188px 1fr;
+    gap: var(--lm-space-6, 24px);
+    align-items: start;
+    min-height: 232px;
 }
 .lm-ai-settings__list {
     display: flex;
@@ -52,8 +53,8 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-settings-pan
 .lm-ai-settings__row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
+    gap: 9px;
+    padding: 8px 10px;
     border-radius: var(--lm-radius-sm, 6px);
     cursor: pointer;
     background: transparent;
@@ -61,6 +62,20 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-settings-pan
     text-align: left;
     width: 100%;
     font-family: inherit;
+}
+.lm-ai-settings__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--lm-radius-pill, 999px);
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+.lm-ai-settings__dot[data-state="active"] { background: var(--lm-accent, #B85B33); }
+.lm-ai-settings__dot[data-state="configured"] { background: transparent; border: 1.5px solid var(--lm-accent, #B85B33); }
+.lm-ai-settings__dot[data-state="none"] { background: transparent; border: 1.5px solid var(--lm-border, #D8D2C4); }
+.lm-ai-settings__row[data-active="true"] .lm-ai-settings__dot {
+    background: var(--lm-text-onAccent, #FAF8F2);
+    border-color: var(--lm-text-onAccent, #FAF8F2);
 }
 .lm-ai-settings__row[data-active="true"] {
     background: var(--lm-accent, #B85B33);
@@ -76,9 +91,12 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-settings-pan
     font: 500 13px/1.2 var(--lm-font-sans, sans-serif);
 }
 .lm-ai-settings__row-status {
-    font: 400 11px/1.2 var(--lm-font-sans);
-    opacity: 0.8;
+    font: 400 10.5px/1.2 var(--lm-font-sans);
+    margin-left: auto;
+    opacity: 0.6;
+    white-space: nowrap;
 }
+.lm-ai-settings__row[data-active="true"] .lm-ai-settings__row-status { opacity: 0.92; }
 .lm-ai-settings__detail {
     display: flex;
     flex-direction: column;
@@ -91,10 +109,30 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-settings-pan
     color: var(--lm-text-primary, #1A1714);
     margin: 0;
 }
+.lm-ai-settings__detail-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.lm-ai-settings__badge {
+    font: 500 10.5px/1 var(--lm-font-sans);
+    color: var(--lm-text-onAccent, #FAF8F2);
+    background: var(--lm-accent, #B85B33);
+    border-radius: var(--lm-radius-pill, 999px);
+    padding: 3px 8px;
+    letter-spacing: 0.02em;
+}
 .lm-ai-settings__detail-desc {
+    display: flex;
+    gap: 7px;
     font: 400 12px/1.5 var(--lm-font-sans);
     color: var(--lm-text-secondary, #44403A);
     margin: 0;
+}
+.lm-ai-settings__detail-desc svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--lm-text-tertiary, #6E6960);
 }
 .lm-ai-settings__field {
     display: flex;
@@ -186,6 +224,8 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-settings-pan
     font: 400 12px/1.4 var(--lm-font-sans);
 }
 .lm-ai-settings__privacy-link {
+    align-self: flex-start;
+    margin-top: auto;
     background: transparent;
     border: none;
     font: 400 11px/1.2 var(--lm-font-sans);
@@ -354,6 +394,7 @@ export function SettingsPanel({ open, onClose }) {
                         const c = providerConfigs.find((c) => c.providerName === name);
                         const isSel = selected === name;
                         const isAct = c?.active === true;
+                        const dotState = isAct ? 'active' : c ? 'configured' : 'none';
                         return (
                             <button
                                 key={name}
@@ -366,6 +407,7 @@ export function SettingsPanel({ open, onClose }) {
                                 data-provider={name}
                                 onClick={() => setSelected(name)}
                             >
+                                <span className="lm-ai-settings__dot" data-state={dotState} aria-hidden="true" />
                                 <span className="lm-ai-settings__row-name">{PROVIDER_LABELS[name]}</span>
                                 <span className="lm-ai-settings__row-status">
                                     {statusFor(name, providerConfigs)}
@@ -377,8 +419,17 @@ export function SettingsPanel({ open, onClose }) {
 
                 {/* Right column — detail */}
                 <div className="lm-ai-settings__detail">
-                    <h3 className="lm-ai-settings__detail-title">{PROVIDER_LABELS[selected]}</h3>
-                    <p className="lm-ai-settings__detail-desc">{PROVIDER_DETAIL_DESC[selected]}</p>
+                    <div className="lm-ai-settings__detail-head">
+                        <h3 className="lm-ai-settings__detail-title">{PROVIDER_LABELS[selected]}</h3>
+                        {isActive && <span className="lm-ai-settings__badge">Active</span>}
+                    </div>
+                    <p className="lm-ai-settings__detail-desc">
+                        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+                            <rect x="2.5" y="6.2" width="9" height="6" rx="1.4" />
+                            <path d="M4.4 6.2V4.6a2.6 2.6 0 0 1 5.2 0v1.6" />
+                        </svg>
+                        <span>{PROVIDER_DETAIL_DESC[selected]}</span>
+                    </p>
 
                     {variant === 'cloud-byok' ? (
                         <div className="lm-ai-settings__field">
@@ -436,7 +487,7 @@ export function SettingsPanel({ open, onClose }) {
                         <button
                             type="button"
                             className="lm-ai-settings__btn"
-                            data-tier="secondary"
+                            data-tier={isConfigured ? 'secondary' : 'primary'}
                             onClick={handleSaveKey}
                             data-testid="lm-ai-settings-save"
                         >
@@ -467,6 +518,7 @@ export function SettingsPanel({ open, onClose }) {
                                 type="button"
                                 className="lm-ai-settings__btn"
                                 data-tier="ghost"
+                                style={{ marginLeft: 'auto' }}
                                 onClick={handleClear}
                                 data-testid="lm-ai-settings-clear"
                             >

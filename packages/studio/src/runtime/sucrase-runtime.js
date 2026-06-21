@@ -210,6 +210,20 @@ export function createNavigatorServiceWorkerBridge() {
  const controller = navigator.serviceWorker.controller;
  if (controller) {
  controller.postMessage(message);
+ return;
+ }
+ // First load: the worker has activated but may not yet be the page's
+ // `controller` (claim is async), so `controller` is momentarily null.
+ // Don't drop the message — post to the registration's active worker so
+ // eager bring-up messages (notably the image registration that backs
+ // `<img src>`) still land instead of being silently lost.
+ const ready = navigator.serviceWorker.ready;
+ if (ready && typeof ready.then === 'function') {
+ ready
+ .then((reg) => {
+ if (reg && reg.active) reg.active.postMessage(message);
+ })
+ .catch(() => {});
  }
  },
  async ready() {
@@ -219,6 +233,35 @@ export function createNavigatorServiceWorkerBridge() {
  await navigator.serviceWorker.ready;
  },
  };
+}
+
+/**
+ * Resolve once the page has a controlling service worker, or after `timeoutMs`
+ * (whichever comes first). Hosted bring-up holds on this so the first asset
+ * `import()` is intercepted by the SW rather than escaping to the network and
+ * 404'ing. Resolves immediately when there is no real `addEventListener`
+ * (tests), and is bounded so a never-claiming worker can't hang bring-up.
+ *
+ * @param {ServiceWorkerContainer} container
+ * @param {number} timeoutMs
+ * @returns {Promise<void>}
+ */
+function waitForController(container, timeoutMs) {
+ if (!container || container.controller) return Promise.resolve();
+ if (typeof container.addEventListener !== 'function') return Promise.resolve();
+ return new Promise((resolve) => {
+ let settled = false;
+ const finish = () => {
+ if (settled) return;
+ settled = true;
+ if (typeof container.removeEventListener === 'function') {
+ container.removeEventListener('controllerchange', finish);
+ }
+ resolve();
+ };
+ container.addEventListener('controllerchange', finish);
+ setTimeout(finish, timeoutMs);
+ });
 }
 
 /**
@@ -317,13 +360,20 @@ export async function registerHostedServiceWorker(options = {}) {
  }
  try {
  await navigator.serviceWorker.register(swUrl, { scope, type: 'module' });
- // Tell the SW to claim immediately. The first activate handler's
- // `clients.claim()` covers most cases, but the explicit message handles
- // a rare race where the page started a fetch before activation.
- if (navigator.serviceWorker.controller) {
- navigator.serviceWorker.controller.postMessage({ type: 'CLAIM' });
+ const registration = await navigator.serviceWorker.ready;
+ // The SW must CONTROL this page before bring-up serves any asset import.
+ // On a first-ever load the freshly-activated worker has not claimed the
+ // page yet (`controller` is null); an `import()` for `/__lerret/asset/…`
+ // would then bypass the SW, hit the network, 404, and the artboard fails
+ // with "failed to fetch dynamically imported module" (the `.md` cards,
+ // read as text rather than imported, survive). Nudge the active worker to
+ // claim and wait — bounded — for control to land.
+ if (!navigator.serviceWorker.controller) {
+ if (registration && registration.active) {
+ registration.active.postMessage({ type: 'CLAIM' });
  }
- await navigator.serviceWorker.ready;
+ await waitForController(navigator.serviceWorker, 3000);
+ }
  return createNavigatorServiceWorkerBridge();
  } catch (err) {
  const message =

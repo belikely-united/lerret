@@ -1,0 +1,17 @@
+{
+  "default": {
+    "number": "01",
+    "title": "The Problem",
+    "blurb": "Why existing tools fall short for people who ship code."
+  },
+  "PartTwo": {
+    "number": "02",
+    "title": "The Approach",
+    "blurb": "Plain React components, a folder of .jsx files, and a canvas to view them."
+  },
+  "PartThree": {
+    "number": "03",
+    "title": "What's Next",
+    "blurb": "Animated export, cloud-connected mode, and where you can plug in."
+  }
+}
