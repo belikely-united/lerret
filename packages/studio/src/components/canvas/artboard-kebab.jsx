@@ -304,7 +304,7 @@ export async function fetchDataValue(candidatePaths, deps = {}) {
  for (const candidate of candidates) {
  if (typeof candidate !== 'string' || candidate.length === 0) continue;
  try {
- const value = await hostedDataReader(candidate);
+ const value = await hostedDataReader(candidate, { bust: deps.bust });
  if (value && typeof value === 'object') return { value, resolvedPath: candidate };
  } catch {
  // reader failed for this candidate — try the next
@@ -379,7 +379,7 @@ function computeResolvedProps(entry, dataValue) {
  * running Vite server.
  * @returns {React.ReactElement}
  */
-export function ComponentArtboardKebab({ entry, renderComponent, children, importModule }) {
+export function ComponentArtboardKebab({ entry, renderComponent, children, importModule, refreshKey }) {
  const [dataOpen, setDataOpen] = React.useState(false);
  const [metaOpen, setMetaOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
@@ -415,7 +415,10 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  const reload = async () => {
  const result = await fetchDataValue(
  dataCandidates,
- importModule ? { importModule } : undefined,
+ // `bust` (the per-asset cue key, bumped on every autoRefresh tick / reload)
+ // forces a fresh re-resolve — so a .data.js that fetches re-runs its fetch
+ // each tick and live data actually updates, not just re-renders.
+ { importModule, bust: refreshKey },
  );
  if (cancelled) return;
  resolvedPath = result.resolvedPath;
@@ -437,7 +440,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  cancelled = true;
  unsubscribe();
  };
- }, [dataCandidates, entry?.id, entry?.Component, importModule]);
+ }, [dataCandidates, entry?.id, entry?.Component, importModule, refreshKey]);
 
  const resolvedProps = React.useMemo(
  () => computeResolvedProps(entry, dataValue),

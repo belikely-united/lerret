@@ -230,6 +230,21 @@ describe('fetchDataValue', () => {
  expect(resolvedPath).toBe('/p/.lerret/social/A.data.json');
  expect(importModule).not.toHaveBeenCalled();
  });
+
+ it('forwards the autoRefresh `bust` nonce to the hosted reader (so live data re-resolves)', async () => {
+ const calls = [];
+ const reader = async (p, opts) => {
+ calls.push([p, opts]);
+ return p.endsWith('.data.js') ? { tick: opts && opts.bust } : null;
+ };
+ const { value } = await fetchDataValue(
+ ['/p/.lerret/live/Ticker.data.js'],
+ { hostedDataReader: reader, bust: 7 },
+ );
+ // The reader received the candidate AND the bust; the value reflects the tick.
+ expect(calls[0]).toEqual(['/p/.lerret/live/Ticker.data.js', { bust: 7 }]);
+ expect(value).toEqual({ tick: 7 });
+ });
 });
 
 // B.S regression — `liveRefreshIntervalFor` must gate on assetKind. A stale

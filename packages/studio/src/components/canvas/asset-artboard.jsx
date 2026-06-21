@@ -227,6 +227,7 @@ export function artboardForEntry(entry, opts = {}) {
  >
  <ComponentArtboardKebab
  entry={entry}
+ refreshKey={cueKey}
  renderComponent={(props) => (
  <AssetErrorBoundary
  resetKey={boundaryResetKey}
