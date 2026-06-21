@@ -409,6 +409,15 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  const [exportNotice, setExportNotice] = React.useState(null);
  const [exportFormat, setExportFormat] = React.useState('png');
  const [exportScope, setExportScope] = React.useState('project'); // 'project' | 'page'
+ // Whether the floating prompt-context card (selection chip / staged images) is
+ // attached above the dock. While it is, the dock flattens its TOP corners so the
+ // card's flat bottom meets it as one seamless rounded panel (see PromptContextTray).
+ const [hasContext, setHasContext] = React.useState(false);
+ React.useEffect(() => {
+  const onCtx = (e) => setHasContext(!!(e && e.detail && e.detail.present));
+  window.addEventListener('lerret:dock-context', onCtx);
+  return () => window.removeEventListener('lerret:dock-context', onCtx);
+ }, []);
  // Brand menu — popover above the lockup. Holds the Brand kit download
  // (and anything else brand-adjacent we add later).
  const [brandOpen, setBrandOpen] = React.useState(false);
@@ -523,6 +532,10 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
  borderRadius: 24, // capped from 999 so a tall dock becomes a rounded rect, never a giant white CIRCLE over the canvas (the activity feed also floats above the dock now)
+ // Flatten the TOP corners while the prompt-context card is attached above so
+ // card (rounded top) + dock (rounded bottom) read as one seamless panel.
+ borderTopLeftRadius: hasContext ? 0 : 24,
+ borderTopRightRadius: hasContext ? 0 : 24,
  padding: '6px 10px',
  boxShadow: '0 4px 18px rgba(15,23,42,0.10), 0 1px 3px rgba(15,23,42,0.06)',
  display: 'flex',

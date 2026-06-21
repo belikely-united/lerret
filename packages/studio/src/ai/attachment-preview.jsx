@@ -1,19 +1,24 @@
 /**
- * attachment-preview.jsx — staged-image preview strip for the dock AI input.
+ * attachment-preview.jsx — the floating "prompt-context tray" above the dock.
  *
- * The VisionAttachButton stages picked images into the cluster's
- * `pendingAttachments`, but until now nothing rendered them: a user who
- * attached a brand logo (or two) got zero feedback on WHAT would ride the next
- * turn, and no way to drop one before sending. This strip closes that gap — a
- * row of thumbnails, each with a remove (×), shown while images are staged and
- * cleared the moment the turn consumes them.
+ * Both a selection SCOPE and staged IMAGE attachments are the same category of
+ * thing: context you're attaching to your next AI turn. So they float TOGETHER
+ * in one card above the dock — the scope chip on top, the image thumbnails
+ * below — instead of the scope being crammed into the dock pill while its images
+ * float separately (that asymmetry read as "cramped"). The dock pill stays for
+ * the durable controls only (brand · page · input · attach · status).
  *
- * Dock-escape: like VisionFallbackPrompt, it PORTALS to <body> and is
- * `position: fixed`, pinned 8px above the measured dock rect. It must NOT live
- * inside the dock — the dock (`[data-tour="dock"]`) has `overflow: auto` +
- * `maxWidth` + a `backdrop-filter` containing block, so anything positioned
- * inside it is clipped/contained and renders invisibly. Same anchor math as the
- * vision / clarify / continue overlays (bottom: innerHeight - top).
+ * `PromptContextTray` is a generic host: it takes a ready-made `scopeNode` (the
+ * cluster owns the SelectionChip) + the staged `attachments`, and renders the
+ * floating card. `AttachmentPreview` stays exported as a thin alias (scope-less)
+ * for back-compat.
+ *
+ * Dock-escape: it PORTALS to <body> and is `position: fixed`, pinned 8px above
+ * the measured dock rect. It must NOT live inside the dock — the dock
+ * (`[data-tour="dock"]`) has `overflow: auto` + `maxWidth` + a `backdrop-filter`
+ * containing block, so anything positioned inside it is clipped/contained and
+ * renders invisibly. Same anchor math as the vision / clarify / continue
+ * overlays (bottom: innerHeight - top).
  */
 
 import React from 'react';
@@ -25,22 +30,69 @@ if (typeof document !== 'undefined' && !document.getElementById('attachment-prev
     const s = document.createElement('style');
     s.id = 'attachment-preview-styles';
     s.textContent = `
-.lm-attach-preview {
+.lm-ctx-tray {
     /* Portaled to <body> + position:fixed (left/bottom set inline from the
-       measured dock rect) — see the dock-escape note in the module header. */
+       measured dock rect) — see the dock-escape note in the module header. The
+       card grows UPWARD from its pinned bottom edge as rows stack.
+       CONNECTED look: it wears the SAME frosted material as the dock and sits
+       FLUSH on its top edge (a slight overlap hides the seam — see useDockAnchor),
+       with a rounded TOP + flat BOTTOM so it reads as the dock's upper section,
+       not a separate floating card. */
     position: fixed;
     z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: var(--lm-space-2, 8px);
+    box-sizing: border-box;
+    padding: 8px 12px 10px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(16px) saturate(120%);
+    -webkit-backdrop-filter: blur(16px) saturate(120%);
+    border: none;
+    /* Match the dock's 24px so the combined card+dock reads as ONE rounded
+       rect: the card rounds the TOP, the dock rounds the BOTTOM, flat seam
+       between (the dock flattens its top corners while the card is attached). */
+    border-radius: 24px 24px 0 0;
+    /* Soft lift ABOVE only — no downward shadow that would cast a seam onto the
+       dock it sits on. The dock's own shadow grounds the combined unit. */
+    box-shadow: 0 -3px 14px rgba(15, 23, 42, 0.07);
+    font-family: var(--lm-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
+    /* Calm entrance: the card emerges UP out of the dock as it attaches (a brief
+       slide + fade), gated behind reduced-motion below. Plays once on mount —
+       re-anchoring (position updates) does not replay it. */
+    animation: lm-ctx-tray-in 220ms var(--lm-ease, cubic-bezier(0.2, 0.7, 0.2, 1)) both;
+}
+@keyframes lm-ctx-tray-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+/* The dock flattens its TOP corners when the card attaches (set inline in
+   StudioDock) — ease that flatten/restore so connect/disconnect reads as one
+   smooth motion with the card's slide, not an instant snap. */
+[data-tour="dock"] {
+    transition: border-top-left-radius 220ms var(--lm-ease, cubic-bezier(0.2, 0.7, 0.2, 1)),
+                border-top-right-radius 220ms var(--lm-ease, cubic-bezier(0.2, 0.7, 0.2, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+    .lm-ctx-tray { animation: none; }
+    [data-tour="dock"] { transition: none; }
+}
+.lm-ctx-tray__scope {
+    display: flex;
+    min-width: 0;
+}
+/* In the tray the scope chip is no longer fighting the input for dock width, so
+   it sheds the dock's truncation cap / hold-ground rules and shows the
+   breadcrumb in full (the file stops collapsing to "We…"). */
+.lm-ctx-tray .lm-ai-cluster__chip {
+    max-width: 100%;
+    flex-shrink: 1;
+}
+.lm-ctx-tray__images {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--lm-space-2, 8px);
-    max-width: 360px;
-    padding: var(--lm-space-2, 8px) var(--lm-space-3, 10px);
-    background: var(--lm-bg-primary, #FAF8F2);
-    border: 1px solid var(--lm-border-light, #E8E2D4);
-    border-radius: var(--lm-radius-md, 8px);
-    box-shadow: var(--lm-shadow-sm, 0 4px 12px rgba(26, 23, 20, 0.10));
-    font-family: var(--lm-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif);
 }
 .lm-attach-preview__item {
     position: relative;
@@ -95,102 +147,157 @@ if (typeof document !== 'undefined' && !document.getElementById('attachment-prev
     document.head.appendChild(s);
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Dock-anchored position hook ──────────────────────────────────────────────
 
 /**
- * The staged-image preview strip.
+ * Self-measured anchor: pinned 8px above the dock, left-aligned + clamped into
+ * the viewport. Same dock-escape as the vision / clarify overlays — the tray
+ * shows pre-turn (while staging / scoped), so it owns its own measurement rather
+ * than the running-gated dockOverlayPos. Re-measures on resize + scroll.
  *
- * @param {object} props
- * @param {Array<{ name?: string, dataUrl?: string, mimeType?: string }>} props.attachments
- *   The images staged for the next turn (the cluster's `pendingAttachments`).
- *   Renders nothing when empty.
- * @param {(index: number) => void} props.onRemove
- *   Drop the attachment at `index` from the staged set.
+ * @param {boolean} active - Whether the tray is currently rendered (skip work otherwise).
+ * @returns {{ left: number, bottom: number } | null}
  */
-export function AttachmentPreview({ attachments, onRemove }) {
-    const list = Array.isArray(attachments) ? attachments : [];
-    const count = list.length;
-
-    // Self-measured anchor: pinned 8px above the dock, left-aligned + clamped
-    // into the viewport. Same dock-escape as VisionFallbackPrompt — the strip
-    // shows pre-turn (while staging), so it can't reuse the running-gated
-    // dockOverlayPos; it measures the dock here on mount + on resize/scroll.
+function useDockAnchor(active) {
     const [pos, setPos] = React.useState(
         /** @type {{ left: number, bottom: number } | null} */ (null),
     );
-
     React.useLayoutEffect(() => {
-        if (count === 0) return undefined;
+        if (!active) return undefined;
+        const getAnchor = () =>
+            document.querySelector('[data-tour="dock"]') ||
+            document.querySelector('.lm-ai-cluster');
         const measure = () => {
-            const anchor =
-                document.querySelector('[data-tour="dock"]') ||
-                document.querySelector('.lm-ai-cluster');
+            const anchor = getAnchor();
             if (!anchor) return;
             const r = anchor.getBoundingClientRect();
-            const STRIP_MAX = 360; // matches .lm-attach-preview max-width
-            const left = Math.max(8, Math.min(r.left, window.innerWidth - STRIP_MAX - 8));
             setPos({
-                left: Math.round(left),
-                bottom: Math.round(window.innerHeight - r.top + 8),
+                left: Math.round(r.left),
+                // 2px OVERLAP onto the dock's top (not a gap) so the card and dock
+                // read as one unit — the overlap + shared frosted material + matched
+                // width + the dock flattening its top corners while attached (see
+                // studio-shell) make them a single seamless rounded panel.
+                bottom: Math.round(window.innerHeight - r.top - 2),
+                // Match the dock's exact width so the join is a clean full-width
+                // line; a narrower card notches against the dock's rounded corners.
+                width: Math.round(r.width),
             });
         };
         measure();
         window.addEventListener('resize', measure);
         window.addEventListener('scroll', measure, true);
+        // Re-anchor when the DOCK ITSELF changes height — e.g. the multi-line
+        // input growing/shrinking pushes the dock top up/down, which fires no
+        // window resize/scroll. The cluster signals it explicitly via this event
+        // (a ResizeObserver is unreliable here — throttled to zero callbacks in
+        // embedded/background views).
+        window.addEventListener('lerret:dock-resized', measure);
         return () => {
             window.removeEventListener('resize', measure);
             window.removeEventListener('scroll', measure, true);
+            window.removeEventListener('lerret:dock-resized', measure);
         };
-    }, [count]);
+    }, [active]);
+    return pos;
+}
 
-    if (count === 0) return null;
+// ─── Component ────────────────────────────────────────────────────────────────
+
+/**
+ * The floating prompt-context tray.
+ *
+ * @param {object} props
+ * @param {React.ReactNode} [props.scopeNode] - The selection-scope chip to host
+ *   (the cluster owns SelectionChip). Null/false → no scope row. The caller is
+ *   responsible for gating it (e.g. hidden while a turn runs).
+ * @param {Array<{ name?: string, dataUrl?: string, mimeType?: string }>} props.attachments
+ *   The images staged for the next turn (the cluster's `pendingAttachments`).
+ * @param {(index: number) => void} props.onRemove
+ *   Drop the attachment at `index` from the staged set.
+ */
+export function PromptContextTray({ scopeNode, attachments, onRemove }) {
+    const list = Array.isArray(attachments) ? attachments : [];
+    const count = list.length;
+    const hasScope = scopeNode != null && scopeNode !== false;
+    const visible = hasScope || count > 0;
+    const pos = useDockAnchor(visible);
+
+    // Tell the dock whether the context card is attached, so it can flatten its
+    // TOP corners to meet the card's flat bottom (one seamless rounded panel) and
+    // restore them when the card is gone. (See StudioDock in studio-shell.)
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.dispatchEvent(
+            new CustomEvent('lerret:dock-context', { detail: { present: visible } }),
+        );
+    }, [visible]);
+
+    if (!visible) return null;
 
     return createPortal(
         <div
-            className="lm-attach-preview"
-            role="group"
-            aria-label={`${count} attached image${count === 1 ? '' : 's'}`}
-            data-testid="attachment-preview"
-            style={{ left: pos?.left ?? 16, bottom: pos?.bottom ?? 80 }}
+            className="lm-ctx-tray"
+            data-testid="prompt-context-tray"
+            style={{ left: pos?.left ?? 16, bottom: pos?.bottom ?? 80, width: pos?.width }}
         >
-            {list.map((att, idx) => (
-                <span
-                    className="lm-attach-preview__item"
-                    key={`${att && att.name ? att.name : 'img'}-${idx}`}
-                    title={att && att.name ? att.name : 'attached image'}
+            {hasScope && (
+                <div className="lm-ctx-tray__scope" data-testid="prompt-context-scope">
+                    {scopeNode}
+                </div>
+            )}
+            {count > 0 && (
+                <div
+                    className="lm-ctx-tray__images"
+                    role="group"
+                    aria-label={`${count} attached image${count === 1 ? '' : 's'}`}
+                    data-testid="attachment-preview"
                 >
-                    <span className="lm-attach-preview__thumb">
-                        <img
-                            className="lm-attach-preview__img"
-                            src={att && att.dataUrl ? att.dataUrl : undefined}
-                            alt={att && att.name ? att.name : 'attached image'}
-                        />
-                    </span>
-                    <button
-                        type="button"
-                        className="lm-attach-preview__remove"
-                        data-testid="attachment-remove"
-                        aria-label={`Remove ${att && att.name ? att.name : 'image'}`}
-                        onClick={() => onRemove && onRemove(idx)}
-                    >
-                        <svg
-                            width="9"
-                            height="9"
-                            viewBox="0 0 10 10"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                            aria-hidden="true"
+                    {list.map((att, idx) => (
+                        <span
+                            className="lm-attach-preview__item"
+                            key={`${att && att.name ? att.name : 'img'}-${idx}`}
+                            title={att && att.name ? att.name : 'attached image'}
                         >
-                            <path d="M2 2l6 6M8 2l-6 6" />
-                        </svg>
-                    </button>
-                </span>
-            ))}
+                            <span className="lm-attach-preview__thumb">
+                                <img
+                                    className="lm-attach-preview__img"
+                                    src={att && att.dataUrl ? att.dataUrl : undefined}
+                                    alt={att && att.name ? att.name : 'attached image'}
+                                />
+                            </span>
+                            <button
+                                type="button"
+                                className="lm-attach-preview__remove"
+                                data-testid="attachment-remove"
+                                aria-label={`Remove ${att && att.name ? att.name : 'image'}`}
+                                onClick={() => onRemove && onRemove(idx)}
+                            >
+                                <svg
+                                    width="9"
+                                    height="9"
+                                    viewBox="0 0 10 10"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.6"
+                                    strokeLinecap="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M2 2l6 6M8 2l-6 6" />
+                                </svg>
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
         </div>,
         document.body,
     );
 }
 
-export default AttachmentPreview;
+/**
+ * Back-compat alias: the images-only tray. Existing callers/tests that render
+ * just the staged-image strip pass `attachments` + `onRemove` (no scope).
+ */
+export const AttachmentPreview = PromptContextTray;
+
+export default PromptContextTray;

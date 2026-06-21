@@ -69,7 +69,7 @@ import { SetupScreen } from './setup-screen.jsx';
 import { PrivacyDisclosure } from './privacy-disclosure.jsx';
 import { EditorSheet } from '../components/editors/editor-sheet.jsx';
 import { VisionAttachButton } from './vision-attach-button.jsx';
-import { AttachmentPreview } from './attachment-preview.jsx';
+import { PromptContextTray } from './attachment-preview.jsx';
 import { VisionFallbackPrompt } from './vision-fallback-prompt.jsx';
 import { useVisionGate, VISION_PILL_LABEL } from './use-vision-gate.js';
 // §6.5 fix: the activity feed must PORTAL to <body>. The dock has overflow:auto
@@ -93,6 +93,14 @@ const WORKFLOW_IMAGE_NOTE = 'Image ignored — kit generation runs without visio
 
 /** Narrow-window breakpoint — mirrors the setup-screen's 880px and §4.1's ~860. */
 const NARROW_BP = 860;
+
+/**
+ * Max height (px) the multi-line input grows to before it scrolls instead — about
+ * six lines at 13px/1.4. The textarea auto-grows to its content up to this cap
+ * (see `autoGrowInput`), then `overflow-y: auto` takes over so a long prompt
+ * can't push the dock off the top of the canvas.
+ */
+const MAX_INPUT_HEIGHT = 120;
 
 /** Cloud providers gate on the one-time privacy disclosure; Ollama is local. */
 const CLOUD_PROVIDERS = Object.freeze(new Set(['openai', 'anthropic', 'openrouter']));
@@ -219,7 +227,9 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 .lm-ai-cluster__field {
     position: relative;
     display: inline-flex;
-    align-items: center;
+    /* flex-end so the compose controls (attach · status · chevron) ride with the
+       LAST line as the textarea grows upward — a single line looks identical. */
+    align-items: flex-end;
     gap: 6px;
     background: var(--lm-bg-primary, #FAF8F2);
     border: 1px solid var(--lm-border-light, #E8E2D4);
@@ -242,11 +252,20 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     border: none;
     background: transparent;
     outline: none;
-    font: 400 13px/1.3 var(--lm-font-sans, -apple-system, sans-serif);
+    font: 400 13px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
     color: var(--lm-text-primary, #1A1714);
     width: 220px;
     min-width: 80px;
     padding: 4px 2px;
+    /* Multi-line: a textarea whose height is set in JS to fit its content (see
+       autoGrowInput), capped at MAX_INPUT_HEIGHT then scrolling. resize off (the
+       dock owns sizing); no manual drag handle. box-sizing so the JS height math
+       includes padding. */
+    box-sizing: border-box;
+    display: block;
+    resize: none;
+    overflow-y: auto;
+    max-height: ${MAX_INPUT_HEIGHT}px;
 }
 .lm-ai-cluster__input::placeholder {
     color: var(--lm-text-tertiary, #9A958C);
@@ -266,17 +285,57 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     border: 1px solid var(--lm-accent, #B85B33);
     border-radius: 999px;
     padding: 2px 4px 2px 8px;
-    max-width: 160px;
-    /* The chip FOLLOWS the input in the DOM (AC-15 tab order: input → chip ×)
-       but stays at the field's visual left edge via flex order. */
-    order: -1;
+    min-width: 0;
+    /* The chip lives in the floating PromptContextTray (out of the dock pill),
+       which owns its width via the .lm-ctx-tray .lm-ai-cluster__chip rule. */
 }
+/* The label is a PRIORITY-AWARE row, not one nowrap string. A single string
+   end-truncates, so the element pinpoint — the thing the user actually
+   selected — was the first casualty and the chip read social-square.jsx with
+   the selection lost. Now the dimmed file breadcrumb YIELDS first and the
+   element keeps its width. */
 .lm-ai-cluster__chip-label {
-    font: 400 11px/1.2 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
-    color: var(--lm-text-secondary, #44403A);
-    white-space: nowrap;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
     overflow: hidden;
+    font: 400 11px/1.2 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
+}
+/* File-only scope: the filename IS the primary info — secondary tone, end-
+   ellipsis (unchanged in spirit from before). */
+.lm-ai-cluster__chip-solo {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
     text-overflow: ellipsis;
+    color: var(--lm-text-secondary, #44403A);
+}
+/* Element scope: the file is a quiet, dimmed breadcrumb with a HIGH shrink
+   factor, so it truncates BEFORE the element does. */
+.lm-ai-cluster__chip-file {
+    flex: 0 100 auto;
+    min-width: 2.5ch;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--lm-text-tertiary, #6E6960);
+}
+.lm-ai-cluster__chip-sep {
+    flex: 0 0 auto;
+    color: var(--lm-text-tertiary, #9A958C);
+}
+/* The element pinpoint — primary tone, LOW shrink so it keeps its room while
+   the file yields. (Its text is also capped at 24 chars in JS, so it can never
+   run away even when it must ellipsize on a narrow window.) */
+.lm-ai-cluster__chip-el {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--lm-text-secondary, #44403A);
 }
 .lm-ai-cluster__chip-x {
     display: inline-flex;
@@ -857,7 +916,8 @@ function SelectionChip({ scope, onClear }) {
             ? `${scope.element.text.slice(0, 24)}…`
             : scope.element.text
         : null;
-    const chipLabel = elementText ? `${scope.label} › “${elementText}”` : scope.label;
+    // The full, untruncated breadcrumb for the hover tooltip — the chip itself
+    // truncates the file first, never the element.
     const chipTitle = scope.element?.text
         ? `${scope.label} › “${scope.element.text}”`
         : scope.label;
@@ -867,8 +927,19 @@ function SelectionChip({ scope, onClear }) {
             data-testid="ai-selection-chip"
             data-kind={scope.kind}
         >
+            {/* Element scope leads with the pinpoint (primary) and demotes the
+                file to a dimmed breadcrumb that yields width first; a file-only
+                scope shows the filename as the primary label. */}
             <span className="lm-ai-cluster__chip-label" title={chipTitle}>
-                {chipLabel}
+                {elementText ? (
+                    <>
+                        <span className="lm-ai-cluster__chip-file">{scope.label}</span>
+                        <span className="lm-ai-cluster__chip-sep" aria-hidden="true">›</span>
+                        <span className="lm-ai-cluster__chip-el">{`“${elementText}”`}</span>
+                    </>
+                ) : (
+                    <span className="lm-ai-cluster__chip-solo">{scope.label}</span>
+                )}
             </span>
             <button
                 type="button"
@@ -2211,7 +2282,30 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
             e.preventDefault();
             submit();
         }
+        // Shift+Enter falls through to the textarea's default → inserts a newline.
     };
+
+    // ── Multi-line auto-grow ────────────────────────────────────────────────
+    // The textarea starts at one row and grows to fit its content (capped at
+    // MAX_INPUT_HEIGHT, then it scrolls). Driven off `text` so it also shrinks
+    // back to one row when a turn clears the field. useLayoutEffect runs before
+    // paint, so the dock never flashes at the wrong height.
+    const autoGrowInput = React.useCallback(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        const prev = el.style.height;
+        el.style.height = 'auto';
+        const next = `${Math.min(el.scrollHeight, MAX_INPUT_HEIGHT)}px`;
+        el.style.height = next;
+        // When a line is added/removed the dock changes height — tell the
+        // floating context tray to re-anchor above it (see attachment-preview).
+        if (next !== prev && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('lerret:dock-resized'));
+        }
+    }, []);
+    React.useLayoutEffect(() => {
+        autoGrowInput();
+    }, [text, autoGrowInput]);
 
     // ── Gating overlay callbacks ────────────────────────────────────────────
     const resolveGate = React.useCallback(() => {
@@ -2386,14 +2480,14 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                         onCancel={onVisionCancel}
                     />
                 )}
-                {/* DOM order: input first, then the selection chip. AC-15's tab
-                    order starts at the input; CSS `order` keeps the chip at the
-                    field's visual left edge (-1). */}
-                <input
+                {/* The text input is the dock's primary control. The selection
+                    scope no longer lives in the pill — it floats above the dock
+                    in the PromptContextTray (below), beside any staged images. */}
+                <textarea
                     ref={inputRef}
                     id={inputId}
                     className="lm-ai-cluster__input"
-                    type="text"
+                    rows={1}
                     value={text}
                     disabled={running}
                     placeholder={placeholder}
@@ -2404,19 +2498,25 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                 />
-                {scope && <SelectionChip scope={scope} onClear={clearScope} />}
-
                 {/* Image-attach affordance (Story 8.7) — reactive
                     disabled-with-reason when the active model lacks vision. */}
                 <VisionAttachButton
                     onAttach={(items) => setPendingAttachments((prev) => [...prev, ...items])}
                 />
 
-                {/* Staged-image previews — visual feedback for what's attached,
-                    each with a remove (×). Portals above the dock; renders
-                    nothing when nothing is staged. Cleared when a turn consumes
-                    the attachments. */}
-                <AttachmentPreview
+                {/* Prompt-context tray — the selection scope + staged images
+                    float TOGETHER above the dock (both are context for the next
+                    turn), keeping the dock pill uncluttered. Portals out; renders
+                    nothing when there's neither. The scope is gated on !running so
+                    it never collides with the live activity timeline, which owns
+                    the above-dock space during a turn; the scope persists in state
+                    and returns when the turn ends. */}
+                <PromptContextTray
+                    scopeNode={
+                        scope && !running
+                            ? <SelectionChip scope={scope} onClear={clearScope} />
+                            : null
+                    }
                     attachments={pendingAttachments}
                     onRemove={(idx) =>
                         setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))

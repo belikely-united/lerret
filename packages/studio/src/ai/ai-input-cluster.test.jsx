@@ -85,7 +85,12 @@ async function tick(ms = 10) {
 }
 
 function setReactInputValue(el, value) {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    // The dock input is a <textarea> (multi-line); its value setter lives on a
+    // different prototype than <input>. Pick the right one off the element.
+    const proto = el.tagName === 'TEXTAREA'
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
     setter.call(el, value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
 }
@@ -318,7 +323,7 @@ describe('AiInputCluster — selection chip (AC-3, AC-4)', () => {
         );
         await tick();
         act(() => scopeCtx.setScope(fileScope('pages/social/twitter-card.jsx')));
-        const chip = container.querySelector('[data-testid="ai-selection-chip"]');
+        const chip = document.querySelector('[data-testid="ai-selection-chip"]');
         expect(chip).not.toBeNull();
         expect(chip.textContent).toContain('twitter-card.jsx');
         cleanup();
@@ -331,10 +336,10 @@ describe('AiInputCluster — selection chip (AC-3, AC-4)', () => {
         );
         await tick();
         act(() => scopeCtx.setScope(fileScope('a/card.jsx')));
-        expect(container.querySelector('[data-testid="ai-selection-chip"]')).not.toBeNull();
-        const x = container.querySelector('[data-testid="ai-selection-chip-clear"]');
+        expect(document.querySelector('[data-testid="ai-selection-chip"]')).not.toBeNull();
+        const x = document.querySelector('[data-testid="ai-selection-chip-clear"]');
         await act(async () => { x.click(); });
-        expect(container.querySelector('[data-testid="ai-selection-chip"]')).toBeNull();
+        expect(document.querySelector('[data-testid="ai-selection-chip"]')).toBeNull();
         expect(scopeCtx.scope).toBeNull();
         cleanup();
     });
@@ -347,7 +352,7 @@ describe('AiInputCluster — selection chip (AC-3, AC-4)', () => {
             );
             await tick();
             act(() => scopeCtx.setScope(fileScope('a/card.jsx')));
-            const x = container.querySelector('[data-testid="ai-selection-chip-clear"]');
+            const x = document.querySelector('[data-testid="ai-selection-chip-clear"]');
             await act(async () => {
                 x.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
             });
@@ -356,7 +361,7 @@ describe('AiInputCluster — selection chip (AC-3, AC-4)', () => {
         }
     });
 
-    it('places the chip AFTER the input in the DOM (AC-15 tab order: input → chip ×)', async () => {
+    it('floats the chip in the prompt-context tray, after the input in the DOM', async () => {
         let scopeCtx;
         const { container, cleanup } = renderToDom(
             <Harness onScopeReady={(c) => { scopeCtx = c; }} />,
@@ -364,15 +369,17 @@ describe('AiInputCluster — selection chip (AC-3, AC-4)', () => {
         await tick();
         act(() => scopeCtx.setScope(fileScope('a/card.jsx')));
         const input = container.querySelector('[data-testid="ai-input"]');
-        const chipX = container.querySelector('[data-testid="ai-selection-chip-clear"]');
-        // Tab order follows DOM order: the chip × must FOLLOW the input.
+        const tray = document.querySelector('[data-testid="prompt-context-tray"]');
+        const chip = document.querySelector('[data-testid="ai-selection-chip"]');
+        const chipX = document.querySelector('[data-testid="ai-selection-chip-clear"]');
+        // The scope chip no longer lives in the dock pill — it floats in the
+        // prompt-context tray above the dock, out of the overloaded pill.
+        expect(tray).not.toBeNull();
+        expect(tray.contains(chip)).toBe(true);
+        // Tab order still follows DOM order: the input precedes the chip × (the
+        // tray portals to <body>, after the dock).
         expect(input.compareDocumentPosition(chipX) & Node.DOCUMENT_POSITION_FOLLOWING)
             .toBeTruthy();
-        // The chip still sits at the visual left edge via the stylesheet's
-        // flex `order: -1` on .lm-ai-cluster__chip.
-        const styles = document.getElementById('ai-input-cluster-styles')?.textContent ?? '';
-        const chipRule = styles.split('.lm-ai-cluster__chip {')[1]?.split('}')[0] ?? '';
-        expect(chipRule).toContain('order: -1');
         cleanup();
     });
 
@@ -393,7 +400,7 @@ describe('AiInputCluster — selection chip (AC-3, AC-4)', () => {
         });
         await tick(40);
         // The turn finished; the chip must still be present.
-        expect(container.querySelector('[data-testid="ai-selection-chip"]')).not.toBeNull();
+        expect(document.querySelector('[data-testid="ai-selection-chip"]')).not.toBeNull();
         expect(scopeCtx.scope).not.toBeNull();
         cleanup();
     });
@@ -1719,8 +1726,15 @@ describe('selection chip — element pinpoint display + turn threading', () => {
                 fileScope('pricing/card.jsx', undefined, { text: '$79', tag: 'div' }),
             );
         });
-        const chip = container.querySelector('[data-testid="ai-selection-chip"]');
-        expect(chip.textContent).toContain('card.jsx › “$79”');
+        const chip = document.querySelector('[data-testid="ai-selection-chip"]');
+        // Priority-aware breadcrumb: the file is a dimmed segment that yields
+        // first, the element pinpoint is its own segment that keeps its width —
+        // so the element (the actual selection) can never be the truncation
+        // casualty. The full breadcrumb stays in the tooltip.
+        expect(chip.querySelector('.lm-ai-cluster__chip-file').textContent).toBe('card.jsx');
+        expect(chip.querySelector('.lm-ai-cluster__chip-el').textContent).toBe('“$79”');
+        expect(chip.querySelector('.lm-ai-cluster__chip-label').getAttribute('title'))
+            .toBe('card.jsx › “$79”');
 
         const input = container.querySelector('[data-testid="ai-input"]');
         act(() => setReactInputValue(input, 'make it bold'));
