@@ -297,6 +297,74 @@ describe('createHostedRuntime — loadAsset (component)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// createHostedRuntime — loadDataModule (.data.js / .data.ts)
+// ---------------------------------------------------------------------------
+
+describe('createHostedRuntime — loadDataModule (data files)', () => {
+ it('reads, registers, and imports a .data.js — returning its default export', async () => {
+ const path = '/proj/.lerret/live/Ticker.data.js';
+ const fs = makeFs({ [path]: 'export default { price: 42 };' });
+ const sw = makeSw();
+ const importModule = vi.fn(async () => ({ default: { price: 42 } }));
+
+ const runtime = createHostedRuntime(project, { fs, sw, importModule });
+ const value = await runtime.loadDataModule(path);
+
+ expect(value).toEqual({ price: 42 });
+ // Registered with the SW under the data file's SW URL …
+ const reg = sw.messages.find((m) => m.type === 'REGISTER_MODULE');
+ expect(reg.url.startsWith(`${HOSTED_ASSET_URL_PREFIX}live/Ticker.data.js?h=`)).toBe(true);
+ // … and imported exactly that URL.
+ expect(importModule.mock.calls[0][0]).toBe(reg.url);
+ });
+
+ it('falls back to the module namespace when there is no default export', async () => {
+ const path = '/proj/.lerret/x.data.js';
+ const fs = makeFs({ [path]: 'export const a = 1;' });
+ const runtime = createHostedRuntime(project, { fs, sw: makeSw(), importModule: async () => ({ a: 1 }) });
+ expect(await runtime.loadDataModule(path)).toEqual({ a: 1 });
+ });
+
+ it('contains every failure as null (missing file, top-level throw, non-object default)', async () => {
+ const sw = makeSw();
+ const r1 = createHostedRuntime(project, { fs: makeFs({}), sw, importModule: async () => ({}) });
+ expect(await r1.loadDataModule('/proj/.lerret/missing.data.js')).toBeNull();
+
+ const path = '/proj/.lerret/y.data.js';
+ const r2 = createHostedRuntime(project, {
+ fs: makeFs({ [path]: 'export default 1;' }),
+ sw,
+ importModule: async () => { throw new Error('fetch failed'); },
+ });
+ expect(await r2.loadDataModule(path)).toBeNull();
+
+ const r3 = createHostedRuntime(project, {
+ fs: makeFs({ [path]: 'export default 5;' }),
+ sw,
+ importModule: async () => ({ default: 5 }),
+ });
+ expect(await r3.loadDataModule(path)).toBeNull();
+ });
+
+ it('a refresh `bust` yields a distinct, registered URL so the module re-runs', async () => {
+ const path = '/proj/.lerret/live/Ticker.data.js';
+ const fs = makeFs({ [path]: 'export default { n: 1 };' });
+ const sw = makeSw();
+ const importModule = vi.fn(async () => ({ default: { n: 1 } }));
+ const runtime = createHostedRuntime(project, { fs, sw, importModule });
+
+ await runtime.loadDataModule(path);
+ await runtime.loadDataModule(path, { bust: 'tick-2' });
+
+ const urls = sw.messages.filter((m) => m.type === 'REGISTER_MODULE').map((m) => m.url);
+ expect(urls.length).toBe(2);
+ expect(urls[0]).not.toContain('r=');
+ expect(urls[1]).toContain('r=tick-2');
+ expect(importModule.mock.calls[1][0]).toBe(urls[1]);
+ });
+});
+
+// ---------------------------------------------------------------------------
 // createHostedRuntime — markdown
 // ---------------------------------------------------------------------------
 

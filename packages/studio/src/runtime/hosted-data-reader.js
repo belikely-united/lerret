@@ -11,10 +11,12 @@
 // straight from the user's folder via the File System Access backend, so
 // AI-authored text lives in `.data.json` and is loaded + editable in the studio.
 //
-// Scope: `.data.json` only (the form the scaffold + the AI agent write). A
-// `.data.js` module would need browser evaluation; it stays a CLI/fixture
-// feature for now — a `.data.js` candidate simply reads as null here and the
-// loader falls through to `.data.json`.
+// Scope: `.data.json` (read + JSON-parsed here) AND `.data.js` / `.data.ts`
+// (evaluated through the hosted runtime's `loadDataModule` — transform +
+// service-worker + import — passed in by the caller). So a dynamic / `fetch`ing
+// data file works in hosted mode too, not just the CLI. Without a module loader
+// wired in, a `.data.js` candidate reads as null and the loader falls through to
+// `.data.json`.
 
 /** @type {((candidatePath: string) => Promise<Record<string, unknown> | null>) | null} */
 let hostedDataReader = null;
@@ -46,16 +48,33 @@ export function getHostedDataReader() {
  * to the next candidate (and ultimately the propsSchema defaults).
  *
  * @param {import('@lerret/core').FilesystemAccess} backend
- * @returns {(candidatePath: string) => Promise<Record<string, unknown> | null>}
+ * @param {{ loadDataModule?: (path: string, opts?: { bust?: string | number }) => Promise<Record<string, unknown> | null> }} [options]
+ *   `loadDataModule` — the hosted runtime's data-module loader, used to evaluate
+ *   `.data.js` / `.data.ts` candidates. Omit it and those candidates read as
+ *   null (the loader then falls through to `.data.json`).
+ * @returns {(candidatePath: string, opts?: { bust?: string | number }) => Promise<Record<string, unknown> | null>}
  */
-export function createHostedDataReader(backend) {
+export function createHostedDataReader(backend, options = {}) {
   if (!backend || typeof backend.readFile !== 'function') {
     throw new Error('createHostedDataReader: a FilesystemAccess backend is required');
   }
-  return async (candidatePath) => {
-    // `.data.js` is not evaluated here (see module header) — let the loader fall
-    // through to the `.data.json` candidate.
-    if (typeof candidatePath !== 'string' || !candidatePath.endsWith('.json')) return null;
+  const loadDataModule =
+    options && typeof options.loadDataModule === 'function' ? options.loadDataModule : null;
+  return async (candidatePath, opts = {}) => {
+    if (typeof candidatePath !== 'string' || candidatePath.length === 0) return null;
+    // `.data.js` / `.data.ts` are MODULES — evaluate them through the hosted
+    // runtime (transform → service-worker → import) so they can compute or
+    // `fetch` their data. Without a module loader they read as null and the
+    // caller falls through to the `.data.json` candidate.
+    if (/\.(jsx?|tsx?)$/i.test(candidatePath)) {
+      if (!loadDataModule) return null;
+      try {
+        return await loadDataModule(candidatePath, opts);
+      } catch {
+        return null;
+      }
+    }
+    if (!candidatePath.endsWith('.json')) return null;
     let text;
     try {
       const raw = await backend.readFile(candidatePath, { encoding: 'utf-8' });

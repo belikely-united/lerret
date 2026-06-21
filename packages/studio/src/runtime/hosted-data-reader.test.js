@@ -36,9 +36,40 @@ describe('createHostedDataReader', () => {
     expect(await createHostedDataReader(backend)('.lerret/x.data.json')).toBeNull();
   });
 
-  it('skips a .data.js candidate (json-only here) → null, so the loader falls through', async () => {
+  it('skips a .data.js candidate when no module loader is wired → null', async () => {
     const backend = createMemoryBackend({ '.lerret/x.data.js': 'export default { a: 1 }' });
+    // No loadDataModule → a .data.js reads as null and the loader falls through.
     expect(await createHostedDataReader(backend)('.lerret/x.data.js')).toBeNull();
+  });
+
+  it('routes a .data.js / .data.ts candidate to loadDataModule and returns its value', async () => {
+    const calls = [];
+    const loadDataModule = async (path, opts) => {
+      calls.push([path, opts]);
+      return { live: 42 };
+    };
+    const read = createHostedDataReader(createMemoryBackend(), { loadDataModule });
+    expect(await read('.lerret/live/Ticker.data.js', { bust: 7 })).toEqual({ live: 42 });
+    expect(await read('.lerret/live/Ticker.data.ts')).toEqual({ live: 42 });
+    // The candidate path + the bust opts are forwarded to the module loader.
+    expect(calls[0]).toEqual(['.lerret/live/Ticker.data.js', { bust: 7 }]);
+    // A .data.json is still read + parsed by the backend, not the module loader.
+    const both = createHostedDataReader(
+      createMemoryBackend({ '.lerret/a.data.json': '{"k":1}' }),
+      { loadDataModule },
+    );
+    expect(await both('.lerret/a.data.json')).toEqual({ k: 1 });
+  });
+
+  it('degrades to null when loadDataModule throws or returns null (falls through)', async () => {
+    const thrower = createHostedDataReader(createMemoryBackend(), {
+      loadDataModule: async () => { throw new Error('boom'); },
+    });
+    expect(await thrower('.lerret/x.data.js')).toBeNull();
+    const nuller = createHostedDataReader(createMemoryBackend(), {
+      loadDataModule: async () => null,
+    });
+    expect(await nuller('.lerret/x.data.js')).toBeNull();
   });
 });
 

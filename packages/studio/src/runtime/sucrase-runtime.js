@@ -443,7 +443,13 @@ async function transformAndRegister(lerretPath, ctx) {
  // Build the SW URL using a synthetic AssetNode-ish locator: only `path` is
  // used by `hostedAssetModuleUrl`. We construct a minimal one here so the
  // helper stays focused.
- const url = hostedAssetModuleUrl({ path: lerretPath }, ctx.project, transformed.hash);
+ let url = hostedAssetModuleUrl({ path: lerretPath }, ctx.project, transformed.hash);
+ // An optional refresh nonce yields a fresh URL (and module instance) even when
+ // the source — and thus the content hash — is unchanged. Data modules use it so
+ // an auto-refresh re-imports a .data.js and re-runs its fetch.
+ if (ctx.bust != null) {
+ url += (url.includes('?') ? '&' : '?') + 'r=' + encodeURIComponent(String(ctx.bust));
+ }
  ctx.sw.postMessage({ type: 'REGISTER_MODULE', url, code: transformed.code });
  return { url, hash: transformed.hash };
 }
@@ -632,6 +638,43 @@ export function createHostedRuntime(project, options) {
  return loadMarkdownAsset(asset, project, { fs });
  }
  return loadAssetModule(asset, project, { fs, sw, cache, importModule });
+ },
+
+ /**
+ * Resolve a co-located .data.js / .data.ts data MODULE to its data value
+ * (its default export) — read → transform → register with the SW → import,
+ * the same path .jsx assets use. A hosted data file can thus compute or
+ * fetch its data at runtime, not just sit as static .data.json. Any failure
+ * (missing file, transform error, or the module's top-level throwing — e.g.
+ * a failed fetch) resolves to null so the caller falls back to .data.json /
+ * propsSchema defaults. `opts.bust` forces a fresh import (re-running the
+ * module's fetch) even on unchanged source — the hook auto-refresh uses to
+ * keep live data live.
+ *
+ * @param {LerretPath} lerretPath
+ * @param {{ bust?: string | number }} [opts]
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
+ async loadDataModule(lerretPath, opts = {}) {
+ if (disposed) return null;
+ if (typeof lerretPath !== 'string' || lerretPath.length === 0) return null;
+ let url;
+ try {
+ const reg = await transformAndRegister(lerretPath, {
+ fs, project, sw, cache, bust: opts && opts.bust,
+ });
+ url = reg.url;
+ } catch {
+ return null; // read or transform failed → treat as absent
+ }
+ let mod;
+ try {
+ mod = await importModule(url);
+ } catch {
+ return null; // the module's top-level threw (e.g. its fetch failed)
+ }
+ const value = mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod;
+ return value && typeof value === 'object' ? value : null;
  },
 
  /**
