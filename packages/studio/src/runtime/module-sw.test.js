@@ -245,4 +245,18 @@ describe('module-sw pre-register protocol', () => {
  const resolved = await dispatchFetch(sw.handlers.fetch[0], `https://example.com${url}`);
  expect(await resolved.text()).toBe('export default 2;');
  });
+
+ it('waits for a REGISTER_MODULE that races the fetch, then serves it (no spurious 404)', async () => {
+ const url = '/__lerret/asset/race/Late.jsx?h=zzz';
+ const code = 'export default 7;';
+ // Fetch FIRST — the module is not registered yet (the production race).
+ const pending = dispatchFetch(sw.handlers.fetch[0], `https://example.com${url}`);
+ // Register a moment later, within the wait window; the SW must then serve it.
+ setTimeout(() => {
+ dispatchMessage(sw.handlers.message[0], { type: 'REGISTER_MODULE', url, code });
+ }, 40);
+ const resolved = await pending;
+ expect(resolved.status).toBe(200);
+ expect(await resolved.text()).toBe(code);
+ });
 });

@@ -95,6 +95,18 @@ const LERRET_PREFIX = '/__lerret/';
  */
 const MAX_MODULES = 2000;
 
+/**
+ * How long a module fetch waits for a not-yet-registered module before giving
+ * up with a 404 stub, and how often it polls while waiting. The page posts
+ * REGISTER_MODULE then immediately `import()`s the URL; the fetch can reach this
+ * SW before the message is processed (the registration race). Waiting briefly
+ * turns that race from an intermittent 404 into a reliable serve. A genuinely-
+ * absent module is rare here (the runtime reads + registers a module before it
+ * imports it), so the full timeout is almost never hit.
+ */
+const MODULE_WAIT_MS = 1000;
+const MODULE_POLL_MS = 15;
+
 // ---------------------------------------------------------------------------
 // In-memory module store
 // ---------------------------------------------------------------------------
@@ -341,8 +353,34 @@ async function serveBinary(key) {
  * @param {string} key The pathname-plus-search the runtime registered.
  * @returns {Promise<Response>}
  */
+/**
+ * Resolve with the module entry for `key` once it is registered, or `null`
+ * after `timeoutMs`. Bridges the REGISTER_MODULE-vs-import race (MODULE_WAIT_MS).
+ *
+ * @param {string} key
+ * @param {number} timeoutMs
+ * @returns {Promise<ModuleEntry | null>}
+ */
+function waitForModule(key, timeoutMs) {
+ return new Promise((resolve) => {
+ const start = Date.now();
+ const tick = () => {
+ const found = moduleStore.get(key);
+ if (found) { resolve(found); return; }
+ if (Date.now() - start >= timeoutMs) { resolve(null); return; }
+ setTimeout(tick, MODULE_POLL_MS);
+ };
+ tick();
+ });
+}
+
 async function serveModule(key) {
- const entry = moduleStore.get(key);
+ let entry = moduleStore.get(key);
+ if (!entry) {
+ // The REGISTER_MODULE message can race the import's fetch — wait briefly for
+ // the registration before treating this as a genuine miss (see MODULE_WAIT_MS).
+ entry = await waitForModule(key, MODULE_WAIT_MS);
+ }
  if (entry) {
  return new Response(entry.code, {
  status: 200,
@@ -354,7 +392,7 @@ async function serveModule(key) {
  },
  });
  }
- // Miss — emit a JS stub so the import rejects cleanly with a readable
+ // Genuine miss — emit a JS stub so the import rejects cleanly with a readable
  // message rather than a generic network error.
  const safeKey = JSON.stringify(key);
  const body =
