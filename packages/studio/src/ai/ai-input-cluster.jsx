@@ -877,14 +877,23 @@ function StatusPill({ status, reducedMotion, title }) {
             role="status"
             aria-live="polite"
             style={{
-                background: desc.bg,
+                background: isIdle ? 'transparent' : desc.bg,
                 color: desc.color,
-                // The idle pill is a small dot-like swatch with no label text
-                // (UX-delta §4.1: Mist, no animation). Non-idle states show the label.
-                ...(isIdle ? { width: 10, height: 10, padding: 0 } : null),
+                // Idle is a small Mist dot, but it lives in a CONTROL-HEIGHT box so
+                // that — with the field bottom-aligned (flex-end) for the multi-line
+                // input — the dot's center lands on the icon row instead of dropping
+                // ~6px low. (UX-delta §4.1: Mist, no animation.)
+                ...(isIdle ? { height: 22, padding: 0 } : null),
             }}
         >
-            {isIdle ? '' : desc.label}
+            {isIdle ? (
+                <span
+                    aria-hidden="true"
+                    style={{ width: 10, height: 10, borderRadius: '50%', background: desc.bg }}
+                />
+            ) : (
+                desc.label
+            )}
         </span>
     );
 }
