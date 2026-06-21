@@ -203,38 +203,50 @@ function StudioBrandMenu({
  };
  }, [anchorRef]);
 
- const item = (label, hint, onClick) => (
+ // A compact single-line action row: 16px icon + label. The old menu stacked
+ // a label over a gray hint that mostly restated it ("Switch project" /
+ // "Connect a different folder"), doubling every row's height. The hint now
+ // lives on hover (title=) and an icon carries recognition instead.
+ const ic = (children) => (
+ <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+ strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+ );
+ const icons = {
+ switch: ic(<><path d="M3 5.5h8" /><path d="M8.5 3 11 5.5 8.5 8" /><path d="M13 10.5H5" /><path d="M7.5 8 5 10.5 7.5 13" /></>),
+ close: ic(<><path d="M9 2.5H3.5v11H9" /><path d="M11 5.5 13.5 8 11 10.5" /><path d="M13.5 8H6.5" /></>),
+ ai: ic(<><path d="M2.5 5h6" /><path d="M11 5h2.5" /><circle cx="9.5" cy="5" r="1.4" /><path d="M2.5 11h2" /><path d="M6.5 11h7" /><circle cx="5" cy="11" r="1.4" /></>),
+ revert: ic(<><path d="M2.5 8a5.5 5.5 0 1 0 1.9-4.15" /><path d="M2.2 2.5v3.2h3.2" /><path d="M8 5.2V8l2 1.4" /></>),
+ logo: ic(<><rect x="2.5" y="3.5" width="11" height="9" rx="1.6" /><circle cx="5.8" cy="6.8" r="1" /><path d="M3 11l3-2.6 2.2 1.8L11 8l2 2" /></>),
+ tour: ic(<><circle cx="8" cy="8" r="5.7" /><path d="M10.4 5.6 9 9 5.6 10.4 7 7z" /></>),
+ };
+ const row = (icon, label, onClick, opts = {}) => (
  <button
  type="button"
  className="lm-focusable-inset"
  onClick={onClick}
+ title={opts.title}
  style={{
- display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+ display: 'flex', alignItems: 'center', gap: 10,
  width: '100%', textAlign: 'left',
- padding: '10px 14px',
+ padding: '8px 12px',
  border: 'none', borderRadius: 8,
  background: 'transparent',
- cursor: 'pointer',
- fontFamily: 'inherit',
+ cursor: 'pointer', fontFamily: 'inherit',
+ color: opts.quiet ? '#6E6960' : '#1A1714',
  transition: 'background .12s',
  }}
  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
  >
- <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1714' }}>{label}</span>
- {hint && <span style={{ fontSize: 11, color: '#6E6960', marginTop: 2 }}>{hint}</span>}
+ <span style={{ display: 'inline-flex', flex: '0 0 16px', opacity: opts.quiet ? 0.55 : 0.7 }}>{icon}</span>
+ <span style={{ fontSize: 13, fontWeight: opts.quiet ? 500 : 600 }}>{label}</span>
  </button>
  );
- const sectionLabel = {
- fontSize: 9.5, fontWeight: 600,
- letterSpacing: '0.14em', textTransform: 'uppercase',
- color: '#9a958c',
- padding: '8px 14px 4px',
- };
+ const divider = <div style={{ height: 1, background: 'rgba(0,0,0,0.06)', margin: '5px 8px' }} />;
  const segStyle = (on) => ({
  flex: 1,
  padding: '6px 0',
- borderRadius: 8,
+ borderRadius: 7,
  border: 'none',
  background: on ? '#B85B33' : 'var(--lm-bg-tertiary, #E8E2D4)',
  color: on ? '#FAF8F2' : '#3A3530',
@@ -242,63 +254,54 @@ function StudioBrandMenu({
  cursor: 'pointer', transition: 'background .12s',
  });
  if (!coords) return null;
+ // Three zones, dividers (not shouty uppercase headers) between them, ordered
+ // by how often you reach for them: project lifecycle → AI → export, with the
+ // niche logo download and one-time tour demoted to a quiet footer.
+ const hasProject = !!(onSwitchProject || onCloseProject);
+ const hasAi = !!(onAiSettings || onAiRevertHistory);
+ const hasActionsAbove = hasProject || hasAi || canExport;
  return ReactDOM.createPortal(
  <div ref={menuRef} style={{
  position: 'fixed',
  bottom: coords.bottom + 8,
  left: coords.left,
- minWidth: 230,
+ width: 264,
  background: 'rgba(255,255,255,0.97)',
  backdropFilter: 'blur(16px) saturate(120%)',
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
  borderRadius: 12,
  padding: 6,
  boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
- display: 'flex', flexDirection: 'column', gap: 2,
+ display: 'flex', flexDirection: 'column', gap: 1,
  zIndex: 90,
  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
  }}>
- <div style={sectionLabel}>Brand kit</div>
- {item('Lerret logo', 'PNG · 256 × 256', onDownloadLogo)}
-
  {/* Project — connect a different folder, or close the current one, without
  restarting the CLI. CLI mode only (the server re-points the dev binding). */}
- {(onSwitchProject || onCloseProject) && (
- <React.Fragment>
- <div style={{ height: 'var(--lm-space-1, 4px)' }} />
- <div style={sectionLabel}>Project</div>
- {onSwitchProject && item('Switch project…', 'Connect a different folder', onSwitchProject)}
- {onCloseProject && item('Close project', 'Return to the connect screen', onCloseProject)}
- </React.Fragment>
- )}
+ {onSwitchProject && row(icons.switch, 'Switch project', onSwitchProject, { title: 'Connect a different folder' })}
+ {onCloseProject && row(icons.close, 'Close project', onCloseProject, { title: 'Return to the connect screen' })}
 
- {/* AI — provider + API-key management (UX-delta §4.3: "the dock kebab
- gains Settings") and the revert timeline (UX-delta §4.5: the kebab's
- "Revert AI history" entry point). Both panels handle every state
- themselves, including no-provider-configured and @lerret/ai absent. */}
- {(onAiSettings || onAiRevertHistory) && (
- <React.Fragment>
- <div style={{ height: 'var(--lm-space-1, 4px)' }} />
- <div style={sectionLabel}>AI</div>
- {onAiSettings && item('AI settings…', 'Providers and API keys', onAiSettings)}
- {onAiRevertHistory && item('Revert AI history…', 'Browse and revert AI turns', onAiRevertHistory)}
- </React.Fragment>
- )}
+ {/* AI — provider + API-key management (UX-delta §4.3) and the revert
+ timeline (UX-delta §4.5, FR52). Both panels handle every state themselves,
+ including no-provider-configured and @lerret/ai absent. */}
+ {hasProject && hasAi && divider}
+ {onAiSettings && row(icons.ai, 'AI settings', onAiSettings, { title: 'Providers and API keys' })}
+ {onAiRevertHistory && row(icons.revert, 'Revert AI history', onAiRevertHistory, { title: 'Browse and revert AI turns' })}
 
- {/* Export project — a deliberately low-frequency action, tucked here
- rather than in the dock's prime row. Per-page / per-group / per-artboard
- export already live in their ⋯ kebabs. */}
+ {/* Export project — the one action here with controls, so it earns its own
+ framed block. Deliberately low-frequency (per-page / per-group / per-artboard
+ export live in their ⋯ kebabs); the segmented scope control now carries the
+ explanation the prose line used to, so the prose is gone. */}
+ {(hasProject || hasAi) && canExport && divider}
  {canExport && (
- <React.Fragment>
- <div style={{ height: 'var(--lm-space-1, 4px)' }} />
- <div style={sectionLabel}>Export</div>
- <div style={{ padding: '2px 14px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
- <span style={{ fontSize: 11, color: '#6E6960', lineHeight: 1.45 }}>
- {exportScope === 'page'
- ? 'This page only, as one structured ZIP.'
- : 'Every artboard across all pages, as one structured ZIP.'}
- </span>
- <div role="radiogroup" aria-label="Export scope" style={{ display: 'inline-flex', gap: 6 }}>
+ <div style={{
+ margin: '2px 2px 1px',
+ padding: 8,
+ borderRadius: 10,
+ background: 'rgba(60,50,40,0.04)',
+ display: 'flex', flexDirection: 'column', gap: 7,
+ }}>
+ <div role="radiogroup" aria-label="Export scope" style={{ display: 'flex', gap: 6 }}>
  {[['project', 'Whole project'], ['page', 'This page']].map(([val, label]) => {
  const on = exportScope === val;
  return (
@@ -317,7 +320,8 @@ function StudioBrandMenu({
  );
  })}
  </div>
- <div role="radiogroup" aria-label="Export format" style={{ display: 'inline-flex', gap: 6 }}>
+ <div style={{ display: 'flex', gap: 6 }}>
+ <div role="radiogroup" aria-label="Export format" style={{ display: 'flex', gap: 6, flex: '0 0 auto' }}>
  {['png', 'jpg'].map((f) => {
  const on = exportFormat === f;
  return (
@@ -328,7 +332,7 @@ function StudioBrandMenu({
  aria-checked={on}
  onClick={() => onExportFormatChange && onExportFormatChange(f)}
  className="lm-seg"
- style={segStyle(on)}
+ style={{ ...segStyle(on), flex: '0 0 auto', padding: '6px 11px' }}
  >
  {f.toUpperCase()}
  </button>
@@ -342,8 +346,9 @@ function StudioBrandMenu({
  disabled={exportBusy}
  onClick={() => onExportProject && onExportProject(exportFormat, exportScope)}
  style={{
- padding: '8px 12px',
- borderRadius: 8,
+ flex: 1,
+ padding: '6px 12px',
+ borderRadius: 7,
  border: 'none',
  background: exportBusy ? 'rgba(42,37,31,0.5)' : '#2A251F',
  color: '#fff',
@@ -358,6 +363,7 @@ function StudioBrandMenu({
  </svg>
  {exportProgress !== null ? exportProgress : 'Export ZIP'}
  </button>
+ </div>
  {exportNotice && (
  <div style={{
  fontSize: 11, color: '#6E6960', lineHeight: 1.4,
@@ -374,17 +380,14 @@ function StudioBrandMenu({
  </div>
  )}
  </div>
- </React.Fragment>
  )}
 
- {/* Take a tour — the walkthrough lives here (a one-time onboarding aid),
- not in the dock's prime row where it competed with everyday controls. */}
- {onTakeTour && (
- <React.Fragment>
- <div style={{ height: 'var(--lm-space-1, 4px)' }} />
- {item('Take a tour', 'A quick walkthrough of the studio', onTakeTour)}
- </React.Fragment>
- )}
+ {/* Quiet footer — niche / one-time aids. The Lerret-logo download (a
+ brand-kit nicety, not an everyday action; its PNG · 256 × 256 spec lives on
+ hover) and the one-time walkthrough sit here, demoted so everyday actions lead. */}
+ {hasActionsAbove && divider}
+ {onDownloadLogo && row(icons.logo, 'Download logo', onDownloadLogo, { quiet: true, title: 'PNG · 256 × 256' })}
+ {onTakeTour && row(icons.tour, 'Take a tour', onTakeTour, { quiet: true, title: 'A quick walkthrough of the studio' })}
  </div>,
  document.body,
  );
