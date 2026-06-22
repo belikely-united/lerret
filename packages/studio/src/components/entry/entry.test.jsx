@@ -19,6 +19,7 @@ import { isFileSystemAccessSupported } from './capability-detection.js';
 import { OpenFolder } from './open-folder.jsx';
 import { UnsupportedBrowser } from './unsupported-browser.jsx';
 import { EntryRoot } from './entry-root.jsx';
+import { setRecentsStore } from '../../runtime/hosted-recents.js';
 
 // ---------------------------------------------------------------------------
 // Render helper
@@ -48,6 +49,8 @@ function renderToDom(element) {
 }
 
 afterEach(() => {
+ // Reset the injectable recents store so one test's fixtures can't leak.
+ setRecentsStore(null);
  // Clean up any containers left open by a failing test.
  for (const c of [..._containers]) {
  try {
@@ -300,6 +303,29 @@ describe('<OpenFolder>', () => {
 
  cleanup();
  });
+
+ // ── 2.7 Resume affordance ────────────────────────────────────────────────
+
+ it('renders a prominent Resume button for a resumeEntry and opens it on click', async () => {
+ const handle = makeRecentHandle({ permission: 'prompt' });
+ const onFolderPicked = vi.fn();
+ const { container, cleanup } = renderToDom(
+ <OpenFolder onFolderPicked={onFolderPicked} resumeEntry={{ id: 'p', name: 'My Deck', handle }} />,
+ );
+
+ const resumeBtn = container.querySelector('[data-testid="resume-project-button"]');
+ expect(resumeBtn).toBeTruthy();
+ expect(resumeBtn.textContent).toContain('My Deck');
+ // The folder picker demotes to "Open a different folder".
+ const openBtn = container.querySelector('[data-testid="open-folder-button"]');
+ expect(openBtn.textContent).toContain('different');
+
+ click(resumeBtn);
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+ expect(onFolderPicked).toHaveBeenCalledWith(handle);
+
+ cleanup();
+ });
 });
 
 // ===========================================================================
@@ -373,11 +399,15 @@ describe('<EntryRoot>', () => {
  }
  });
 
- it('renders <OpenFolder> when File System Access API is supported', () => {
+ it('renders <OpenFolder> when File System Access API is supported (no recents)', async () => {
  window.showDirectoryPicker = vi.fn();
  window.FileSystemDirectoryHandle = vi.fn();
+ setRecentsStore({ getAll: async () => [], put: async () => {}, remove: async () => {} });
 
  const { container, cleanup } = renderToDom(<EntryRoot onReady={vi.fn()} />);
+ // The boot resume-probe runs first (brief splash); with no recents it
+ // resolves straight to the picker.
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
  expect(container.querySelector('[data-testid="open-folder-screen"]')).toBeTruthy();
  expect(container.querySelector('[data-testid="unsupported-browser-screen"]')).toBeNull();
@@ -397,15 +427,17 @@ describe('<EntryRoot>', () => {
  cleanup();
  });
 
- it('passes the onReady callback to <OpenFolder> via onFolderPicked', async () => {
- window.showDirectoryPicker = vi.fn();
+ it('passes the onReady callback to <OpenFolder> via onFolderPicked (manual pick)', async () => {
  window.FileSystemDirectoryHandle = vi.fn();
+ setRecentsStore({ getAll: async () => [], put: async () => {}, remove: async () => {} });
 
  const mockHandle = makeMockHandle({ hasLerret: true });
  window.showDirectoryPicker = vi.fn().mockResolvedValue(mockHandle);
  const onReady = vi.fn();
 
  const { container, cleanup } = renderToDom(<EntryRoot onReady={onReady} />);
+ // Let the resume-probe resolve to the picker (no recents).
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
  const btn = container.querySelector('[data-testid="open-folder-button"]');
  click(btn);
@@ -416,6 +448,58 @@ describe('<EntryRoot>', () => {
  });
 
  expect(onReady).toHaveBeenCalledWith(mockHandle);
+
+ cleanup();
+ });
+
+ it('auto-restores the last project with ZERO clicks when permission is still granted', async () => {
+ window.showDirectoryPicker = vi.fn();
+ window.FileSystemDirectoryHandle = vi.fn();
+ const handle = makeRecentHandle({ permission: 'granted' });
+ setRecentsStore({
+ getAll: async () => [{ id: 'Lerret-Test-project', name: 'Lerret-Test-project', handle, lastOpened: 1 }],
+ put: async () => {},
+ remove: async () => {},
+ });
+ const onReady = vi.fn();
+
+ const { container, cleanup } = renderToDom(<EntryRoot onReady={onReady} />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+ // Probed silently (no gesture) and re-opened the folder — no picker shown.
+ expect(handle.queryPermission).toHaveBeenCalledWith({ mode: 'readwrite' });
+ expect(onReady).toHaveBeenCalledWith(handle);
+ expect(container.querySelector('[data-testid="open-folder-screen"]')).toBeNull();
+
+ cleanup();
+ });
+
+ it('offers a ONE-CLICK Resume (no silent open) when permission has lapsed', async () => {
+ window.showDirectoryPicker = vi.fn();
+ window.FileSystemDirectoryHandle = vi.fn();
+ const handle = makeRecentHandle({ permission: 'prompt' });
+ setRecentsStore({
+ getAll: async () => [{ id: 'Lerret-Test-project', name: 'Lerret-Test-project', handle, lastOpened: 1 }],
+ put: async () => {},
+ remove: async () => {},
+ });
+ const onReady = vi.fn();
+
+ const { container, cleanup } = renderToDom(<EntryRoot onReady={onReady} />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+ // No silent open — the browser needs a user gesture to re-grant.
+ expect(onReady).not.toHaveBeenCalled();
+ // The picker shows a prominent Resume button naming the project.
+ const resumeBtn = container.querySelector('[data-testid="resume-project-button"]');
+ expect(resumeBtn).toBeTruthy();
+ expect(resumeBtn.textContent).toContain('Lerret-Test-project');
+
+ // Clicking it re-grants (the gesture) and opens.
+ click(resumeBtn);
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+ expect(handle.requestPermission).toHaveBeenCalledWith({ mode: 'readwrite' });
+ expect(onReady).toHaveBeenCalledWith(handle);
 
  cleanup();
  });
@@ -444,5 +528,23 @@ function makeMockHandle({ hasLerret }) {
  const err = new DOMException('The path was not found.', 'NotFoundError');
  return Promise.reject(err);
  }),
+ };
+}
+
+/**
+ * Build a mock recent-project handle with a controllable permission state, for
+ * the resume-on-load path. `queryPermission` drives the silent boot probe;
+ * `requestPermission` is the one-click re-grant.
+ *
+ * @param {{ permission?: 'granted' | 'prompt' | 'denied' }} [opts]
+ * @returns {FileSystemDirectoryHandle}
+ */
+function makeRecentHandle({ permission = 'granted' } = {}) {
+ return {
+ kind: 'directory',
+ name: 'Lerret-Test-project',
+ queryPermission: vi.fn().mockResolvedValue(permission),
+ requestPermission: vi.fn().mockResolvedValue('granted'),
+ getDirectoryHandle: vi.fn().mockResolvedValue({ kind: 'directory', name: '.lerret' }),
  };
 }

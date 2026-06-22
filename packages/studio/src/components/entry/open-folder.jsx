@@ -446,7 +446,10 @@ function CliConnectScreen() {
  * @param {OpenFolderProps} props
  * @returns {React.ReactElement}
  */
-function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
+function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = null }) {
+ // When a resume target is offered (the last project), the primary action
+ // becomes "Resume <name>" and the folder picker demotes to secondary.
+ const hasResume = !!resumeEntry;
  // 'idle' | 'picking' | 'not-lerret-project' | 'cli-guide'
  const [state, setState] = React.useState('idle');
  // The handle we tried but that lacked .lerret/ — kept so we can offer
@@ -695,6 +698,9 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  // Main render
  // ---------------------------------------------------------------------------
 
+ // Don't list the resume target twice — it's the prominent "Resume" button.
+ const visibleRecents = hasResume ? recents.filter((r) => r.id !== resumeEntry.id) : recents;
+
  const isPicking = state === 'picking';
 
  return (
@@ -708,10 +714,12 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
 
  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--lm-space-3, 12px)', alignItems: 'center' }}>
  <p style={eyebrowStyle} aria-hidden="true">Lerret</p>
- <h1 style={headingStyle}>Open a Lerret folder</h1>
+ <h1 style={headingStyle}>{hasResume ? 'Welcome back' : 'Open a Lerret folder'}</h1>
  <p style={bodyStyle}>
  {cliMode
  ? 'Run your project with the Lerret CLI — no account or signup needed.'
+ : hasResume
+ ? 'Pick up where you left off — or open a different folder. Your files stay on your machine.'
  : 'Pick a local folder that contains a .lerret/ project. No account or signup needed — your files stay on your machine.'}
  </p>
  </div>
@@ -720,22 +728,40 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  {state === 'cli-guide' && renderCliGuide()}
  {state === 'initializing' && renderInitializing()}
 
- {(state === 'idle' || state === 'picking') && (
+ {hasResume && state === 'idle' && (
  <button
  type="button"
  style={{
  ...primaryButtonStyle,
- ...(primaryHover && !isPicking ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
+ ...(primaryHover ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
+ }}
+ onClick={() => openRecent(resumeEntry)}
+ onMouseEnter={() => setPrimaryHover(true)}
+ onMouseLeave={() => setPrimaryHover(false)}
+ aria-label={`Resume ${resumeEntry.name}`}
+ data-testid="resume-project-button"
+ >
+ {`Resume ${resumeEntry.name} →`}
+ </button>
+ )}
+
+ {(state === 'idle' || state === 'picking') && (
+ <button
+ type="button"
+ style={{
+ ...(hasResume ? secondaryButtonStyle : primaryButtonStyle),
+ ...(!hasResume && primaryHover && !isPicking ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
+ ...(hasResume && secondaryHover ? { background: 'var(--lm-accent-light, rgba(184,91,51,0.10))' } : {}),
  ...(isPicking ? { opacity: 0.7, cursor: 'wait' } : {}),
  }}
  onClick={handlePick}
  disabled={isPicking}
- onMouseEnter={() => setPrimaryHover(true)}
- onMouseLeave={() => setPrimaryHover(false)}
- aria-label={cliMode ? 'Open in terminal' : 'Open a Lerret folder'}
+ onMouseEnter={() => (hasResume ? setSecondaryHover(true) : setPrimaryHover(true))}
+ onMouseLeave={() => (hasResume ? setSecondaryHover(false) : setPrimaryHover(false))}
+ aria-label={cliMode ? 'Open in terminal' : hasResume ? 'Open a different folder' : 'Open a Lerret folder'}
  data-testid="open-folder-button"
  >
- {isPicking ? 'Opening…' : cliMode ? 'How to open' : 'Open a Lerret folder'}
+ {isPicking ? 'Opening…' : cliMode ? 'How to open' : hasResume ? 'Open a different folder' : 'Open a Lerret folder'}
  </button>
  )}
 
@@ -750,11 +776,11 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  </button>
  )}
 
- {!cliMode && state === 'idle' && recents.length > 0 && (
+ {!cliMode && state === 'idle' && visibleRecents.length > 0 && (
  <div style={{ width: '100%', marginTop: 'var(--lm-space-4, 16px)' }} data-testid="hosted-recents">
  <p style={{ ...eyebrowStyle, marginBottom: 'var(--lm-space-2, 8px)' }} aria-hidden="true">Recent</p>
  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
- {recents.slice(0, 6).map((r) => (
+ {visibleRecents.slice(0, 6).map((r) => (
  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
  <button
  type="button"
@@ -808,9 +834,9 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false }) {
  * @param {OpenFolderProps} props
  * @returns {React.ReactElement}
  */
-export function OpenFolder({ onFolderPicked, cliMode = false }) {
+export function OpenFolder({ onFolderPicked, cliMode = false, resumeEntry = null }) {
  if (cliMode) return <CliConnectScreen />;
- return <HostedOpenFolderImpl onFolderPicked={onFolderPicked} />;
+ return <HostedOpenFolderImpl onFolderPicked={onFolderPicked} resumeEntry={resumeEntry} />;
 }
 
 export default OpenFolder;
