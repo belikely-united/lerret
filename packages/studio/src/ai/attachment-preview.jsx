@@ -164,14 +164,27 @@ function useDockAnchor(active) {
     );
     React.useLayoutEffect(() => {
         if (!active) return undefined;
+        let rafRetry = 0;
+        let rafSettle = 0;
+        let tries = 0;
+        let ro = /** @type {ResizeObserver | null} */ (null);
+        const hasRaf = typeof requestAnimationFrame !== 'undefined';
         const getAnchor = () =>
             document.querySelector('[data-tour="dock"]') ||
             document.querySelector('.lm-ai-cluster');
         const measure = () => {
             const anchor = getAnchor();
-            if (!anchor) return;
-            const r = anchor.getBoundingClientRect();
-            setPos({
+            const r = anchor && anchor.getBoundingClientRect();
+            // Anchor not in the DOM yet, or laid out at zero width (its
+            // backdrop-filter / fonts still settling): RETRY next frame instead of
+            // giving up. Giving up leaves `pos` null, and the tray then paints at
+            // its fallback — a narrow, detached, mis-anchored pill that never
+            // recovers (the "sometimes" broken look). A bounded retry self-heals.
+            if (!r || r.width === 0) {
+                if (tries++ < 30 && hasRaf) rafRetry = requestAnimationFrame(measure);
+                return;
+            }
+            const next = {
                 left: Math.round(r.left),
                 // 2px OVERLAP onto the dock's top (not a gap) so the card and dock
                 // read as one unit — the overlap + shared frosted material + matched
@@ -181,18 +194,37 @@ function useDockAnchor(active) {
                 // Match the dock's exact width so the join is a clean full-width
                 // line; a narrower card notches against the dock's rounded corners.
                 width: Math.round(r.width),
-            });
+            };
+            // Skip no-op updates so resize / scroll / observer churn doesn't
+            // re-render the portal on every event.
+            setPos((prev) =>
+                prev && prev.left === next.left && prev.bottom === next.bottom && prev.width === next.width
+                    ? prev
+                    : next,
+            );
         };
         measure();
+        // One more pass after the first paint settles — fonts / async layout can
+        // shift the dock after the synchronous mount measure.
+        if (hasRaf) rafSettle = requestAnimationFrame(measure);
         window.addEventListener('resize', measure);
         window.addEventListener('scroll', measure, true);
         // Re-anchor when the DOCK ITSELF changes height — e.g. the multi-line
         // input growing/shrinking pushes the dock top up/down, which fires no
-        // window resize/scroll. The cluster signals it explicitly via this event
-        // (a ResizeObserver is unreliable here — throttled to zero callbacks in
-        // embedded/background views).
+        // window resize/scroll. The cluster signals it explicitly via this event.
         window.addEventListener('lerret:dock-resized', measure);
+        // Real browsers honour ResizeObserver; it re-anchors on ANY dock size
+        // change. (It's throttled to zero callbacks in embedded/background views —
+        // that's why the custom event above exists as a backstop, not in its place.)
+        const anchorEl = getAnchor();
+        if (anchorEl && typeof ResizeObserver !== 'undefined') {
+            ro = new ResizeObserver(measure);
+            ro.observe(anchorEl);
+        }
         return () => {
+            if (rafRetry) cancelAnimationFrame(rafRetry);
+            if (rafSettle) cancelAnimationFrame(rafSettle);
+            if (ro) ro.disconnect();
             window.removeEventListener('resize', measure);
             window.removeEventListener('scroll', measure, true);
             window.removeEventListener('lerret:dock-resized', measure);
@@ -234,11 +266,23 @@ export function PromptContextTray({ scopeNode, attachments, onRemove }) {
 
     if (!visible) return null;
 
+    // Until the dock is measured, keep the card invisible (and animation-free)
+    // rather than flash it at the fallback geometry — a narrow, detached pill.
+    // useDockAnchor self-heals within a frame, so this is a sub-frame guard in the
+    // common case and the safety net in the rare measurement race.
+    const anchored = pos != null;
+
     return createPortal(
         <div
             className="lm-ctx-tray"
             data-testid="prompt-context-tray"
-            style={{ left: pos?.left ?? 16, bottom: pos?.bottom ?? 80, width: pos?.width }}
+            style={{
+                left: pos?.left ?? 16,
+                bottom: pos?.bottom ?? 80,
+                width: pos?.width,
+                visibility: anchored ? 'visible' : 'hidden',
+                animation: anchored ? undefined : 'none',
+            }}
         >
             {hasScope && (
                 <div className="lm-ctx-tray__scope" data-testid="prompt-context-scope">
