@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # ── Install all four runners ─────────────────────────────────────────
       - name: Setup pnpm
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # ── Install runners ───────────────────────────────────────────────────
       - name: Setup pnpm
