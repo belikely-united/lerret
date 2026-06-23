@@ -73,6 +73,11 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
   const runtimeRef = React.useRef(null);
   const watcherRef = React.useRef(null);
   const swRef = React.useRef(null);
+  // Auto-resume the last project only on the FIRST entry render (a real page
+  // load / refresh). After the user deliberately leaves via goHome (Switch /
+  // Close project), returning to the connect screen must NOT silently reopen the
+  // project they just closed — that would make those buttons look broken.
+  const returnedHomeRef = React.useRef(false);
 
   // Leave the current project for the home/connect screen (H7 switch + close).
   const goHome = React.useCallback(() => {
@@ -87,6 +92,7 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
     setHostedDataReader(null);
     setStudio(null);
     setError(null);
+    returnedHomeRef.current = true;
     setPhase('entry');
   }, []);
 
@@ -172,7 +178,7 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
     [],
   );
 
-  if (phase === 'entry') return <EntryRoot onReady={onReady} />;
+  if (phase === 'entry') return <EntryRoot onReady={onReady} autoResume={!returnedHomeRef.current} />;
   if (phase === 'loading') return <HostedSplash />;
   if (phase === 'error') return <HostedError error={error} onRetry={() => setPhase('entry')} />;
 

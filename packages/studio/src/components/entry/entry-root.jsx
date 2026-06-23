@@ -67,6 +67,10 @@ function ResumeSplash({ name }) {
  * @property {(handle: FileSystemDirectoryHandle) => void | Promise<void>} [onReady]
  * Called when the user has picked (or resumed) a valid Lerret project folder.
  * The parent should mount the canvas at this point.
+ * @property {boolean} [autoResume] When true (default), a still-granted last
+ * project is reopened with zero clicks on mount. The parent passes false when
+ * the user deliberately returned here (Switch / Close project) so it doesn't
+ * silently reopen what they just left.
  */
 
 /**
@@ -80,7 +84,7 @@ function ResumeSplash({ name }) {
  * @param {EntryRootProps} props
  * @returns {React.ReactElement}
  */
-export function EntryRoot({ onReady }) {
+export function EntryRoot({ onReady, autoResume = true }) {
  const supported = isFileSystemAccessSupported();
  // 'probing' (brief, initial) | 'restoring' (zero-click open underway) | 'manual'
  const [resume, setResume] = React.useState(
@@ -122,7 +126,7 @@ export function EntryRoot({ onReady }) {
  state = 'prompt';
  }
  if (!live) return;
- if (state === 'granted') {
+ if (state === 'granted' && autoResume) {
  // Zero-click restore — the browser kept access across the reload.
  setResume({ phase: 'restoring', entry });
  try {
@@ -134,7 +138,9 @@ export function EntryRoot({ onReady }) {
  if (live) setResume({ phase: 'manual', entry });
  }
  } else {
- // Permission lapsed — offer a one-click Resume in the picker.
+ // Permission lapsed, OR the user deliberately returned here (Switch / Close
+ // project → autoResume=false): show the picker with a one-click Resume
+ // rather than silently reopening the project they just left.
  setResume({ phase: 'manual', entry });
  }
  })();

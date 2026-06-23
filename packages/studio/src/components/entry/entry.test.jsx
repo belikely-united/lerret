@@ -503,6 +503,31 @@ describe('<EntryRoot>', () => {
 
  cleanup();
  });
+
+ it('does NOT auto-restore when autoResume is false (Switch / Close project)', async () => {
+ window.showDirectoryPicker = vi.fn();
+ window.FileSystemDirectoryHandle = vi.fn();
+ const handle = makeRecentHandle({ permission: 'granted' });
+ setRecentsStore({
+ getAll: async () => [{ id: 'Lerret-Test-project', name: 'Lerret-Test-project', handle, lastOpened: 1 }],
+ put: async () => {},
+ remove: async () => {},
+ });
+ const onReady = vi.fn();
+
+ // Granted permission, but the user came here on purpose (returnedHome) — the
+ // parent passes autoResume=false so we must NOT silently reopen.
+ const { container, cleanup } = renderToDom(<EntryRoot onReady={onReady} autoResume={false} />);
+ await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+ expect(onReady).not.toHaveBeenCalled();
+ expect(container.querySelector('[data-testid="open-folder-screen"]')).toBeTruthy();
+ const resumeBtn = container.querySelector('[data-testid="resume-project-button"]');
+ expect(resumeBtn).toBeTruthy();
+ expect(resumeBtn.textContent).toContain('Lerret-Test-project');
+
+ cleanup();
+ });
 });
 
 // ===========================================================================
