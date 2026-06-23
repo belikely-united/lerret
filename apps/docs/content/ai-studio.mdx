@@ -1,0 +1,114 @@
+---
+title: AI in the Studio
+description: Lerret's built-in AI agent — a brand-aware asset factory. Prompt it from the dock to design and edit your assets, with your own provider key (OpenAI, Anthropic, OpenRouter) or a fully-local Ollama. Browser-direct, no Lerret backend.
+---
+
+# AI in the Studio
+
+Lerret has an AI agent built into the studio. You prompt it from the dock — *"re-theme the twitter banner to our brand"*, *"make a launch kit from this component"* — and it reads, writes, and restructures the files in your `.lerret/` folder for you. Because every asset is plain React and Markdown, the agent edits the exact same files you would.
+
+Think of it as a **brand-aware asset factory**: tell Lerret about your brand once, then ask for platform-specific assets and it generates them — anchored to your colors, type, and context.
+
+> **Two kinds of "AI" in Lerret.** This page is the **built-in studio agent** — it lives in the dock and edits your files for you. If you'd rather drive edits from **your own AI coding tool** — Claude Code, Cursor, Copilot, any AGENTS.md-aware agent — that's the bundled-conventions route, covered in [Editing with AI Tools](/ai-editing/). The two are complementary; use either or both.
+
+## Pick a provider
+
+The agent runs against a provider you choose. Four are supported, behind one interface, switchable any time. The choice is **per-folder** — each project remembers its own.
+
+| Provider | Type | What you provide |
+|---|---|---|
+| **OpenAI** | BYOK · cloud | An API key |
+| **Anthropic** | BYOK · cloud | An API key |
+| **OpenRouter** | BYOK · cloud | An API key, plus a model |
+| **Ollama** | Local · keyless | A base URL (default `http://localhost:11434`) and a model |
+
+The first time you invoke AI in a folder, a setup screen appears with the four providers side by side. Cloud providers take a single masked API-key field; Ollama takes a base URL and a model — no key. Pick one and you're in. You can change provider, key, or model later from the AI settings without re-running setup.
+
+## Privacy and cost
+
+This is the part worth reading once.
+
+- **Every request goes browser-direct.** The prompt, the file contents the turn needs, and any images you attach go **straight from your browser to the provider you configured** — never through a Lerret server. Lerret runs no AI backend, no proxy, and no telemetry on AI traffic.
+- **You pay your own provider.** Cloud calls are metered against your own key — you're billed by OpenAI / Anthropic / OpenRouter directly, at their rates. Lerret takes no cut and sits in no path.
+- **Keys stay on your machine.** BYOK keys are encrypted at rest in your browser and never transmitted to a Lerret server. Ollama needs no key at all.
+- **Ollama leaves nothing.** With a local Ollama model, your prompts, files, and images never leave your computer.
+
+The first time you use a **cloud** provider in a folder, Lerret shows a one-time notice spelling out exactly what gets sent and where, and naming Ollama as the fully-local alternative. It's remembered per provider — stated once, never nagged.
+
+## Ask for an edit
+
+Open any `.lerret/` project in the studio and look at the **dock** along the bottom. Between the page picker and export sits a single input:
+
+> *Ask Lerret to design or edit…*
+
+Type what you want and press <kbd>Enter</kbd>.
+
+**Scope it, or don't.** Click an artboard first and a context chip appears above the dock naming your target — the request is scoped to that asset. Leave nothing selected and it applies project-wide. The chip persists across turns until you clear it (× / <kbd>Delete</kbd>), and any reference images you attach sit in the same tray, ready for the next turn.
+
+**Watch it work.** There's no diff to approve. As the agent runs, the dock narrates each real step — *Looking through .lerret/*, *Editing kit/banner.jsx — updating the headline colour* — with a running token count like `~12.4k tokens`. Edits land on the canvas the instant they're written, exactly the way a manual file save re-renders. A **Hide activity** toggle quiets the narration; a **Stop** button (or <kbd>Esc</kbd>) aborts the turn.
+
+**Undo cleanly.** Every turn is snapshotted *before* it touches a file. A **Revert** action undoes the whole turn, and the thread keeps a history you can step back through. Snapshots live in a gitignored `.lerret/.state/` sidecar, so they never pollute your commits.
+
+## Agentic, by design
+
+A single request can do real, multi-step work. Ask *"find the twitter banner and re-theme it to the design system"* and the agent lists folders, reads files, makes the edits, and checks its own work — you never supply exact paths.
+
+Turns are **bounded**, on purpose:
+
+- A **step cap** (default ~10 steps) keeps a turn from running away.
+- At the cap, the agent never stops silently — it offers a calm **Continue / Stop here** choice inline.
+- **Repeated identical actions are blocked**, so the agent can't spin.
+- A continued turn stays **one unit of work** — one entry in the thread, one thing to revert.
+- If your chosen model **can't call tools**, the agent degrades gracefully to a single step and tells you what it couldn't do, rather than failing quietly.
+
+### What it can touch
+
+The agent can create, read, edit, delete, and restructure files and folders — **only inside `.lerret/`**. It never reaches outside that folder, never runs a shell command, and never installs a package. The boundary is enforced at the filesystem layer, not merely requested in the prompt. AI-written code is treated exactly like code you wrote yourself: you remain its author and reviewer.
+
+## Brand-aware generation
+
+This is what makes it an asset *factory* rather than a generic chat box. Tell Lerret about your brand once, and it anchors everything it makes to it. Brand and project memory live in **plain Markdown you own**:
+
+| File | Holds |
+|---|---|
+| `_design-system.md` | Colors, type, spacing, tokens — *"our orange"* resolves from here |
+| `_context.md` | What you're building, audience, voice |
+| `_memory.md` | Durable notes the agent should remember |
+| `_brand/` | A folder for logos, swatches, reference images |
+
+Because these are real files — git-tracked, editable in your own editor — they're never opaque AI state. From there the agent generates **platform-specific assets** using Lerret's themed presets and data-file expansion: one component plus a `.data.json` becomes many artboards at once — a launch kit, a set of social variants — all on-brand, all in a single turn. (See [variants and data files](/concepts/) for the underlying mechanic.)
+
+## Local models with Ollama
+
+Point Lerret at a local Ollama and no data leaves your machine. In **CLI mode** it just works.
+
+In the **hosted studio** there's one wrinkle: the page is served over HTTPS, but Ollama listens on `http://localhost`, which browsers block by default. Lerret detects this and walks you through the fix — set `OLLAMA_ORIGINS` to the studio's origin so Ollama accepts requests from the hosted page:
+
+```
+OLLAMA_ORIGINS="https://app.lerret.belikely.com" ollama serve
+```
+
+The origin must match the hosted studio you're on (`https://app.lerret.belikely.com`); Lerret's in-app guide shows the exact command to copy.
+
+One honest note on quality: **local models produce lower-fidelity `.jsx` than frontier cloud models.** Choose with that in mind — and switch providers any time.
+
+## Hosted or local — same agent
+
+The AI works the same whether you run the CLI (`@lerret/cli dev`) or the [hosted studio](/deploy/) in your browser — same providers, same agent, same `.lerret/`-only sandbox. The only difference is plumbing: the CLI reads and writes through a local Node process; the hosted studio reads and writes your local folder directly through the browser's **File System Access API**. Either way, your files stay on your disk and the AI's edits write straight back to them.
+
+## What's here, and what isn't (yet)
+
+v0.1 is deliberately bounded:
+
+- **BYOK only.** You bring your own provider key, or run Ollama locally. There is **no managed or proxied Lerret AI** — no Lerret backend ever touches your prompts or files.
+- **Full-file writes.** The agent writes whole files; surgical string-replace editing is a later refinement.
+- **Tokens, not dollars.** The dock shows token usage; it doesn't try to price your turn (rates vary by provider).
+
+Deferred to a later release: a CLI agent plugin (subscription auth), animated / GIF export, and any background or server-side agent. Lerret has no backend, by design.
+
+## What's next
+
+- **[Editing with AI Tools](/ai-editing/)** — drive edits from Claude Code, Cursor, Copilot, or any AGENTS.md agent instead.
+- **[The Studio](/studio/)** — the canvas, dock, in-place editors, and export.
+- **[Authoring Assets](/authoring/)** — the conventions the agent follows, in human-readable form.
+- **[Concepts](/concepts/)** — variants, data files, and the prop cascade that power data-driven generation.

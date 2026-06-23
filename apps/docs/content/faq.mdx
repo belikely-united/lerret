@@ -70,6 +70,20 @@ No. There is no backend at any layer.
 
 The first time you open a folder in hosted mode, the browser shows a permission prompt for that specific directory. You can revoke that permission any time from the browser's site settings.
 
+## Does Lerret have built-in AI?
+
+Yes. The studio ships a **brand-aware AI agent** in the dock: prompt it — *"re-theme the twitter banner to our brand"*, *"make a launch kit from this component"* — and it reads, writes, and restructures the files in your `.lerret/` folder for you. It's agentic (one prompt does multi-step work), sandboxed to `.lerret/` only, and every turn is one click to revert. Full guide: [AI in the Studio](/ai-studio/).
+
+This is separate from — and complementary to — editing your assets with **your own** AI tool (Claude Code, Cursor, Copilot); see [Editing with AI Tools](/ai-editing/).
+
+## When I use the AI, does my code go through a Lerret server?
+
+No. Every AI request goes **browser-direct** to the provider you configured — the prompt, the file contents the turn needs, and any images you attach go straight from your browser to OpenAI / Anthropic / OpenRouter (or to your local Ollama). **No Lerret backend, proxy, or telemetry is ever in the path.** Your BYOK key is encrypted at rest in your browser and never sent to a Lerret server. Run **Ollama** and nothing leaves your machine at all.
+
+## Do I need an API key, and what does the AI cost?
+
+You bring your own provider — **BYOK**. Add an API key for OpenAI, Anthropic, or OpenRouter and cloud calls are billed against your own key at that provider's rates; **Lerret takes no cut and charges nothing for the AI**. Prefer free and fully local? Point Lerret at **Ollama** — no key, no per-token cost. You can switch providers any time, per folder.
+
 ## Is it production-ready?
 
 Lerret is in the **0.1 series** — the first public release. The full feature set works today:

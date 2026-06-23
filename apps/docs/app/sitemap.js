@@ -17,6 +17,7 @@ const ROUTES = [
   '/studio',
   '/cli',
   '/deploy',
+  '/ai-studio',
   '/ai-editing',
   '/faq',
 ];

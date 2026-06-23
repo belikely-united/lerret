@@ -306,6 +306,18 @@ move between artboards and <kbd>Esc</kbd> exits.
 
 ![An artboard open in fullscreen focus mode](/studio/focus-mode.png)
 
+## Design and edit with AI
+
+The dock also holds Lerret's **built-in AI agent**. Between the page picker and
+export is a single input — *Ask Lerret to design or edit…* — that prompts a
+brand-aware agent to read, write, and restructure the files in your `.lerret/`
+folder for you. It runs against your own provider key (OpenAI, Anthropic,
+OpenRouter) or a fully-local Ollama, calls the provider **browser-direct** with
+no Lerret backend in the path, and snapshots every turn so any edit is one click
+to revert.
+
+Full guide: **[AI in the Studio](/ai-studio/)**.
+
 ## Keyboard & mouse
 
 The studio is a **desktop application** — mouse + keyboard. Handy shortcuts:
@@ -324,6 +336,7 @@ hosted/self-host).
 
 ## What's next
 
+- **[AI in the Studio](/ai-studio/)** — the built-in brand-aware agent in the dock.
 - **[Authoring Assets](/authoring/)** — components, schemas, data files, fonts.
 - **[CLI Reference](/cli/)** — `@lerret/cli dev` and `@lerret/cli export`.
 - **[Deployment](/deploy/)** — the three deploy modes in detail.
