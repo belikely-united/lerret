@@ -32,14 +32,47 @@ import * as ReactDOM from 'react-dom';
 // ─── Single sources of truth (verbatim contract — do NOT duplicate) ──────────
 
 /**
- * The terminal command from UX-delta §4.6 / AC-6 — the rendered code block,
- * the clipboard write, and the tests all reference THIS constant. Frozen by
- * `const` + primitive; never rebuild the string elsewhere.
+ * Canonical hosted studio origin — used ONLY as the fallback when the page has
+ * no readable origin (SSR / a test without a window). The hosted studio is
+ * served from `app.lerret.belikely.com` (`lerret.belikely.com` is the landing
+ * page); for `OLLAMA_ORIGINS` to actually open the CORS gate it must equal the
+ * studio page's real origin, so the live value below is preferred.
  *
  * @type {string}
  */
-export const OLLAMA_ORIGINS_COMMAND =
-    'OLLAMA_ORIGINS="https://lerret.belikely.com" ollama serve';
+export const HOSTED_STUDIO_ORIGIN = 'https://app.lerret.belikely.com';
+
+/**
+ * The studio page's own origin — the value Ollama's CORS allowlist must hold.
+ *
+ * Derived from the LIVE page (`window.location.origin`) so the guide always
+ * shows the correct value regardless of which domain serves the studio:
+ * `https://app.lerret.belikely.com` in hosted mode, `http://localhost:*` in
+ * dev, or any self-hosted build. A hard-coded guess that disagrees with the
+ * served domain would leave Ollama rejecting the studio's requests, which is
+ * the whole point of the variable. Falls back to {@link HOSTED_STUDIO_ORIGIN}
+ * only when there is no DOM.
+ *
+ * @returns {string}
+ */
+export function studioOrigin() {
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+        return window.location.origin;
+    }
+    return HOSTED_STUDIO_ORIGIN;
+}
+
+/**
+ * The terminal command from UX-delta §4.6 / AC-6, with `OLLAMA_ORIGINS` set to
+ * the studio page's real {@link studioOrigin}. The rendered code block, the
+ * clipboard write, and the tests all derive from THIS function; never rebuild
+ * the string elsewhere.
+ *
+ * @returns {string}
+ */
+export function ollamaOriginsCommand() {
+    return `OLLAMA_ORIGINS="${studioOrigin()}" ollama serve`;
+}
 
 /**
  * Canonical Lerret docs page on Ollama setup (AC-14 — URL stub; the page is
@@ -346,9 +379,13 @@ export function OllamaOriginsGuide({ open, onRetry, onSuccess, onUseDifferentPro
 
     if (!open) return null;
 
+    // Derived per-render from the live page so the command always names the
+    // origin Ollama must actually allow (see studioOrigin()).
+    const command = ollamaOriginsCommand();
+
     const handleCopy = async () => {
         try {
-            await navigator.clipboard.writeText(OLLAMA_ORIGINS_COMMAND);
+            await navigator.clipboard.writeText(command);
             setCopied(true);
             if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
             copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
@@ -421,7 +458,7 @@ export function OllamaOriginsGuide({ open, onRetry, onSuccess, onUseDifferentPro
                                 className="lm-ollama-guide__code"
                                 data-testid="lm-ollama-guide-command"
                             >
-                                {OLLAMA_ORIGINS_COMMAND}
+                                {command}
                             </code>
                             <button
                                 type="button"

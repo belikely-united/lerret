@@ -4,8 +4,8 @@
 //
 // Coverage (AC-15):
 //   - Step 1 renders the VERBATIM sentence + dialog a11y wiring + 1/3 indicator.
-//   - Step 2 renders the verbatim intro, the exact command (the exported
-//     OLLAMA_ORIGINS_COMMAND constant), and the verbatim restart note.
+//   - Step 2 renders the verbatim intro, the command derived from the live
+//     page origin (ollamaOriginsCommand()), and the verbatim restart note.
 //   - Copy button calls navigator.clipboard.writeText with the exact command,
 //     shows the `Copied` cue (aria-live polite), and clears it after 1500ms.
 //   - Copy failure (no clipboard / rejected write) never throws and shows no cue.
@@ -28,9 +28,15 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 import {
     OllamaOriginsGuide,
-    OLLAMA_ORIGINS_COMMAND,
+    ollamaOriginsCommand,
+    studioOrigin,
+    HOSTED_STUDIO_ORIGIN,
     OLLAMA_DOCS_URL,
 } from './ollama-origins-guide.jsx';
+
+// The command is derived from the live page origin, so the tests compute the
+// expected string the same way the component does rather than hard-coding it.
+const EXPECTED_COMMAND = `OLLAMA_ORIGINS="${window.location.origin}" ollama serve`;
 
 // ── Test infra ────────────────────────────────────────────────────────────────
 
@@ -100,13 +106,31 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-// ── The frozen command constant (guardrail #5) ───────────────────────────────
+// ── The command derives from the live page origin (AC-6) ─────────────────────
 
-describe('OLLAMA_ORIGINS_COMMAND', () => {
-    it('is the exact AC-6 command string', () => {
-        expect(OLLAMA_ORIGINS_COMMAND).toBe(
-            'OLLAMA_ORIGINS="https://lerret.belikely.com" ollama serve',
-        );
+describe('ollamaOriginsCommand', () => {
+    it('sets OLLAMA_ORIGINS to the studio page\'s real origin', () => {
+        // For the CORS fix to work, OLLAMA_ORIGINS must equal the page origin
+        // — not a hard-coded guess. studioOrigin() reflects window.location.
+        expect(studioOrigin()).toBe(window.location.origin);
+        expect(ollamaOriginsCommand()).toBe(EXPECTED_COMMAND);
+    });
+
+    it('falls back to the hosted studio origin (app subdomain) when no page origin exists', () => {
+        // The hosted studio is app.lerret.belikely.com, NOT the landing page
+        // lerret.belikely.com — the fallback must name the app subdomain.
+        expect(HOSTED_STUDIO_ORIGIN).toBe('https://app.lerret.belikely.com');
+
+        const original = Object.getOwnPropertyDescriptor(window, 'location');
+        Object.defineProperty(window, 'location', { configurable: true, value: { origin: '' } });
+        try {
+            expect(studioOrigin()).toBe('https://app.lerret.belikely.com');
+            expect(ollamaOriginsCommand()).toBe(
+                'OLLAMA_ORIGINS="https://app.lerret.belikely.com" ollama serve',
+            );
+        } finally {
+            if (original) Object.defineProperty(window, 'location', original);
+        }
     });
 
     it('exposes the canonical docs URL (AC-14)', () => {
@@ -162,7 +186,7 @@ describe('OllamaOriginsGuide — steps + verbatim copy', () => {
             "Run this in your terminal to allow Lerret's hosted page to talk to Ollama:",
         );
         const code = document.querySelector('[data-testid="lm-ollama-guide-command"]');
-        expect(code.textContent).toBe(OLLAMA_ORIGINS_COMMAND);
+        expect(code.textContent).toBe(EXPECTED_COMMAND);
         const note = document.querySelector('[data-testid="lm-ollama-guide-step2-note"]');
         expect(note.textContent).toBe(
             "If Ollama is already running, you'll need to restart it with that variable set.",
@@ -213,7 +237,7 @@ describe('OllamaOriginsGuide — copy button', () => {
         });
 
         expect(writeText).toHaveBeenCalledTimes(1);
-        expect(writeText).toHaveBeenCalledWith(OLLAMA_ORIGINS_COMMAND);
+        expect(writeText).toHaveBeenCalledWith(EXPECTED_COMMAND);
 
         const cue = document.querySelector('[data-testid="lm-ollama-guide-copied"]');
         expect(cue.getAttribute('aria-live')).toBe('polite');
@@ -239,13 +263,13 @@ describe('OllamaOriginsGuide — copy button', () => {
             await tick(10);
         });
 
-        expect(writeText).toHaveBeenCalledWith(OLLAMA_ORIGINS_COMMAND);
+        expect(writeText).toHaveBeenCalledWith(EXPECTED_COMMAND);
         const cue = document.querySelector('[data-testid="lm-ollama-guide-copied"]');
         expect(cue.textContent).toBe('');
         // The code block stays selectable for manual copy.
         expect(
             document.querySelector('[data-testid="lm-ollama-guide-command"]').textContent,
-        ).toBe(OLLAMA_ORIGINS_COMMAND);
+        ).toBe(EXPECTED_COMMAND);
         cleanup();
         restore();
     });

@@ -6,7 +6,7 @@
  *
  *   - {@link shouldRunHostedProbe} — is the studio in a mode where the
  *     localhost CORS hurdle can exist at all? Only the hosted deployment
- *     (`https://lerret.belikely.com` or a self-hosted static build) has it;
+ *     (`https://app.lerret.belikely.com` or a self-hosted static build) has it;
  *     CLI mode serves from `http://localhost` and never needs the probe.
  *   - {@link classifyOllamaProbe} — route the provider's `probe()` result to
  *     one of three setup-screen paths: proceed / OLLAMA_ORIGINS guide /

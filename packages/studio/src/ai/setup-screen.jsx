@@ -25,7 +25,7 @@
  * controlled sheet.
  *
  * Hosted-mode Ollama detour (Story 8.10): when the studio runs in hosted mode
- * (`https://lerret.belikely.com`), step 3's Ollama Select first probes the
+ * (`https://app.lerret.belikely.com`), step 3's Ollama Select first probes the
  * local endpoint and routes on the classification — `ok` proceeds to the
  * disclosure as before, `cors` auto-summons the OLLAMA_ORIGINS guide, and
  * `unreachable` shows a contained error on the Ollama card with a docs link.
