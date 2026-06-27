@@ -110,6 +110,31 @@ export default [
     },
   },
 
+  // Lerret ASSET FIXTURES (not studio app code). Files under the demo-project
+  // and any `.lerret/` fixture are RENDERED AS IMAGES on the runtime's terms:
+  // the runtime controls (re-)render via per-asset `autoRefresh`, and renders
+  // them once for headless export. "Live" assets therefore read impure values
+  // (`Date.now()`, etc.) directly in render BY DESIGN — that is how a clock /
+  // counter shows a fresh value each refresh and a correct value in a one-shot
+  // export. The react-hooks rules model long-lived interactive components, not
+  // render-once asset sources, so they MISfire here — and surfacing them would
+  // tempt a contributor into a "fix" that breaks the asset's render/export.
+  // Disabled for asset paths only; studio APP code keeps every rule above.
+  // (Scoped under packages/studio/** so the react-hooks plugin registered there
+  // applies; template `.lerret` assets under create-lerret aren't hooks-linted.)
+  {
+    files: [
+      'packages/studio/src/runtime/demo-project/files/**/*.{js,jsx}',
+      'packages/studio/**/.lerret/**/*.{js,jsx}',
+    ],
+    rules: {
+      'react-hooks/purity': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+    },
+  },
+
   // Node packages — CLI + scaffolder.
   {
     files: ['packages/cli/**/*.{js,jsx}', 'packages/create-lerret/**/*.{js,jsx}'],

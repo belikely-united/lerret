@@ -100,6 +100,7 @@ The repo is a [pnpm workspace](https://pnpm.io/workspaces). Each package under `
 
 - Match the existing style of the file you're editing.
 - Prefer clarity over cleverness.
+- **Asset files are not app code.** Files under a `.lerret/` folder or the studio's `demo-project` are *rendered as images* on Lerret's terms (per-asset `autoRefresh` re-renders; one headless render for export). "Live" assets read impure values (`Date.now()`, etc.) **in render by design** — that's how a clock/counter shows a fresh value each refresh. The React hook rules are turned off for these paths in `eslint.config.js`; **don't "fix" an asset to satisfy a generic React rule** — it can break the asset's render/export.
 - Run the linter and formatter before pushing:
 
   ```sh
