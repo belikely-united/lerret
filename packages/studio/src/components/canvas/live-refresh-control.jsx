@@ -440,7 +440,6 @@ export function LiveRefreshPopover({
                     commitCustom();
                   }
                 }}
-                /* eslint-disable-next-line jsx-a11y/no-autofocus */
                 autoFocus
               />
               <span className="lm-live-pop__unit">seconds</span>

@@ -29,12 +29,6 @@
 //               the v1 four-tier prop resolution falls back to
 //               `propsSchema` / component defaults.
 
-/* global TextDecoder */
-//
-// `TextDecoder` is a universal global (browser + Node ≥ 11); the directive
-// mirrors core's `/* global console */` precedent in data/loader.js so the
-// shared lint config needs no per-package globals block.
-
 import { discoverPresets } from '../../memory/presets.js';
 import { planVariantExpansion, componentBasename } from '../../memory/generation.js';
 import { canonToken } from '../agents/ds-curator.js';
