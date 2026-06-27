@@ -97,6 +97,12 @@ export default [
       'react-hooks/use-memo': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
       'react-hooks/refs': 'warn',
+      // v7 also adds `immutability` and `purity`. These flag long-standing
+      // brownfield patterns (a mutated ref-ish value; a demo asset that reads
+      // `Date.now()` in render). Surfaced as warnings like the rules above —
+      // the migration must not rewrite studio React logic.
+      'react-hooks/immutability': 'warn',
+      'react-hooks/purity': 'warn',
       // The brownfield `dcSafeFilename` regex deliberately strips ASCII
       // control chars (\x00-\x1F) from export filenames — a real sanitizer,
       // not a mistake. Warn so it stays visible without blocking.
@@ -171,6 +177,9 @@ export default [
       // tool (not production CLI code) and must use `node:fs` directly — the
       // `FilesystemAccess` abstraction is for user project files.
       'packages/cli/scripts/bundle-studio.js',
+      // @lerret/ai's bundle-size measurement script is a Node build tool (not
+      // production code) and reads the built output via node:fs directly.
+      'packages/ai/scripts/measure-bundle.js',
       // The bin entry points use `realpathSync` to resolve symlinks when
       // comparing process.argv[1] to import.meta.url. This is required for
       // zero-install runners (pnpm dlx, npx, bunx) that place the package
@@ -202,6 +211,18 @@ export default [
     files: ['packages/animation/**/*.{js,jsx}'],
     languageOptions: {
       globals: { ...globals.browser, VideoEncoder: 'readonly', VideoFrame: 'readonly' },
+    },
+  },
+
+  // @lerret/ai runs browser-direct (BYOK: Web Crypto, fetch, indexedDB,
+  // TextEncoder/Decoder, structuredClone, AbortController, ReadableStream) and
+  // also ships a Node build script (scripts/measure-bundle.js) plus
+  // node/browser test helpers. Give it both global sets, mirroring the
+  // test-file block below. No React/JSX here — pure logic, so no react plugin.
+  {
+    files: ['packages/ai/**/*.{js,jsx,mjs,cjs}'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
     },
   },
 

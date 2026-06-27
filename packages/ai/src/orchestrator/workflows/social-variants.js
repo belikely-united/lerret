@@ -18,11 +18,6 @@
 // `componentBasename` — last-dot stem, two-space indent, trailing newline)
 // so the merged file is byte-stable and loadable by `loadAssetData`.
 
-/* global TextDecoder */
-//
-// `TextDecoder` is a universal global (browser + Node ≥ 11); the directive
-// mirrors core's `/* global console */` precedent in data/loader.js.
-
 import { planVariantExpansion, componentBasename } from '../../memory/generation.js';
 import { canonToken } from '../agents/ds-curator.js';
 import { ensureLerretPrefix } from './launch-kit.js';
