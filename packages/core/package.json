@@ -3,7 +3,7 @@
   "version": "0.1.2",
   "description": "Environment-agnostic core for Lerret — the design canvas where a folder of React components renders as a visual canvas. Shared loader, watcher, config cascade, and filesystem contract.",
   "type": "module",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js"

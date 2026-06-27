@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@lerret/cli"><img src="https://img.shields.io/npm/v/%40lerret%2Fcli?label=lerret&color=B85B33" alt="npm version" /></a>
-  <a href="https://github.com/belikely-united/lerret/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-B85B33" alt="AGPL-3.0 license" /></a>
+  <a href="https://github.com/belikely-united/lerret/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license" /></a>
   <a href="https://docs.lerret.belikely.com"><img src="https://img.shields.io/badge/docs-lerret.belikely.com-B85B33" alt="Documentation" /></a>
   <a href="https://github.com/belikely-united/lerret/discussions"><img src="https://img.shields.io/github/discussions/belikely-united/lerret?color=B85B33" alt="GitHub Discussions" /></a>
 </p>
@@ -175,9 +175,7 @@ By contributing you agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-Lerret is **[AGPL-3.0](LICENSE)** — free to use, self-host, modify, and share. The one condition: if you run a *modified* version as a network service, AGPL asks you to publish your source. Running the CLI or studio locally never triggers this.
-
-Want to use Lerret in a way AGPL doesn't allow — offering it as a **hosted/commercial service**, or embedding it in a **closed-source product**? A **commercial license** is available — see **[LICENSING.md](LICENSING.md)** or email `oss@belikely.com`.
+Lerret is **[MIT](LICENSE)** — free to use, self-host, modify, embed, and redistribute, including in commercial and closed-source products. No copyleft, no strings attached.
 
 ---
 

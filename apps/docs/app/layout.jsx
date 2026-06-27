@@ -103,7 +103,7 @@ export default async function RootLayout({ children }) {
           </a>
         </div>
         <div style={{ opacity: 0.65, fontSize: '0.8125rem' }}>
-          © {new Date().getFullYear()} Lerret · AGPL-3.0 · Built openly by{' '}
+          © {new Date().getFullYear()} Lerret · MIT · Built openly by{' '}
           <a href={BELIKELY_URL} target="_blank" rel="noreferrer" style={footerLinkStyle}>
             Belikely United
           </a>

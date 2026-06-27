@@ -3,7 +3,7 @@
 > An open-source design canvas where a folder of plain React component files renders as a visual canvas.
 
 [![npm](https://img.shields.io/npm/v/%40lerret%2Fcli.svg)](https://www.npmjs.com/package/@lerret/cli)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/belikely-united/lerret/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/belikely-united/lerret/blob/main/LICENSE)
 
 Lerret turns a folder of `.jsx`/`.tsx` components into a live, navigable canvas — pan-and-zoom artboards, sub-second hot reload on save, and headless export to image files. No proprietary format, no backend, no account required.
 
@@ -49,4 +49,4 @@ Full docs: **https://docs.lerret.belikely.com**
 
 ## License
 
-[AGPL-3.0](https://github.com/belikely-united/lerret/blob/main/LICENSE) — free for self-host; [commercial license available](https://github.com/belikely-united/lerret/blob/main/LICENSING.md)
+[MIT](https://github.com/belikely-united/lerret/blob/main/LICENSE) — free to use, self-host, modify, and share.
