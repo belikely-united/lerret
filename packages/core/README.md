@@ -3,7 +3,7 @@
 > Environment-agnostic core for [Lerret](https://github.com/belikely-united/lerret) — shared loader, watcher, config cascade, and filesystem contract.
 
 [![npm](https://img.shields.io/npm/v/%40lerret%2Fcore.svg)](https://www.npmjs.com/package/@lerret/core)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/belikely-united/lerret/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/belikely-united/lerret/blob/main/LICENSE)
 
 This package contains the engine that powers the Lerret design canvas. **Most users don't install this directly** — they use [`@lerret/cli`](https://www.npmjs.com/package/@lerret/cli) (the CLI binary) or [`create-lerret`](https://www.npmjs.com/package/create-lerret) (the scaffolder).
 
@@ -24,4 +24,4 @@ This package contains the engine that powers the Lerret design canvas. **Most us
 
 ## License
 
-[AGPL-3.0](https://github.com/belikely-united/lerret/blob/main/LICENSE) — free for self-host; [commercial license available](https://github.com/belikely-united/lerret/blob/main/LICENSING.md)
+[MIT](https://github.com/belikely-united/lerret/blob/main/LICENSE) — free to use, self-host, modify, and share.

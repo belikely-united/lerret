@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "An open-source design canvas where a folder of plain React component files renders as a visual canvas.",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "engines": {
     "node": ">=20.19.0"
   },

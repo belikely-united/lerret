@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Animated-export engine for Lerret — frame capture + WebP / GIF / APNG / MP4 encoders behind a single AnimationEncoder interface. Reached only via dynamic import from @lerret/studio and @lerret/cli.",
   "type": "module",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js"

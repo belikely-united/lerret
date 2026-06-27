@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "In-studio AI subsystem for Lerret — multi-agent orchestrator (LangGraph.js spike skeleton), provider abstraction, encrypted client-side key vault, and snapshot/revert store. Reached only via dynamic import from @lerret/studio and @lerret/cli.",
   "type": "module",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "sideEffects": true,
   "main": "./src/index.js",
   "exports": {

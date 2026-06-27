@@ -14,6 +14,7 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 - A "Community & support" channels table on the docs root.
 
 ### Changed
+- **License: relicensed to MIT.** Lerret is now MIT-licensed — free to use, self-host, modify, embed, and redistribute, including in commercial and closed-source products. This reverts the brief AGPL-3.0 + commercial dual-license; the commercial license and CLA are dropped in favor of a DCO (`Signed-off-by`). The core stays fully open; the project is sustained by hosted services around it, not by the license.
 - Docs content expanded from 221 → 1,556 lines across 8 pages. Every CLI flag, prop tier, config rule, and asset behavior verified against the actual source in `packages/cli` and `packages/core`.
 - Nextra global footer now surfaces GitHub, Discussions, Issues, npm, X, and `lerret.belikely.com` on every page; navbar gains a Discussions link.
 
