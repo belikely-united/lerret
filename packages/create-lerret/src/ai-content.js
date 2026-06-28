@@ -298,7 +298,7 @@ Reach for it when: you're authoring. This is the loop you live in.
 
 Headlessly renders artboards to image files. Output mirrors the folder tree by default.
 
-- \`[path]\` — restrict to one folder, one asset, or one variant. Omit to export everything.
+- \`[path]\` — a **folder** scope: the project root, or a page/group folder inside \`.lerret/\` (e.g. \`.lerret/social\`). NOT a single asset file or a variant — to target one asset, scope to the folder that contains it. Omit to export everything.
 - \`--format\` — \`png\` (default) or \`jpg\`.
 - \`--out\` — destination directory (default: \`./exports\`).
 - \`--flat\` — flatten the output instead of mirroring folders.
@@ -607,6 +607,46 @@ export function renderClaudeSkill() {
     '---',
   ].join('\n');
   return `${frontmatter}\n\n${sharedBody()}\n`;
+}
+
+/**
+ * Render the Lerret plugin's `author` skill — the Claude Code plugin surface
+ * (`/lerret:author`). Same authoring body as `renderClaudeSkill`, so the
+ * conventions + aesthetic bar are NEVER duplicated; only the frontmatter and a
+ * short plugin-specific preamble differ. On the plugin path the user's own
+ * Claude is the design brain — Lerret ships no AI provider/key here — so the
+ * preamble teaches the edit→render→verify loop over the published `@lerret/cli`.
+ *
+ * Consumed by the plugin generator (`scripts/gen-plugin-skill.mjs`); a drift
+ * test asserts the committed plugin skill equals this output.
+ *
+ * @returns {string}
+ */
+export function renderPluginSkill() {
+  const frontmatter = [
+    '---',
+    'name: author',
+    `description: ${SECTIONS.claudeSkillDescription}`,
+    'allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *)',
+    '---',
+  ].join('\n');
+
+  const preamble = `# Authoring Lerret assets (plugin)
+
+This skill runs inside Claude Code as the Lerret plugin. **You are the designer** — on this path there is no separate Lerret AI service, provider, or API key. You read and write the project's \`.jsx\` files directly and render them with the CLI to check your work.
+
+## The loop
+1. **Locate the project** — \`Glob\` \`**/.lerret/**/*.jsx\` to find existing assets and match their conventions.
+2. **Create or edit** the \`.jsx\` asset (plus any co-located \`<Name>.data.json\` / \`<Name>.config.json\`).
+3. **Render to verify** — export the asset's **page/group folder** (the export scope is a folder, never a single file), run from the project root:
+   \`\`\`sh
+   ${CLI.npxExport} .lerret/<page-or-group> --out ./.lerret-preview
+   \`\`\`
+4. **Read the PNG** (\`./.lerret-preview/<…>/<Name>.png\`) and iterate from step 2.
+
+Everything below is the authoring contract and the aesthetic bar — follow it exactly.`;
+
+  return `${frontmatter}\n\n${preamble}\n\n${sharedBody()}\n`;
 }
 
 /**

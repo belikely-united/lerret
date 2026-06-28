@@ -1,0 +1,11 @@
+{
+  "name": "lerret",
+  "displayName": "Lerret",
+  "version": "0.0.1",
+  "description": "Author and export Lerret design assets from inside Claude Code. Your own Claude is the brain — wraps @lerret/cli, no AI keys needed.",
+  "author": { "name": "Be Likely United", "email": "oss@belikely.com", "url": "https://github.com/Belikely-United" },
+  "homepage": "https://lerret.belikely.com",
+  "repository": "https://github.com/Belikely-United/marketplace",
+  "license": "MIT",
+  "keywords": ["design", "assets", "image-generation", "jsx", "lerret", "claude-code"]
+}
