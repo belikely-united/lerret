@@ -9,6 +9,7 @@ allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *)
 This skill runs inside Claude Code as the Lerret plugin. **You are the designer** — on this path there is no separate Lerret AI service, provider, or API key. You read and write the project's `.jsx` files directly and render them with the CLI to check your work.
 
 ## The loop
+0. **First run?** If the project has no `.lerret/` directory, it isn't a Lerret project yet — set it up first with the `setup` skill (ask the user; it scaffolds via `npx create-lerret@latest` or drops a minimal `.lerret/config.json`). Don't author assets until a `.lerret/` exists.
 1. **Locate the project** — `Glob` `**/.lerret/**/*.jsx` to find existing assets and match their conventions.
 2. **Create or edit** the `.jsx` asset (plus any co-located `<Name>.data.json` / `<Name>.config.json`).
 3. **Render to verify** — export the asset's **page/group folder** (the export scope is a folder, never a single file), run from the project root:
