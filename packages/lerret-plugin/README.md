@@ -4,16 +4,27 @@ Author and export [Lerret](https://lerret.belikely.com) design assets from insid
 **Your own Claude is the design brain** — this plugin wraps the published `@lerret/cli`, so there is
 **no duplicated logic and no AI keys/providers**.
 
+## The agent — just say "lerret"
+
+You don't have to remember any of the skills below. Say **`lerret`** (or `@agent-lerret`) and the
+**Lerret agent** takes over: it sets the project up if needed, designs what you describe, shows it to
+you, and exports it — routing to the right skill for you.
+
+> "lerret, make me a launch banner" → it checks for a project (sets one up if missing), authors the
+> asset, renders it, and offers to open the live studio.
+
 ## Skills
 
 | Skill | What it does | Wraps |
 |-------|--------------|-------|
-| `/lerret:author` | Claude designs/edits `.jsx` assets, then renders to verify | (Claude + CLI) |
-| `/lerret:export` | Render assets to PNG/JPG | `@lerret/cli export` |
-| `/lerret:dev`    | Live hot-reloading studio canvas | `@lerret/cli dev` |
-| `/lerret:clear`  | Wipe sample assets / start fresh | `@lerret/cli clear` |
+| `/lerret:setup`   | First-run: scaffold a project or add Lerret to the current one | `create-lerret` |
+| `/lerret:author`  | Claude designs/edits `.jsx` assets, then renders to verify | (Claude + CLI) |
+| `/lerret:preview` | Run the studio and show it **live in the Claude preview** to see + edit | `@lerret/cli dev` |
+| `/lerret:export`  | Render assets to PNG/JPG | `@lerret/cli export` |
+| `/lerret:clear`   | Wipe sample assets / start fresh | `@lerret/cli clear` |
 
-All are also model-invoked: in chat, "make me an OG image" triggers `author`.
+All are also model-invoked: in chat, "make me an OG image" triggers `author`; the first Lerret action
+in a fresh project triggers `setup`.
 
 ## Install
 
@@ -22,10 +33,10 @@ All are also model-invoked: in chat, "make me an OG image" triggers `author`.
 /plugin install lerret@belikely-united
 ```
 
-Then, in a project with a `.lerret/` folder:
+Then just talk to it — no `.lerret/` folder needed first; it'll offer to set one up:
 
 ```sh
-/lerret:author make a 1200x630 og-image with the title "Ship faster"
+lerret make a 1200x630 og-image with the title "Ship faster"
 ```
 
 ## Single source of truth (no duplication)
