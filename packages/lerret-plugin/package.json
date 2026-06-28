@@ -1,0 +1,11 @@
+{
+  "name": "@lerret/plugin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Lerret as a Claude Code plugin — author and export assets with your own Claude as the design brain. Wraps @lerret/cli; no AI keys.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/gen-plugin-skill.mjs"
+  }
+}

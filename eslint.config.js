@@ -221,6 +221,20 @@ export default [
     },
   },
 
+  // @lerret/plugin build tooling — `scripts/gen-plugin-skill.mjs` generates the
+  // plugin's `author` skill from create-lerret's `ai-content.js`. It is a Node
+  // build tool (not production/studio code), so it gets Node globals and may use
+  // `node:fs` directly, exactly like the build scripts above.
+  {
+    files: ['packages/lerret-plugin/**/*.{js,mjs,cjs}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+
   // core is environment-agnostic — neither browser nor Node globals.
   {
     files: ['packages/core/**/*.{js,jsx}'],
