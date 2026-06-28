@@ -27,36 +27,19 @@
 
 /**
  * @typedef {{ preset: string, page: string }} PlatformSpec
- *   `preset` — the themed-preset family (a `KNOWN_PRESETS` name from
- *   `memory/presets.js`); `page` — the canonical folder under `.lerret/` the
- *   platform's assets land in.
+ *   `preset` — the themed-preset family (a `KNOWN_PRESETS` name); `page` — the
+ *   canonical folder under `.lerret/` the platform's assets land in.
  */
 
-/**
- * The platform-keyword → `{ preset, page }` map — the single source of truth
- * for AC-1's platform-to-preset-page mapping. Keys are the lowercase keywords
- * the recognizer matches in a prompt; several keywords may resolve to the SAME
- * page (`twitter` / `x`; `app store hero` / `app store` / `appstore`) — the
- * recognizer dedupes by page. Page basenames are stable kebab-case; the
- * Story 8.8 browser smoke's canned plan targets exactly these pages.
- *
- * Frozen (outer map + every entry) — mirrors the `AGENT_NODES` /
- * `KNOWN_PRESETS` `Object.freeze` idiom.
- *
- * @type {Readonly<Record<string, Readonly<PlatformSpec>>>}
- */
-export const KNOWN_PLATFORMS = Object.freeze({
-  twitter: Object.freeze({ preset: 'social-media', page: 'social-media/twitter' }),
-  x: Object.freeze({ preset: 'social-media', page: 'social-media/twitter' }),
-  instagram: Object.freeze({ preset: 'social-media', page: 'social-media/instagram' }),
-  linkedin: Object.freeze({ preset: 'social-media', page: 'social-media/linkedin' }),
-  bluesky: Object.freeze({ preset: 'social-media', page: 'social-media/bluesky' }),
-  'app store hero': Object.freeze({ preset: 'appstore', page: 'appstore/hero' }),
-  'app store': Object.freeze({ preset: 'appstore', page: 'appstore/hero' }),
-  appstore: Object.freeze({ preset: 'appstore', page: 'appstore/hero' }),
-  'product hunt': Object.freeze({ preset: 'producthunt', page: 'producthunt/launch' }),
-  producthunt: Object.freeze({ preset: 'producthunt', page: 'producthunt/launch' }),
-});
+// The platform-keyword → `{ preset, page }` map now lives in the format
+// registry (../../formats/registry.js), DERIVED from `FORMAT_PROFILES` so a
+// format is declared once. Imported (the recognizer reads it) AND re-exported
+// so this module's public surface — and workflows/index.js's re-export — is
+// unchanged. The derived value is byte-for-byte equivalent to the literal it
+// replaced (pinned by formats/registry.test.js). See registry.js for the why.
+import { KNOWN_PLATFORMS } from '../../formats/registry.js';
+
+export { KNOWN_PLATFORMS };
 
 /** The W2 kit-request keywords (any one qualifies). */
 const LAUNCH_KIT_RE = /\b(?:launch\s+kit|launch\s+assets|marketing\s+kit)\b/i;
