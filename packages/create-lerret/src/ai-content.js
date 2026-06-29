@@ -610,42 +610,50 @@ export function renderClaudeSkill() {
 }
 
 /**
- * Render the Lerret plugin's `author` skill — the Claude Code plugin surface
- * (`/lerret:author`). Same authoring body as `renderClaudeSkill`, so the
- * conventions + aesthetic bar are NEVER duplicated; only the frontmatter and a
- * short plugin-specific preamble differ. On the plugin path the user's own
- * Claude is the design brain — Lerret ships no AI provider/key here — so the
- * preamble teaches the edit→render→verify loop over the published `@lerret/cli`.
+ * Render the Lerret plugin's single root skill — the bare `/lerret` command and
+ * the Lerret persona. The plugin ships as a SINGLE-SKILL plugin (a `SKILL.md` at
+ * the plugin root, no `skills/` subdirectory, no `skills` manifest field), so the
+ * frontmatter `name: lerret` is what makes the bare `/lerret` shortcut work
+ * (Claude Code v2.1.142+; a multi-skill plugin would namespace every entry as
+ * `/lerret:<name>` instead). The body inlines the whole workflow (first-run
+ * setup, author→render→verify loop, preview, export, clear) and then the shared
+ * authoring contract + aesthetic bar — the SAME `sharedBody()` the scaffolded
+ * `lerret-author` skill uses, so the conventions are never duplicated. The user's
+ * own Claude is the design brain; Lerret ships no AI provider/key on this path.
  *
- * Consumed by the plugin generator (`scripts/gen-plugin-skill.mjs`); a drift
- * test asserts the committed plugin skill equals this output.
+ * Consumed by the plugin generator (`scripts/gen-plugin-skill.mjs`), which writes
+ * it to the plugin-root `SKILL.md`; a drift test asserts the committed file
+ * equals this output.
  *
  * @returns {string}
  */
 export function renderPluginSkill() {
   const frontmatter = [
     '---',
-    'name: author',
-    `description: ${SECTIONS.claudeSkillDescription}`,
-    'allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *)',
+    'name: lerret',
+    'description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides), preview the studio live, or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.',
+    'allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *), Bash(npx create-lerret@latest *)',
     '---',
   ].join('\n');
 
-  const preamble = `# Authoring Lerret assets (plugin)
+  const preamble = `# Lerret — design assistant
 
-This skill runs inside Claude Code as the Lerret plugin. **You are the designer** — on this path there is no separate Lerret AI service, provider, or API key. You read and write the project's \`.jsx\` files directly and render them with the CLI to check your work.
+You are **Lerret**, a design assistant inside Claude Code. Turn a plain request ("make a launch banner") into a polished, on-brand visual asset — the user should not have to remember any commands or flags. Figure out the intent, do the right thing, and show the result. **You are the designer: on this path there is no separate Lerret AI service, provider, or API key — you read and write the project's \`.jsx\` files and render them with the CLI yourself.** The full \`${CLI.pkg}\` surface and the asset contract + aesthetic bar are documented below — follow them.
 
-## The loop
-0. **First run?** If the project has no \`.lerret/\` directory, it isn't a Lerret project yet — set it up first with the \`setup\` skill (ask the user; it scaffolds via \`${CLI.npxScaffolder}\` or drops a minimal \`.lerret/config.json\`). Don't author assets until a \`.lerret/\` exists.
-1. **Locate the project** — \`Glob\` \`**/.lerret/**/*.jsx\` to find existing assets and match their conventions.
-2. **Create or edit** the \`.jsx\` asset (plus any co-located \`<Name>.data.json\` / \`<Name>.config.json\`).
-3. **Render to verify** — export the asset's **page/group folder** (the export scope is a folder, never a single file), run from the project root:
-   \`\`\`sh
-   ${CLI.npxExport} .lerret/<page-or-group> --out ./.lerret-preview
-   \`\`\`
-4. **Read the PNG** (\`./.lerret-preview/<…>/<Name>.png\`) and iterate from step 2.
+## What to do, by intent
+- **No \`.lerret/\` yet (first run):** set the project up FIRST. Ask the user, then either scaffold a new folder with \`${CLI.npxScaffolder} <name>\` (it refuses a non-empty directory), or write a minimal \`.lerret/config.json\` — \`{ "vars": {} }\` — in place. Don't author until a \`.lerret/\` exists.
+- **"make / design / edit …"** — author an asset: \`Glob\` \`**/.lerret/**/*.jsx\` to match existing conventions, write the \`.jsx\` (plus any co-located \`<Name>.data.json\`), then **render to verify** — export the asset's page/group folder (export scope is a folder, never a single file) and read the PNG:
+  \`\`\`sh
+  ${CLI.npxExport} .lerret/<page-or-group> --out ./.lerret-preview
+  \`\`\`
+  Iterate until it looks right.
+- **"show / preview / open the studio"** — start \`${CLI.npxDev}\` in the **background** (it is long-running; never run it in the foreground), capture the \`localhost\` URL it prints, and open that URL in the Claude Code preview pane if your client has one — otherwise hand the user the URL. The studio is interactive: the user can click and edit there.
+- **"export / render to files"** — \`${CLI.npxExport}\` to PNG/JPG.
+- **"clear / wipe samples / start fresh"** — \`${CLI.npxClear}\` (always preserves \`config.json\` + \`_fonts/\`; suggest \`--dry-run\` first).
 
-Everything below is the authoring contract and the aesthetic bar — follow it exactly.`;
+Always verify a design by rendering it before you call it done, and name the files you touched.
+
+---`;
 
   return `${frontmatter}\n\n${preamble}\n\n${sharedBody()}\n`;
 }

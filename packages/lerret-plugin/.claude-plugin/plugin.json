@@ -1,7 +1,7 @@
 {
   "name": "lerret",
-  "version": "0.1.0",
-  "description": "Design assistant for Claude Code: set up a project, author and edit visual assets, preview the studio live, and export images. Your own Claude is the brain — wraps @lerret/cli, no AI keys. Say \"lerret\" to use the agent.",
+  "version": "0.2.0",
+  "description": "Design assistant for Claude Code: run /lerret to set up a project, author and edit visual assets, preview the studio live, or export images. Your own Claude is the brain — wraps @lerret/cli, no AI keys.",
   "author": { "name": "Be Likely United", "email": "oss@belikely.com", "url": "https://github.com/Belikely-United" },
   "homepage": "https://lerret.belikely.com",
   "repository": "https://github.com/Belikely-United/marketplace",
