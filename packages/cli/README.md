@@ -26,6 +26,18 @@ This package ships the `lerret` binary:
 
 After installing globally (`npm install -g @lerret/cli`), the command is just `lerret`.
 
+## Author with AI (Claude Code plugin)
+
+If you use [Claude Code](https://claude.com/claude-code), Lerret ships as a plugin that wraps this CLI — no API keys, your own Claude designs the assets:
+
+```text
+/plugin marketplace add Belikely-United/marketplace
+/plugin install lerret@belikely-united
+/lerret make a 1200x630 og-image titled "Ship faster"
+```
+
+One do-anything `/lerret` command: it authors the `.jsx`, renders to verify, previews, or exports — all by describing what you want. Runs in Claude Code only (CLI, desktop app, VS Code, `claude.ai/code`).
+
 ## Requirements
 
 - Node.js ≥ 20.19
