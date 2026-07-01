@@ -1,6 +1,6 @@
 {
   "name": "@lerret/plugin",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "Lerret as a Claude Code plugin — author and export assets with your own Claude as the design brain. Wraps @lerret/cli; no AI keys.",
