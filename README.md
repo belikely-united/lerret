@@ -41,6 +41,27 @@ That's it. The studio opens. Save any `.jsx` under `.lerret/`. The canvas re-ren
 
 ---
 
+## Author with AI — the Claude Code plugin
+
+**In [Claude Code](https://claude.com/claude-code)? This is the fastest way to use Lerret.** Install the plugin and let your *own* Claude design the assets — **no API keys, no BYOK, no separate AI service.** Your Claude is the brain:
+
+```text
+/plugin marketplace add Belikely-United/marketplace
+/plugin install lerret@belikely-united
+```
+
+Then one do-anything command — **`/lerret`** — handles the rest. Just describe what you want:
+
+```text
+/lerret make a 1200x630 og-image titled "Ship faster"
+```
+
+No sub-commands to remember. By intent, `/lerret` sets the project up on first run, authors and edits the `.jsx`, previews the studio live, exports to PNG/JPG, or clears samples — shelling to `@lerret/cli` under the hood and rendering each result to verify. It's model-invoked too: saying "make me an OG image" triggers it without typing the command.
+
+> **Where it runs:** Claude Code only — the CLI, the desktop app (with in-pane live preview), VS Code, and `claude.ai/code`. (Not the plain `claude.ai` chat.) The plugin is free and never gated.
+
+---
+
 ## What it is
 
 **Lerret turns a folder of React components into a visual canvas.** Each `.jsx`/`.tsx` file under `.lerret/` becomes a pan-and-zoom artboard. Save the file → the canvas updates. Export to PNG/JPG when you're done — single artboard, a whole page group, or the entire project as a structured ZIP.
@@ -115,25 +136,6 @@ Drop that file into `.lerret/social/`. It appears on the canvas as an artboard s
 | **Self-host** | The same static studio, packaged for self-deployment. | Your own infra; private/team contexts. |
 
 All three modes render the *same* folder. Switch freely. The `.lerret/` directory has zero Lerret code in it — your components stay portable.
-
-## Author with AI — the Claude Code plugin
-
-Already living in [Claude Code](https://claude.com/claude-code)? Install Lerret as a plugin and let your *own* Claude design the assets — **no API keys, no BYOK, no separate AI service.** Your Claude is the brain:
-
-```text
-/plugin marketplace add Belikely-United/marketplace
-/plugin install lerret@belikely-united
-```
-
-Then one do-anything command — **`/lerret`** — handles the rest. Just describe what you want:
-
-```text
-/lerret make a 1200x630 og-image titled "Ship faster"
-```
-
-No sub-commands to remember. By intent, `/lerret` sets the project up on first run, authors and edits the `.jsx`, previews the studio live, exports to PNG/JPG, or clears samples — shelling to `@lerret/cli` under the hood and rendering each result to verify. It's model-invoked too: saying "make me an OG image" triggers it without typing the command.
-
-> **Where it runs:** Claude Code only — the CLI, the desktop app (with in-pane live preview), VS Code, and `claude.ai/code`. (Not the plain `claude.ai` chat.) The plugin is free and never gated.
 
 ## What it isn't
 
