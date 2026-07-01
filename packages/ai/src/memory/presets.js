@@ -15,20 +15,13 @@
 // as `matchedBy: 'meta'` vs `matchedBy: 'name'` so the caller can tell which
 // fired. Pages matching neither are ignored.
 
-/**
- * The known v1 / Epic 7 themed preset names. Frozen — mirrors the
- * `PROVIDER_NAMES` `Object.freeze([...])` constant style from Story 8.1.
- *
- * @type {readonly string[]}
- */
-export const KNOWN_PRESETS = Object.freeze([
-  'producthunt',
-  'social-media',
-  'appstore',
-  'talks',
-  'personal',
-  'live',
-]);
+// The known v1 / Epic 7 themed preset (page-family) names now live in the
+// format registry (../formats/registry.js) — the single source of truth for
+// formats. Imported (used below for membership checks) AND re-exported so the
+// `memory/index.js` barrel's `KNOWN_PRESETS` export is unchanged.
+import { KNOWN_PRESETS } from '../formats/registry.js';
+
+export { KNOWN_PRESETS };
 
 const KNOWN_SET = new Set(KNOWN_PRESETS);
 
