@@ -32,7 +32,7 @@ It's also model-invoked: saying "make me an OG image" triggers it without typing
 
 ## Design + preview surface
 - Runs wherever Claude Code runs: the CLI, the **desktop app** (with the in-app preview), VS Code, `claude.ai/code`. **Not** the plain `claude.ai` chat.
-- **Live preview note:** Claude Code has **no plugin API to force the in-app preview pane** — that's controlled by your client. `/lerret` backgrounds the studio dev server and surfaces the `localhost` URL; in clients with a preview pane it opens there, otherwise you open the URL in a browser. Either way the studio is fully interactive.
+- **Live preview:** on clients with a preview feature (the **desktop app**), `/lerret` renders the studio **inside the Claude Code preview pane** — it writes a `.claude/launch.json` `lerret-studio` config and launches it through the preview tool, so it appears in-pane (not a browser). On clients without a preview feature, it backgrounds the dev server and hands you the `localhost` URL. Either way the studio is fully interactive.
 - Requires Claude Code **v2.1.142+** for the bare `/lerret` command (single-skill plugin).
 
 ## Single source of truth (no duplication)
