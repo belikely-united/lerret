@@ -49,7 +49,7 @@ Two architectural choices make Lerret different from every other "design tool":
 
 1. **Your project is a folder. Lerret renders it.** There is no save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
 
-2. **Because everything is React, every LLM already knows how to edit it.** No plugin, no MCP, no design-tool SDK — just files that AI agents were trained on millions of times over. Hand Claude / GPT / Gemini a `.lerret/` folder and they author and refactor with the same fluency they bring to any React codebase.
+2. **Because everything is React, every LLM already knows how to edit it.** The assets are just files that AI agents were trained on millions of times over — hand Claude / GPT / Gemini a `.lerret/` folder and they author and refactor with the same fluency they bring to any React codebase. No proprietary SDK required. *(And if you live in Claude Code, the [Claude Code plugin](#author-with-ai--the-claude-code-plugin) turns that into a single command.)*
 
 Everything else — git-native versioning, AI-fluent editing, no vendor lock-in — falls out for free.
 
@@ -116,6 +116,25 @@ Drop that file into `.lerret/social/`. It appears on the canvas as an artboard s
 
 All three modes render the *same* folder. Switch freely. The `.lerret/` directory has zero Lerret code in it — your components stay portable.
 
+## Author with AI — the Claude Code plugin
+
+Already living in [Claude Code](https://claude.com/claude-code)? Install Lerret as a plugin and let your *own* Claude design the assets — **no API keys, no BYOK, no separate AI service.** Your Claude is the brain:
+
+```text
+/plugin marketplace add Belikely-United/marketplace
+/plugin install lerret@belikely-united
+```
+
+Then one do-anything command — **`/lerret`** — handles the rest. Just describe what you want:
+
+```text
+/lerret make a 1200x630 og-image titled "Ship faster"
+```
+
+No sub-commands to remember. By intent, `/lerret` sets the project up on first run, authors and edits the `.jsx`, previews the studio live, exports to PNG/JPG, or clears samples — shelling to `@lerret/cli` under the hood and rendering each result to verify. It's model-invoked too: saying "make me an OG image" triggers it without typing the command.
+
+> **Where it runs:** Claude Code only — the CLI, the desktop app (with in-pane live preview), VS Code, and `claude.ai/code`. (Not the plain `claude.ai` chat.) The plugin is free and never gated.
+
 ## What it isn't
 
 Lerret is honest about its scope so you can decide quickly:
@@ -134,7 +153,7 @@ Lerret is honest about its scope so you can decide quickly:
 - [The Studio](https://docs.lerret.belikely.com/studio/)
 - [CLI Reference](https://docs.lerret.belikely.com/cli/)
 - [Deployment](https://docs.lerret.belikely.com/deploy/)
-- [AI Editing — bundled Claude skill + `/lerret-edit`](https://docs.lerret.belikely.com/ai-editing/)
+- [AI Editing — the Claude Code plugin + bundled skill](https://docs.lerret.belikely.com/ai-editing/)
 
 ## Architecture at a glance
 
