@@ -1,13 +1,36 @@
 ---
 title: Editing with AI Tools
-description: How to edit Lerret assets with any modern AI coding tool — Claude Code, Cursor, GitHub Copilot, and AGENTS.md-compatible agents — using the conventions bundled by `create-lerret`.
+description: How to edit Lerret assets with any modern AI coding tool — the Lerret Claude Code plugin, plus Cursor, GitHub Copilot, and AGENTS.md-compatible agents — using the conventions bundled by `create-lerret`.
 ---
 
 # Editing with AI Tools
 
-Lerret assets are plain React components, so any AI coding tool that edits files can edit them. To make the loop quick, every project scaffolded by `create-lerret` ships a small set of AI-tool integration files: one per major tool, each rendering the same Lerret authoring conventions in that tool's native format. This page covers what auto-installs, the flags that opt in or out, how to add the files to an existing project, the permission/disclosure model, an optional aesthetic upgrade for Claude Code, and a handful of example prompts grounded in the sample assets.
+Lerret assets are plain React components, so any AI coding tool that edits files can edit them. To make the loop quick, Lerret ships two integration surfaces: an installable **Claude Code plugin** (the fastest path if you live in Claude Code), and a set of per-project AI-tool files scaffolded by `create-lerret` — one per major tool, each rendering the same Lerret authoring conventions in that tool's native format. This page covers the plugin, what auto-installs in scaffolded projects, the flags that opt in or out, how to add the files to an existing project, the permission/disclosure model, an optional aesthetic upgrade for Claude Code, and a handful of example prompts grounded in the sample assets.
 
 > **Looking for the built-in agent?** This page is about driving edits from **your own** AI tool. Lerret also has an **AI agent built into the studio** — you prompt it from the dock and it edits your files for you, with your own provider key or a local Ollama. See [AI in the Studio](/ai-studio/).
+
+## The Claude Code plugin
+
+**In [Claude Code](https://claude.com/claude-code)? This is the fastest way to use Lerret.** Install the plugin and let your *own* Claude design the assets — no API keys, no BYOK, no separate AI service:
+
+```
+/plugin marketplace add Belikely-United/marketplace
+/plugin install lerret@belikely-united
+```
+
+Then one do-anything command — **`/lerret`** — handles the rest. Just describe what you want:
+
+```
+/lerret make a 1200x630 og-image titled "Ship faster"
+```
+
+No sub-commands to remember. By intent, `/lerret` sets the project up on first run, authors and edits the `.jsx`, previews the studio live, exports to PNG/JPG, or clears samples — shelling to `@lerret/cli` under the hood and rendering each result to verify. It's model-invoked too: saying "make me an OG image" triggers it without typing the command.
+
+A few things worth knowing:
+
+- **Where it runs:** Claude Code only — the CLI, the desktop app (with in-pane live preview), VS Code, and `claude.ai/code`. Not the plain `claude.ai` chat. The plugin is free, MIT-licensed, and never gated.
+- **Relationship to the scaffolded files below:** the plugin's authoring skill is generated from the **same single content source** as the per-project integration files, so it encodes identical conventions. With the plugin installed you don't need the per-project `.claude/` files — the plugin travels with your Claude Code, not with the project.
+- **Relationship to the in-studio agent:** the [in-studio AI](/ai-studio/) runs in the browser with your own provider key; the plugin uses your existing Claude Code session as the brain — no keys involved.
 
 ## What auto-installs in scaffolded projects
 
@@ -90,23 +113,23 @@ The marketplace itself lives at [github.com/anthropics/claude-plugins-official](
 
 ## Example `/lerret-edit` prompts
 
-These are grounded in the three sample assets that ship with `create-lerret` (`twitter-banner.jsx`, `instagram-square.jsx`, `youtube-thumbnail.jsx` under `.lerret/social/`). The `/lerret-edit` slash command is Claude Code-specific, but the underlying intents work for any tool — feed them directly to Cursor's chat, Copilot's prompt box, or any AGENTS.md-aware agent and you'll get the same Lerret-aware behavior because they're all reading the same conventions.
+These are grounded in the sample assets that ship with `create-lerret`'s default teaching preset (`og-card.jsx` and `tw-banner.jsx` under `.lerret/social/`, `business-card.jsx` under `.lerret/brand/`, `landing-hero.jsx` under `.lerret/landing/`). The `/lerret-edit` slash command is Claude Code-specific, but the underlying intents work for any tool — feed them directly to the `/lerret` plugin, Cursor's chat, Copilot's prompt box, or any AGENTS.md-aware agent and you'll get the same Lerret-aware behavior because they're all reading the same conventions.
 
-**Add a brand avatar to the Twitter banner.**
-
-```
-/lerret-edit change the avatar in twitter-banner.jsx — drop a new Twitter-avatar.png in social/ and wire it in
-```
-
-The bundled conventions know the component-prefixed image-naming rule (`Twitter-avatar.png` co-located in `.lerret/social/`, not in a shared `assets/` folder), so the model places the file in the right spot and references it correctly.
-
-**Add a dark variant to the Instagram square.**
+**Add a brand avatar to the X banner.**
 
 ```
-/lerret-edit add a dark variant to instagram-square.jsx using the same layout but inverted palette
+/lerret-edit add an avatar to tw-banner.jsx — drop a new tw-banner-avatar.png in social/ and wire it in
 ```
 
-The conventions know that variants are extra named exports in the same file (not new files) and that `meta` is shared across all variants. The model adds an `export const Dark = ...` next to the default export.
+The bundled conventions know the component-prefixed image-naming rule (`tw-banner-avatar.png` co-located in `.lerret/social/`, not in a shared `assets/` folder), so the model places the file in the right spot and references it correctly.
+
+**Add a fourth variant to the X banner.**
+
+```
+/lerret-edit add a Conference variant to tw-banner.jsx announcing an upcoming talk
+```
+
+The conventions know that variants are extra named exports in the same file (not new files), that `meta` is shared across all variants, and that `tw-banner.data.json` is keyed by export name. The model adds an `export const Conference = ...` next to the existing `Maker` and `Talk` variants and a matching `Conference` key in the data file.
 
 **Re-theme every asset on the social page.**
 
@@ -114,23 +137,23 @@ The conventions know that variants are extra named exports in the same file (not
 /lerret-edit swap the brand accent color across all assets in social/ to oklch(0.7 0.2 30)
 ```
 
-The conventions know the four-tier prop cascade and the `vars` block in `config.json`. Depending on whether the color is hard-coded per asset or sourced from a CSS variable, the model edits the per-asset literal or updates `config.json` once.
+The conventions know the four-tier prop cascade and the `vars` block in `config.json`. The sample assets source their palette from `vars` (`--brandColor`, `--neutralDark`, …), so the model updates `config.json` once rather than editing each asset.
 
-**Add a 9:16 vertical variant of the YouTube thumbnail.**
-
-```
-/lerret-edit add a 9:16 vertical YouTube thumbnail variant to youtube-thumbnail.jsx
-```
-
-Variants share the file's `meta` — including `dimensions` — so the model will either split the variant into a new file with its own `meta`, or restructure the existing component to accept a `dimensions` override from `propsSchema`. It picks the path that fits the file's existing shape.
-
-**Refresh the typography using the bundled font.**
+**Add a 9:16 story-size version of the OG card.**
 
 ```
-/lerret-edit refresh the typography in twitter-banner.jsx using the LerretFixtureMono font from _fonts/
+/lerret-edit add a 9:16 vertical story version of og-card.jsx
 ```
 
-The conventions know that fonts in `.lerret/_fonts/` are auto-registered as `@font-face` rules — no import, no manual CSS. The model uses the font family name (`'LerretFixtureMono'`) directly in inline styles.
+Variants share the file's `meta` — including `dimensions` — so the model will either split the vertical version into a new file with its own `meta`, or restructure the existing component to accept a `dimensions` override from `propsSchema`. It picks the path that fits the file's existing shape.
+
+**Bring in a new display font.**
+
+```
+/lerret-edit drop a new display font into _fonts/ and use it for the og-card headline
+```
+
+The conventions know that fonts in `.lerret/_fonts/` are auto-registered as `@font-face` rules — no import, no manual CSS. The model uses the font's family name directly in inline styles, the same way the samples use the bundled `'LerretFixtureMono'`.
 
 ## Troubleshooting
 

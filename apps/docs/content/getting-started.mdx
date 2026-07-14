@@ -23,15 +23,36 @@ If `my-canvas` already exists, the scaffolder refuses to overwrite a non-empty d
 ```
 my-canvas/
 └── .lerret/
+    ├── README.md
     ├── config.json
     ├── _fonts/
     │   └── LerretFixtureMono.woff2
-    └── social/
-        ├── instagram-square.jsx
-        ├── twitter-banner.jsx
-        ├── twitter-banner.data.json
-        └── youtube-thumbnail.jsx
+    ├── intro/
+    │   ├── config.json
+    │   └── welcome.md
+    ├── landing/
+    │   ├── about-vars.md
+    │   └── landing-hero.jsx
+    ├── social/
+    │   ├── about-data-files.md
+    │   ├── og-card.jsx
+    │   ├── og-card.data.json
+    │   ├── tw-banner.jsx
+    │   └── tw-banner.data.json
+    ├── brand/
+    │   ├── about-validation.md
+    │   ├── business-card.jsx
+    │   └── business-card.data.json
+    └── live/
+        ├── about-live-refresh.md
+        ├── config.json
+        ├── clock.jsx
+        ├── clock.config.json
+        ├── counter.jsx
+        └── counter.config.json
 ```
+
+This is the **five-page teaching preset**: each page demonstrates one Lerret concept — `intro` (a welcome note), `landing` (cascading `vars`), `social` (data files + variants), `brand` (props schemas + validation), and `live` (auto-refreshing artboards). Each page ships a short `about-*.md` note that renders on the canvas and explains what that page teaches.
 
 The `.lerret/` folder is the only thing Lerret cares about. Everything else in the project is yours — Lerret never touches files outside it (the **separation invariant**).
 
@@ -41,7 +62,8 @@ The `.lerret/` folder is the only thing Lerret cares about. Everything else in t
 | `.lerret/_fonts/` | Reserved folder. Any `.woff2` / `.woff` / `.ttf` / `.otf` here is auto-registered as a CSS `@font-face` rule. Available to every asset by its file name. |
 | `.lerret/social/` | A **page** — top-level non-underscore folders become pages on the canvas. |
 | `*.jsx` | Each component file becomes an artboard. The default export is the primary variant; named exports become extra variants. |
-| `*.data.json` | Co-located data file for an asset (here, `twitter-banner.data.json`). Overrides component props at runtime. |
+| `*.data.json` | Co-located data file for an asset (here, `og-card.data.json`). Overrides component props at runtime. |
+| `*.config.json` (next to an asset) | Co-located per-asset config — e.g. `clock.config.json` sets an `autoRefresh` interval. |
 
 ### Want a minimal start?
 
@@ -49,12 +71,20 @@ For an empty project — just `.lerret/config.json` with `{ "vars": {} }`, no sa
 
 <PM cmd="npx create-lerret@latest my-canvas --no-samples" />
 
+### Want a themed starting point?
+
+Instead of the teaching preset, scaffold one of seven ready-made kits with `--preset`:
+
+<PM cmd="npx create-lerret@latest my-canvas --preset producthunt" />
+
+Valid names: `acme` (brand starter kit), `appstore` (App Store screenshots), `producthunt` (launch assets), `social-media` (six social formats), `talks` (conference slides), `personal` (personal-site assets), and `live` (auto-refresh demos). An unknown name errors with the valid list. There is also `--demo`, which scaffolds the default teaching preset and immediately starts the dev server with the first-run walkthrough (`--demo` is mutually exclusive with `--preset` and `--no-samples`).
+
 ## 2. Start the studio
 
 <PM cmd={`cd my-canvas
 npx @lerret/cli@latest dev`} />
 
-The Vite dev server boots and your default browser opens to the studio. You should see three artboards on the canvas: a Twitter banner, an Instagram square, and a YouTube thumbnail — each rendered at its real pixel dimensions.
+The Vite dev server boots and your default browser opens to the studio. You should see the five teaching pages on the canvas — a welcome note, a landing hero, social cards (an OG card plus an X banner in three variants), a business card, and two live auto-refreshing demos — each artboard rendered at its real pixel dimensions.
 
 ### Common flags
 
@@ -66,21 +96,23 @@ If you do not pass `--folder`, the CLI walks up from the current working directo
 
 ## 3. Edit a component
 
-Open `.lerret/social/twitter-banner.jsx` in your editor. Find the headline and change it:
+Open `.lerret/landing/landing-hero.jsx` in your editor. Find the headline and change it:
 
 ```jsx
 // Before
-<div style={{ fontSize: 80, fontWeight: 800, ... }}>
-  {headline}
+<div style={{ fontSize: 76, lineHeight: 1.04, ... }}>
+  Designs are just files.
 </div>
 
 // After
-<div style={{ fontSize: 80, fontWeight: 800, ... }}>
+<div style={{ fontSize: 76, lineHeight: 1.04, ... }}>
   Hello from my first Lerret canvas
 </div>
 ```
 
-Save the file. The Twitter banner artboard re-renders in under a second. No page reload, no manual rebuild. The watcher detects the change, Vite's React Fast Refresh swaps the module, and the canvas updates in place.
+Save the file. The landing-hero artboard re-renders in under a second. No page reload, no manual rebuild. The watcher detects the change, Vite's React Fast Refresh swaps the module, and the canvas updates in place.
+
+> The social and brand assets keep their text in co-located `.data.json` files instead of the JSX — open `.lerret/social/og-card.data.json`, change the `headline`, and save for the same sub-second loop. Step 6 covers how that works.
 
 ## 4. Add a second asset
 
@@ -101,7 +133,7 @@ export default function ReleaseCard() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'var(--brandColor, #3D5A80)',
+      background: 'var(--brandColor, #B85B33)',
       color: 'white',
       fontSize: 72,
       fontWeight: 800,
@@ -115,7 +147,7 @@ export default function ReleaseCard() {
 
 Save it. A new artboard appears on the canvas — at exactly 1200×630 — alongside the others. The watcher reports an `add` event, the loader incorporates the new asset into the project model, and the canvas adds the artboard.
 
-Notice the `var(--brandColor, #3D5A80)`. The project-root `config.json` declares `vars.brandColor = "#3D5A80"`, which the studio exposes as a CSS custom property on the artboard. Change the value in `config.json`, save, and every artboard re-renders with the new color.
+Notice the `var(--brandColor, #B85B33)`. The project-root `config.json` declares `vars.brandColor = "#B85B33"`, which the studio exposes as a CSS custom property on the artboard. Change the value in `config.json` — say to `"#3D5A80"` — save, and every artboard re-renders with the new color.
 
 ## 5. Add a variant
 
@@ -183,17 +215,24 @@ When you are happy with the canvas, render every artboard to image files from th
 
 <PM cmd="npx @lerret/cli@latest export" />
 
-By default, output goes to `./lerret-export/` (relative to your CWD, never inside `.lerret/`). Each artboard becomes a PNG, nested under folders that mirror the project's page/group structure:
+By default, output goes to `./lerret-export/` (relative to your CWD, never inside `.lerret/`). Each artboard becomes a PNG — including one per variant and one per Markdown note — nested under folders that mirror the project's page/group structure. The `social` page from the walkthrough comes out as:
 
 ```
 lerret-export/
+├── brand/ …
+├── landing/ …
+├── live/ …
 └── social/
-    ├── instagram-square.png
+    ├── about-data-files.png
+    ├── og-card.png
     ├── release-card.png
     ├── release-card-Dark.png
-    ├── twitter-banner.png
-    └── youtube-thumbnail.png
+    ├── tw-banner.png
+    ├── tw-banner-Maker.png
+    └── tw-banner-Talk.png
 ```
+
+The `intro` page is absent by design: its `config.json` sets `"excludeFromExport": true`, a page-level flag that keeps canvas-only notes out of your export.
 
 Useful flags:
 

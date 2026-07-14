@@ -11,7 +11,7 @@ Two architectural choices make Lerret different:
 
 **The folder is the project.** No save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
 
-**The format is React.** Because every asset is real React, every LLM already knows how to edit it — no plugin, no MCP, no design-tool SDK. Just files an AI was trained on millions of times over.
+**The format is React.** Because every asset is real React, every LLM already knows how to edit it — no plugin, MCP, or design-tool SDK required. Just files an AI was trained on millions of times over. (And if you live in Claude Code, the [Lerret plugin](/ai-editing/#the-claude-code-plugin) turns that into a single `/lerret` command.)
 
 Everything else — git-native versioning, AI-fluent editing, no vendor lock-in — falls out for free. Pan-and-zoom artboards, sub-second hot reload, headless PNG/JPG export.
 
@@ -27,6 +27,7 @@ The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the 
 
 - **Studio** — pan-and-zoom canvas, per-artboard error boundaries, in-place editors for component data + config.
 - **Built-in AI** — a brand-aware agent in the dock that designs and edits your assets, using your own provider key (OpenAI, Anthropic, OpenRouter) or a fully-local Ollama. Browser-direct, no Lerret backend.
+- **Claude Code plugin** — `/plugin install lerret@belikely-united`, then one `/lerret` command authors, previews, and exports assets with your own Claude as the brain. No API keys.
 - **CLI** — `npx @lerret/cli@latest dev` opens a folder as a live canvas; `npx @lerret/cli@latest export` headlessly renders to image files (PNG, JPG, structured ZIP).
 - **No backend** — files read and written locally; no upload, no sync, no account.
 - **Three deploy modes** — local CLI, hosted (browser File System Access API), or self-hosted static studio.
@@ -37,6 +38,7 @@ The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the 
 - [Concepts](/concepts/) — the folder-canvas model, page groups, variants, the four-tier prop cascade.
 - [Authoring Assets](/authoring/) — JSX components, props schemas, data files, fonts, Markdown.
 - [AI in the Studio](/ai-studio/) — the built-in brand-aware agent: prompt the dock to design and edit your assets.
+- [Editing with AI Tools](/ai-editing/) — the Claude Code plugin, plus per-project integrations for Cursor, Copilot, and AGENTS.md agents.
 - [Examples](/examples/) — eight complete, runnable assets — OG cards, YouTube thumbnails, component showcases, more.
 - [CLI Reference](/cli/) — `dev` and `export` commands.
 
