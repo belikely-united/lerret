@@ -167,8 +167,8 @@ exposes the same set:
 - **Component artboard** — Edit data · Edit meta · Duplicate · Rename · Move to… ·
   Delete · Export (PNG/JPG, and animated when auto-refresh is configured) ·
   Reveal in editor / file manager.
-- **Markdown card** — Edit · Duplicate · Rename · Move to… · Delete · Export ·
-  Reveal…
+- **Markdown card** — Edit · Duplicate · Rename · Move to… · Delete · Export
+  (PNG/JPG/PDF) · Reveal…
 - **Group / page** — Add asset… · Add group… · Edit config · Rename · Move to… ·
   Delete · Export · Reveal…
 
@@ -191,6 +191,11 @@ The **data editor** is schema-driven: when an asset declares `meta.propsSchema`,
 it generates a typed form (text, boolean, select, …); without a schema it falls
 back to free-form key/value editing.
 
+Dimensions are also one click away without opening the meta editor: the **size
+chip** on an artboard's label row opens a preset picker — 1:1 (1080×1080),
+4:5 (1080×1350), 9:16 (1080×1920), 16:9 (1920×1080), OG (1200×630), or a custom
+width × height.
+
 ![The schema-driven data editor for the hero banner](/studio/data-editor.png)
 
 The **config editor** edits a folder's presentation (background / foreground
@@ -198,11 +203,12 @@ color) and custom `vars`, with a **+** to add your own properties:
 
 ![The config editor for a group's config.json](/studio/config-editor.png)
 
-The **markdown editor** is a **Source ⇄ Preview** toggle — author the raw text,
-flip to Preview to see it rendered (the same renderer the card uses). Writes are
-debounced as you type, so dismissing the sheet never loses work:
+The **markdown editor** shows **Source and Preview side by side** — author the
+raw text on the left and watch it render live on the right (the same renderer
+the card uses). Writes are debounced as you type, so dismissing the sheet never
+loses work:
 
-![The markdown editor with a Source / Preview toggle](/studio/markdown-editor.png)
+![The markdown editor with side-by-side Source and Preview panes](/studio/markdown-editor.png)
 
 Edits flow through the same four-tier prop resolution that drives rendering, so
 the editor and the canvas always agree.
@@ -231,15 +237,15 @@ Three scopes:
 
 | Scope | What it captures |
 |---|---|
-| **Single artboard** | One artboard → one image (the artboard's **↓ PNG / ↓ JPG**, or its menu's Export). |
+| **Single artboard** | One artboard → one image (the artboard's **↓ PNG / ↓ JPG**, or its menu's Export). Markdown cards additionally offer **↓ PDF**. |
 | **Page or group** | Every artboard in that branch (the section's Export, with a PNG/JPG × structured/flat picker). |
 | **Whole project** | Every artboard → one structured ZIP (the brand menu's **Export ZIP**). |
 
-The whole-project panel lives in the **brand menu** (the `Lerret` lockup,
-top-left), where you choose scope (whole project / this page), format (PNG/JPG),
-and run the export:
+The whole-project panel lives in the **brand menu** (the `Lerret` lockup at the
+left end of the dock), where you choose scope (whole project / this page),
+format (PNG/JPG), and run the export:
 
-![The brand menu: Brand kit, Project switch/close, and the Export ZIP panel](/studio/brand-menu.png)
+![The brand menu: Download logo, Project switch/close, and the Export ZIP panel](/studio/brand-menu.png)
 
 Studio exports use the **exact same** `captureArtboard` as `@lerret/cli export`
 (the CLI runs it in a headless Chromium), so output is pixel-faithful between the
