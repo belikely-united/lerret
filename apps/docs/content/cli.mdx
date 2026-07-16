@@ -5,7 +5,7 @@ description: dev and export — complete flag reference, exit codes, and example
 
 # CLI Reference
 
-The Lerret CLI ships as the npm package **`@lerret/cli`**. It installs one binary, named `lerret`, with two subcommands: `dev` and `export`. There is no `init` subcommand — use [`create-lerret`](#create-lerret) to scaffold projects.
+The Lerret CLI ships as the npm package **`@lerret/cli`**. It installs one binary, named `lerret`, with three subcommands: `dev`, `export`, and `clear`. There is no `init` subcommand — use [`create-lerret`](#create-lerret) to scaffold projects.
 
 ## Running the CLI
 
@@ -167,6 +167,31 @@ The run exits `1` (fatal) only for these conditions:
   --config ./theme-corporate.json \
   --out ./marketing/release-1.0
 ```
+
+## `@lerret/cli clear`
+
+Remove sample assets or whole subtrees from a project — the quickest way to wipe scaffolded samples and start fresh.
+
+```bash
+@lerret/cli clear [path...] [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `path...` | One or more files or folders to remove. Each must be inside the project's `.lerret/` tree. Mutually exclusive with `--all`. |
+
+### Options
+
+| Flag | Description |
+|---|---|
+| `--all` | Remove every child of `.lerret/` **except** the always-protected `config.json` and `_fonts/`. |
+| `--yes` | Skip the confirmation prompt (required for scripts / CI). |
+| `--dry-run` | Print the removal plan; do not touch the filesystem. |
+| `-h, --help` | Show help. |
+
+Protected paths are never removed: `.lerret/config.json` and `.lerret/_fonts/`. Like every Lerret command, `clear` refuses to touch anything outside `.lerret/`.
 
 ## `create-lerret`
 
