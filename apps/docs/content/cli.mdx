@@ -197,8 +197,9 @@ Protected paths are never removed: `.lerret/config.json` and `.lerret/_fonts/`. 
 
 Scaffolder for new Lerret projects — `create-*` is the npm convention for scaffolders.
 
-<PM cmd={`npx create-lerret@latest <project-name>             # full scaffold with sample assets (default)
-npx create-lerret@latest <project-name> --no-samples # minimal empty project`} />
+<PM cmd={`npx create-lerret@latest <project-name>                    # five-page teaching preset (default)
+npx create-lerret@latest <project-name> --no-samples        # minimal empty project
+npx create-lerret@latest <project-name> --preset producthunt # themed starter kit`} />
 
 ### Arguments
 
@@ -210,21 +211,27 @@ npx create-lerret@latest <project-name> --no-samples # minimal empty project`} /
 
 | Flag | Description |
 |---|---|
-| `--no-samples` | Scaffold only `.lerret/config.json` (with `{ "vars": {} }`). No `_fonts/`, no `social/` page, no sample artboards. The studio opens with a calm empty-but-correct canvas. |
+| `--no-samples` | Scaffold only `.lerret/config.json` (with `{ "vars": {} }`). No `_fonts/`, no sample pages, no sample artboards. The studio opens with a calm empty-but-correct canvas. |
+| `--preset <name>` | Scaffold a themed starter kit instead of the teaching preset. Valid: `acme`, `appstore`, `producthunt`, `social-media`, `talks`, `personal`, `live`. Unknown names error with the valid list. |
+| `--demo` | Scaffold the default teaching preset and immediately start the dev server with the first-run walkthrough. Mutually exclusive with `--preset` and `--no-samples`. |
+| `--no-ai-rules` / `--ai-tools=<list>` | Control which AI-tool integration files ship — see [Editing with AI Tools](/ai-editing/#choosing-which-ai-tools). |
 
 ### Default output
+
+The default scaffold is the five-page teaching preset — each page demonstrates one Lerret concept:
 
 ```
 <project-name>/
 └── .lerret/
+    ├── README.md
     ├── config.json
     ├── _fonts/
     │   └── LerretFixtureMono.woff2
-    └── social/
-        ├── instagram-square.jsx
-        ├── twitter-banner.jsx
-        ├── twitter-banner.data.json
-        └── youtube-thumbnail.jsx
+    ├── intro/      # welcome note (excluded from export)
+    ├── landing/    # cascading vars — landing-hero.jsx
+    ├── social/     # data files + variants — og-card.jsx, tw-banner.jsx
+    ├── brand/      # props schema + validation — business-card.jsx
+    └── live/       # auto-refresh — clock.jsx, counter.jsx
 ```
 
 ### Behavior on conflicts

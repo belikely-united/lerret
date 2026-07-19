@@ -11,7 +11,7 @@ At its core, Lerret rests on two architectural choices:
 
 **Your project is a folder. Lerret renders it.** There is no save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
 
-**Because everything is React, every LLM already knows how to edit it.** No plugin, no MCP, no design-tool SDK — just files an AI was trained on millions of times over.
+**Because everything is React, every LLM already knows how to edit it.** No plugin, MCP, or design-tool SDK *required* — just files an AI was trained on millions of times over. (There is an optional [Claude Code plugin](/ai-editing/#the-claude-code-plugin) that turns this into a single `/lerret` command.)
 
 Mechanically: each `.jsx` / `.tsx` file in `.lerret/` becomes an **artboard** with its own pan-and-zoom card on the canvas; saving the file re-renders the artboard in under a second. You can export every artboard to PNG or JPG headlessly — single asset, page group, or whole project as a structured ZIP. No backend, no account.
 
@@ -75,6 +75,10 @@ The first time you open a folder in hosted mode, the browser shows a permission 
 Yes. The studio ships a **brand-aware AI agent** in the dock: prompt it — *"re-theme the twitter banner to our brand"*, *"make a launch kit from this component"* — and it reads, writes, and restructures the files in your `.lerret/` folder for you. It's agentic (one prompt does multi-step work), sandboxed to `.lerret/` only, and every turn is one click to revert. Full guide: [AI in the Studio](/ai-studio/).
 
 This is separate from — and complementary to — editing your assets with **your own** AI tool (Claude Code, Cursor, Copilot); see [Editing with AI Tools](/ai-editing/).
+
+## Is there a Claude Code plugin?
+
+Yes. Install it with `/plugin marketplace add Belikely-United/marketplace` then `/plugin install lerret@belikely-united`, and a single **`/lerret`** command sets up a project, authors and edits assets, previews the studio live, and exports images — your own Claude is the brain, so there are **no API keys and no separate AI service**. It's free and MIT-licensed. See [the Claude Code plugin](/ai-editing/#the-claude-code-plugin).
 
 ## When I use the AI, does my code go through a Lerret server?
 
