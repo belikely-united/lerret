@@ -52,7 +52,7 @@ jobs:
           version: 9.15.0
 
       - name: Setup Node (includes npm + npx)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -101,7 +101,7 @@ jobs:
           version: 9.15.0
 
       - name: Setup Node (includes npm + npx)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
