@@ -58,9 +58,10 @@ function virtualLerretProjectShim() {
  // reaches cli-project-source.jsx so this is only the type-safe shim.
  'export const cascadeEntries = [];',
  'export const assetConfigEntries = [];',
+ 'export const assetDataEntries = [];',
  'export const epoch = 0;',
  `export const mode = 'fixture';`,
- 'export default { project, assetBaseUrl, projectRoot, lerretDir, cascadeEntries, assetConfigEntries, epoch, mode };',
+ 'export default { project, assetBaseUrl, projectRoot, lerretDir, cascadeEntries, assetConfigEntries, assetDataEntries, epoch, mode };',
  '',
  ].join('\n');
  },
