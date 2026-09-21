@@ -1,59 +1,72 @@
-# Release — publish a package to npm via Trusted Publishing (OIDC).
+# Release — publish to npm via Trusted Publishing (OIDC).
 #
-# ── Why this exists ─────────────────────────────────────────────────────────
-# Publishing by hand kept breaking, in three different ways:
+# ── How a release happens ───────────────────────────────────────────────────
+# Bump the version in a package's `package.json`, merge to `main`. That's it.
 #
-#   1. The long-lived granular token expired, and npm is actively restricting
-#      the bypass-2FA token class it belonged to.
-#   2. A plain `npm login` token authenticates but carries no 2FA assertion, so
-#      the registry answers 403 on publish.
-#   3. With a passkey/WebAuthn second factor there is no 6-digit code at all,
-#      so `pnpm publish --otp=…` is not a usable path.
+# There is no tag to push and no button to press. The version field IS the
+# release intent: this workflow runs whenever a `packages/*/package.json`
+# lands on `main`, and publishes any package whose version is not yet on the
+# registry. A merge that doesn't touch a version is a green no-op.
 #
-# OIDC removes all three: GitHub mints a short-lived, workflow-scoped token at
-# run time. There is no stored credential to expire, leak, or rotate, and no
-# human second factor in the loop.
+# Why "not yet on the registry" rather than diffing against the previous
+# commit: it is the actual truth, it needs no git archaeology, and it is
+# self-healing — if a publish fails (registry blip, expired config), the next
+# push retries it instead of leaving the package silently unreleased. It is
+# also safe to re-run: npm refuses to overwrite a published version anyway.
+#
+# `workflow_dispatch` stays for the manual case — a retry without a new commit,
+# or releasing one package deliberately.
+#
+# ── Why OIDC ────────────────────────────────────────────────────────────────
+# Publishing by hand kept breaking: the long-lived granular token expired (and
+# npm is restricting the bypass-2FA class it belonged to), an `npm login` token
+# authenticates but carries no 2FA assertion so the registry answers 403, and
+# with a passkey second factor there is no 6-digit code for `--otp`. OIDC has
+# no stored credential at all — GitHub mints a short-lived, workflow-scoped
+# token per run.
 #
 # ── The pnpm/npm split (do not "simplify" this) ─────────────────────────────
-# Each package depends on its siblings with `workspace:^`. That protocol is a
-# pnpm concept and is meaningless on the registry:
+# Packages depend on siblings with `workspace:^`, which is meaningless on the
+# registry:
 #
 #   • `npm publish` from the package folder ships `"@lerret/core": "workspace:^"`
-#     verbatim, and every `npm i @lerret/cli` then fails to resolve it.
-#   • `pnpm publish` rewrites it correctly — but pnpm only gained OIDC support
-#     in v11, and this repo is pinned to pnpm 9.15.0 (bumping that major would
-#     invalidate the lockfile across every job).
+#     verbatim, and every install then fails to resolve it.
+#   • `pnpm publish` rewrites it — but pnpm only gained OIDC support in v11 and
+#     this repo pins pnpm 9.15.0 (bumping that major invalidates the lockfile
+#     across every job).
 #
-# So the two are split by what each is actually good at: pnpm PACKS the tarball
-# (rewriting `workspace:^` → a real semver range), npm UPLOADS it (speaking
-# OIDC). The `Verify tarball` step below fails the run if the rewrite did not
-# happen, so a broken tarball can never reach the registry.
+# So pnpm PACKS the tarball and npm UPLOADS it. `Verify tarball` fails the run
+# if the rewrite did not happen, because a `workspace:` leak is invisible until
+# a user tries to install.
 #
-# ── One-time setup on npmjs.com (per package) ───────────────────────────────
-# Package page → Settings → Trusted Publisher → GitHub Actions:
+# ── One-time setup on npmjs.com (per package, already done) ─────────────────
+# Package → Settings → Trusted Publisher → GitHub Actions:
 #   Organization or user: belikely-united
 #   Repository:           lerret
-#   Workflow filename:    release.yml      ← must match THIS file's name exactly
-#   Environment:          (leave empty)
-# All fields are case-sensitive. Renaming this file breaks publishing until the
-# trusted-publisher config is updated to match.
-#
-# ── Usage ───────────────────────────────────────────────────────────────────
-# Actions → Release → Run workflow → pick the package. Manual dispatch only:
-# a release should be a deliberate act, not a side effect of a push. The run is
-# a no-op if the version in package.json is already on the registry, so a
-# double-click cannot fail the build or clobber anything.
+#   Workflow filename:    release.yml      ← must match THIS file's name
+#   Environment:          (empty)
+#   Allowed actions:      "Allow npm publish" MUST be checked — it is off by
+#                         default, and this workflow runs `npm publish`.
+# Those fields are frozen once created. RENAMING THIS FILE BREAKS PUBLISHING
+# until every package's trusted-publisher config is deleted and recreated.
 
 name: Release
 
 on:
+  push:
+    branches: [main]
+    # Only a version bump can start a release, so only watch manifests.
+    paths:
+      - 'packages/*/package.json'
   workflow_dispatch:
     inputs:
       package:
-        description: Package to publish (version comes from its package.json)
-        required: true
+        description: 'Package to publish (default is every package that is behind npm)'
+        required: false
+        default: all
         type: choice
         options:
+          - all
           - '@lerret/cli'
           - '@lerret/core'
           - create-lerret
@@ -64,77 +77,88 @@ permissions:
 
 jobs:
   publish:
-    name: Publish ${{ inputs.package }}
+    name: ${{ matrix.package }}
     runs-on: ubuntu-latest
+
+    strategy:
+      # One package failing must not cancel the others — a partial release is
+      # recoverable, a cancelled one is confusing.
+      fail-fast: false
+      matrix:
+        include:
+          - package: '@lerret/cli'
+            dir: packages/cli
+          - package: '@lerret/core'
+            dir: packages/core
+          - package: create-lerret
+            dir: packages/create-lerret
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Decide early, so an unselected package costs one cheap job rather than
+      # a full toolchain install.
+      - name: Decide whether to publish
+        id: decide
+        run: |
+          # `inputs.package` is empty on a push trigger — that means "all".
+          SELECTED="${{ inputs.package }}"
+          if [ -n "$SELECTED" ] && [ "$SELECTED" != "all" ] && [ "$SELECTED" != "${{ matrix.package }}" ]; then
+            echo "::notice::${{ matrix.package }} not selected for this run."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VERSION="$(node -p "require('./${{ matrix.dir }}/package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if npm view "${{ matrix.package }}@$VERSION" version >/dev/null 2>&1; then
+            echo "::notice::${{ matrix.package }}@$VERSION is already on npm — nothing to do."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::${{ matrix.package }}@$VERSION is not on npm — releasing."
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup pnpm
+        if: steps.decide.outputs.go == 'true'
         uses: pnpm/action-setup@v6
         with:
           version: 9.15.0
 
-      # Trusted publishing needs Node >= 22.14.0. `node-version: 22` resolves to
-      # the latest 22.x, which satisfies that. `registry-url` is what makes
-      # setup-node write the .npmrc that the OIDC exchange hooks into.
+      # Trusted publishing needs Node >= 22.14.0; `node-version: 22` resolves to
+      # the latest 22.x. `registry-url` makes setup-node write the .npmrc the
+      # OIDC exchange hooks into.
       - name: Setup Node
+        if: steps.decide.outputs.go == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
-      # The Node 22 images ship npm 10.x, which has no OIDC support at all.
+      # The Node 22 images ship npm 10.x, which has no OIDC support.
       - name: Upgrade npm (OIDC needs >= 11.5.1)
+        if: steps.decide.outputs.go == 'true'
         run: |
           npm install -g npm@^11.5.1
           echo "npm $(npm -v) / node $(node -v)"
 
       - name: Install dependencies
+        if: steps.decide.outputs.go == 'true'
         run: pnpm install --frozen-lockfile
-
-      - name: Resolve package directory
-        id: pkg
-        run: |
-          case "${{ inputs.package }}" in
-            '@lerret/cli')  DIR=packages/cli ;;
-            '@lerret/core') DIR=packages/core ;;
-            create-lerret)  DIR=packages/create-lerret ;;
-            *) echo "::error::Unknown package '${{ inputs.package }}'"; exit 1 ;;
-          esac
-          VERSION="$(node -p "require('./$DIR/package.json').version")"
-          echo "dir=$DIR"         >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing ${{ inputs.package }}@$VERSION from $DIR"
-
-      # Idempotence: re-running for an already-published version is a no-op
-      # rather than a red build. npm refuses to overwrite a version anyway; this
-      # just makes the refusal legible.
-      - name: Skip if already published
-        id: check
-        run: |
-          if npm view "${{ inputs.package }}@${{ steps.pkg.outputs.version }}" version >/dev/null 2>&1; then
-            echo "::notice::${{ inputs.package }}@${{ steps.pkg.outputs.version }} is already on npm — nothing to do."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
 
       # Runs prepublishOnly (for @lerret/cli that rebuilds dist-studio) and,
       # critically, rewrites `workspace:^` to a real semver range.
       - name: Pack with pnpm
-        if: steps.check.outputs.skip == 'false'
+        if: steps.decide.outputs.go == 'true'
         run: pnpm pack --pack-destination "$RUNNER_TEMP"
-        working-directory: ${{ steps.pkg.outputs.dir }}
+        working-directory: ${{ matrix.dir }}
 
-      # The guard that makes the pnpm/npm split safe. A tarball carrying
-      # `workspace:` installs as a hard resolution error for every user, and the
-      # failure is invisible until someone tries to install it — so it is caught
-      # here instead of on the registry.
+      # The guard that makes the pnpm/npm split safe.
       - name: Verify tarball
-        if: steps.check.outputs.skip == 'false'
+        if: steps.decide.outputs.go == 'true'
         run: |
           TGZ="$(ls "$RUNNER_TEMP"/*.tgz)"
           echo "Tarball: $TGZ"
@@ -148,8 +172,8 @@ jobs:
             exit 1
           fi
           PACKED_VERSION="$(tar -xzOf "$TGZ" package/package.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")"
-          if [ "$PACKED_VERSION" != "${{ steps.pkg.outputs.version }}" ]; then
-            echo "::error::Packed version $PACKED_VERSION != expected ${{ steps.pkg.outputs.version }}."
+          if [ "$PACKED_VERSION" != "${{ steps.decide.outputs.version }}" ]; then
+            echo "::error::Packed version $PACKED_VERSION != expected ${{ steps.decide.outputs.version }}."
             exit 1
           fi
           echo "TGZ=$TGZ" >> "$GITHUB_ENV"
@@ -157,11 +181,11 @@ jobs:
       # No NODE_AUTH_TOKEN. npm detects the OIDC environment and exchanges the
       # workflow's id-token for a short-lived publish credential by itself.
       - name: Publish to npm (OIDC)
-        if: steps.check.outputs.skip == 'false'
+        if: steps.decide.outputs.go == 'true'
         run: npm publish "$TGZ" --access public
 
       - name: Confirm
-        if: steps.check.outputs.skip == 'false'
+        if: steps.decide.outputs.go == 'true'
         run: |
-          echo "::notice::Published ${{ inputs.package }}@${{ steps.pkg.outputs.version }}"
+          echo "::notice::Published ${{ matrix.package }}@${{ steps.decide.outputs.version }}"
           echo "The registry can lag a few minutes before 'npm view' reflects it."
