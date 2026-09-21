@@ -57,6 +57,7 @@ import { useAssetConfig } from './asset-config-context.jsx';
 import { bindOneShotRename } from './use-inline-rename.js';
 import { onLerretChange } from '../../runtime/cli-hmr.js';
 import { getHostedDataReader } from '../../runtime/hosted-data-reader.js';
+import { getAssetDataPath } from '../../runtime/asset-data-registry.js';
 import {
  LiveRefreshBadge,
  LiveRefreshPopover,
@@ -391,10 +392,13 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  // Data fetch (same logic as the removed `EditableComponentArtboard`, now
  // honoring `.data.js` precedence — see `fetchDataValue`).
  const [dataValue, setDataValue] = React.useState(null);
- // The candidate data files for this asset, in core's precedence order:
- // `.data.js` WINS over `.data.json` (FR22). The studio cannot stat the
- // filesystem, so both are constructed and `fetchDataValue` discovers which
- // one actually exists by attempting the import (404 → try next).
+ // The two data files this asset COULD have, in core's precedence order:
+ // `.data.js` wins over `.data.json` (FR22).
+ //
+ // These are the paths the live-reload subscription watches — both of them,
+ // whether or not they exist, so that CREATING a data file for an asset that
+ // had none still reaches the canvas. They are not necessarily the paths we
+ // fetch; see `fetchList` below.
  const dataCandidates = React.useMemo(() => {
  const asset = entry?.asset;
  if (!asset || typeof asset.path !== 'string') return null;
@@ -402,6 +406,8 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  const dir = slash === -1 ? '' : asset.path.slice(0, slash + 1);
  return [`${dir}${asset.name}.data.js`, `${dir}${asset.name}.data.json`];
  }, [entry]);
+
+ const assetPath = entry?.asset?.path;
 
  React.useEffect(() => {
  if (!dataCandidates) return undefined;
@@ -413,8 +419,28 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  // data file (none resolved before) is picked up too.
  let resolvedPath = null;
  const reload = async () => {
+ // What to actually request, resolved at fetch time (NOT memoized) so a
+ // watcher-driven registry update is picked up without remounting.
+ //
+ // The server tells us exactly which file exists: `@lerret/cli`'s plugin
+ // runs core's `loadAssetData` and ships the resolved path. So an asset WITH
+ // data costs one request, and an asset WITHOUT costs none — where the old
+ // blind probe cost a guaranteed 404 per artboard, repeated on every
+ // auto-refresh tick.
+ //
+ // `undefined` means no map is registered (hosted mode, the fixture harness,
+ // or a CLI older than `assetDataEntries`); then we fall back to handing
+ // `fetchDataValue` both candidates and letting it discover which exists by
+ // import — the original 404-driven probe, still correct, just noisy.
+ const known = typeof assetPath === 'string' ? getAssetDataPath(assetPath) : undefined;
+ const fetchList = known === undefined ? dataCandidates : known === null ? [] : [known];
+ if (fetchList.length === 0) {
+ // Server says: no data file. Nothing to request.
+ if (!cancelled) setDataValue(null);
+ return;
+ }
  const result = await fetchDataValue(
- dataCandidates,
+ fetchList,
  // `bust` (the per-asset cue key, bumped on every autoRefresh tick / reload)
  // forces a fresh re-resolve — so a .data.js that fetches re-runs its fetch
  // each tick and live data actually updates, not just re-renders.
@@ -440,7 +466,7 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  cancelled = true;
  unsubscribe();
  };
- }, [dataCandidates, entry?.id, entry?.Component, importModule, refreshKey]);
+ }, [dataCandidates, assetPath, entry?.id, entry?.Component, importModule, refreshKey]);
 
  const resolvedProps = React.useMemo(
  () => computeResolvedProps(entry, dataValue),

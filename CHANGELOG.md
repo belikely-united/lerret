@@ -21,6 +21,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ### Fixed
 - `docsRepositoryBase` in the Nextra layout pointed at the wrong path (missing the `public/` workspace prefix), which 404'd every "Edit this page on GitHub" link.
 
+## @lerret/cli 0.1.14 — 2026-09-21
+
+### Fixed
+- **The studio no longer logs a 404 for every artboard.** A plain page load emitted two `404`s per artboard — `<Name>.data.js` at `/@lerret-project/` and again at `/@fixture-lerret/` — before falling back to the `.data.json` that actually existed. The studio cannot stat the filesystem, so it discovered an asset's co-located data file empirically: import the higher-precedence `.data.js` (FR22) and treat a 404 as "not present". A `.data.js` is the rare form, so the common case was a guaranteed miss — and because the probe re-runs on every auto-refresh tick, a 1s-refresh asset produced one 404 per second. The server already knew the answer: `@lerret/cli`'s plugin now runs core's `loadAssetData` (the same function `export` uses) and ships the resolved path per asset as `assetDataEntries` in the virtual module, refreshed on every `lerret:change`. The canvas fetches exactly that file — one request for an asset with data, **none** for an asset without. Creating or deleting a data file still reaches the canvas live: the reload subscription continues to watch both possible paths, and the fetch target is resolved at fetch time rather than memoized, so a watcher-driven update needs no remount. Where no map is registered — hosted mode, the standalone fixture harness, or a studio bundle served by an older CLI — the original probing path is kept, so the bundle stays compatible in both directions.
+
 ## @lerret/cli 0.1.13 — 2026-09-21
 
 ### Fixed

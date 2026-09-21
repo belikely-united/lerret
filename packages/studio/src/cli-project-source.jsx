@@ -45,11 +45,13 @@ import {
  assetBaseUrl as INITIAL_ASSET_BASE_URL,
  cascadeEntries as INITIAL_CASCADE_ENTRIES,
  assetConfigEntries as INITIAL_ASSET_CONFIG_ENTRIES,
+ assetDataEntries as INITIAL_ASSET_DATA_ENTRIES,
  epoch as INITIAL_EPOCH,
 } from 'virtual:lerret-project';
 
 import { createViteRuntime } from './runtime/vite-runtime.js';
 import { onLerretChange } from './runtime/cli-hmr.js';
+import { setAssetDataEntries } from './runtime/asset-data-registry.js';
 import { ProjectStudio } from './project-studio.jsx';
 import { CascadedConfigProvider } from './components/canvas/cascade-context.jsx';
 import { AssetConfigProvider } from './components/canvas/asset-config-context.jsx';
@@ -65,6 +67,12 @@ import { OpenFolder } from './components/entry/open-folder.jsx';
 // hook that survives bundling — the function is already in the main chunk
 // because `single.js` / `zip.js` import it for the per-artboard PNG button.
 import { captureArtboard } from './export/capture.js';
+
+// Register the server's per-asset data-file map before anything renders, so the
+// very first artboard already fetches the right file instead of probing. An
+// older CLI has no `assetDataEntries` export — the import is then `undefined`,
+// the registry stays empty, and `fetchDataValue` keeps its probing fallback.
+setAssetDataEntries(INITIAL_ASSET_DATA_ENTRIES);
 
 if (typeof window !== 'undefined') {
  window.__lerret_capture = captureArtboard;
@@ -227,6 +235,15 @@ export function CliProjectSource() {
  // 5. The recomputed per-asset config (auto-refresh intervals), live.
  if ('assetConfigEntries' in payload && Array.isArray(payload.assetConfigEntries)) {
  setAssetConfigEntries(payload.assetConfigEntries);
+ }
+
+ // 6. Which data file each asset now has. Creating or deleting a
+ // `.data.js` / `.data.json` changes this, so it must track the watcher —
+ // otherwise a newly-added data file would never be picked up (the canvas
+ // would keep believing the asset has none). Not React state: the consumer
+ // is a plain async function, not a component.
+ if ('assetDataEntries' in payload && Array.isArray(payload.assetDataEntries)) {
+ setAssetDataEntries(payload.assetDataEntries);
  }
  };
 
