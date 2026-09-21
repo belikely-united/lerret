@@ -37,6 +37,7 @@ import { realpathOrSelf, pathExists } from './fs/node-backend.js';
 import { resolveProject } from './resolve-project.js';
 import {
   lerretProjectPlugin,
+  studioChunkResolvePlugin,
   normalizeFolderArg,
   PROJECT_ASSET_BASE_URL,
 } from './vite-plugin-lerret-project.js';
@@ -285,7 +286,10 @@ export async function runDev(argv) {
   const isPreBuilt = pathExists(resolve(cliDir, 'dist-studio', 'index.html')) &&
     studioRoot === resolve(cliDir, 'dist-studio');
 
-  const plugins = [lerretProjectPlugin({ projectRoot, lerretDir })];
+  const plugins = [
+    studioChunkResolvePlugin({ studioRoot }),
+    lerretProjectPlugin({ projectRoot, lerretDir }),
+  ];
   if (!isPreBuilt) {
     // Serving from source — need the React plugin for JSX transform.
     const reactPlugin = (await import('@vitejs/plugin-react')).default;

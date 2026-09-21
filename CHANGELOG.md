@@ -21,6 +21,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ### Fixed
 - `docsRepositoryBase` in the Nextra layout pointed at the wrong path (missing the `public/` workspace prefix), which 404'd every "Edit this page on GitHub" link.
 
+## @lerret/cli 0.1.13 — 2026-09-21
+
+### Fixed
+- **The studio rendered a blank page and `export` wrote 0 images.** Both surfaces were dead on a freshly scaffolded project: `dev` loaded the studio but painted nothing, and `export` failed every artboard with "studio did not render page … within 30s". The published CLI serves its pre-built `dist-studio/` from inside `node_modules/`, and Vite's resolver stamps `?v=<browserHash>` onto any import resolving to a file under `node_modules` — including the bundle's own chunk-to-chunk imports. The `<script>` tag in `index.html` loads the entry chunk *without* that query, so the browser held two urls for one module, evaluated `main.jsx` twice, and called `createRoot()` twice on `#root`; the downstream `removeChild` / `insertBefore` failures were two React roots fighting over one DOM subtree. A new `enforce: 'pre'` resolver (`studioChunkResolvePlugin`) now resolves the bundle's own chunk urls itself — both relative imports and the root-absolute urls the script tag and Rolldown's `__vite__mapDeps` preload helper use — so every chunk keeps a single identity. The bug was invisible in-repo, where `dist-studio/` is not under `node_modules/`; a new opt-in smoke (`dist-studio-node-modules.smoke.test.js`) stages the real bundle under a `node_modules/` path and drives a browser at it.
+
 ## @lerret/cli 0.1.11 — 2026-05-22
 
 ### Fixed

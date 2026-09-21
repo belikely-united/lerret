@@ -70,6 +70,7 @@ import {
 
 import {
   createNodeBackend,
+  pathExists,
   createEntry,
   deleteEntry,
   duplicateEntry,
@@ -417,6 +418,73 @@ export function checkWritePath(requestPath, lerretDir) {
     return { ok: false, error: 'path is outside the project .lerret/ tree' };
   }
   return { ok: true, normalized };
+}
+
+/**
+ * Keep the pre-built studio's own chunks on ONE url.
+ *
+ * The published `@lerret/cli` serves `dist-studio/` from inside
+ * `node_modules/`. Vite's dep optimizer stamps `?v=<browserHash>` onto every
+ * import it resolves to a file under `node_modules` — including the studio
+ * bundle's own relative chunk-to-chunk imports (`./index-<hash>.js`). The
+ * `<script>` tag in `index.html` loads that same entry chunk WITHOUT the
+ * query, so the browser's module registry sees two distinct urls, evaluates
+ * `main.jsx` twice, and calls `createRoot()` twice on `#root` — a blank
+ * canvas in `dev`, and a 30s render timeout for every artboard in `export`.
+ *
+ * This resolves the bundle's own relative imports itself, to the plain
+ * absolute path, so Vite's resolver (and its `?v=` stamp) never sees them.
+ * Outside `node_modules` — the in-monorepo source path — it returns exactly
+ * what Vite would have returned anyway, so there is one behaviour, not two.
+ *
+ * `enforce: 'pre'` is required: Vite's own `vite:resolve` runs BEFORE
+ * unenforced user plugins, and would resolve (and stamp) these first.
+ *
+ * @param {object} opts
+ * @param {string} opts.studioRoot  Absolute path to the served studio root.
+ * @returns {import('vite').Plugin}
+ */
+export function studioChunkResolvePlugin({ studioRoot }) {
+  const slashed = (p) => p.replaceAll('\\', '/').replace(/\/+$/, '');
+  const root = slashed(studioRoot);
+  // Only the extensions the built bundle emits as static chunk imports.
+  // Anything else (extensionless, directory imports, `.jsx` in source mode)
+  // falls through to Vite's normal resolution.
+  const CHUNK_RE = /\.(?:js|mjs|css)$/;
+
+  return {
+    name: 'lerret:studio-chunk-resolve',
+    enforce: 'pre',
+
+    resolveId(source, importer) {
+      if (!CHUNK_RE.test(source)) return null;
+
+      // Two shapes reach here, and BOTH must land on the same id, or the
+      // module graph holds one chunk under two keys and the second request
+      // 504s ("Outdated Optimize Dep"):
+      //   • `./sibling-<hash>.js`   — a static import inside a chunk.
+      //   • `/assets/chunk-<hash>.js` — the `<script>` tag in index.html, and
+      //     the runtime urls Rolldown's `__vite__mapDeps` preload helper
+      //     builds as plain strings (never rewritten by import analysis).
+      // Whoever asks must be the bundle itself (or the dev server, fetching a
+      // chunk url directly) — a user asset's imports are none of our business.
+      const importerFile = importer ? importer.split('?')[0] : null;
+      if (importerFile && !slashed(importerFile).startsWith(root + '/')) return null;
+
+      let resolved;
+      if (source[0] === '.') {
+        if (!importerFile) return null;
+        resolved = resolvePath(importerFile, '..', source);
+      } else if (source[0] === '/') {
+        resolved = resolvePath(studioRoot, '.' + source);
+      } else {
+        return null;
+      }
+
+      if (!slashed(resolved).startsWith(root + '/')) return null;
+      return pathExists(resolved) ? resolved : null;
+    },
+  };
 }
 
 /**
