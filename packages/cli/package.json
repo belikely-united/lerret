@@ -1,6 +1,6 @@
 {
   "name": "@lerret/cli",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "The `lerret` design canvas CLI — a folder of plain React component files renders as a visual canvas. Includes the Vite dev server, headless export, and the bundled studio.",
   "type": "module",
   "license": "MIT",
@@ -36,7 +36,7 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "test:smoke": "pnpm build && LERRET_SMOKE=1 vitest run src/dist-studio-live-edit.smoke.test.js",
+    "test:smoke": "pnpm build && LERRET_SMOKE=1 vitest run src/*.smoke.test.js",
     "build": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js",
     "prepublishOnly": "pnpm --filter @lerret/studio build:cli && node scripts/bundle-studio.js"
   },

@@ -69,7 +69,7 @@
 
 import { parseArgs } from 'node:util';
 import { dirname, resolve as resolvePath } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
 import {
@@ -90,7 +90,10 @@ import {
 } from './fs/node-backend.js';
 import { resolveProject } from './resolve-project.js';
 import { resolveStudioRoot } from './dev.js';
-import { lerretProjectPlugin } from './vite-plugin-lerret-project.js';
+import {
+  lerretProjectPlugin,
+  studioChunkResolvePlugin,
+} from './vite-plugin-lerret-project.js';
 import { launchHeadlessBrowser } from './browser-launch.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -972,21 +975,27 @@ export { launchHeadlessBrowser };
  * @param {Record<string, unknown> | undefined} [opts.configOverride]
  *   Optional in-memory config override from `--config`. Deep-merged
  *   into the cascade server-side by the plugin. Never written to disk (NFR13).
+ * @param {string} [opts.studioRootOverride]
+ *   Serve a different studio root than `resolveStudioRoot()` would pick.
+ *   Only the smoke suite passes this — it stages a copy of `dist-studio`
+ *   under a `node_modules/` path, which is where the published CLI actually
+ *   lives and the only place the dep-optimizer's chunk-url rewriting bites.
  * @returns {Promise<{ server: import('vite').ViteDevServer, url: string }>}
  */
-export async function bootViteServer({ projectRoot, lerretDir, dataOverride, configOverride }) {
-  const studioRoot = resolveStudioRoot();
+export async function bootViteServer({ projectRoot, lerretDir, dataOverride, configOverride, studioRootOverride }) {
+  const studioRoot = studioRootOverride || resolveStudioRoot();
   const vite = await import('vite');
   const { createServer, searchForWorkspaceRoot } = vite;
   const workspaceRoot = searchForWorkspaceRoot(studioRoot);
 
   // Whether we are serving from the pre-built CLI bundle or from source.
-  // When pre-built, skip the React plugin — JSX is already compiled.
-  const cliDir = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
-  const isPreBuilt = pathExists(resolvePath(cliDir, 'dist-studio', 'index.html')) &&
-    studioRoot === resolvePath(cliDir, 'dist-studio');
+  // When pre-built, skip the React plugin — JSX is already compiled. Asked of
+  // the root we are actually serving (`src/main.jsx` exists only in the studio
+  // source package) so a staged copy of `dist-studio` is recognised too.
+  const isPreBuilt = !pathExists(resolvePath(studioRoot, 'src', 'main.jsx'));
 
   const plugins = [
+    studioChunkResolvePlugin({ studioRoot }),
     lerretProjectPlugin({
       projectRoot: toLerretPath(realpathOrSelf(projectRoot)),
       lerretDir: toLerretPath(realpathOrSelf(lerretDir)),
