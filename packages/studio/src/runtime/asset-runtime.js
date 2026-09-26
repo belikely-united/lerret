@@ -361,9 +361,12 @@ export function makeOkEntry(asset, Component) {
  * The resolved variant descriptor (export name, component, primary flag).
  * @param {import('../../../core/src/assets/meta.js').AssetMeta} meta
  * The asset's parsed `meta` — shared by every variant of the same file.
+ * @param {string[]} [variantNames]
+ * Every variant export name of the asset — carried as `entry.variantNames` so
+ * per-variant data resolution sees the full export list, not just this one.
  * @returns {AssetEntry}
  */
-export function makeVariantEntry(asset, variant, meta) {
+export function makeVariantEntry(asset, variant, meta, variantNames = [variant.variantName]) {
  const isPrimary = variant.isPrimary;
  // A named-export variant gets a `#variant` suffix so its artboard id is
  // unique among the file's variants; the primary variant keeps the bare path.
@@ -382,6 +385,7 @@ export function makeVariantEntry(asset, variant, meta) {
  error: null,
  label: meta.label || fallbackLabel,
  variantName: variant.variantName,
+ variantNames,
  dimensions: meta.dimensions,
  tags: meta.tags,
  meta,

@@ -349,7 +349,14 @@ function computeResolvedProps(entry, dataValue) {
  const syntheticAssetData = dataValue && typeof dataValue === 'object'
  ? { source: 'json', value: dataValue }
  : { source: 'absent' };
- const variantMap = resolveVariantData(syntheticAssetData, [variantName]);
+ // Resolve against ALL the asset's export names — resolving with only this
+ // variant's name makes every sibling's key look like a stray key.
+ const variantNames = Array.isArray(entry?.variantNames) && entry.variantNames.length > 0
+ ? entry.variantNames
+ : [variantName];
+ const variantMap = resolveVariantData(syntheticAssetData, variantNames, {
+ assetPath: entry?.asset?.path,
+ });
  const record = variantMap.get(variantName);
  const data = record && record.source !== 'absent' ? record.value : undefined;
  return resolveProps({ data, propsSchema });

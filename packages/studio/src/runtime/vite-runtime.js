@@ -201,7 +201,8 @@ async function loadAssetModule(asset, project, ctx) {
 
  // One `AssetEntry` per variant — each carrying the parsed `meta` (dimensions,
  // label, tags). This is how one file becomes 1..N artboards.
- return variants.map((variant) => makeVariantEntry(asset, variant, meta));
+ const variantNames = variants.map((v) => v.variantName);
+ return variants.map((variant) => makeVariantEntry(asset, variant, meta, variantNames));
 }
 
 /**
