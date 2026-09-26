@@ -31,9 +31,8 @@
 // dead control.
 //
 // ── Delete confirmation (UX-DR9 destructive-actions-are-confirmed) ───────────
-// Delete shows a brief inline confirmation in the menu — the item morphs into
-// a "Confirm delete · Cancel" pair instead of opening a modal. Non-destructive
-// actions (rename, duplicate, export, reveal) commit immediately.
+// "Delete…" closes the menu and opens a ConfirmDialog (delete is permanent).
+// Non-destructive actions (rename, duplicate, export, reveal) commit immediately.
 //
 // ── Rename ───────────────────────────────────────────────────────────────────
 // "Rename" forwards to a caller-supplied callback that focuses the brownfield
@@ -109,175 +108,135 @@ const REVEAL_FINDER_DISABLED_REASON = 'Available in the local CLI';
  * @returns {Array<object>}
  */
 export function buildComponentItems(ctx) {
- const items = [
- { kind: 'item', id: 'edit-data', label: 'Edit data', onSelect: ctx.onEditData },
- { kind: 'item', id: 'edit-meta', label: 'Edit meta', onSelect: ctx.onEditMeta },
- ...(typeof ctx.onLiveRefresh === 'function'
- ? [{
- kind: 'item',
- id: 'live-refresh',
- label: ctx.liveRefreshLabel || 'Auto-refresh…',
- onSelect: ctx.onLiveRefresh,
- }]
- : []),
- { kind: 'separator', id: 'sep-1' },
+ return tidy([
+ header(ctx.header),
+ ctx.onEditVisually && { kind: 'item', id: 'edit-visually', label: 'Edit visually', shortcut: 'E', onSelect: ctx.onEditVisually },
+ { kind: 'item', id: 'edit-data', label: 'Edit data…', onSelect: ctx.onEditData },
+ { kind: 'item', id: 'edit-meta', label: 'Edit details…', onSelect: ctx.onEditMeta },
+ typeof ctx.onLiveRefresh === 'function' && {
+ kind: 'item', id: 'live-refresh', label: ctx.liveRefreshLabel || 'Auto-refresh…', onSelect: ctx.onLiveRefresh,
+ },
+ SEP,
  { kind: 'item', id: 'duplicate', label: 'Duplicate', onSelect: ctx.onDuplicate },
+ typeof ctx.onNewVariant === 'function' && {
+ kind: 'item',
+ id: 'new-variant',
+ label: 'New variant…',
+ disabled: !ctx.canWrite,
+ reason: ctx.canWrite ? undefined : 'Needs `@lerret/cli dev` (or a connected folder) to save',
+ onSelect: ctx.onNewVariant,
+ },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
- ];
- if (typeof ctx.onMove === 'function') {
- items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
- }
- items.push(
- {
- kind: 'item',
- id: 'delete',
- label: 'Delete…',
- onSelect: ctx.onDelete,
- // Keep the menu open so the inline "Confirm delete · Cancel" row appears
- // in place (selecting it flips `confirming` at the call site).
- keepOpen: true,
- },
- { kind: 'separator', id: 'sep-2' },
+ typeof ctx.onMove === 'function' && { kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove },
+ SEP,
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
- );
- if (typeof ctx.onExportAnimated === 'function') {
- items.push({
- kind: 'item',
- id: 'export-animated',
- label: 'Export animated…',
- onSelect: ctx.onExportAnimated,
- });
- }
- items.push(
- {
- kind: 'item',
- id: 'reveal-editor',
- label: 'Reveal in editor',
- disabled: !ctx.cliMode,
- reason: ctx.cliMode ? undefined : REVEAL_EDITOR_DISABLED_REASON,
- onSelect: ctx.onRevealEditor,
+ typeof ctx.onExportAnimated === 'function' && {
+ kind: 'item', id: 'export-animated', label: 'Export animated…', onSelect: ctx.onExportAnimated,
  },
- {
- kind: 'item',
- id: 'reveal-finder',
- label: 'Reveal in file manager',
- disabled: !ctx.cliMode,
- reason: ctx.cliMode ? undefined : REVEAL_FINDER_DISABLED_REASON,
- onSelect: ctx.onRevealFinder,
- },
- );
- return items;
+ SEP,
+ ...revealItems(ctx),
+ SEP,
+ deleteItem(ctx),
+ ]);
 }
 
 /**
- * Build the items for a markdown-asset kebab. Mirrors `buildComponentItems`
- * minus "edit data"/"edit meta" (those don't apply to Markdown).
+ * Build the items for a markdown-note kebab. Same shape as the component menu.
  *
- * @param {object} ctx
- * @param {() => void} ctx.onEdit
- * @param {() => void} ctx.onDuplicate
- * @param {() => void} ctx.onRename
- * @param {() => void} [ctx.onMove]
- *   When provided, a "Move to…" item appears between "Rename" and "Delete".
- * @param {() => void} ctx.onDelete
- * @param {() => void} ctx.onExport
- * @param {() => void} ctx.onRevealEditor
- * @param {() => void} ctx.onRevealFinder
- * @param {boolean} ctx.cliMode
+ * @param {object} ctx See {@link buildComponentItems}; plus `onEdit`.
  * @returns {Array<object>}
  */
 export function buildMarkdownItems(ctx) {
- const items = [
+ return tidy([
+ header(ctx.header),
  { kind: 'item', id: 'edit', label: 'Edit', onSelect: ctx.onEdit },
- { kind: 'separator', id: 'sep-1' },
+ SEP,
  { kind: 'item', id: 'duplicate', label: 'Duplicate', onSelect: ctx.onDuplicate },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
- ];
- if (typeof ctx.onMove === 'function') {
- items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
- }
- items.push(
- { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete, keepOpen: true },
- { kind: 'separator', id: 'sep-2' },
+ typeof ctx.onMove === 'function' && { kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove },
+ SEP,
  { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
- {
- kind: 'item',
- id: 'reveal-editor',
- label: 'Reveal in editor',
- disabled: !ctx.cliMode,
- reason: ctx.cliMode ? undefined : REVEAL_EDITOR_DISABLED_REASON,
- onSelect: ctx.onRevealEditor,
- },
- {
- kind: 'item',
- id: 'reveal-finder',
- label: 'Reveal in file manager',
- disabled: !ctx.cliMode,
- reason: ctx.cliMode ? undefined : REVEAL_FINDER_DISABLED_REASON,
- onSelect: ctx.onRevealFinder,
- },
- );
- return items;
+ SEP,
+ ...revealItems(ctx),
+ SEP,
+ deleteItem(ctx),
+ ]);
 }
 
 /**
- * Build the items for a folder/section kebab.
+ * Build the items for a page / group (folder) kebab.
  *
  * @param {object} ctx
+ * @param {{ label: string, meta?: string, icon?: React.ReactNode }} [ctx.header]
  * @param {() => void} [ctx.onAddAsset]
- *   "Add asset…" opener. When provided, leads the menu (in-studio creation).
  * @param {() => void} [ctx.onAddGroup]
- *   "Add group…" opener. When provided, leads the menu (in-studio creation).
  * @param {() => void} ctx.onEditConfig
  * @param {() => void} ctx.onRename
  * @param {() => void} [ctx.onMove]
- *   When provided, a "Move to…" item appears between "Rename" and "Delete".
  * @param {() => void} ctx.onDelete
  * @param {() => void} ctx.onExport
+ * @param {() => void} [ctx.onExportAnimated]
  * @param {() => void} ctx.onRevealEditor
  * @param {() => void} ctx.onRevealFinder
  * @param {boolean} ctx.cliMode
  * @returns {Array<object>}
  */
 export function buildSectionItems(ctx) {
- const items = [];
- // Creation actions lead the menu when wired (in-studio "New group / asset").
- // Optional so legacy callers keep the original item set.
- if (typeof ctx.onAddAsset === 'function' || typeof ctx.onAddGroup === 'function') {
- if (typeof ctx.onAddAsset === 'function') {
- items.push({ kind: 'item', id: 'add-asset', label: 'Add asset…', onSelect: ctx.onAddAsset });
- }
- if (typeof ctx.onAddGroup === 'function') {
- items.push({ kind: 'item', id: 'add-group', label: 'Add group…', onSelect: ctx.onAddGroup });
- }
- items.push({ kind: 'separator', id: 'sep-add' });
- }
- items.push(
- { kind: 'item', id: 'edit-config', label: 'Edit config', onSelect: ctx.onEditConfig },
- { kind: 'separator', id: 'sep-1' },
+ return tidy([
+ header(ctx.header),
+ typeof ctx.onAddAsset === 'function' && { kind: 'item', id: 'add-asset', label: 'New asset…', onSelect: ctx.onAddAsset },
+ typeof ctx.onAddGroup === 'function' && { kind: 'item', id: 'add-group', label: 'New group…', onSelect: ctx.onAddGroup },
+ SEP,
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
- );
- if (typeof ctx.onMove === 'function') {
- items.push({ kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove });
+ typeof ctx.onMove === 'function' && { kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove },
+ { kind: 'item', id: 'edit-config', label: 'Settings…', onSelect: ctx.onEditConfig },
+ SEP,
+ { kind: 'item', id: 'export', label: 'Export…', onSelect: ctx.onExport },
+ typeof ctx.onExportAnimated === 'function' && {
+ kind: 'item', id: 'export-animated', label: 'Export animated…', onSelect: ctx.onExportAnimated,
+ },
+ SEP,
+ ...revealItems(ctx),
+ SEP,
+ deleteItem(ctx),
+ ]);
+}
+
+// ── Builder helpers ─────────────────────────────────────────────────────────
+// Every entity menu has the same shape (NN/g: group related actions; Apple HIG:
+// destructive last, and marked):
+//   header (what this acts on) · edit · organise · export · open in · Delete
+
+const SEP = { kind: 'separator' };
+
+/** Drop falsy entries and doubled / leading / trailing separators; id the separators. */
+function tidy(list) {
+ const out = [];
+ for (const it of list) {
+ if (!it) continue;
+ if (it.kind === 'separator') {
+ const prev = out[out.length - 1];
+ if (!prev || prev.kind === 'separator' || prev.kind === 'label') continue;
  }
- items.push(
- { kind: 'item', id: 'delete', label: 'Delete…', onSelect: ctx.onDelete, keepOpen: true },
- { kind: 'separator', id: 'sep-2' },
- { kind: 'item', id: 'export', label: 'Export', onSelect: ctx.onExport },
- );
- if (typeof ctx.onExportAnimated === 'function') {
- items.push({
- kind: 'item',
- id: 'export-animated',
- label: 'Export animated all…',
- onSelect: ctx.onExportAnimated,
- });
+ out.push(it);
  }
- items.push(
+ while (out.length && out[out.length - 1].kind === 'separator') out.pop();
+ let n = 0;
+ return out.map((it) => (it.kind === 'separator' ? { ...it, id: `sep-${++n}` } : it));
+}
+
+function header(h) {
+ return h && h.label ? { kind: 'label', id: 'header', label: h.label, meta: h.meta, icon: h.icon } : null;
+}
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || navigator.userAgent || '');
+
+function revealItems(ctx) {
+ return [
  {
  kind: 'item',
  id: 'reveal-editor',
- label: 'Reveal in editor',
+ label: 'Open in code editor',
  disabled: !ctx.cliMode,
  reason: ctx.cliMode ? undefined : REVEAL_EDITOR_DISABLED_REASON,
  onSelect: ctx.onRevealEditor,
@@ -285,52 +244,19 @@ export function buildSectionItems(ctx) {
  {
  kind: 'item',
  id: 'reveal-finder',
- label: 'Reveal in file manager',
+ label: IS_MAC ? 'Reveal in Finder' : 'Show in folder',
  disabled: !ctx.cliMode,
  reason: ctx.cliMode ? undefined : REVEAL_FINDER_DISABLED_REASON,
  onSelect: ctx.onRevealFinder,
  },
- );
- return items;
+ ];
 }
 
-/**
- * Wrap a base item set with an inline "confirm delete · cancel" treatment.
- * When `confirming` is true, the delete item is REPLACED by a pair of items —
- * "Confirm delete" (destructive) and "Cancel" — rather than the original.
- *
- * @param {Array<object>} items The base item set, must contain an item with id "delete".
- * @param {object} ctx
- * @param {boolean} ctx.confirming
- * @param {() => void} ctx.onConfirmDelete
- * @param {() => void} ctx.onCancelDelete
- * @returns {Array<object>}
- */
-export function applyDeleteConfirm(items, { confirming, onConfirmDelete, onCancelDelete }) {
- if (!confirming) return items;
- const out = [];
- for (const item of items) {
- if (item.kind === 'item' && item.id === 'delete') {
- out.push({
- kind: 'item',
- id: 'delete-confirm',
- label: 'Confirm delete',
- onSelect: onConfirmDelete,
- });
- out.push({
- kind: 'item',
- id: 'delete-cancel',
- label: 'Cancel',
- onSelect: onCancelDelete,
- // Cancel reverts to the normal item set but keeps the menu open.
- keepOpen: true,
- });
- } else {
- out.push(item);
- }
- }
- return out;
+function deleteItem(ctx) {
+ // "…": opens a confirmation dialog (delete is permanent).
+ return { kind: 'item', id: 'delete', label: 'Delete…', danger: true, onSelect: ctx.onDelete };
 }
+
 
 // ─── Action helpers (the shared, action-level glue) ─────────────────────────
 

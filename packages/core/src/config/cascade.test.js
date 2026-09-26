@@ -357,6 +357,21 @@ describe('computeCascadedConfig', () => {
   // 9. Empty project (no pages) — result is an empty Map
   // -------------------------------------------------------------------------
 
+  it('never inherits `order` — it lists one folder\'s own children', async () => {
+    const root = '/project/.lerret';
+    const pagePath = `${root}/about`;
+    const groupPath = `${pagePath}/section`;
+    const backend = makeMemoryFs({
+      [`${pagePath}/config.json`]: JSON.stringify({ order: ['section', 'b.jsx'], vars: { c: 1 } }),
+    });
+    const model = makeProject(root, [
+      createPageNode({ name: 'about', path: pagePath, groups: [createGroupNode({ name: 'section', path: groupPath })] }),
+    ]);
+    const result = await computeCascadedConfig(model, backend);
+    expect(result.get(pagePath).order).toEqual(['section', 'b.jsx']);
+    expect(result.get(groupPath)).toEqual({ vars: { c: 1 } });
+  });
+
   it('returns an empty Map for a project with no pages', async () => {
     const root = '/project/.lerret';
     const backend = makeMemoryFs({

@@ -18,14 +18,15 @@
 // calm inline text below the trigger.
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 import {
  ContextMenu,
  CreateEntryDialog,
  EntityKebab,
  MovePicker,
+ ConfirmDialog,
  SectionEditorHost,
- applyDeleteConfirm,
  buildSectionItems,
  create,
  destroy,
@@ -36,7 +37,7 @@ import {
 } from '../menu/index.js';
 import { runBulkExport, triggerBulkDownload } from '../../export/bulk.js';
 import { useCascadedConfig } from './cascade-context.jsx';
-import { bindOneShotRename } from './use-inline-rename.js';
+import { KIND_ICONS } from '../menu/kind-icons.jsx';
 
 /**
  * Derive the parent folder LerretPath for a folder path. Strips the last
@@ -234,7 +235,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
 
 /**
  * Kebab wrapper for one section (page or group). Hosts the kebab trigger,
- * the inline delete-confirm, and the ConfigEditor sheet.
+ * the delete confirmation dialog, and the ConfigEditor sheet.
  *
  * also hosts the export format-picker popover and the bulk-export
  * state machine (idle → in-progress → idle, with calm notices for skipped /
@@ -283,7 +284,8 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  const sel = window.getSelection();
  sel.removeAllRanges();
  sel.addRange(range);
- bindOneShotRename(editable, { fromPath: sectionId, kind: 'folder' });
+ // Committing the edit renames the folder — the name tag's own onChange
+ // does it (design-canvas), so there's one rename path, not two.
  }, [sectionId]);
 
  const onMove = React.useCallback(() => {
@@ -395,6 +397,11 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
 
  const baseItems = React.useMemo(
  () => buildSectionItems({
+ header: {
+ label: sectionTitle,
+ meta: sectionKind === 'page' ? 'Page' : 'Group',
+ icon: KIND_ICONS[sectionKind === 'page' ? 'page' : 'group'],
+ },
  onAddAsset,
  onAddGroup,
  onEditConfig: () => setConfigOpen(true),
@@ -406,19 +413,31 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  onRevealFinder,
  cliMode,
  }),
- [onAddAsset, onAddGroup, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [sectionTitle, sectionKind, onAddAsset, onAddGroup, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
- const items = React.useMemo(
- () => applyDeleteConfirm(baseItems, {
- confirming,
- onConfirmDelete,
- onCancelDelete,
- }),
- [baseItems, confirming, onConfirmDelete, onCancelDelete],
- );
+ // The ⋮ lives in the section's name tag (`.dc-section-tag-slot`, rendered by
+ // DCSection) — right beside the name it acts on. The section may mount after
+ // us (the canvas gates on a ready read), so watch for the slot to appear.
+ const hostRef = React.useRef(null);
+ const [slot, setSlot] = React.useState(null);
+ React.useLayoutEffect(() => {
+ const host = hostRef.current;
+ if (!host) return undefined;
+ const find = () => {
+ const el = host.querySelector('.dc-section-tag-slot');
+ setSlot((prev) => (prev === el ? prev : el));
+ };
+ find();
+ if (typeof MutationObserver === 'undefined') return undefined;
+ const mo = new MutationObserver(find);
+ mo.observe(host, { childList: true, subtree: true });
+ return () => mo.disconnect();
+ }, []);
 
- const ariaLabel = `Actions for ${sectionTitle || 'this section'}`;
+ const items = baseItems;
+
+ const ariaLabel = `${sectionKind === 'page' ? 'Page' : 'Group'} actions for ${sectionTitle || 'this section'}`;
 
  // Right-click on the section's own area (header / padding, not a child artboard
  // or sub-group — those stopPropagation) opens the same actions as the kebab.
@@ -447,10 +466,8 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  [sectionId],
  );
 
- return (
- <div className="lm-section-kebab-host" onContextMenu={ctx.openAt}>
- {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
- <div className="lm-section-kebab" data-testid="lm-section-kebab">
+ const kebabBody = (
+ <React.Fragment>
  <EntityKebab items={items} ariaLabel={ariaLabel} align="bottom-start" />
  {exportOpen && (
  <SectionExportPopover
@@ -464,7 +481,15 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  onClose={() => setExportOpen(false)}
  />
  )}
- </div>
+ </React.Fragment>
+ );
+
+ return (
+ <div ref={hostRef} className="lm-section-kebab-host" onContextMenu={ctx.openAt}>
+ {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
+ {slot
+ ? createPortal(<span data-testid="lm-section-kebab" style={{ display: 'inline-flex' }}>{kebabBody}</span>, slot)
+ : <div className="lm-section-kebab" data-testid="lm-section-kebab">{kebabBody}</div>}
  {children}
  <SectionEditorHost
  open={configOpen}
@@ -472,6 +497,16 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  folderPath={sectionId}
  folderName={sectionTitle}
  />
+ {confirming && (
+ <ConfirmDialog
+ title={`Delete ${sectionKind === 'page' ? 'page' : 'group'} "${sectionTitle || ''}"?`}
+ message="This permanently deletes the folder and everything inside it from your project. It can't be undone."
+ confirmLabel="Delete"
+ destructive
+ onConfirm={onConfirmDelete}
+ onClose={onCancelDelete}
+ />
+ )}
  {moveOpen && (
  <MovePicker
  onClose={() => setMoveOpen(false)}

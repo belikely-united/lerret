@@ -454,7 +454,7 @@ export function StudioWalkthroughOverlay({ onClose }) {
  borderRadius: 10,
  pointerEvents: 'none',
  boxShadow: '0 0 0 2px var(--lm-accent, #B85B33), 0 0 0 6px rgba(184,91,51,0.18), 0 0 28px rgba(184,91,51,0.32)',
- transition: prefersReducedMotion ? 'none' : 'top 120ms ease, left 120ms ease, width 120ms ease, height 120ms ease',
+ // No layout-property transition: the dim strips snap, so the ring snaps with them.
  }} />
  </React.Fragment>
  ) : (

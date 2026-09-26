@@ -390,6 +390,7 @@ export function AnimatedExportDialog({
                 aria-modal="true"
                 aria-label={isBulk ? 'Export all artboards animated' : 'Export artboard animated'}
                 tabIndex={-1}
+                className="lm-motion-modal"
                 style={sheetStyle}
                 onClick={(e) => e.stopPropagation()}
             >
