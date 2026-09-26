@@ -1,5 +1,6 @@
 /* LeafMarker launch assets — shared styles */
 @import url("./colors_and_type.css");
+@import url("./motion.css");
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--lm-font-sans); }

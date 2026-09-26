@@ -14,7 +14,7 @@
  * • Esc / backdrop click / × button = decline (same as "Cancel")
  * • Auto-focus on the primary action button on open
  * • Focus restored to the triggering element on close
- * • `prefers-reduced-motion: reduce` → instant open/close (no animation)
+ * • `prefers-reduced-motion: reduce` → fade-only open, instant close
  * • All styling from `--lm-*` design tokens
  *
  * ─── API ─────────────────────────────────────────────────────────────────────
@@ -245,10 +245,9 @@ if (typeof document !== 'undefined' && !document.getElementById('trust-dialog-st
 
 /* ── Reduced-motion ──────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
- .td-backdrop, .td-backdrop[data-closing],
- .td-dialog, .td-dialog[data-closing] {
- animation: none !important;
- }
+ /* Keep the fade, drop the scale/lift. */
+ .td-dialog { animation-name: td-backdrop-in !important; }
+ .td-dialog[data-closing] { animation-name: td-backdrop-out !important; }
 }
  `.trim();
  document.head.appendChild(s);

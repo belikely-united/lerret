@@ -40,7 +40,7 @@
  *
  * Reduced-motion
  * ─────────────────────────────────────────────────────────────
- * When `prefers-reduced-motion: reduce` matches, open/close are instant
+ * When `prefers-reduced-motion: reduce` matches, open is a plain fade and close is instant
  * (no CSS animation, no closing-state delay).
  */
 
@@ -216,12 +216,11 @@ if (typeof document !== 'undefined' && !document.getElementById('editor-sheet-st
  to { opacity: 0; transform: translateY(6px) scale(0.97) }
 }
 
-/* Reduced-motion overrides — collapse all animations to instant */
+/* Reduced-motion overrides — opacity only */
 @media (prefers-reduced-motion: reduce) {
- .es-backdrop, .es-backdrop[data-closing],
- .es-dialog, .es-dialog[data-closing] {
- animation: none !important;
- }
+ /* Keep the fade, drop the scale/lift. */
+ .es-dialog { animation-name: es-backdrop-in !important; }
+ .es-dialog[data-closing] { animation-name: es-backdrop-out !important; }
 }
  `.trim();
  document.head.appendChild(s);

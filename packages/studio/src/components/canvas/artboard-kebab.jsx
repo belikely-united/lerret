@@ -6,7 +6,7 @@
 // 1. Wraps the artboard's rendered content (component or markdown card).
 // 2. Mounts the per-entity kebab trigger on top-right of the card.
 // 3. Owns the editor-host (Data + Meta for components, Markdown for `.md`).
-// 4. Owns the delete-confirm inline UI state.
+// 4. Owns the delete confirmation dialog state.
 // 5. For COMPONENT entries — preserves the data-fetch / prop-resolve / validation
 // behavior the old `EditableComponentArtboard` had. The artboard's rendered
 // component still wakes up with resolved data, the validation badge still
@@ -41,7 +41,7 @@ import {
  ComponentEditorHost,
  MarkdownEditorHost,
  MovePicker,
- applyDeleteConfirm,
+ ConfirmDialog,
  buildComponentItems,
  buildMarkdownItems,
  destroy,
@@ -66,7 +66,10 @@ import {
 } from './live-refresh-control.jsx';
 import { suspendLiveRefresh } from './live-refresh-suspend.js';
 import { SizeBadge, SizePopover } from './size-control.jsx';
-import { writeProjectFile, deleteProjectFile } from '../../runtime/write-client.js';
+import { writeProjectFile, deleteProjectFile, readProjectFile, hostedWritesEnabled } from '../../runtime/write-client.js';
+import { CreateEntryDialog } from '../menu/create-entry-dialog.jsx';
+import { createVariant, setEditEnabled } from '../edit-mode/edit-session.js';
+import { KIND_ICONS } from '../menu/kind-icons.jsx';
 import { rewriteMetaExport } from '../editors/meta-source-rewriter.js';
 import { defaultReadAssetSource } from '../editors/meta-editor.jsx';
 
@@ -313,6 +316,26 @@ export async function fetchDataValue(candidatePaths, deps = {}) {
  }
  return { value: {}, resolvedPath: null };
  }
+ // CLI mode: read a `.data.json` straight off disk. Importing it goes through
+ // Vite's transform cache, which can still hold the PREVIOUS version when the
+ // lerret:change event lands first — the canvas then shows data one edit
+ // behind. `.data.js` is code and still has to be imported.
+ // (Only when every candidate is JSON — i.e. the server named the one file —
+ // so `.data.js` precedence is never bypassed.)
+ const readJson = deps.readJson || (inCliMode() ? readProjectFile : null);
+ if (readJson && candidates.length > 0 && candidates.every((c) => typeof c === 'string' && c.endsWith('.json'))) {
+ for (const candidate of candidates) {
+ const r = await readJson(candidate);
+ if (!r || !r.ok) continue;
+ try {
+ const value = JSON.parse(r.content);
+ return { value: value && typeof value === 'object' ? value : {}, resolvedPath: candidate };
+ } catch {
+ return { value: {}, resolvedPath: candidate };
+ }
+ }
+ return { value: {}, resolvedPath: null };
+ }
  const bust = `?t=${Date.now()}`;
  const importModule = deps.importModule || defaultImportModule;
  for (const candidate of candidates) {
@@ -531,6 +554,14 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  setMoveOpen(true);
  }, [entry]);
 
+ // New variant: same component, new export + its own data slot.
+ const [variantOpen, setVariantOpen] = React.useState(false);
+ const onNewVariant = React.useCallback(() => setVariantOpen(true), []);
+ const onConfirmVariant = React.useCallback(async ({ name }) => {
+ const res = await createVariant(entry?.asset?.path, name, entry?.variantName || 'default');
+ if (!res.ok) throw new Error(res.error || 'Couldn’t create the variant.');
+ }, [entry]);
+
  const onDelete = React.useCallback(() => {
  setConfirming(true);
  }, []);
@@ -670,32 +701,34 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
 
  const baseItems = React.useMemo(
  () => buildComponentItems({
+ header: {
+ label: entry?.label || entry?.asset?.name,
+ meta: (entry?.variantNames?.length || 0) > 1 ? 'Variant' : 'Artboard',
+ icon: KIND_ICONS.component,
+ },
+ onEditVisually: () => setEditEnabled(true),
  onEditData: openData,
  onEditMeta: () => setMetaOpen(true),
  onLiveRefresh,
  liveRefreshLabel:
  liveRefreshMs != null ? `Auto-refresh · ${formatRate(liveRefreshMs)}` : 'Auto-refresh…',
  onDuplicate,
+ onNewVariant,
+ canWrite: cliMode || hostedWritesEnabled(),
  onRename,
  onMove,
  onDelete,
  onExport,
- onExportAnimated,
+ // Animated export only works for an auto-refreshing artboard — don't offer it otherwise.
+ onExportAnimated: liveRefreshMs != null ? onExportAnimated : undefined,
  onRevealEditor,
  onRevealFinder,
  cliMode,
  }),
- [openData, onLiveRefresh, liveRefreshMs, onDuplicate, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
+ [entry?.label, entry?.asset?.name, entry?.variantNames?.length, openData, onLiveRefresh, liveRefreshMs, onDuplicate, onNewVariant, onRename, onMove, onDelete, onExport, onExportAnimated, onRevealEditor, onRevealFinder, cliMode],
  );
 
- const items = React.useMemo(
- () => applyDeleteConfirm(baseItems, {
- confirming,
- onConfirmDelete,
- onCancelDelete,
- }),
- [baseItems, confirming, onConfirmDelete, onCancelDelete],
- );
+ const items = baseItems;
 
  const ariaLabel = `Actions for ${entry?.label || entry?.asset?.name || 'this asset'}`;
 
@@ -833,6 +866,16 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  onClose={() => setSizeOpen(false)}
  />
  )}
+ {confirming && (
+ <ConfirmDialog
+ title={`Delete "${entry?.label || entry?.asset?.name || 'this asset'}"?`}
+ message="This permanently deletes the file (and its data and config files) from your project folder. It can't be undone."
+ confirmLabel="Delete"
+ destructive
+ onConfirm={onConfirmDelete}
+ onClose={onCancelDelete}
+ />
+ )}
  {moveOpen && (
  <MovePicker
  onClose={() => setMoveOpen(false)}
@@ -840,6 +883,15 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  sourcePath={sourcePath}
  currentParentPath={parentPath}
  destinations={destinations}
+ />
+ )}
+ {variantOpen && (
+ <CreateEntryDialog
+ kind="variant"
+ parentLabel={entry?.asset?.name}
+ existingNames={entry?.variantNames}
+ onConfirm={onConfirmVariant}
+ onClose={() => setVariantOpen(false)}
  />
  )}
  </div>
@@ -926,6 +978,7 @@ export function MarkdownCardKebab({ entry, children }) {
 
  const baseItems = React.useMemo(
  () => buildMarkdownItems({
+ header: { label: entry?.label || entry?.asset?.name, meta: 'Note', icon: KIND_ICONS.markdown },
  onEdit: () => setOpen(true),
  onDuplicate,
  onRename,
@@ -936,17 +989,10 @@ export function MarkdownCardKebab({ entry, children }) {
  onRevealFinder,
  cliMode,
  }),
- [onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [entry?.label, entry?.asset?.name, onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
- const items = React.useMemo(
- () => applyDeleteConfirm(baseItems, {
- confirming,
- onConfirmDelete,
- onCancelDelete,
- }),
- [baseItems, confirming, onConfirmDelete, onCancelDelete],
- );
+ const items = baseItems;
 
  const ariaLabel = `Actions for ${entry?.label || entry?.asset?.name || 'this markdown asset'}`;
 
@@ -992,9 +1038,23 @@ export function MarkdownCardKebab({ entry, children }) {
  return (
  <div ref={hostRef} className="lm-artboard-kebab-host" onContextMenu={ctx.openAt}>
  {ctx.open && <ContextMenu point={ctx.point} items={items} onClose={ctx.close} />}
- {children}
+ {/* Editing happens in place: the card becomes its source; a live
+ preview docks on the right (markdown-editor.jsx). Double-click the
+ card to start. */}
+ {open
+ ? <MarkdownEditorHost open onClose={() => setOpen(false)} entry={entry} />
+ : <div onDoubleClick={() => setOpen(true)} title="Double-click to edit">{children}</div>}
  {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}
- <MarkdownEditorHost open={open} onClose={() => setOpen(false)} entry={entry} />
+ {confirming && (
+ <ConfirmDialog
+ title={`Delete "${entry?.label || entry?.asset?.name || 'this asset'}"?`}
+ message="This permanently deletes the file (and its data and config files) from your project folder. It can't be undone."
+ confirmLabel="Delete"
+ destructive
+ onConfirm={onConfirmDelete}
+ onClose={onCancelDelete}
+ />
+ )}
  {moveOpen && (
  <MovePicker
  onClose={() => setMoveOpen(false)}

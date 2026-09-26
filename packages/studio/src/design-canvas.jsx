@@ -27,6 +27,10 @@ import * as htmlToImage from 'html-to-image';
 import { exportArtboard } from './export/single.js';
 import { exportArtboardPdf } from './export/pdf.js';
 import { ContextMenu, useContextMenu } from './components/menu/context-menu.jsx';
+import { move as moveEntry } from './components/menu/entity-kebab.jsx';
+import { KIND_ICONS } from './components/menu/kind-icons.jsx';
+import { renameProjectFile } from './runtime/write-client.js';
+import { renamedFolderPath } from './components/canvas/use-inline-rename.js';
 
 // Keep the brownfield font-embed helper (which reads `window.htmlToImage`)
 // working unchanged after the move off the UMD script tag.
@@ -58,11 +62,59 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #c96442;overflow:visible;text-overflow:clip;max-width:none}',
  '[data-dc-slot]{transition:transform .18s cubic-bezier(.2,.7,.3,1)}',
  '[data-dc-slot].dc-dragging{transition:none;z-index:10;pointer-events:none}',
+ // Group an artboard is being dragged INTO (cross-group move on drop).
+ '[data-dc-section].dc-drop-target{outline:2px dashed #c96442;outline-offset:4px;border-radius:16px}',
+ '.dc-toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:80;padding:8px 14px;border-radius:10px;background:#1A1714;color:#FAF8F2;font:500 12.5px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(26,23,20,.2);pointer-events:none;transition:opacity 220ms var(--lm-ease),translate 220ms var(--lm-ease)}',
+ // Enter from just below (translate composes with the centering transform); exit the same way.
+ '@starting-style{.dc-toast{opacity:0;translate:0 8px}}',
+ '.dc-toast--out{opacity:0;translate:0 8px;transition-duration:160ms}',
+ '@media (prefers-reduced-motion:reduce){.dc-toast{transition-property:opacity}}',
  '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #c96442;transform:scale(1.02)}',
  '.dc-card{transition:box-shadow .15s,transform .15s}',
  '.dc-card *{scrollbar-width:none}',
  '.dc-card *::-webkit-scrollbar{display:none}',
  '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px}',
+ // Page / group NAME TAG — sits on the container's top-left edge (like a Figma
+ // section title) and counter-scales by --dc-inv so it reads at any zoom. A
+ // filled tag with an icon = container; plain grey text above a card = artboard.
+ '.dc-section-tag{position:absolute;left:0;bottom:100%;margin-bottom:calc(8px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:left bottom;z-index:3;display:flex;align-items:center;gap:6px;height:30px;padding:0 4px 0 6px;border-radius:9px;background:var(--lm-bg-primary,#FAF8F2);box-shadow:0 1px 3px rgba(26,23,20,.10),0 0 0 1px rgba(26,23,20,.05);color:var(--lm-text-primary,#1A1714);font:600 14px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;white-space:nowrap}',
+ // A GROUP's tag is a folder tab joined to its frame: same fill, square
+ // bottom corners, shared outline, overlapping the frame's top stroke by 1
+ // screen px so the line doesn't run under the tab. A PAGE keeps the floating
+ // pill (a page is the canvas itself, not a box).
+ '.dc-section-tag[data-dc-kind=group]{margin-bottom:calc(-1px * var(--dc-inv, 1));border-radius:9px 9px 0 0;box-shadow:0 0 0 1px var(--dc-group-stroke);clip-path:inset(-3px -3px -6px -3px)}',
+ // Paint the tab's fill a few px down over the frame's top outline so no seam
+ // shows under the tab at any zoom / sub-pixel offset (hover stroke is 1.5px).
+ '.dc-section-tag[data-dc-kind=group]::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:6px;background:inherit;pointer-events:none}',
+ // Group frame outline — box-shadow (no layout), 1 screen px at any zoom.
+ '.dc-group-frame{box-shadow:0 0 0 calc(1px * var(--dc-inv, 1)) var(--dc-group-stroke);transition:box-shadow .12s}',
+ '[data-dc-section]{--dc-group-stroke:rgba(26,23,20,.14)}',
+ // Hover shows exactly where a group starts and ends — innermost group only.
+ '[data-dc-section]:hover:not(:has([data-dc-section]:hover)){--dc-group-stroke:var(--lm-accent,#B85B33)}',
+ '[data-dc-section]:hover:not(:has([data-dc-section]:hover))>.dc-group-frame{box-shadow:0 0 0 calc(1.5px * var(--dc-inv, 1)) var(--dc-group-stroke)}',
+ '.dc-section-tag .dc-section-grip{margin:0 -2px 0 0}',
+ // The PAGE's tag is a heading, not a pill: larger, set higher above its
+ // content — the title of the whole canvas. Groups keep the folder tab.
+ '.dc-section-tag[data-dc-kind=page]{height:40px;padding:0 4px 0 0;gap:8px;background:transparent;box-shadow:none;font-size:22px;font-weight:700;letter-spacing:-0.3px;margin-bottom:calc(22px * var(--dc-inv, 1))}',
+ '.dc-section-tag[data-dc-kind=page] .dc-section-tag-icon svg{width:18px;height:18px}',
+ '.dc-section-tag[data-dc-kind=page] .dc-section-tag-meta{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:var(--lm-bg-tertiary,#E8E2D4)}',
+ '.dc-section-tag-icon{display:inline-flex;color:var(--lm-accent,#B85B33)}',
+ '.dc-section-tag .dc-editable{outline:none;border-radius:4px;padding:2px 3px;max-width:320px;overflow:hidden;text-overflow:ellipsis}',
+ '.dc-section-tag .dc-editable:focus{background:var(--lm-bg-tertiary,#E8E2D4)}',
+ '.dc-section-tag-meta{font-size:11.5px;font-weight:500;color:var(--lm-text-tertiary,#6E6960)}',
+ '.dc-section-tag-slot{display:inline-flex;position:relative}',
+ // Artboard label row: name + ⋮ (+ status badges) at rest; size chip and Data
+ // appear on hover/focus. Opacity (not display) keeps the row's width stable.
+ // Touch has no hover — keep them visible there.
+ '@media (hover:hover){[data-dc-slot] .lm-artboard-kebab .lm-size-badge,[data-dc-slot] .lm-artboard-kebab .lm-data-badge{opacity:0;transition:opacity .12s}[data-dc-slot]:hover .lm-artboard-kebab .lm-size-badge,[data-dc-slot]:hover .lm-artboard-kebab .lm-data-badge,[data-dc-slot]:focus-within .lm-artboard-kebab .lm-size-badge,[data-dc-slot]:focus-within .lm-artboard-kebab .lm-data-badge{opacity:1}}',
+ // A group's "+ New asset / + New group" bar shows on hover (innermost group)
+ // or keyboard focus; an empty group always shows it (data-empty).
+ '@media (hover:hover){.dc-group-frame>[data-testid=section-add-bar]:not([data-empty]){opacity:0;transition:opacity .12s}[data-dc-section]:hover:not(:has([data-dc-section]:hover))>.dc-group-frame>[data-testid=section-add-bar],.dc-group-frame>[data-testid=section-add-bar]:focus-within{opacity:1}}',
+ // Page-level add buttons sit after everything, so they can counter-scale
+ // like the tags (readable at any zoom) without colliding with anything.
+ '[data-testid=page-add-bar]{transform:scale(var(--dc-inv, 1));transform-origin:left top}',
+ // Semantic zoom: far out, keep names only — details can't be read and collide.
+ '[data-dc-far] .dc-section-tag-meta,[data-dc-far] .dc-section-tag .dc-section-grip,[data-dc-far] .lm-artboard-kebab,[data-dc-far] .dc-grip,[data-dc-far] .dc-dl,[data-dc-far] .dc-expand{display:none}',
    '.dc-labelrow:focus-within{overflow:visible}',
  // Chrome stays a constant SCREEN size at any zoom: each group counter-scales by
  // --dc-inv (= 1/canvas-scale, set per-slot in DCArtboardFrame) from its own
@@ -262,7 +314,12 @@ function dcTriggerDownload(dataUrl, filename) {
 const DC_STATE_FILE = '.design-canvas.state.json';
 const DC_LS_KEY = 'lerret-studio:state:' + (typeof location !== 'undefined' ? location.pathname : '/');
 
-export function DesignCanvas({ children, orderKey, minScale, maxScale, style, canvasMenuItems }) {
+export function DesignCanvas({ children, orderKey, minScale, maxScale, style, canvasMenuItems, onReorderSlots, onReorderSections }) {
+ // When the host saves order (Lerret: the folder's config.json), the source
+ // children arrive already sorted and ARE the order. Local order state is then
+ // only an optimistic override between a drop and the saved order coming back
+ // — never read from or written to browser storage.
+ const hostOrder = typeof onReorderSlots === 'function';
  // `sections` holds per-section artboard order/titles/labels; `order` holds the
  // user's custom TOP-LEVEL group order, keyed by page (`orderKey`), so groups
  // can be arranged beyond their default alphabetical order. `focus` is ephemeral.
@@ -296,26 +353,32 @@ export function DesignCanvas({ children, orderKey, minScale, maxScale, style, ca
  }
  if (!next) return;
  skipNextWrite.current = true;
- setState((s) => ({ ...s, sections: next.sections, order: next.order || {} }));
+ const sections = hostOrder
+ ? Object.fromEntries(Object.entries(next.sections).map(([k, v]) => [k, { ...v, order: undefined }]))
+ : next.sections;
+ setState((s) => ({ ...s, sections, order: hostOrder ? {} : next.order || {} }));
  })
  .catch(() => {})
  .finally(() => { didRead.current = true; if (!off) setReady(true); });
  const t = setTimeout(() => { if (!off) setReady(true); }, 150);
  return () => { off = true; clearTimeout(t); };
- }, []);
+ }, [hostOrder]);
 
  React.useEffect(() => {
  if (!didRead.current) return;
  if (skipNextWrite.current) { skipNextWrite.current = false; return; }
  const t = setTimeout(() => {
- const payload = JSON.stringify({ sections: state.sections, order: state.order });
+ const sections = hostOrder
+ ? Object.fromEntries(Object.entries(state.sections).map(([k, v]) => [k, { ...v, order: undefined }]))
+ : state.sections;
+ const payload = JSON.stringify({ sections, order: hostOrder ? {} : state.order });
  // Always mirror to localStorage so plain-browser users get persistence.
  try { localStorage.setItem(DC_LS_KEY, payload); } catch (_) {}
  // Best-effort write back to the sidecar via the host bridge if present.
  window.omelette?.writeFile(DC_STATE_FILE, payload).catch(() => {});
  }, 250);
  return () => clearTimeout(t);
- }, [state.sections, state.order]);
+ }, [state.sections, state.order, hostOrder]);
 
  // Build registries synchronously from children so FocusOverlay can read them
  // in the same render. Sections nest: a sub-group's DCSection is rendered
@@ -354,6 +417,7 @@ export function DesignCanvas({ children, orderKey, minScale, maxScale, style, ca
  });
  const kept = (persisted.order || []).filter((k) => srcIds.includes(k));
  sectionMeta[sid] = {
+ srcIds,
  title: persisted.title ?? sec.props.title,
  subtitle: sec.props.subtitle,
  slotIds: [...kept, ...srcIds.filter((k) => !kept.includes(k))],
@@ -376,11 +440,27 @@ export function DesignCanvas({ children, orderKey, minScale, maxScale, style, ca
  else if (child) otherChildren.push(child);
  });
  const keptTop = savedTopOrder.filter((id) => topSections.some((s) => s.id === id));
- const topOrder = [...keptTop, ...topSections.map((s) => s.id).filter((id) => !keptTop.includes(id))];
+ let topOrder = [...keptTop, ...topSections.map((s) => s.id).filter((id) => !keptTop.includes(id))];
+ // The page's own section always leads (its groups are what reorder).
+ if (hostOrder && topOrder.includes(orderKey)) topOrder = [orderKey, ...topOrder.filter((id) => id !== orderKey)];
  const topById = Object.fromEntries(topSections.map((s) => [s.id, s.child]));
  const orderedChildren = [...topOrder.map((id) => topById[id]), ...otherChildren];
 
  visitSections(orderedChildren);
+
+ // Host-saved order: once the source order changes (the save landed, or the
+ // project changed), drop the optimistic overrides — the source is the truth.
+ const srcKey = hostOrder
+ ? topSections.map((t) => t.id).join('|') + '§' + Object.entries(sectionMeta).map(([k, m]) => k + ':' + (m.srcIds || []).join(',')).join('|')
+ : '';
+ React.useEffect(() => {
+ if (!hostOrder) return;
+ setState((s) => ({
+ ...s,
+ order: {},
+ sections: Object.fromEntries(Object.entries(s.sections).map(([k, v]) => [k, { ...v, order: undefined }])),
+ }));
+ }, [srcKey, hostOrder]);
 
  const api = React.useMemo(() => ({
  state,
@@ -394,10 +474,16 @@ export function DesignCanvas({ children, orderKey, minScale, maxScale, style, ca
  reorderSections: (ids) => {
  if (!orderKey) return;
  setState((s) => ({ ...s, order: { ...s.order, [orderKey]: ids } }));
+ if (onReorderSections) saveOrder(onReorderSections(ids));
+ },
+ // Artboard order within one section (optimistic + saved by the host).
+ reorderSlots: (sid, ids) => {
+ setState((s) => ({ ...s, sections: { ...s.sections, [sid]: { ...s.sections[sid], order: ids } } }));
+ if (onReorderSlots) saveOrder(onReorderSlots(sid, ids));
  },
  // Whether top-level group reordering is available (a page is loaded).
  canReorderSections: !!orderKey,
- }), [state, orderKey]);
+ }), [state, orderKey, onReorderSections, onReorderSlots]);
 
  // Esc exits focus; any outside pointerdown commits an in-progress rename.
  React.useEffect(() => {
@@ -502,6 +588,44 @@ function DCDownloadAll() {
  );
 }
 
+// Await a host order save; say so if it failed (the drop still shows locally).
+function saveOrder(result) {
+ Promise.resolve(result).then((res) => {
+ if (res && res.ok === false) dcToast(`Couldn’t save the order: ${res.error || 'unknown error'}`);
+ });
+}
+
+// Rename a page/group folder from its name tag. Blank or unchanged text is a
+// no-op; on failure (name taken, invalid) the tag shows the real name again.
+async function renameSectionFolder(folderPath, text, el, currentName) {
+ const target = folderPath ? renamedFolderPath(folderPath, text) : null;
+ if (!target) {
+ if (el) el.textContent = currentName;
+ return;
+ }
+ const res = await renameProjectFile(folderPath, target);
+ if (!res.ok) {
+ if (el) el.textContent = currentName;
+ dcToast(`Couldn’t rename: ${res.error || 'unknown error'}`);
+ }
+}
+
+// A short, self-removing status line above the dock (the studio has no toast
+// surface; this is the minimum so a drag-move says what happened).
+function dcToast(text) {
+ if (typeof document === 'undefined') return;
+ const el = document.createElement('div');
+ el.className = 'dc-toast';
+ el.setAttribute('role', 'status');
+ el.textContent = text;
+ document.body.appendChild(el);
+ // Leave the way it came (down + fade), then remove once the transition ends.
+ setTimeout(() => {
+ el.classList.add('dc-toast--out');
+ setTimeout(() => el.remove(), 200);
+ }, 2400);
+}
+
 // Artboard slots that belong DIRECTLY to a section — excluding slots inside
 // nested sub-group sections (DOM descendants now that a sub-group renders
 // contained inside its parent's frame). Per-section download and drag-reorder
@@ -515,69 +639,6 @@ function dcDirectSlots(sectionId) {
  const owner = el.closest('[data-dc-section]');
  return !!owner && owner.getAttribute('data-dc-section') === sid;
  });
-}
-
-// Per-section "download all in this group" buttons. Lives inside the
-// section header card; scopes to the section's *own* artboards (a nested
-// sub-group has its own download for its own artboards).
-function DCSectionDownload({ sectionId }) {
- const [busy, setBusy] = React.useState(null);
- const [progress, setProgress] = React.useState(null);
-
- const download = async (fmt) => {
- if (busy) return;
- const slots = dcDirectSlots(sectionId);
- if (!slots.length) return;
- setBusy(fmt);
- setProgress({ i: 0, total: slots.length });
- try {
- await dcDownloadSlots(slots, fmt, (p) => setProgress(p));
- } finally {
- setBusy(null);
- setProgress(null);
- }
- };
-
- const label = (fmt) => {
- if (busy === fmt && progress) return `${progress.i}/${progress.total}…`;
- return fmt.toUpperCase();
- };
-
- return (
- <div style={{ display: 'inline-flex', gap: 6, alignSelf: 'flex-start' }}>
- <button
- onClick={() => download('png')}
- disabled={!!busy}
- style={sectionBtnStyle(busy === 'png')}
- title="Download every artboard in this group as PNG"
- >↓ {label('png')}</button>
- <button
- onClick={() => download('jpg')}
- disabled={!!busy}
- style={sectionBtnStyle(busy === 'jpg')}
- title="Download every artboard in this group as JPG"
- >↓ {label('jpg')}</button>
- </div>
- );
-}
-
-function sectionBtnStyle(active) {
- return {
- height: 28,
- padding: '0 12px',
- borderRadius: 6,
- border: 'none',
- background: active ? '#2a251f' : 'rgba(255,255,255,0.6)',
- color: active ? '#fff' : '#3a3530',
- font: '600 11px/1 -apple-system, BlinkMacSystemFont, sans-serif',
- letterSpacing: '0.04em',
- textTransform: 'uppercase',
- cursor: active ? 'wait' : 'pointer',
- display: 'inline-flex',
- alignItems: 'center',
- gap: 4,
- transition: 'background .12s',
- };
 }
 
 function btnStyle(active) {
@@ -609,6 +670,23 @@ function btnStyle(active) {
 // (translate3d + will-change) so wheel ticks don't go through React —
 // keeps pans at 60fps on dense canvases.
 // ─────────────────────────────────────────────────────────────
+// Canvas chrome (name tags, artboard labels) stays a constant SCREEN size by
+// counter-scaling with --dc-inv — but only down to 50% zoom. Past that, the
+// room reserved for it in the layout (fixed canvas px) is smaller than the
+// chrome, and labels collide; so below 50% the chrome shrinks with the canvas.
+// Zoomed far out (< 35%) only names remain (data-dc-far hides the rest).
+const CHROME_MAX_INV = 2;
+// Space above each top-level page/group block (canvas px) — fits its name tag.
+const DC_BLOCK_GAP = 88;
+// The page heading is taller and sits higher, so the page block gets more room.
+const DC_PAGE_GAP = 120;
+const FAR_ZOOM = 0.35;
+function publishChromeScale(el, scale) {
+ el.style.setProperty('--dc-inv', String(Math.min(1 / (scale || 1), CHROME_MAX_INV)));
+ if (scale < FAR_ZOOM) el.setAttribute('data-dc-far', '');
+ else el.removeAttribute('data-dc-far');
+}
+
 function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvasMenuItems = [] }) {
  const vpRef = React.useRef(null);
  const worldRef = React.useRef(null);
@@ -636,7 +714,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
  // Publish 1/scale so the per-artboard chrome counter-scales to a constant
  // screen size. Inherited by every slot/chrome element inside the world.
- el.style.setProperty('--dc-inv', String(1 / (scale || 1)));
+ publishChromeScale(el, scale);
  }, []);
  const apply = React.useCallback(() => {
  const { x, y, scale } = tf.current;
@@ -644,7 +722,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (el) {
  el.style.willChange = 'transform';
  el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
- el.style.setProperty('--dc-inv', String(1 / (scale || 1)));
+ publishChromeScale(el, scale);
  }
  if (settleRef.current) clearTimeout(settleRef.current);
  settleRef.current = setTimeout(applySettled, 180);
@@ -904,6 +982,18 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
 
  // Public viewport API for the zoom controls + mini-map (rendered as fixed
  // chrome outside the panned world, so they don't trip the pan handler).
+ // `lerret:pan-by` {dx, dy} (screen px) — lets overlays (e.g. the markdown
+ // preview panel) nudge the canvas so what's being edited stays in view.
+ React.useEffect(() => {
+ const onPan = (e) => {
+ const { dx = 0, dy = 0 } = (e && e.detail) || {};
+ tf.current = { ...tf.current, x: tf.current.x + dx, y: tf.current.y + dy };
+ apply(); publish();
+ };
+ window.addEventListener('lerret:pan-by', onPan);
+ return () => window.removeEventListener('lerret:pan-by', onPan);
+ }, [apply, publish]);
+
  const api = React.useMemo(() => ({
  subscribe: (fn) => { listenersRef.current.add(fn); return () => listenersRef.current.delete(fn); },
  getTransform: () => ({ ...tf.current }),
@@ -995,7 +1085,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  willChange: 'transform',
  width: 'max-content', minWidth: '100%',
  minHeight: '100%',
- padding: '60px 0 80px',
+ padding: '8px 0 140px', // top: blocks carry their own tag room (DC_BLOCK_GAP); bottom: clear of the dock
  }}
  >
  <div style={{ position: 'absolute', inset: -6000, backgroundImage: gridSvg, backgroundSize: '120px 120px', pointerEvents: 'none', zIndex: -1 }} />
@@ -1244,7 +1334,7 @@ export function sectionDepthBg(depth) {
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
-export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, kicker, sectionStyle, bare = false, onSelectScope }) {
+export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
  const all = React.Children.toArray(children);
@@ -1268,7 +1358,6 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // cards on the canvas with generous margins and a solid frame. A cascade
  // `presentation.background` (via `sectionStyle`) overrides the depth default.
  const nested = depth >= 2;
- const titleSize = Math.max(19, 28 - depth * 4);
  const cascadeBg = sectionStyle && sectionStyle.backgroundColor;
  const cascadeColor = sectionStyle && sectionStyle.color;
  const frameBg = cascadeBg || sectionDepthBg(depth);
@@ -1277,7 +1366,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // Top-level groups (depth <= 1) can be dragged to reorder. The grip lives in
  // the section header; the drag reads the current top-level order from the DOM,
  // tracks the pointer, and commits a new order on drop (persisted per page).
- const canReorder = !!(ctx && ctx.canReorderSections && depth <= 1);
+ const canReorder = !!(ctx && ctx.canReorderSections && depth <= 1 && !bare);
  const onSectionGripDown = (e) => {
  if (!ctx || typeof ctx.reorderSections !== 'function') return;
  e.preventDefault();
@@ -1377,6 +1466,37 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  onSelectScope(element, assetPath);
  };
 
+ // The container's name tag (page or group) — see .dc-section-tag CSS.
+ const kind = bare ? 'page' : 'group';
+ const tag = (
+ <div className="dc-section-tag" data-dc-kind={kind} style={bare ? undefined : { background: frameBg }}>
+ {canReorder && (
+ <button
+ type="button"
+ className="dc-section-grip"
+ onPointerDown={onSectionGripDown}
+ title="Drag to reorder"
+ aria-label={`Reorder ${kind} ${title}`}
+ style={{ border: 'none', background: 'transparent', padding: '4px 2px', borderRadius: 4, cursor: 'grab', color: 'rgba(60,50,40,0.4)', lineHeight: 0, touchAction: 'none' }}
+ >
+ <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true">
+ <circle cx="2" cy="2" r="1.1" /><circle cx="7" cy="2" r="1.1" />
+ <circle cx="2" cy="6.5" r="1.1" /><circle cx="7" cy="6.5" r="1.1" />
+ <circle cx="2" cy="11" r="1.1" /><circle cx="7" cy="11" r="1.1" />
+ </svg>
+ </button>
+ )}
+ <span className="dc-section-tag-icon" title={bare ? 'Page' : 'Group'}>{KIND_ICONS[kind]}</span>
+ {/* The name IS the folder name: editing it renames the folder on disk
+ (the watcher then re-renders everything — tag, dock, page picker). No
+ display-only override, so what you see always matches the project. */}
+ <DCEditable tag="span" value={title} onChange={(v, el) => renameSectionFolder(sid, v, el, title)} />
+ <span className="dc-section-tag-meta">{bare ? 'Page' : `Group${subtitle ? ` · ${subtitle}` : ''}`}</span>
+ {/* SectionKebab portals the ⋮ here — next to the name it acts on. */}
+ <span className="dc-section-tag-slot" />
+ </div>
+ );
+
  // Bare variant — a page's own loose assets sit directly on the canvas with no
  // card chrome (no frame, no header, no in-card add bar), so they read as "on
  // the page", not "in a group". Kept measurable (data-dc-section + depth) so
@@ -1391,23 +1511,25 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  data-tour="section"
  onClickCapture={onSectionClickCapture}
  style={{
- margin: '0 60px 48px 60px',
+ // Vertical rhythm: every top-level block gets the same top margin (room
+ // for its name tag + air) and no bottom margin, so gaps never collapse.
+ margin: `${DC_PAGE_GAP}px 60px 0 60px`,
  position: 'relative',
  width: 'max-content',
- // A page's presentation.background / color still applies — as a tint on
- // the page's own region (no border/header), so the page-bg feature isn't
- // lost when its assets render bare.
- ...(cascadeBg ? { backgroundColor: cascadeBg, borderRadius: 16, padding: '8px 24px 20px' } : null),
+ // No panel: a page's own assets sit directly on the canvas (only groups
+ // get a box). The page's presentation.background paints the whole canvas
+ // instead — see ProjectCanvas → DesignCanvas `style`.
  ...(cascadeColor ? { color: cascadeColor } : null),
  }}
  >
+ {tag}
  {hasArtboards && (
- <div style={{ display: 'flex', gap, paddingTop: 36, alignItems: 'flex-start', width: 'max-content' }}>
+ <div style={{ display: 'flex', gap, paddingTop: 44, alignItems: 'flex-start', width: 'max-content' }}>
  {order.map((k) => (
- <DCArtboardFrame key={k} sectionId={sid} sectionTitle={sec.title ?? title} artboard={byId[k]} order={order}
+ <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
  label={(sec.labels || {})[k] ?? byId[k].props.label}
  onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
- onReorder={(next) => ctx && ctx.patchSection(sid, { order: next })}
+ onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
  onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
  ))}
  </div>
@@ -1427,11 +1549,13 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // Top-level cards breathe on the canvas; a nested sub-group hugs inside
  // its parent's frame (the small left inset leaves room for the depth
  // rail at left:-16).
- margin: nested ? '20px 0 8px 12px' : '0 60px 80px 60px',
+ // Top margin leaves room for the name tag above the frame.
+ margin: nested ? '64px 0 8px 12px' : `${DC_BLOCK_GAP}px 60px 0 60px`,
  position: 'relative',
  width: 'max-content',
  }}
  >
+ {tag}
  {/* Depth rail — a sienna accent bar on a nested sub-group's left edge.
  Reinforces "this card sits inside the card above" beyond the frame
  alone. Absent on top-level cards (depth <= 1). */}
@@ -1454,85 +1578,23 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  on the artboard row fits the absolutely-positioned artboard labels
  (~36px) so they stay inside the border. A nested sub-group gets a
  lighter dashed frame so the containment hierarchy is legible. */}
- <div style={{
- // border removed (rule 2/7)
- borderRadius: 16,
+ <div className="dc-group-frame" style={{
+ // Outline comes from .dc-group-frame (constant 1px on screen at any zoom).
+ // Square top-left corner: the folder tab's straight left edge continues
+ // straight down the frame (a rounded corner leaves a notch at the join).
+ borderRadius: '0 16px 16px 16px',
  padding: nested ? '18px 22px 22px' : '24px 32px 32px',
  background: frameBg,
  color: cascadeColor || undefined,
  }}>
- <div style={{
- display: 'flex',
- alignItems: 'flex-start',
- gap: 12,
- marginBottom: hasArtboards ? 56 : 16,
- }}>
- {/* Drag grip — reorder this top-level group. Marked `.dc-section-grip`
- so the canvas pan handler treats it as interactive, not background. */}
- {canReorder && (
- <button
- type="button"
- className="dc-section-grip"
- onPointerDown={onSectionGripDown}
- title="Drag to reorder this group"
- aria-label={`Reorder group ${sec.title ?? title}`}
- style={{
- flex: 'none',
- marginTop: 4,
- border: 'none',
- background: 'transparent',
- padding: '4px 2px',
- borderRadius: 4,
- cursor: 'grab',
- color: 'rgba(60,50,40,0.4)',
- lineHeight: 0,
- touchAction: 'none',
- }}
- onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
- onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
- >
- <svg width="11" height="15" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true">
- <circle cx="2" cy="2" r="1.1" /><circle cx="7" cy="2" r="1.1" />
- <circle cx="2" cy="6.5" r="1.1" /><circle cx="7" cy="6.5" r="1.1" />
- <circle cx="2" cy="11" r="1.1" /><circle cx="7" cy="11" r="1.1" />
- </svg>
- </button>
- )}
- <div style={{ flex: 1, minWidth: 0 }}>
- {/* Nesting eyebrow — names the parent group so a contained
- sub-group says where it lives without leaving the canvas. */}
- {nested && kicker && (
- <div style={{
- fontSize: 10,
- fontWeight: 600,
- letterSpacing: '0.12em',
- textTransform: 'uppercase',
- color: 'var(--lm-accent, #B85B33)',
- marginBottom: 6,
- display: 'flex',
- alignItems: 'center',
- gap: 5,
- }}>
- <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
- <path d="M1 1v4.5a2 2 0 002 2H8M5.5 5L8 7.5 5.5 10" />
- </svg>
- in {kicker}
- </div>
- )}
- <DCEditable tag="div" value={sec.title ?? title}
- onChange={(v) => ctx && sid && ctx.patchSection(sid, { title: v })}
- style={{ fontSize: titleSize, fontWeight: 600, color: cascadeColor || DC.title, letterSpacing: -0.4, marginBottom: 6, display: 'inline-block' }} />
- {subtitle && <div style={{ fontSize: 16, color: cascadeColor || DC.subtitle }}>{subtitle}</div>}
- </div>
- {hasArtboards && <DCSectionDownload sectionId={sid} />}
- </div>
+
  {hasArtboards && (
  <div style={{ display: 'flex', gap, paddingTop: 36, alignItems: 'flex-start', width: 'max-content' }}>
  {order.map((k) => (
- <DCArtboardFrame key={k} sectionId={sid} sectionTitle={sec.title ?? title} artboard={byId[k]} order={order}
+ <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
  label={(sec.labels || {})[k] ?? byId[k].props.label}
  onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
- onReorder={(next) => ctx && ctx.patchSection(sid, { order: next })}
+ onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
  onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
  ))}
  </div>
@@ -1615,7 +1677,18 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  const slotXs = homes.map((h) => h.x);
  const startIdx = order.indexOf(id);
  const startX = e.clientX;
+ const startY = e.clientY;
  let liveOrder = order.slice();
+ // Cross-group move: while the cursor is over ANOTHER group's frame, that
+ // group is the drop target and dropping moves the file there (same
+ // companion-aware move as the kebab's "Move to…").
+ let dropTarget = null;
+ const setDropTarget = (el) => {
+ if (el === dropTarget) return;
+ dropTarget?.classList.remove('dc-drop-target');
+ dropTarget = el;
+ dropTarget?.classList.add('dc-drop-target');
+ };
  me.classList.add('dc-dragging');
 
  const layout = () => {
@@ -1628,7 +1701,18 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
 
  const move = (ev) => {
  const dx = ev.clientX - startX;
- me.style.transform = `translateX(${dx / scale}px)`;
+ const dy = ev.clientY - startY;
+ me.style.transform = `translate(${dx / scale}px, ${dy / scale}px)`;
+ if (assetPath) {
+ const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-dc-section]');
+ const foreign = over && over.getAttribute('data-dc-section') !== String(sectionId) && !me.contains(over);
+ setDropTarget(foreign ? over : null);
+ if (foreign) {
+ // Park the home group's peers in their original slots while away.
+ if (liveOrder.join('|') !== order.join('|')) { liveOrder = order.slice(); layout(); }
+ return;
+ }
+ }
  const cur = homes[startIdx].x + dx;
  let nearest = 0, best = Infinity;
  for (let i = 0; i < slotXs.length; i++) {
@@ -1645,6 +1729,19 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  const up = () => {
  document.removeEventListener('pointermove', move);
  document.removeEventListener('pointerup', up);
+ if (dropTarget) {
+ const toFolder = dropTarget.getAttribute('data-dc-section');
+ const toName = toFolder.split('/').pop();
+ setDropTarget(null);
+ me.classList.remove('dc-dragging');
+ for (const h of homes) h.el.style.transform = '';
+ me.style.transform = '';
+ // The watcher re-renders the canvas with the file in its new group.
+ moveEntry(assetPath, toFolder).then((res) => {
+ dcToast(res.ok ? `Moved to ${toName}` : `Couldn’t move: ${res.error || 'unknown error'}`);
+ });
+ return;
+ }
  const finalSlot = liveOrder.indexOf(id);
  me.classList.remove('dc-dragging');
  me.style.transform = `translateX(${(slotXs[finalSlot] - homes[startIdx].x) / scale}px)`;
@@ -1697,7 +1794,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  </button>
  <div className="dc-labeltext" onClick={onFocus} title="Click to focus">
  <DCEditable value={label} onChange={onRename} onClick={(e) => e.stopPropagation()}
- style={{ fontSize: 15, fontWeight: 500, color: DC.label, lineHeight: 1.3 }} />
+ style={{ fontSize: 13, fontWeight: 500, color: DC.label, lineHeight: 1.3 }} />
  </div>
  </div>
  </div>
@@ -1816,7 +1913,7 @@ function DCEditable({ value, onChange, style, tag = 'span', onClick }) {
  <T className="dc-editable" contentEditable suppressContentEditableWarning
  onClick={onClick}
  onPointerDown={(e) => e.stopPropagation()}
- onBlur={(e) => onChange && onChange(e.currentTarget.textContent)}
+ onBlur={(e) => onChange && onChange(e.currentTarget.textContent, e.currentTarget)}
  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
  style={style}>{value}</T>
  );

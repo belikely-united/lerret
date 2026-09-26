@@ -48,7 +48,7 @@
 
 import React from 'react';
 
-import { NODE_KIND } from '@lerret/core';
+import { NODE_KIND, serializeJson } from '@lerret/core';
 
 // Epic 8 / Story 8.2 — the canvas writes the AI selection scope (for the dock
 // cluster's selection chip) into this context on artboard / section selection.
@@ -74,6 +74,7 @@ import { SectionKebab } from './section-kebab.jsx';
 // in-canvas creation — the empty-page CTAs and empty-group placeholders open
 // the shared CreateEntryDialog; `create` performs the write.
 import { CreateEntryDialog, create, inCliMode } from '../menu/index.js';
+import { readProjectFile, writeProjectFile } from '../../runtime/write-client.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Presentation config helpers
@@ -104,6 +105,45 @@ function isUsableCssColor(value) {
  }
  // Non-DOM fallback (test environments).
  return !/[{};]/.test(value);
+}
+
+// ── Saved order (config.json `order`) ───────────────────────────────────────
+// A folder's `config.json` may list its direct children by name — asset file
+// names and group folder names — in display order:
+//   { "order": ["hero.jsx", "Social", "footer.jsx"] }
+// Listed children come first in that order; anything unlisted (new files)
+// follows alphabetically (the loader's order — the sort is stable). `order`
+// never inherits (core cascade), so the cascaded config's `order` is the
+// folder's own. Dragging an artboard or a group writes it (writeFolderOrder).
+
+const baseName = (p) => String(p).split('#')[0].replace(/\/+$/, '').split('/').pop();
+
+export function sortByFolderOrder(list, cfg, nameOf) {
+ const order = cfg && Array.isArray(cfg.order) ? cfg.order : null;
+ if (!order || list.length < 2) return list;
+ const rank = new Map(order.map((n, i) => [n, i]));
+ const at = (x) => (rank.has(nameOf(x)) ? rank.get(nameOf(x)) : order.length);
+ return [...list].sort((a, b) => at(a) - at(b));
+}
+
+/** Write `names` as `order` into `<folder>/config.json`, keeping its other keys. */
+async function writeFolderOrder(folderPath, names) {
+ const configPath = `${folderPath.replace(/\/+$/, '')}/config.json`;
+ const read = await readProjectFile(configPath);
+ let cfg = {};
+ if (read.ok) {
+ try {
+ const parsed = JSON.parse(read.content);
+ if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) cfg = parsed;
+ } catch {
+ return { ok: false, error: 'config.json has invalid JSON — fix it before reordering.' };
+ }
+ } else if (!read.missing) {
+ return { ok: false, error: read.error || 'Couldn’t read config.json.' };
+ }
+ const unique = [...new Set(names)];
+ if (JSON.stringify(cfg.order) === JSON.stringify(unique)) return { ok: true };
+ return writeProjectFile(configPath, serializeJson({ ...cfg, order: unique }));
 }
 
 /**
@@ -620,17 +660,34 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  if (parent) parent.children.push(node);
  else roots.push(node);
  }
+ // Apply each folder's saved `order` (config.json) — see sortByFolderOrder.
+ // The page's own section always leads; its groups follow in page order.
+ const pageNode = roots.find((n) => n.section.id === page.path);
+ const orderedRoots = [
+ ...(pageNode ? [pageNode] : []),
+ ...sortByFolderOrder(roots.filter((n) => n !== pageNode), getConfigFor(page.path), (n) => baseName(n.section.id)),
+ ];
+ for (const node of nodeById.values()) {
+ node.children = sortByFolderOrder(node.children, getConfigFor(node.section.id), (n) => baseName(n.section.id));
+ node.entries = sortByFolderOrder(node.section.entries, getConfigFor(node.section.id), (e) => e.asset?.fileName ?? baseName(e.asset?.path || ''));
+ }
 
  // Render one section and, recursively, its nested sub-groups. A section's
  // artboards lead, then its sub-group cards, then the in-canvas add bar — so
  // "add into this group" always sits at the bottom of the group it targets.
+ // presentation.background of the PAGE → the canvas itself.
+ const pageBg = page ? resolveSectionBg(getConfigFor(page.path), page.path) : null;
  const renderSection = (node) => {
  const s = node.section;
  // look up the effective config for this section's folder and resolve the
  // presentation.background color. A malformed value falls back to null (no
  // bg override) with a console.warn.
  const effectiveCfg = getConfigFor(s.id);
- const bgColor = resolveSectionBg(effectiveCfg, s.id);
+ // The page's background paints the whole canvas (below); a group only gets
+ // its own fill when it sets a different one — an inherited page colour would
+ // make the group box the same colour as the canvas around it.
+ const ownBg = resolveSectionBg(effectiveCfg, s.id);
+ const bgColor = s.id !== page.path && ownBg !== pageBg ? ownBg : null;
  const fgColor = resolveSectionColor(effectiveCfg, s.id);
  const sectionStyle =
  bgColor || fgColor
@@ -675,7 +732,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  bare={sectionKind === 'page'}
  onSelectScope={(element, assetPath) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath)}
  >
- {s.entries.map((entry) =>
+ {node.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),
  )}
  {/* Nested sub-groups render INSIDE this frame — true containment. */}
@@ -731,8 +788,20 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  ? [
  {
  kind: 'item',
+ id: 'canvas-new-asset',
+ label: 'New asset…',
+ onSelect: () =>
+ setCreateState({
+ kind: 'asset',
+ parentPath: page.path,
+ parentLabel: page.name,
+ existingNames: pageChildNamesForAdd,
+ }),
+ },
+ {
+ kind: 'item',
  id: 'canvas-new-group',
- label: 'New group',
+ label: 'New group…',
  onSelect: () =>
  setCreateState({
  kind: 'group',
@@ -744,7 +813,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  {
  kind: 'item',
  id: 'canvas-new-page',
- label: 'New page',
+ label: 'New page…',
  onSelect: () =>
  setCreateState({
  kind: 'page',
@@ -757,8 +826,17 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  : [];
  return (
  <>
- <DesignCanvas key={page.path} orderKey={page.path} canvasMenuItems={canvasMenuItems}>
- {roots.map((node) => renderSection(node))}
+ <DesignCanvas
+ key={page.path}
+ orderKey={page.path}
+ canvasMenuItems={canvasMenuItems}
+ style={pageBg ? { background: pageBg } : undefined}
+ // Reordering is saved in the folder's config.json (see writeFolderOrder).
+ // Slot ids are asset paths (+ "#Variant"); a file's variants move together.
+ onReorderSlots={(sectionId, slotIds) => writeFolderOrder(sectionId, slotIds.map(baseName))}
+ onReorderSections={(ids) => writeFolderOrder(page.path, ids.filter((id) => id !== page.path).map(baseName))}
+ >
+ {orderedRoots.map((node) => renderSection(node))}
  {cliMode && (
  <PageAddBar
  onAddGroup={() =>
@@ -802,7 +880,7 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  <div
  className="dc-section-cta"
  data-testid="page-add-bar"
- style={{ margin: '0 60px 90px 60px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
+ style={{ margin: '40px 60px 90px 60px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}
  >
  <button
  type="button"
@@ -844,7 +922,7 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  cursor: 'pointer',
  }}
  >
- + Add asset
+ + New asset
  </button>
  </div>
  );
@@ -1000,13 +1078,16 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  <div
  className="dc-section-cta"
  data-testid="section-add-bar"
+ // Non-empty groups reveal this on hover (design-canvas CSS); an empty
+ // group keeps it as its call to action.
+ data-empty={isEmpty ? '' : undefined}
  style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
  >
  <button type="button" className="lm-focusable" onClick={onAddAsset} data-testid="section-add-asset" style={btnStyle}>
- + Asset
+ + New asset
  </button>
  <button type="button" className="lm-focusable" onClick={onAddGroup} data-testid="section-add-group" style={btnStyle}>
- + Group
+ + New group
  </button>
  </div>
  );

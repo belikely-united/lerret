@@ -223,7 +223,8 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-live-refresh
 @media (prefers-reduced-motion: reduce) {
   .lm-live-badge { transition: none !important; }
   .lm-live-badge__dot { animation: none !important; }
-  .lm-live-pop { animation: none !important; }
+  .lm-live-pop { animation-name: lm-motion-fade-in !important; }
+  @keyframes lm-motion-fade-in { from { opacity: 0; } to { opacity: 1; } }
 }
   `.trim();
   document.head.appendChild(s);

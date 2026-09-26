@@ -96,15 +96,19 @@ afterEach(() => {
 // ── Open / close lifecycle ────────────────────────────────────────────────────
 
 describe('MarkdownEditor — open/close lifecycle', () => {
- it('renders the editor sheet when open=true', () => {
+ it('edits in place — no modal; the live preview docks on the right', () => {
  const writer = vi.fn().mockResolvedValue({ ok: true });
- const { cleanup } = renderToDom(
+ const { container, cleanup } = renderToDom(
  <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} writer={writer} />,
  );
 
- const dialog = document.querySelector('[role="dialog"]');
- expect(dialog).not.toBeNull();
- expect(dialog.getAttribute('aria-modal')).toBe('true');
+ expect(document.querySelector('[role="dialog"]')).toBeNull();
+ // The source editor renders where the card was (inside the host)…
+ expect(container.querySelector('[data-testid="lm-md-editor-textarea"]')).not.toBeNull();
+ // …and the preview is a panel portaled to the body.
+ const panel = document.querySelector('[data-testid="lm-md-preview-panel"]');
+ expect(panel).not.toBeNull();
+ expect(container.contains(panel)).toBe(false);
 
  cleanup();
  });
@@ -114,21 +118,14 @@ describe('MarkdownEditor — open/close lifecycle', () => {
  <MarkdownEditor open={false} onClose={() => {}} entry={releaseNotesEntry} />,
  );
 
- expect(document.querySelector('[role="dialog"]')).toBeNull();
+ expect(document.querySelector('[data-testid="lm-md-editor"]')).toBeNull();
+ expect(document.querySelector('[data-testid="lm-md-preview-panel"]')).toBeNull();
  cleanup();
  });
 
- it('calls onClose when Esc is pressed (reduced-motion path — synchronous)', async () => {
+ it('Esc finishes editing — flushing the pending write first', async () => {
  const writer = vi.fn().mockResolvedValue({ ok: true });
  const onClose = vi.fn();
-
- // Stub reduced-motion so the EditorSheet's dismiss fires synchronously.
- vi.stubGlobal('matchMedia', (query) => ({
- matches: query === '(prefers-reduced-motion: reduce)',
- media: query,
- addEventListener: () => {},
- removeEventListener: () => {},
- }));
 
  const { cleanup } = renderToDom(
  <MarkdownEditor open onClose={onClose} entry={releaseNotesEntry} writer={writer} />,
@@ -139,6 +136,25 @@ describe('MarkdownEditor — open/close lifecycle', () => {
  });
 
  expect(onClose).toHaveBeenCalled();
+ expect(writer).toHaveBeenCalledWith(releaseNotesEntry.asset.path, releaseNotesEntry.text);
+ cleanup();
+ });
+
+ it('Done finishes editing; a click outside the card and the preview does too', () => {
+ const onClose = vi.fn();
+ const writer = vi.fn().mockResolvedValue({ ok: true });
+ const { cleanup } = renderToDom(
+ <MarkdownEditor open onClose={onClose} entry={releaseNotesEntry} writer={writer} />,
+ );
+ // A click inside the preview panel does not close it.
+ act(() => {
+ document.querySelector('[data-testid="lm-md-editor-preview"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+ });
+ expect(onClose).not.toHaveBeenCalled();
+ act(() => { document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); });
+ expect(onClose).toHaveBeenCalledTimes(1);
+ act(() => { document.querySelector('.lm-md-preview__done').click(); });
+ expect(onClose).toHaveBeenCalledTimes(2);
  cleanup();
  });
 
@@ -320,7 +336,7 @@ describe('MarkdownEditor — failed-write inline error', () => {
  cleanup();
  });
 
- it('keeps the dialog open and usable after a write failure', async () => {
+ it('stays open and usable after a write failure', async () => {
  const writer = vi.fn().mockResolvedValue({ ok: false, error: 'network error' });
 
  const { cleanup } = renderToDom(
@@ -332,8 +348,8 @@ describe('MarkdownEditor — failed-write inline error', () => {
  await advanceTimers(450);
  await act(async () => {});
 
- // Editor sheet is still present.
- expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+ // The preview panel is still present.
+ expect(document.querySelector('[data-testid="lm-md-preview-panel"]')).not.toBeNull();
  // Textarea is still in the DOM.
  expect(document.querySelector('[data-testid="lm-md-editor-textarea"]')).not.toBeNull();
 
@@ -523,14 +539,11 @@ describe('MarkdownEditor — split layout', () => {
  cleanup();
  });
 
- it('opens the EditorSheet in full-screen mode', () => {
+ it('does not open a modal sheet (the canvas stays usable)', () => {
  const { cleanup } = renderToDom(
  <MarkdownEditor open onClose={() => {}} entry={releaseNotesEntry} />,
  );
- const dialog = document.querySelector('[role="dialog"]');
- expect(dialog).not.toBeNull();
- expect(dialog.hasAttribute('data-fullscreen')).toBe(true);
-
+ expect(document.querySelector('[aria-modal="true"]')).toBeNull();
  cleanup();
  });
 });

@@ -323,6 +323,7 @@ export async function readProjectFile(path, opts = {}) {
  }
  const encoding = opts.encoding === 'base64' ? 'base64' : 'utf-8';
  if (!isCliMode()) {
+ if (hostedWriter && encoding === 'utf-8') return hostedWriter.readFile(path);
  return { ok: false, error: 'file reads are disabled in standalone mode' };
  }
  const fetchImpl = opts.fetch || (typeof globalThis !== 'undefined' ? globalThis.fetch : undefined);

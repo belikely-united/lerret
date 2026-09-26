@@ -162,6 +162,18 @@ export function createHostedWriter(backend) {
   }
 
   return {
+    async readFile(path) {
+      try {
+        return { ok: true, content: await backend.readFile(path, { encoding: 'utf-8' }) };
+      } catch (err) {
+        // Same shape as the CLI endpoint: a missing file is `missing: true`.
+        if (err && (err.name === 'NotFoundError' || err.code === 'ENOENT')) {
+          return { ok: false, missing: true, error: `${path} not found` };
+        }
+        return hostedWriteFailure(err);
+      }
+    },
+
     async writeFile(path, content, opts = {}) {
       try {
         if (opts && opts.encoding === 'base64') {

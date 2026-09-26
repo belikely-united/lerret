@@ -176,7 +176,10 @@ export async function transformJsx(source, filePath, options = {}) {
  }
  }
 
- const result = transform(source, HOSTED_TRANSFORM_OPTIONS);
+ // Visual Edit mode: tag DOM elements with their source location. Lazy so the
+ // parser only loads once the hosted runtime actually compiles an asset.
+ const { stampSourceLocations } = await import('@lerret/core/source-edit');
+ const result = transform(stampSourceLocations(source, filePath), HOSTED_TRANSFORM_OPTIONS);
  if (!result || typeof result.code !== 'string' || result.code.length === 0) {
  throw new Error(`sucrase-transform: empty output for "${filePath}"`);
  }

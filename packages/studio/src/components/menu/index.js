@@ -12,7 +12,6 @@ export {
  buildComponentItems,
  buildMarkdownItems,
  buildSectionItems,
- applyDeleteConfirm,
  create,
  duplicate,
  destroy,

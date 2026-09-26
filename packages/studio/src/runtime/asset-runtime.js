@@ -371,11 +371,11 @@ export function makeVariantEntry(asset, variant, meta, variantNames = [variant.v
  // A named-export variant gets a `#variant` suffix so its artboard id is
  // unique among the file's variants; the primary variant keeps the bare path.
  const id = isPrimary ? asset.path : `${asset.path}#${variant.variantName}`;
- // Label precedence: an explicit `meta.label` wins; else fall back to a name
- // derived from the asset (primary) or the asset + export name (a variant).
- const fallbackLabel = isPrimary
- ? asset.name
- : `${asset.name} · ${variant.variantName}`;
+ // Label: `meta.label` (else the asset name) names the primary artboard; a
+ // variant adds its export name ("Business card · Dark") — otherwise every
+ // variant of a labelled asset would read identically on the canvas.
+ const base = meta.label || asset.name;
+ const variantLabel = isPrimary ? base : `${base} · ${variant.variantName}`;
  return {
  id,
  asset,
@@ -383,7 +383,7 @@ export function makeVariantEntry(asset, variant, meta, variantNames = [variant.v
  status: assetRuntimeStatus.OK,
  Component: variant.component,
  error: null,
- label: meta.label || fallbackLabel,
+ label: variantLabel,
  variantName: variant.variantName,
  variantNames,
  dimensions: meta.dimensions,

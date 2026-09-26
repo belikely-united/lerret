@@ -47,6 +47,25 @@ vi.mock('../../runtime/cli-hmr.js', () => ({
 import { fetchDataValue, liveRefreshIntervalFor, ComponentArtboardKebab } from './artboard-kebab.jsx';
 
 describe('fetchDataValue', () => {
+ it('reads a server-named .data.json straight from disk (never a stale Vite module)', async () => {
+ const importModule = vi.fn();
+ const readJson = vi.fn(async () => ({ ok: true, content: '{"title":"fresh"}' }));
+ const { value, resolvedPath } = await fetchDataValue(
+ ['/abs/proj/.lerret/card.data.json'],
+ { importModule, readJson },
+ );
+ expect(value).toEqual({ title: 'fresh' });
+ expect(resolvedPath).toBe('/abs/proj/.lerret/card.data.json');
+ expect(importModule).not.toHaveBeenCalled();
+ });
+
+ it('still imports when a .data.js candidate is in play (precedence)', async () => {
+ const importModule = vi.fn(async () => ({ default: { a: 1 } }));
+ const readJson = vi.fn();
+ await fetchDataValue(['/p/.lerret/c.data.js', '/p/.lerret/c.data.json'], { importModule, readJson });
+ expect(readJson).not.toHaveBeenCalled();
+ });
+
  it('uses dynamic import against the /@lerret-project base for a .lerret/-rooted path', async () => {
  const urls = [];
  const importModule = vi.fn(async (url) => {

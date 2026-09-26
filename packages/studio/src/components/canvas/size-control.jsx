@@ -199,7 +199,8 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-size-control
 }
 @media (prefers-reduced-motion: reduce) {
   .lm-size-badge { transition: none !important; }
-  .lm-size-pop { animation: none !important; }
+  .lm-size-pop { animation-name: lm-motion-fade-in !important; }
+  @keyframes lm-motion-fade-in { from { opacity: 0; } to { opacity: 1; } }
 }
 `;
   document.head.appendChild(s);

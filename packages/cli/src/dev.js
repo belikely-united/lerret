@@ -35,6 +35,7 @@ import { createRequire } from 'node:module';
 
 import { realpathOrSelf, pathExists } from './fs/node-backend.js';
 import { resolveProject } from './resolve-project.js';
+import { createSourceStampPlugin } from '@lerret/core/source-edit';
 import {
   lerretProjectPlugin,
   studioChunkResolvePlugin,
@@ -289,6 +290,8 @@ export async function runDev(argv) {
   const plugins = [
     studioChunkResolvePlugin({ studioRoot }),
     lerretProjectPlugin({ projectRoot, lerretDir }),
+    // Visual Edit mode: tag every DOM element in a user asset with its source location.
+    createSourceStampPlugin(),
   ];
   if (!isPreBuilt) {
     // Serving from source — need the React plugin for JSX transform.
