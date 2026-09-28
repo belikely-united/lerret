@@ -361,18 +361,21 @@ export function makeOkEntry(asset, Component) {
  * The resolved variant descriptor (export name, component, primary flag).
  * @param {import('../../../core/src/assets/meta.js').AssetMeta} meta
  * The asset's parsed `meta` — shared by every variant of the same file.
+ * @param {string[]} [variantNames]
+ * Every variant export name of the asset — carried as `entry.variantNames` so
+ * per-variant data resolution sees the full export list, not just this one.
  * @returns {AssetEntry}
  */
-export function makeVariantEntry(asset, variant, meta) {
+export function makeVariantEntry(asset, variant, meta, variantNames = [variant.variantName]) {
  const isPrimary = variant.isPrimary;
  // A named-export variant gets a `#variant` suffix so its artboard id is
  // unique among the file's variants; the primary variant keeps the bare path.
  const id = isPrimary ? asset.path : `${asset.path}#${variant.variantName}`;
- // Label precedence: an explicit `meta.label` wins; else fall back to a name
- // derived from the asset (primary) or the asset + export name (a variant).
- const fallbackLabel = isPrimary
- ? asset.name
- : `${asset.name} · ${variant.variantName}`;
+ // Label: `meta.label` (else the asset name) names the primary artboard; a
+ // variant adds its export name ("Business card · Dark") — otherwise every
+ // variant of a labelled asset would read identically on the canvas.
+ const base = meta.label || asset.name;
+ const variantLabel = isPrimary ? base : `${base} · ${variant.variantName}`;
  return {
  id,
  asset,
@@ -380,8 +383,9 @@ export function makeVariantEntry(asset, variant, meta) {
  status: assetRuntimeStatus.OK,
  Component: variant.component,
  error: null,
- label: meta.label || fallbackLabel,
+ label: variantLabel,
  variantName: variant.variantName,
+ variantNames,
  dimensions: meta.dimensions,
  tags: meta.tags,
  meta,

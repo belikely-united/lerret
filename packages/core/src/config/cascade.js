@@ -174,7 +174,10 @@ async function readFolderConfig(backend, folderPath) {
  */
 async function walkNode(backend, node, parentConfig, result) {
   const ownConfig = await readFolderConfig(backend, node.path);
-  const effective = ownConfig !== null ? deepMerge(parentConfig, ownConfig) : parentConfig;
+  // `order` (the folder's child order) describes THIS folder's children only,
+  // so it's the one key that never inherits.
+  const { order: _inheritedOrder, ...inherited } = parentConfig;
+  const effective = ownConfig !== null ? deepMerge(inherited, ownConfig) : inherited;
   result.set(node.path, effective);
 
   // Recurse into child groups.

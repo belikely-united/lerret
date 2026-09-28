@@ -76,9 +76,14 @@ import './menu.css';
 function enabledIndices(items) {
  const out = [];
  items.forEach((item, idx) => {
- if (item.kind !== 'separator' && !item.disabled) out.push(idx);
+ if (isActionable(item)) out.push(idx);
  });
  return out;
+}
+
+/** Items the keyboard can land on: not separators, headers, or disabled. */
+export function isActionable(item) {
+ return !!item && item.kind !== 'separator' && item.kind !== 'label' && !item.disabled;
 }
 
 /** Move within `enabled` indices by `delta` (±1), wrapping around. */
@@ -121,6 +126,8 @@ export function MenuItem({
  disabled = false,
  reason,
  icon,
+ danger = false,
+ shortcut,
  active,
  onSelect,
  onMouseEnter,
@@ -137,7 +144,7 @@ export function MenuItem({
  role="menuitem"
  aria-disabled={disabled ? 'true' : undefined}
  data-active={active ? 'true' : 'false'}
- className="lm-menu-item"
+ className={danger ? 'lm-menu-item lm-menu-item--danger' : 'lm-menu-item'}
  // title doubles as an accessible tooltip for the disabled reason. Screen
  // readers also read it when the item is focused.
  title={disabled && reason ? reason : undefined}
@@ -147,6 +154,7 @@ export function MenuItem({
  >
  {icon && <span className="lm-menu-item-icon" aria-hidden="true">{icon}</span>}
  <span className="lm-menu-item-label">{label}</span>
+ {shortcut && !disabled && <kbd className="lm-menu-item-shortcut">{shortcut}</kbd>}
  {disabled && reason && (
  <span className="lm-menu-item-reason" aria-hidden="true">{reason}</span>
  )}
@@ -162,6 +170,43 @@ export function MenuItem({
  */
 export function MenuSeparator() {
  return <li role="separator" className="lm-menu-separator" />;
+}
+
+/**
+ * Non-interactive header naming what the menu acts on ("Group · Linked In").
+ * Not focusable; arrow keys skip it.
+ */
+export function MenuLabel({ label, kind, icon }) {
+ return (
+ <li role="presentation" className="lm-menu-label">
+ {icon && <span className="lm-menu-label-icon" aria-hidden="true">{icon}</span>}
+ <span className="lm-menu-label-text">{label}</span>
+ {kind && <span className="lm-menu-label-kind">{kind}</span>}
+ </li>
+ );
+}
+
+/** Render one entry of an items array (shared by Menu and ContextMenu). */
+export function renderMenuEntry(item, idx, { activeIdx, onSelect, onMouseEnter, optionId }) {
+ if (item.kind === 'separator') return <MenuSeparator key={item.id ?? `sep-${idx}`} />;
+ if (item.kind === 'label') return <MenuLabel key={item.id ?? `label-${idx}`} label={item.label} kind={item.meta} icon={item.icon} />;
+ return (
+ <MenuItem
+ key={item.id}
+ id={item.id}
+ label={item.label}
+ disabled={!!item.disabled}
+ reason={item.reason}
+ icon={item.icon}
+ danger={!!item.danger}
+ shortcut={item.shortcut}
+ active={idx === activeIdx}
+ onSelect={() => onSelect(item)}
+ onMouseEnter={onMouseEnter}
+ itemIndex={idx}
+ itemId={optionId(idx)}
+ />
+ );
 }
 
 // ─── Popover ────────────────────────────────────────────────────────────────
@@ -223,29 +268,12 @@ function MenuPopover({
  role="menu"
  tabIndex={-1}
  className="lm-menu-popover"
+ data-align={align}
  aria-activedescendant={activeId}
  style={{ position: 'fixed', left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
  >
- {items.map((item, idx) => {
- if (item.kind === 'separator') {
- return <MenuSeparator key={item.id ?? `sep-${idx}`} />;
- }
- return (
- <MenuItem
- key={item.id}
- id={item.id}
- label={item.label}
- disabled={!!item.disabled}
- reason={item.reason}
- icon={item.icon}
- active={idx === activeIdx}
- onSelect={() => onItemSelect(item)}
- onMouseEnter={onMouseEnterItem}
- itemIndex={idx}
- itemId={optionId(idx)}
- />
- );
- })}
+ {items.map((item, idx) =>
+ renderMenuEntry(item, idx, { activeIdx, onSelect: onItemSelect, onMouseEnter: onMouseEnterItem, optionId }))}
  </ul>,
  document.body,
  );
@@ -364,8 +392,19 @@ export function Menu({
  const inMenu = menuRef.current && menuRef.current.contains(e.target);
  if (!inTrigger && !inMenu) closeMenu(false);
  };
- document.addEventListener('pointerdown', onPointerDown);
- return () => document.removeEventListener('pointerdown', onPointerDown);
+ // Escape closes even when focus never entered the menu (opened by mouse).
+ const onKey = (e) => {
+ if (e.key === 'Escape' && !(menuRef.current && menuRef.current.contains(e.target))) closeMenu(true);
+ };
+ // Capture phase: canvas chrome (artboard label rows, grips) stops pointerdown
+ // from bubbling so it can't start a pan — which also hid it from a bubbling
+ // listener here, leaving a menu open while another opened (two at once).
+ document.addEventListener('pointerdown', onPointerDown, true);
+ document.addEventListener('keydown', onKey);
+ return () => {
+ document.removeEventListener('pointerdown', onPointerDown, true);
+ document.removeEventListener('keydown', onKey);
+ };
  }, [open, closeMenu]);
 
  // ── re-anchor on resize / scroll ────────────────────────────────────────
@@ -417,7 +456,7 @@ export function Menu({
  e.preventDefault();
  if (activeIdx < 0) break;
  const item = items[activeIdx];
- if (item && item.kind !== 'separator' && !item.disabled) {
+ if (isActionable(item)) {
  item.onSelect && item.onSelect();
  // `keepOpen` items (e.g. "Delete…" → inline confirm) leave the menu
  // open so the follow-up row shows in place.

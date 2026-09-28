@@ -1,0 +1,125 @@
+/* ================================================================
+ Studio motion — entry transitions for occasional overlays.
+
+ CSS-only: `@starting-style` + `transition`, so an element animates in
+ the moment it mounts. No exit animation (would need JS to delay unmount).
+ Surfaces that already animate (Menu/context menu, EditorSheet, TrustDialog,
+ size / live-refresh popovers) own their motion in their own files.
+
+ Uses the individual `scale` / `translate` properties so we never fight the
+ inline `transform` some of these elements already carry.
+
+ Deliberately NOT animated: canvas pan/zoom, artboard content, hover
+ outlines, keyboard-toggled chrome (edit mode, shortcuts).
+ ================================================================ */
+
+/* ---------- Popovers that open upward from the dock ----------
+   Brand menu, page picker: grow from the trigger (bottom-left). */
+.lm-motion-pop-up {
+  transform-origin: bottom left;
+  transition:
+    opacity var(--lm-duration-base) var(--lm-ease),
+    scale var(--lm-duration-base) var(--lm-ease);
+}
+@starting-style {
+  .lm-motion-pop-up { opacity: 0; scale: 0.96; }
+}
+
+/* ---------- Centered modals: subtle lift + scale + fade ---------- */
+[data-testid="lm-confirm-dialog"],
+[data-testid="lm-move-picker"],
+[data-testid="lm-create-dialog"],
+[data-testid="connect-project-dialog"] > [role="dialog"],
+.lm-motion-modal,
+.lm-revert-timeline,
+.lm-ai-disclosure,
+.lm-ollama-guide,
+[data-testid="walkthrough-overlay"] [role="dialog"] {
+  transition:
+    opacity var(--lm-duration-base) var(--lm-ease),
+    scale var(--lm-duration-base) var(--lm-ease),
+    translate var(--lm-duration-base) var(--lm-ease);
+}
+@starting-style {
+  [data-testid="lm-confirm-dialog"],
+  [data-testid="lm-move-picker"],
+  [data-testid="lm-create-dialog"],
+  [data-testid="connect-project-dialog"] > [role="dialog"],
+  .lm-motion-modal,
+  .lm-revert-timeline,
+  .lm-ai-disclosure,
+  .lm-ollama-guide,
+  [data-testid="walkthrough-overlay"] [role="dialog"] {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 8px;
+  }
+}
+
+/* Their backdrops just fade. */
+:has(> [data-testid="lm-confirm-dialog"]),
+:has(> [data-testid="lm-move-picker"]),
+:has(> [data-testid="lm-create-dialog"]),
+:has(> .lm-motion-modal),
+[data-testid="connect-project-dialog"],
+.lm-revert-timeline-backdrop,
+.lm-ai-disclosure-backdrop,
+.lm-ollama-guide-backdrop,
+[data-testid="walkthrough-overlay"] {
+  transition: opacity var(--lm-duration-base) var(--lm-ease);
+}
+@starting-style {
+  :has(> [data-testid="lm-confirm-dialog"]),
+  :has(> [data-testid="lm-move-picker"]),
+  :has(> [data-testid="lm-create-dialog"]),
+  :has(> .lm-motion-modal),
+  [data-testid="connect-project-dialog"],
+  .lm-revert-timeline-backdrop,
+  .lm-ai-disclosure-backdrop,
+  .lm-ollama-guide-backdrop,
+  [data-testid="walkthrough-overlay"] {
+    opacity: 0;
+  }
+}
+
+/* ---------- Tour offer toast: rises from the dock ---------- */
+[data-testid="walkthrough-offer"] {
+  transform-origin: bottom center;
+  transition:
+    opacity var(--lm-duration-base) var(--lm-ease),
+    scale var(--lm-duration-base) var(--lm-ease),
+    translate var(--lm-duration-base) var(--lm-ease);
+}
+@starting-style {
+  [data-testid="walkthrough-offer"] { opacity: 0; scale: 0.97; translate: 0 8px; }
+}
+
+/* ---------- Press feedback on studio dialog/action buttons ----------
+   !important because these buttons carry an inline `transition` for their
+   background/box-shadow hover; this list is a superset of those. */
+button.lm-focusable {
+  transition:
+    scale var(--lm-duration-fast) var(--lm-ease),
+    background var(--lm-duration-fast) var(--lm-ease),
+    color var(--lm-duration-fast) var(--lm-ease),
+    box-shadow var(--lm-duration-fast) var(--lm-ease) !important;
+}
+button.lm-focusable:not(:disabled):active { scale: 0.97; }
+
+/* ---------- Reduced motion: keep the fades, drop movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .lm-motion-pop-up,
+  [data-testid="lm-confirm-dialog"],
+  [data-testid="lm-move-picker"],
+  [data-testid="lm-create-dialog"],
+  [data-testid="connect-project-dialog"] > [role="dialog"],
+  .lm-motion-modal,
+  .lm-revert-timeline,
+  .lm-ai-disclosure,
+  .lm-ollama-guide,
+  [data-testid="walkthrough-overlay"] [role="dialog"],
+  [data-testid="walkthrough-offer"] {
+    transition-property: opacity;
+  }
+  button.lm-focusable:not(:disabled):active { scale: none; }
+}

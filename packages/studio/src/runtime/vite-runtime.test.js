@@ -13,7 +13,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, it, expect, vi } from 'vitest';
 
-import { createAssetNode, createProjectNode } from '@lerret/core';
+import { createAssetNode, createProjectNode, resolveVariantData } from '@lerret/core';
 
 import {
  createViteRuntime,
@@ -327,6 +327,29 @@ describe('createViteRuntime — variants', () => {
 
  const ids = (await runtime.loadAsset(asset)).map((e) => e.id);
  expect(new Set(ids).size).toBe(ids.length);
+ });
+
+ it('carries every export name on each entry so keyed data resolves without stray-key warnings', async () => {
+ const asset = componentAsset('brand/Card.jsx');
+ const runtime = createViteRuntime(project, {
+ assetBaseUrl: '/base',
+ importModule: async () => ({ default: Ok, Complete: Dark }),
+ });
+
+ const entries = await runtime.loadAsset(asset);
+ for (const e of entries) expect(e.variantNames).toEqual(['default', 'Complete']);
+
+ const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+ try {
+ const data = { source: 'json', value: { default: { a: 1 }, Complete: { a: 2 } } };
+ for (const e of entries) {
+ const rec = resolveVariantData(data, e.variantNames).get(e.variantName);
+ expect(rec.source).toBe('keyed');
+ }
+ expect(warn).not.toHaveBeenCalled();
+ } finally {
+ warn.mockRestore();
+ }
  });
 });
 

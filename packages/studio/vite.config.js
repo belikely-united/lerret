@@ -11,6 +11,7 @@ import { dirname, resolve } from 'node:path';
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { createSourceStampPlugin } from '@lerret/core/source-edit';
 
 const studioDir = dirname(fileURLToPath(import.meta.url));
 // The dev fixture project, OUTSIDE `src/`.
@@ -185,7 +186,7 @@ const isCliBuild = process.env.LERRET_CLI_BUILD === '1';
 export default defineConfig({
  plugins: isCliBuild
  ? [react()]
- : [react(), virtualLerretProjectShim(), lerretSelfHostPlugin({ studioDir })],
+ : [react(), createSourceStampPlugin(), virtualLerretProjectShim(), lerretSelfHostPlugin({ studioDir })],
  build: {
  // Serve the static bundle from any path (root OR sub-path).
  // `base: './'` makes Vite emit relative asset URLs (e.g. `./assets/…`

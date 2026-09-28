@@ -6,7 +6,8 @@
   "license": "MIT",
   "main": "./src/index.js",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./source-edit": "./src/source-edit/index.js"
   },
   "files": [
     "src",
@@ -33,5 +34,8 @@
   ],
   "scripts": {
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.9"
   }
 }

@@ -23,6 +23,9 @@ import React from 'react';
 import * as ReactDOM from 'react-dom';
 
 import { PagePicker } from './components/dock/page-picker.jsx';
+import { EditModeLayer } from './components/edit-mode/edit-mode-layer.jsx';
+import { EditModeDock } from './components/edit-mode/edit-dock.jsx';
+import { useEditMode } from './components/edit-mode/edit-session.js';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
 // Epic 8 / Story 8.2 — the dock-mounted AI input cluster. It reaches @lerret/ai
@@ -110,6 +113,10 @@ function StudioComingSoon({ label }) {
 //
 // Layout (left → right): logo · page nav · global download · brand kit · ?
 // ───────────────────────────────────────────
+// ponytail: AI input hidden from the dock for now (user request, 2026-09-26).
+// Flip to true to bring it back — nothing else was removed.
+const SHOW_AI_INPUT = false;
+
 function StudioDockSeparator() {
  return <div style={{ width: 1, height: 24, background: 'var(--lm-bg-tertiary, #E8E2D4)', alignSelf: 'center' }} />;
 }
@@ -261,7 +268,7 @@ function StudioBrandMenu({
  const hasAi = !!(onAiSettings || onAiRevertHistory);
  const hasActionsAbove = hasProject || hasAi || canExport;
  return ReactDOM.createPortal(
- <div ref={menuRef} style={{
+ <div ref={menuRef} className="lm-motion-pop-up" style={{
  position: 'fixed',
  bottom: coords.bottom + 8,
  left: coords.left,
@@ -400,6 +407,9 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  // When `null` (e.g. the brownfield `#storyboard` page, not a Lerret
  // project), the dock falls back to the studio-shell page buttons.
  const projectPages = useProjectPages();
+ // While editing, the dock IS the edit toolbar: brand + page nav step aside
+ // (hidden, not unmounted, so their dialogs/state survive).
+ const { enabled: editing } = useEditMode();
  // The loaded ProjectNode — used by the "Export project" button.
  const projectModel = useProjectModel();
  // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
@@ -549,7 +559,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  overflow: 'auto',
  }}>
  {/* Brand lockup — toggles the brand-kit popover */}
- <span ref={brandRef} data-tour="dock-brand" style={{ position: 'relative', display: 'inline-flex' }}>
+ <span ref={brandRef} data-tour="dock-brand" style={{ position: 'relative', display: editing ? 'none' : 'inline-flex' }}>
  <button
  type="button"
  className="lm-focusable-inset"
@@ -618,8 +628,9 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  )}
  </span>
 
- <StudioDockSeparator />
+ {!editing && <StudioDockSeparator />}
 
+ <span style={{ display: editing ? 'none' : 'contents' }}>
  {/* Page nav. With a loaded Lerret project, this is the project-page
  picker (UX-DR1): a compact dropdown for >1 page, a
  static label for exactly one page. Otherwise it falls back to the
@@ -647,6 +658,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  ))}
  </span>
  )}
+ </span>
 
  {/* Epic 8 / Story 8.2 — the AI input cluster. Per UX-delta IA tree it sits
   "between the page picker and the global export"; in the v1 dock the global
@@ -655,13 +667,17 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
   wrapper. It is AI-agnostic chrome: when @lerret/ai is absent it renders an
   idle-only fallback and the surrounding brand / page-picker children keep
   working. */}
- <StudioDockSeparator />
+ {!editing && <StudioDockSeparator />}
+ <EditModeDock Button={StudioDockButton} Separator={StudioDockSeparator} />
+ {SHOW_AI_INPUT && <StudioDockSeparator />}
+ {SHOW_AI_INPUT && (
  <AiInputCluster
  onOpenRevertTimeline={(turnId) => {
  setRevertTimelineOpen(true);
  setRevertTimelineFocusTurn(turnId ?? null);
  }}
  />
+ )}
  </div>
  );
 }
@@ -705,6 +721,7 @@ export function StudioShell({ pages, defaultPage }) {
  <React.Fragment>
  <StudioDock pages={pages} current={valid} onNavigate={navigate} onHelp={() => setTourOpen(true)} />
  {page.comingSoon ? <StudioComingSoon label={page.label} /> : page.node}
+ <EditModeLayer />
  {/* First-ever-visit offer (calm notice above dock). */}
  {offerVisible && !tourOpen && (
  <WalkthroughOffer

@@ -518,7 +518,8 @@ async function loadAssetModule(asset, project, ctx) {
  }
 
  const meta = parseMeta(mod && mod.meta);
- return variants.map((variant) => makeVariantEntry(asset, variant, meta));
+ const variantNames = variants.map((v) => v.variantName);
+ return variants.map((variant) => makeVariantEntry(asset, variant, meta, variantNames));
 }
 
 // ---------------------------------------------------------------------------

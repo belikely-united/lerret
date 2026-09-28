@@ -13,7 +13,7 @@
  padding: var(--lm-space-1);
  min-width: 200px;
  max-width: 320px;
- max-height: 320px;
+ max-height: min(520px, calc(100vh - 24px));
  overflow-y: auto;
  background: var(--lm-popover-bg);
  backdrop-filter: blur(16px) saturate(120%);
@@ -24,19 +24,28 @@
  z-index: 80;
  font-family: var(--lm-font-sans);
  color: var(--lm-text-primary);
- /* open animation */
+ /* open animation — grows from the trigger side (origin set per data-align
+ below; the context menu opens at the cursor → top-left default). */
+ transform-origin: top left;
  animation: lm-menu-open var(--lm-duration-fast) var(--lm-ease) both;
 }
+.lm-menu-popover[data-align="bottom-end"] { transform-origin: top right; }
+.lm-menu-popover[data-align="top-start"] { transform-origin: bottom left; }
+.lm-menu-popover[data-align="top-end"] { transform-origin: bottom right; }
 
 @keyframes lm-menu-open {
- from { opacity: 0; transform: scale(0.96) translateY(4px); }
- to { opacity: 1; transform: scale(1) translateY(0); }
+ from { opacity: 0; transform: scale(0.96); }
+ to { opacity: 1; transform: scale(1); }
+}
+@keyframes lm-menu-fade {
+ from { opacity: 0; }
+ to { opacity: 1; }
 }
 
-/* Reduced-motion: skip the animation, show instantly */
+/* Reduced-motion: keep the fade, drop the scale */
 @media (prefers-reduced-motion: reduce) {
  .lm-menu-popover {
- animation: none;
+ animation-name: lm-menu-fade;
  }
 }
 
@@ -119,4 +128,53 @@
  height: 0;
  margin: var(--lm-space-1) 0;
  list-style: none;
+}
+
+/* ---------- Header: names what the menu acts on ---------- */
+.lm-menu-label {
+ display: flex;
+ align-items: center;
+ gap: var(--lm-space-2);
+ padding: var(--lm-space-1) var(--lm-space-3) var(--lm-space-2);
+ margin-bottom: var(--lm-space-1);
+ list-style: none;
+ font-family: var(--lm-font-sans);
+ font-size: var(--lm-size-body-sm);
+ color: var(--lm-text-secondary);
+ box-shadow: 0 1px 0 var(--lm-bg-tertiary);
+ cursor: default;
+}
+.lm-menu-label-icon { display: inline-flex; flex: none; color: var(--lm-text-tertiary); }
+.lm-menu-label-text {
+ flex: 1;
+ min-width: 0;
+ font-weight: var(--lm-weight-semibold);
+ color: var(--lm-text-primary);
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+.lm-menu-label-kind {
+ flex: none;
+ font-size: var(--lm-size-hint);
+ font-weight: var(--lm-weight-semibold);
+ letter-spacing: var(--lm-tracking-caps);
+ text-transform: uppercase;
+ color: var(--lm-text-tertiary);
+}
+
+/* ---------- Destructive item (Apple HIG: last, and marked) ---------- */
+.lm-menu-item--danger { color: var(--lm-error); }
+.lm-menu-item--danger:hover:not([aria-disabled="true"]),
+.lm-menu-item--danger[data-active="true"] {
+ background: var(--lm-error-light);
+ box-shadow: none;
+}
+
+/* ---------- Shortcut hint ---------- */
+.lm-menu-item-shortcut {
+ flex: none;
+ font-family: var(--lm-font-mono);
+ font-size: var(--lm-size-badge);
+ color: var(--lm-text-tertiary);
 }

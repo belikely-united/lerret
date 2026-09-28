@@ -459,6 +459,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
             ref={listRef}
             id={listboxId}
             role="listbox"
+            className="lm-motion-pop-up"
             tabIndex={-1}
             aria-label="Pages"
             aria-activedescendant={optionId(activeIdx)}

@@ -1,8 +1,9 @@
 // markdown-editor.jsx — Markdown asset editor: raw input + live preview.
 //
-// Opens inside an EditorSheet. Shows a raw-Markdown textarea on
-// the left alongside a live preview rendered by the same react-markdown
-// used in MarkdownAssetCard.
+// Edits IN PLACE — no modal. While editing, the markdown card on the canvas
+// becomes the raw-Markdown source, and a temporary live preview (the same
+// react-markdown the card uses) docks on the right of the screen. Done, Esc,
+// or a click outside the card and the preview finishes editing.
 //
 // ── Write model ─────────────────────────────────────────────────────────────
 // Writes are debounced (400 ms after the last keystroke) so we don't hammer the
@@ -10,7 +11,7 @@
 // a safety net. Both paths use `writeProjectFile` from `write-client.js`.
 //
 // Because writes happen as the user types (not on an explicit "Save" button),
-// dismissing the sheet (Esc / backdrop / close) never loses committed work.
+// finishing (Done / Esc / click outside) flushes the pending write first.
 //
 // ── Failed-write UX ─────────────────────────────────────────────────────────
 // A failed write shows a calm inline guidance message that includes the file
@@ -19,13 +20,12 @@
 //
 // ── Reduced-motion ───────────────────────────────────────────────────────────
 // The preview pane update is instant (no fade) when `prefers-reduced-motion:
-// reduce` matches (UX-DR18, NFR14). The EditorSheet already handles its own
-// motion. The opening affordance ('s kebab) honors the same media
-// query via the shared menu / kebab styles.
+// reduce` matches (UX-DR18, NFR14); the preview panel then fades without
+// sliding.
 //
 // ── Props ────────────────────────────────────────────────────────────────────
 // open {boolean} Whether the editor is visible.
-// onClose {() => void} Called when the sheet should close.
+// onClose {() => void} Called when editing finishes.
 // entry {AssetEntry} The markdown entry from the runtime.
 // Needs `entry.asset.path` (the .md LerretPath)
 // and `entry.asset.name` / `entry.label` for
@@ -37,7 +37,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 
-import { EditorSheet } from './editor-sheet.jsx';
+import { createPortal } from 'react-dom';
 import { writeProjectFile } from '../../runtime/write-client.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -58,37 +58,58 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  const s = document.createElement('style');
  s.id = 'markdown-editor-styles';
  s.textContent = `
+/* ── In place: the card becomes the source editor ─────────────────── */
 .lm-md-editor {
- display: flex;
- flex-direction: column;
- gap: var(--lm-space-3, 12px);
- /* Fill the full-screen EditorSheet body; inner panes own their scroll. */
- flex: 1;
- min-height: 0;
- overflow: hidden;
+ position: relative;
+ width: 100%;
+ box-sizing: border-box;
+ border-radius: var(--lm-radius-lg, 12px);
+ background: var(--lm-bg-primary, #FAF8F2);
+ box-shadow: 0 0 0 2px var(--lm-accent, #B85B33), var(--lm-shadow-md);
+}
+.lm-md-editor__textarea {
+ display: block;
+ width: 100%;
+ min-height: 240px;
+ box-sizing: border-box;
+ padding: var(--lm-space-5, 20px) var(--lm-space-5, 20px);
+ font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, "Cascadia Code", monospace);
+ font-size: var(--lm-size-body, 13px);
+ line-height: var(--lm-lh-relaxed, 1.6);
+ color: var(--lm-text-primary, #1A1714);
+ background: transparent;
+ border: none;
+ border-radius: inherit;
+ outline: none;
+ resize: none;
+ overflow: hidden; /* grows with its content (auto-height) */
 }
 
-/* ── Split: source (left) + live preview (right) ──────────────────── */
-.lm-md-editor__split {
- flex: 1;
- min-height: 0;
- display: flex;
- flex-direction: row;
- gap: var(--lm-space-4, 16px);
-}
-/* Stack the panes on a narrow viewport so each still gets usable height. */
-@media (max-width: 720px) {
- .lm-md-editor__split { flex-direction: column; gap: var(--lm-space-3, 12px); }
-}
-
-/* ── Left pane: raw textarea ─────────────────────────────────────── */
-.lm-md-editor__input-pane {
- flex: 1 1 50%;
+/* ── Right: temporary live preview (non-modal; canvas stays usable) ── */
+.lm-md-preview {
+ position: fixed;
+ top: 12px;
+ right: 12px;
+ bottom: 96px;
+ width: min(440px, 40vw);
+ z-index: 60;
  display: flex;
  flex-direction: column;
+ background: var(--lm-popover-bg, var(--lm-bg-primary, #FAF8F2));
+ border-radius: var(--lm-radius-lg, 12px);
+ box-shadow: var(--lm-shadow-popup);
+ -webkit-backdrop-filter: blur(12px);
+ backdrop-filter: blur(12px);
+ font-family: var(--lm-font-sans, system-ui, sans-serif);
+ transition: opacity var(--lm-duration-base, 220ms) var(--lm-ease), translate var(--lm-duration-base, 220ms) var(--lm-ease);
+}
+@starting-style { .lm-md-preview { opacity: 0; translate: 16px 0; } }
+.lm-md-preview__head {
+ flex: none;
+ display: flex;
+ align-items: center;
  gap: var(--lm-space-2, 8px);
- min-width: 0;
- min-height: 0;
+ padding: var(--lm-space-3, 12px) var(--lm-space-3, 12px) var(--lm-space-2, 8px) var(--lm-space-4, 16px);
 }
 .lm-md-editor__pane-label {
  font: var(--lm-weight-semibold, 600) var(--lm-size-hint, 10px)/1 var(--lm-font-sans, sans-serif);
@@ -97,71 +118,43 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  color: var(--lm-text-tertiary, #6E6960);
  user-select: none;
 }
-.lm-md-editor__textarea {
+.lm-md-preview__name {
  flex: 1;
- width: 100%;
- min-height: 0;
- box-sizing: border-box;
- padding: var(--lm-space-3, 12px);
- font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, "Cascadia Code", monospace);
- font-size: var(--lm-size-body, 13px);
- line-height: var(--lm-lh-body, 1.45);
- color: var(--lm-text-primary, #1A1714);
- background: var(--lm-bg-tertiary, #E8E2D4);
- border: none;
- border-radius: var(--lm-radius-sm, 6px);
- outline: none;
- resize: none;
- overflow: auto;
- transition: box-shadow var(--lm-duration-fast, 120ms) var(--lm-ease);
-}
-.lm-md-editor__textarea:focus {
- box-shadow: var(--lm-focus-ring);
-}
-
-/* ── Right pane: live preview ─────────────────────────────────────── */
-.lm-md-editor__preview-pane {
- flex: 1 1 50%;
- display: flex;
- flex-direction: column;
- gap: var(--lm-space-2, 8px);
  min-width: 0;
- min-height: 0;
+ font-size: var(--lm-size-body-sm, 12px);
+ font-weight: var(--lm-weight-semibold, 600);
+ color: var(--lm-text-primary, #1A1714);
  overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
 }
+.lm-md-preview__done {
+ flex: none;
+ border: 0;
+ border-radius: var(--lm-radius-md, 8px);
+ padding: 6px 12px;
+ background: var(--lm-text-primary, #1A1714);
+ color: var(--lm-bg-primary, #FAF8F2);
+ font: var(--lm-weight-semibold, 600) var(--lm-size-body-sm, 12px)/1 var(--lm-font-sans, sans-serif);
+ cursor: pointer;
+}
+.lm-md-preview__done:focus-visible { box-shadow: var(--lm-focus-ring); outline: none; }
 .lm-md-editor__preview-scroll {
  flex: 1;
  min-height: 0;
  overflow-y: auto;
  overflow-x: hidden;
- background: var(--lm-bg-secondary, #F2EEE6);
- border-radius: var(--lm-radius-sm, 6px);
- padding: var(--lm-space-3, 12px) var(--lm-space-4, 16px);
+ padding: var(--lm-space-2, 8px) var(--lm-space-5, 20px) var(--lm-space-5, 20px);
  scrollbar-width: thin;
- scrollbar-color: var(--lm-bg-tertiary, #E8E2D4) transparent;
-
- /* Preview transitions: fade when motion is allowed, instant otherwise. */
- transition: opacity var(--lm-duration-fast, 120ms) var(--lm-ease);
 }
-.lm-md-editor__preview-scroll[data-reduced-motion] {
- transition: none !important;
-}
-
-/* ── Path / file metadata row ───────────────────────────────────────── */
-.lm-md-editor__path {
- font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
- font-size: var(--lm-size-hint, 10px);
- color: var(--lm-text-muted, #B8B3A8);
- letter-spacing: 0.04em;
- margin: 0 0 var(--lm-space-2, 8px);
- word-break: break-all;
-}
-
-/* ── Footer: error banner + saved indicator ──────────────────────── */
-.lm-md-editor__error-banner {
+.lm-md-preview__foot {
+ flex: none;
  display: flex;
- align-items: flex-start;
+ flex-direction: column;
  gap: var(--lm-space-2, 8px);
+ padding: var(--lm-space-2, 8px) var(--lm-space-4, 16px) var(--lm-space-3, 12px);
+}
+.lm-md-editor__error-banner {
  padding: var(--lm-space-2, 8px) var(--lm-space-3, 12px);
  background: var(--lm-error-light);
  border-radius: var(--lm-radius-sm, 6px);
@@ -185,11 +178,8 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  border-radius: var(--lm-radius-pill, 999px);
  background: var(--lm-success, #4A6B3F);
 }
-
-/* Reduced-motion overrides */
 @media (prefers-reduced-motion: reduce) {
- .lm-md-editor__textarea { transition: none !important; }
- .lm-md-editor__preview-scroll { transition: none !important; }
+ .lm-md-preview { transition-property: opacity; }
  .lm-md-editor__saved { transition: none !important; }
 }
  `.trim();
@@ -202,13 +192,12 @@ if (typeof document !== 'undefined' && !document.getElementById('markdown-editor
  * In-studio Markdown asset editor (FR26, FR34, NFR9, NFR14,
  * UX-DR8, UX-DR18).
  *
- * Renders inside an {@link EditorSheet}. Provides a split-pane UI:
- * - left: a raw-Markdown textarea for authoring
- * - right: a live preview rendered by react-markdown (the same library used
- * in {@link MarkdownAssetCard} so the preview fidelity is identical)
+ * Renders in place of the markdown card: the card becomes a raw-Markdown
+ * textarea, and a live preview (react-markdown, same as
+ * {@link MarkdownAssetCard}) docks on the right of the screen while editing.
  *
- * Writes are debounced ({@link WRITE_DEBOUNCE_MS} ms) and committed
- * immediately on textarea blur so in-progress edits survive sheet dismissal.
+ * Writes are debounced ({@link WRITE_DEBOUNCE_MS} ms), committed immediately on
+ * textarea blur, and flushed when editing finishes.
  *
  * @param {object} props
  * @param {boolean} props.open Whether the sheet is open.
@@ -332,52 +321,68 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
  performWrite(pendingTextRef.current);
  }, [performWrite]);
 
- // ── Sheet title ──────────────────────────────────────────────────────────────
- const title = `Markdown · ${label}`;
+ // ── Finish editing: flush any pending write, then close ──────────────────
+ const finish = React.useCallback(() => {
+ if (debounceRef.current) {
+ clearTimeout(debounceRef.current);
+ debounceRef.current = null;
+ }
+ performWrite(pendingTextRef.current);
+ onClose && onClose();
+ }, [performWrite, onClose]);
 
- // ── Footer ───────────────────────────────────────────────────────────────────
- const footer = (
- <>
- {writeError && (
- <div
- className="lm-md-editor__error-banner"
- role="alert"
- aria-live="polite"
- data-testid="lm-md-editor-error"
- >
- <span>
- Write failed: {writeError}
- {filePath && (
- <> — <code>{filePath}</code></>
- )}
- </span>
- </div>
- )}
- <span
- className="lm-md-editor__saved"
- data-visible={saved ? '' : undefined}
- aria-live="polite"
- data-testid="lm-md-editor-saved"
- >
- <span className="lm-md-editor__saved-dot" aria-hidden="true" />
- Saved
- </span>
- </>
- );
+ // ── In place: focus the source, grow it with its content ─────────────────
+ const textareaRef = React.useRef(null);
+ const hostRef = React.useRef(null);
+ const panelRef = React.useRef(null);
+ React.useLayoutEffect(() => {
+ const el = textareaRef.current;
+ if (!el) return;
+ el.style.height = 'auto';
+ el.style.height = `${el.scrollHeight}px`;
+ }, [text, open]);
+ React.useEffect(() => {
+ if (!open) return;
+ textareaRef.current?.focus({ preventScroll: true });
+ // Keep the card visible beside the preview panel: if the panel would cover
+ // it, pan the canvas left just enough (24px clear of the panel).
+ const host = hostRef.current;
+ const panel = panelRef.current;
+ if (!host || !panel || typeof window === 'undefined') return;
+ // Measure against the panel's resting place (it may still be sliding in).
+ const panelLeft = window.innerWidth - parseFloat(getComputedStyle(panel).right || '0') - panel.offsetWidth;
+ const overlap = host.getBoundingClientRect().right - (panelLeft - 24);
+ if (overlap > 0) window.dispatchEvent(new CustomEvent('lerret:pan-by', { detail: { dx: -overlap } }));
+ }, [open]);
 
- // ── Render ───────────────────────────────────────────────────────────────────
+ // Esc, or a click outside the card and the preview, finishes editing.
+ React.useEffect(() => {
+ if (!open) return undefined;
+ const onKey = (e) => {
+ if (e.key === 'Escape') {
+ e.stopPropagation();
+ finish();
+ }
+ };
+ const onDown = (e) => {
+ if (hostRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+ finish();
+ };
+ document.addEventListener('keydown', onKey, true);
+ document.addEventListener('pointerdown', onDown, true);
+ return () => {
+ document.removeEventListener('keydown', onKey, true);
+ document.removeEventListener('pointerdown', onDown, true);
+ };
+ }, [open, finish]);
+
+ if (!open) return null;
+
+ // ── Render: source in the card · live preview docked on the right ───────
  return (
- <EditorSheet open={open} onClose={onClose} title={title} dirty={false} footer={footer} fullScreen>
- <div className="lm-md-editor" data-testid="lm-md-editor">
- {/* File path hint */}
- {filePath && <p className="lm-md-editor__path">{filePath}</p>}
-
- {/* Source (left) + live preview (right). Each pane scrolls on its own,
- and the split stacks vertically on a narrow viewport. */}
- <div className="lm-md-editor__split">
- <div className="lm-md-editor__input-pane">
- <span className="lm-md-editor__pane-label">Source</span>
+ <div ref={hostRef} className="lm-md-editor" data-testid="lm-md-editor">
  <textarea
+ ref={textareaRef}
  className="lm-md-editor__textarea"
  value={text}
  onChange={handleChange}
@@ -388,34 +393,48 @@ export function MarkdownEditor({ open, onClose, entry, initialText, writer, onTe
  autoCorrect="off"
  autoCapitalize="off"
  />
- </div>
- <div className="lm-md-editor__preview-pane">
+ {typeof document !== 'undefined' && createPortal(
+ <aside ref={panelRef} className="lm-md-preview" aria-label={`Preview of ${label}`} data-testid="lm-md-preview-panel">
+ <header className="lm-md-preview__head">
  <span className="lm-md-editor__pane-label">Preview</span>
+ <span className="lm-md-preview__name" title={filePath || label}>{label}</span>
+ <span
+ className="lm-md-editor__saved"
+ data-visible={saved ? '' : undefined}
+ aria-live="polite"
+ data-testid="lm-md-editor-saved"
+ >
+ <span className="lm-md-editor__saved-dot" aria-hidden="true" />
+ Saved
+ </span>
+ <button type="button" className="lm-md-preview__done" onClick={finish} title="Done (Esc)">Done</button>
+ </header>
  <div
  className="lm-md-editor__preview-scroll lm-md-doc"
  data-testid="lm-md-editor-preview"
  data-reduced-motion={reducedMotion ? '' : undefined}
- aria-label="Markdown preview"
  aria-live="off"
  >
  {text.trim().length === 0 ? (
- <span
- style={{
- color: 'var(--lm-text-muted, #B8B3A8)',
- fontSize: 'var(--lm-size-body-sm, 12px)',
- fontStyle: 'italic',
- }}
- >
+ <span style={{ color: 'var(--lm-text-muted, #B8B3A8)', fontSize: 'var(--lm-size-body-sm, 12px)', fontStyle: 'italic' }}>
  Empty document
  </span>
  ) : (
  <ReactMarkdown>{text}</ReactMarkdown>
  )}
  </div>
+ {writeError && (
+ <footer className="lm-md-preview__foot">
+ <div className="lm-md-editor__error-banner" role="alert" aria-live="polite" data-testid="lm-md-editor-error">
+ Write failed: {writeError}
+ {filePath && <> — <code>{filePath}</code></>}
  </div>
+ </footer>
+ )}
+ </aside>,
+ document.body,
+ )}
  </div>
- </div>
- </EditorSheet>
  );
 }
 

@@ -276,7 +276,7 @@ describe('ProjectCanvas — section background from cascade', () => {
  return { project, runtime };
  }
 
- it('applies the cascade bg color to the matching section', async () => {
+ it('paints the page\'s cascade bg color on the canvas (not a panel)', async () => {
  const pagePath = '/.lerret/home';
  const { project, runtime } = setup({ pagePath });
  const cascadeEntries = [[pagePath, { presentation: { background: '#ff0000' } }]];
@@ -289,11 +289,11 @@ describe('ProjectCanvas — section background from cascade', () => {
 
  await waitFor(() => container.querySelector('[data-card]'), { label: 'card rendered' });
 
- // The page renders bare, so its presentation.background tints the page's
- // own region (the bare section wrapper) rather than a group-style frame.
- const section = container.querySelector('[data-dc-section]');
- expect(section).not.toBeNull();
- expect(section.style.backgroundColor).toBe('rgb(255, 0, 0)');
+ // A page's presentation.background paints the whole canvas; its own
+ // assets sit directly on it (no panel), so the section itself stays clear.
+ const canvas = container.querySelector('.design-canvas');
+ expect(canvas.style.background).toBe('rgb(255, 0, 0)');
+ expect(container.querySelector('[data-dc-section]').style.backgroundColor).toBe('');
  });
 
  it('applies the cascade foreground color (presentation.color) to the section frame', async () => {

@@ -128,7 +128,28 @@ function inputStyle(hasError) {
   };
 }
 
+// A variant is a new export of the same component — its name is a JS
+// identifier, not a file name. (Mirrors VARIANT_NAME in @lerret/core/source-edit;
+// kept inline so this dialog doesn't pull the parser into the main bundle.)
+const VARIANT_NAME = /^[A-Z][A-Za-z0-9_]*$/;
+
+function validateName(name, kind) {
+  if (kind !== 'variant') return validateEntryName(name, { kind });
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: 'Give the variant a name.' };
+  if (!VARIANT_NAME.test(trimmed)) {
+    return { ok: false, error: 'Start with a capital letter; letters and numbers only (e.g. Dark, Holiday2).' };
+  }
+  return { ok: true, name: trimmed };
+}
+
 const KIND_COPY = {
+  variant: {
+    title: 'New variant',
+    cta: 'Create variant',
+    placeholder: 'e.g. Dark',
+    hint: 'Adds another artboard from the same component. Its content gets its own slot in the data file, so you can change it independently.',
+  },
   page: {
     title: 'New page',
     cta: 'Create page',
@@ -220,7 +241,7 @@ export function CreateEntryDialog({
   }, [onClose, pending]);
 
   const trimmed = name.trim();
-  const validation = React.useMemo(() => validateEntryName(name, { kind }), [name, kind]);
+  const validation = React.useMemo(() => validateName(name, kind), [name, kind]);
 
   // Instant case-insensitive collision check against known siblings.
   const collision = React.useMemo(() => {
@@ -247,7 +268,7 @@ export function CreateEntryDialog({
 
   const submit = React.useCallback(async () => {
     // Re-derive guard inside the callback so a stale closure can't submit.
-    const v = validateEntryName(name, { kind });
+    const v = validateName(name, kind);
     if (!v.ok || pending) return;
     setServerError(null);
     setPending(true);

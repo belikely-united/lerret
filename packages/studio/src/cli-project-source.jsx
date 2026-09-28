@@ -212,7 +212,10 @@ export function CliProjectSource() {
  // from the ref so this once-installed handler always targets the live one.
  const rt = runtimeRef.current;
  if (rt && !isSwitch && payload.event && typeof payload.event.path === 'string') {
- rt.notifyChange(payload.event.path);
+ // A removed file (a delete, or the old half of a move) has nothing to
+ // reload: the model update below drops its card. Re-importing it would
+ // 404 and Vite would paint its full-screen error overlay.
+ if (payload.event.type !== 'remove') rt.notifyChange(payload.event.path);
  }
 
  // 2. Switch metadata applied BEFORE the project so the epoch-keyed runtime

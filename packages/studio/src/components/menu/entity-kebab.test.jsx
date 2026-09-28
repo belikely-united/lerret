@@ -18,7 +18,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import {
  EntityKebab,
- applyDeleteConfirm,
  buildComponentItems,
  buildMarkdownItems,
  buildSectionItems,
@@ -57,7 +56,7 @@ function findItem(items, id) {
 // ── Component item set ──────────────────────────────────────────────────────
 
 describe('buildComponentItems', () => {
- it('includes Edit data / Edit meta / Duplicate / Rename / Move / Delete / Export / Reveal', () => {
+ it('groups edit · organise · export · open-in, with Delete last (destructive, HIG)', () => {
  const items = buildComponentItems(baseCtx());
  expect(itemIds(items)).toEqual([
  'edit-data',
@@ -65,21 +64,22 @@ describe('buildComponentItems', () => {
  'duplicate',
  'rename',
  'move',
- 'delete',
  'export',
  'reveal-editor',
  'reveal-finder',
+ 'delete',
  ]);
+ expect(findItem(items, 'delete').danger).toBe(true);
+ expect(items.at(-2).kind).toBe('separator');
  });
 
- it('positions "Move to…" between Rename and Delete', () => {
- const ids = itemIds(buildComponentItems(baseCtx()));
- const renameIdx = ids.indexOf('rename');
- const moveIdx = ids.indexOf('move');
- const deleteIdx = ids.indexOf('delete');
- expect(renameIdx).toBeGreaterThanOrEqual(0);
- expect(moveIdx).toBe(renameIdx + 1);
- expect(deleteIdx).toBe(moveIdx + 1);
+ it('leads with a header naming the artboard, and never doubles or trails separators', () => {
+ const items = buildComponentItems(baseCtx({ header: { label: 'Card', meta: 'Artboard' }, onEditVisually: noop }));
+ expect(items[0]).toMatchObject({ kind: 'label', label: 'Card', meta: 'Artboard' });
+ expect(items[1].id).toBe('edit-visually');
+ expect(items[1].shortcut).toBe('E');
+ expect(items.at(-1).kind).not.toBe('separator');
+ expect(items.filter((it, i) => it.kind === 'separator' && items[i - 1]?.kind === 'separator')).toEqual([]);
  });
 
  it('omits "Move to…" when onMove is not provided (legacy callers)', () => {
@@ -118,32 +118,10 @@ describe('buildComponentItems', () => {
 // ── Markdown item set ───────────────────────────────────────────────────────
 
 describe('buildMarkdownItems', () => {
- it('uses Edit (not Edit data/meta) and omits component-only items', () => {
- const items = buildMarkdownItems(baseCtx());
- const ids = itemIds(items);
- expect(ids).toContain('edit');
- expect(ids).not.toContain('edit-data');
- expect(ids).not.toContain('edit-meta');
- // Lifecycle items are present.
- expect(ids).toEqual([
- 'edit',
- 'duplicate',
- 'rename',
- 'move',
- 'delete',
- 'export',
- 'reveal-editor',
- 'reveal-finder',
- ]);
- });
-
- it('positions "Move to…" between Rename and Delete', () => {
+ it('uses Edit (not Edit data/meta), same structure, Delete last', () => {
  const ids = itemIds(buildMarkdownItems(baseCtx()));
- const renameIdx = ids.indexOf('rename');
- const moveIdx = ids.indexOf('move');
- const deleteIdx = ids.indexOf('delete');
- expect(moveIdx).toBe(renameIdx + 1);
- expect(deleteIdx).toBe(moveIdx + 1);
+ expect(ids).not.toContain('edit-data');
+ expect(ids).toEqual(['edit', 'duplicate', 'rename', 'move', 'export', 'reveal-editor', 'reveal-finder', 'delete']);
  });
 
  it('omits "Move to…" when onMove is not provided', () => {
@@ -161,29 +139,10 @@ describe('buildMarkdownItems', () => {
 // ── Section item set ────────────────────────────────────────────────────────
 
 describe('buildSectionItems', () => {
- it('includes Edit config / Rename / Move / Delete / Export / Reveal — no Duplicate', () => {
- const items = buildSectionItems(baseCtx());
- expect(itemIds(items)).toEqual([
- 'edit-config',
- 'rename',
- 'move',
- 'delete',
- 'export',
- 'reveal-editor',
- 'reveal-finder',
- ]);
- // Folder kebab does NOT expose Duplicate — folder duplication isn't a
- // first-class surface (see the ACs).
- expect(itemIds(items)).not.toContain('duplicate');
- });
-
- it('positions "Move to…" between Rename and Delete', () => {
+ it('Rename / Move / Settings · Export · Reveal · Delete (last) — no Duplicate', () => {
  const ids = itemIds(buildSectionItems(baseCtx()));
- const renameIdx = ids.indexOf('rename');
- const moveIdx = ids.indexOf('move');
- const deleteIdx = ids.indexOf('delete');
- expect(moveIdx).toBe(renameIdx + 1);
- expect(deleteIdx).toBe(moveIdx + 1);
+ expect(ids).toEqual(['rename', 'move', 'edit-config', 'export', 'reveal-editor', 'reveal-finder', 'delete']);
+ expect(ids).not.toContain('duplicate');
  });
 
  it('omits "Move to…" when onMove is not provided', () => {
@@ -222,35 +181,6 @@ describe('buildSectionItems', () => {
 });
 
 // ── Delete confirmation ─────────────────────────────────────────────────────
-
-describe('applyDeleteConfirm', () => {
- it('keeps the original items when not confirming', () => {
- const items = buildComponentItems(baseCtx());
- const out = applyDeleteConfirm(items, { confirming: false });
- expect(out).toBe(items);
- });
-
- it('replaces the delete item with Confirm + Cancel when confirming', () => {
- const items = buildComponentItems(baseCtx());
- const onConfirmDelete = vi.fn();
- const onCancelDelete = vi.fn();
- const out = applyDeleteConfirm(items, {
- confirming: true,
- onConfirmDelete,
- onCancelDelete,
- });
- const ids = itemIds(out);
- expect(ids).not.toContain('delete');
- expect(ids).toContain('delete-confirm');
- expect(ids).toContain('delete-cancel');
- findItem(out, 'delete-confirm').onSelect();
- expect(onConfirmDelete).toHaveBeenCalledOnce();
- findItem(out, 'delete-cancel').onSelect();
- expect(onCancelDelete).toHaveBeenCalledOnce();
- });
-});
-
-// ── EntityKebab render — kebab opens the Menu ───────────────────────────────
 
 describe('EntityKebab — render + open', () => {
  function renderToDom(element) {

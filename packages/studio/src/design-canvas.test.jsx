@@ -525,26 +525,12 @@ describe('sectionDepthBg — nesting differentiation', () => {
 });
 
 describe('DCSection — section download buttons', () => {
- it('shows the group PNG/JPG download when the section has artboards', async () => {
+ it('has no quick PNG/JPG buttons on the group (Export… lives in its ⋮ menu)', async () => {
  const { cleanup } = renderToDom(
  <DesignCanvas>
- <DCSection id="s1" title="Has assets">
+ <DCSection id="s1" title="Group">
  <DCArtboard id="a1" label="Alpha" width={200} height={150} />
- </DCSection>
- </DesignCanvas>,
- );
- await act(async () => { await new Promise((r) => setTimeout(r, 200)); });
- expect(
- document.querySelector('[title="Download every artboard in this group as PNG"]'),
- ).not.toBeNull();
- cleanup();
- });
-
- it('hides the group PNG/JPG download for an empty section (e.g. an empty group)', async () => {
- const { cleanup } = renderToDom(
- <DesignCanvas>
- <DCSection id="s1" title="Empty group">
- <div data-testid="placeholder">This group is empty.</div>
+ <div data-testid="placeholder">extra</div>
  </DCSection>
  </DesignCanvas>,
  );

@@ -6,7 +6,7 @@
 // popover positioned at a point, reusing the same `MenuItem` / `MenuSeparator`
 // rows and `menu.css` styling so a context menu is visually + behaviourally
 // identical to the one the `⋯` kebab opens (same items, same keyboard model,
-// same inline "Confirm delete" via `keepOpen`).
+// same `keepOpen` behaviour for items that update in place).
 //
 // ── Why a separate component (not a mode on `Menu`) ──────────────────────────
 // `Menu` is used by every kebab on the canvas; bolting a point-anchor branch +
@@ -22,7 +22,7 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 
-import { MenuItem, MenuSeparator } from './Menu.jsx';
+import { isActionable, renderMenuEntry } from './Menu.jsx';
 import './menu.css';
 
 // ── Keyboard helpers (mirror Menu.jsx's, kept local so this file stands alone) ─
@@ -31,7 +31,7 @@ import './menu.css';
 function enabledIndices(items) {
  const out = [];
  items.forEach((item, idx) => {
- if (item.kind !== 'separator' && !item.disabled) out.push(idx);
+ if (isActionable(item)) out.push(idx);
  });
  return out;
 }
@@ -109,7 +109,7 @@ export function ContextMenu({ point, items = [], onClose }) {
  const selectItem = React.useCallback((item) => {
  if (!item || item.disabled) return;
  item.onSelect && item.onSelect();
- // `keepOpen` items (Delete… → inline Confirm/Cancel) leave the menu open so
+ // `keepOpen` items leave the menu open so
  // the follow-up row renders in place — exactly like the kebab.
  if (!item.keepOpen) onClose();
  }, [onClose]);
@@ -163,24 +163,8 @@ export function ContextMenu({ point, items = [], onClose }) {
  visibility: pos.ready ? 'visible' : 'hidden',
  }}
  >
- {items.map((item, idx) => {
- if (item.kind === 'separator') return <MenuSeparator key={item.id ?? `sep-${idx}`} />;
- return (
- <MenuItem
- key={item.id}
- id={item.id}
- label={item.label}
- disabled={!!item.disabled}
- reason={item.reason}
- icon={item.icon}
- active={idx === activeIdx}
- onSelect={() => selectItem(item)}
- onMouseEnter={setActiveIdx}
- itemIndex={idx}
- itemId={optionId(idx)}
- />
- );
- })}
+ {items.map((item, idx) =>
+ renderMenuEntry(item, idx, { activeIdx, onSelect: selectItem, onMouseEnter: setActiveIdx, optionId }))}
  </ul>,
  document.body,
  );
