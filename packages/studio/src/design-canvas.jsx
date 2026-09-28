@@ -87,6 +87,9 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // shows under the tab at any zoom / sub-pixel offset (hover stroke is 1.5px).
  '.dc-section-tag[data-dc-kind=group]::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:6px;background:inherit;pointer-events:none}',
  // Group frame outline — box-shadow (no layout), 1 screen px at any zoom.
+ // At least as wide as its tab (tab is counter-scaled, so ×--dc-inv), so the
+ // tab's right edge always lands on the frame's top edge.
+ '.dc-group-frame{min-width:max(400px, calc((var(--dc-tag-w, 0px) + 40px) * var(--dc-inv, 1)))}',
  '.dc-group-frame{box-shadow:0 0 0 calc(1px * var(--dc-inv, 1)) var(--dc-group-stroke);transition:box-shadow .12s}',
  '[data-dc-section]{--dc-group-stroke:rgba(26,23,20,.14)}',
  // Hover shows exactly where a group starts and ends — innermost group only.
@@ -1468,8 +1471,23 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
 
  // The container's name tag (page or group) — see .dc-section-tag CSS.
  const kind = bare ? 'page' : 'group';
+ // Publish the tag's width (layout px) so the group's frame is never narrower
+ // than its tab — an empty group would otherwise leave the tab overhanging.
+ const tagRef = React.useRef(null);
+ React.useLayoutEffect(() => {
+ const el = tagRef.current;
+ const host = el && el.parentElement;
+ if (!el || !host || bare) return undefined;
+ const publish = () => host.style.setProperty('--dc-tag-w', `${el.offsetWidth}px`);
+ publish();
+ if (typeof ResizeObserver === 'undefined') return undefined;
+ const ro = new ResizeObserver(publish);
+ ro.observe(el);
+ return () => ro.disconnect();
+ }, [bare]);
+
  const tag = (
- <div className="dc-section-tag" data-dc-kind={kind} style={bare ? undefined : { background: frameBg }}>
+ <div ref={tagRef} className="dc-section-tag" data-dc-kind={kind} style={bare ? undefined : { background: frameBg }}>
  {canReorder && (
  <button
  type="button"

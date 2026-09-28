@@ -710,7 +710,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  const parts = [];
  if (assetCount) parts.push(`${assetCount} asset${assetCount === 1 ? '' : 's'}`);
  if (groupCount) parts.push(`${groupCount} group${groupCount === 1 ? '' : 's'}`);
- const subtitle = parts.length > 0 ? parts.join(' · ') : 'empty group';
+ const subtitle = parts.length > 0 ? parts.join(' · ') : 'empty';
  const isEmpty = assetCount === 0 && groupCount === 0;
  const existingNames = sectionChildNames(project, s.id);
 
@@ -1074,6 +1074,21 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  fontWeight: 600,
  cursor: 'pointer',
  };
+ // An empty group is a real, sized empty state (like an empty Figma section):
+ // a dashed drop zone with a hint and the add buttons centred.
+ const emptyStyle = {
+ marginTop: 4,
+ minHeight: 150,
+ boxSizing: 'border-box',
+ display: 'flex',
+ flexDirection: 'column',
+ alignItems: 'center',
+ justifyContent: 'center',
+ gap: 12,
+ padding: 20,
+ borderRadius: 12,
+ border: '1.5px dashed rgba(26,23,20,0.14)',
+ };
  return (
  <div
  className="dc-section-cta"
@@ -1081,14 +1096,21 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  // Non-empty groups reveal this on hover (design-canvas CSS); an empty
  // group keeps it as its call to action.
  data-empty={isEmpty ? '' : undefined}
- style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+ style={isEmpty ? emptyStyle : { marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
  >
+ {isEmpty && (
+ <span style={{ fontSize: 13, color: 'var(--lm-text-tertiary, #6e6960)' }}>
+ Empty group — add an asset, or drag an artboard here
+ </span>
+ )}
+ <span style={{ display: 'inline-flex', gap: 8 }}>
  <button type="button" className="lm-focusable" onClick={onAddAsset} data-testid="section-add-asset" style={btnStyle}>
  + New asset
  </button>
  <button type="button" className="lm-focusable" onClick={onAddGroup} data-testid="section-add-group" style={btnStyle}>
  + New group
  </button>
+ </span>
  </div>
  );
 }
