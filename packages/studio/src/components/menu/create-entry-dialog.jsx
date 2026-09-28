@@ -21,7 +21,13 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 
-import { validateEntryName, assetFileName, validateAssetDimensions } from '@lerret/core';
+import {
+  validateEntryName,
+  assetFileName,
+  validateAssetDimensions,
+  MIN_ASSET_DIMENSION,
+  MAX_ASSET_DIMENSION,
+} from '@lerret/core';
 
 import { suspendLiveRefresh } from '../canvas/live-refresh-suspend.js';
 import { formatSize } from '../canvas/size-control.jsx';
@@ -630,7 +636,7 @@ export function CreateEntryDialog({
                 <RatioShape width={f.width} height={f.height} />
                 <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{f.label}</span>
                 <span style={monoStyle}>{formatSize(f.width, f.height)}</span>
-                <span style={{ ...monoStyle, width: 42, textAlign: 'right' }}>
+                <span style={{ ...monoStyle, width: 50, textAlign: 'right' }}>
                   {formatRatio(f.width, f.height)}
                 </span>
               </button>
@@ -640,19 +646,30 @@ export function CreateEntryDialog({
       </div>
     );
   } else if (pickSize && isComponent && isCustom) {
+    // Outline only the edge that is actually out of range.
+    const edgeInvalid = (edge) => {
+      const raw = customSize[edge];
+      const n = Number(raw);
+      return (
+        raw.trim() === '' ||
+        !Number.isInteger(n) ||
+        n < MIN_ASSET_DIMENSION ||
+        n > MAX_ASSET_DIMENSION
+      );
+    };
     const numberField = (edge) => (
       <input
         type="number"
         inputMode="numeric"
-        min={16}
-        max={10000}
+        min={MIN_ASSET_DIMENSION}
+        max={MAX_ASSET_DIMENSION}
         step={1}
         value={customSize[edge]}
         onChange={(e) => setCustomSize((cur) => ({ ...cur, [edge]: e.target.value }))}
         onKeyDown={onInputKeyDown}
         aria-label={edge === 'width' ? 'Width in pixels' : 'Height in pixels'}
         data-testid={`lm-create-custom-${edge}`}
-        style={{ ...inputStyle(!sizeCheck.ok), width: 96, fontFamily: 'var(--lm-font-mono, ui-monospace, monospace)' }}
+        style={{ ...inputStyle(edgeInvalid(edge)), width: 96, fontFamily: 'var(--lm-font-mono, ui-monospace, monospace)' }}
       />
     );
     const preview = parseCustomSize(customSize);
