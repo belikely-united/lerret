@@ -7,6 +7,7 @@ import {
   assetFileName,
   componentIdentifier,
   starterAssetContent,
+  validateAssetDimensions,
   starterAssetData,
   MAX_ENTRY_NAME_LENGTH,
 } from './entry-name.js';
@@ -111,6 +112,25 @@ describe('starterAssetContent', () => {
     expect(src).not.toContain('propsSchema');
   });
 
+  it('defaults a component to 800×450 when no size is picked', () => {
+    const src = starterAssetContent('hero', 'component');
+    expect(src).toContain('dimensions: { width: 800, height: 450 }');
+    expect(src).toContain('fontSize: 32,');
+  });
+
+  it('writes the picked platform size and scales the starter text', () => {
+    const src = starterAssetContent('story', 'component', {
+      dimensions: { width: 1080, height: 1920 },
+    });
+    expect(src).toContain('dimensions: { width: 1080, height: 1920 }');
+    expect(src).toContain('fontSize: 76,');
+  });
+
+  it('falls back to the default for an invalid size', () => {
+    const src = starterAssetContent('x', 'component', { dimensions: { width: 0, height: 99999 } });
+    expect(src).toContain('dimensions: { width: 800, height: 450 }');
+  });
+
   it('escapes a hostile display label safely', () => {
     // A quote in the name must not break the generated JS string (prop default).
     const src = starterAssetContent('a"b', 'component');
@@ -127,5 +147,20 @@ describe('starterAssetData', () => {
   it('round-trips a name containing quotes through valid JSON', () => {
     const data = starterAssetData('a"b');
     expect(JSON.parse(data)).toEqual({ title: 'a"b' });
+  });
+});
+
+describe('validateAssetDimensions', () => {
+  it('accepts whole-pixel sizes in range', () => {
+    expect(validateAssetDimensions({ width: 1080, height: 1350 })).toEqual({ ok: true });
+    expect(validateAssetDimensions({ width: 16, height: 10000 })).toEqual({ ok: true });
+  });
+
+  it('rejects missing, fractional, and out-of-range edges', () => {
+    expect(validateAssetDimensions(undefined).ok).toBe(false);
+    expect(validateAssetDimensions({ width: 100.5, height: 100 }).ok).toBe(false);
+    expect(validateAssetDimensions({ width: '100', height: 100 }).ok).toBe(false);
+    expect(validateAssetDimensions({ width: 15, height: 100 }).error).toMatch(/between 16 and 10000/);
+    expect(validateAssetDimensions({ width: 100, height: 10001 }).ok).toBe(false);
   });
 });

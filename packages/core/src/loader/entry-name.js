@@ -109,6 +109,38 @@ export function assetFileName(name, assetKind) {
   return assetKind === ASSET_KIND.MARKDOWN ? `${name}.md` : `${name}.jsx`;
 }
 
+/** Starter artboard size when the create dialog didn't pick one. */
+export const DEFAULT_ASSET_DIMENSIONS = Object.freeze({ width: 800, height: 450 });
+/** Smallest artboard edge (px) a new asset may be created with. */
+export const MIN_ASSET_DIMENSION = 16;
+/** Largest artboard edge (px) — guards a fat-fingered value from blowing up the canvas. */
+export const MAX_ASSET_DIMENSION = 10000;
+
+/**
+ * Validate a new asset's `{ width, height }` — whole pixels, each edge within
+ * [{@link MIN_ASSET_DIMENSION}, {@link MAX_ASSET_DIMENSION}]. Shared by the
+ * create dialog's custom-size fields and the create endpoint.
+ *
+ * @param {unknown} dims
+ * @returns {{ ok: true } | { ok: false, error: string }}
+ */
+export function validateAssetDimensions(dims) {
+  if (!dims || typeof dims !== 'object') return { ok: false, error: 'Size must be { width, height }.' };
+  for (const edge of ['width', 'height']) {
+    const n = dims[edge];
+    if (typeof n !== 'number' || !Number.isInteger(n)) {
+      return { ok: false, error: `The ${edge} must be a whole number of pixels.` };
+    }
+    if (n < MIN_ASSET_DIMENSION || n > MAX_ASSET_DIMENSION) {
+      return {
+        ok: false,
+        error: `The ${edge} must be between ${MIN_ASSET_DIMENSION} and ${MAX_ASSET_DIMENSION} px.`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
 /**
  * Derive a safe PascalCase JS identifier for a component's default-export
  * function name from an arbitrary asset name. Falls back to `'Asset'`.
@@ -134,18 +166,28 @@ export function componentIdentifier(name) {
  *
  * @param {string} name  Validated base name.
  * @param {'component'|'markdown'} assetKind
+ * @param {{ dimensions?: { width: number, height: number } }} [opts]
+ *   `dimensions` — the artboard size picked in the create dialog (a platform
+ *   preset or a custom W×H). Omitted or invalid → {@link DEFAULT_ASSET_DIMENSIONS}.
+ *   Ignored for Markdown, which sizes to its content.
  * @returns {string}
  */
-export function starterAssetContent(name, assetKind) {
+export function starterAssetContent(name, assetKind, opts = {}) {
   if (assetKind === ASSET_KIND.MARKDOWN) {
     return `# ${name}\n\nStart writing — this card renders as Markdown.\n`;
   }
   const id = componentIdentifier(name);
   const label = JSON.stringify(name);
+  const dims = validateAssetDimensions(opts.dimensions).ok
+    ? opts.dimensions
+    : DEFAULT_ASSET_DIMENSIONS;
+  // Scale the starter text with the artboard so a 1080×1920 story and a
+  // 240×240 thumbnail both open with legible, proportionate copy.
+  const fontSize = Math.max(12, Math.round(Math.min(dims.width, dims.height) * 0.07));
   return [
     `// ${id} — new component. Edit me; the canvas re-renders on save.`,
     'export const meta = {',
-    '  dimensions: { width: 800, height: 450 },',
+    `  dimensions: { width: ${dims.width}, height: ${dims.height} },`,
     '  propsSchema: {',
     '    title: {',
     "      type: 'string',",
@@ -167,7 +209,7 @@ export function starterAssetContent(name, assetKind) {
     "        background: '#FAF8F2',",
     "        color: '#1A1714',",
     "        fontFamily: '-apple-system, system-ui, sans-serif',",
-    '        fontSize: 32,',
+    `        fontSize: ${fontSize},`,
     '        fontWeight: 600,',
     "        letterSpacing: '-0.02em',",
     '      }}',

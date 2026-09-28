@@ -296,11 +296,11 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  const onAddGroup = React.useCallback(() => setCreateKind('group'), []);
  const onAddAsset = React.useCallback(() => setCreateKind('asset'), []);
  const onConfirmCreate = React.useCallback(
- async ({ name, assetKind }) => {
+ async ({ name, assetKind, dimensions }) => {
  if (!sectionId || !createKind) return;
  // 'group' creates a folder inside this section; 'asset' a starter file.
  const endpointKind = createKind === 'asset' ? 'asset' : 'folder';
- const result = await create(sectionId, name, endpointKind, { assetKind });
+ const result = await create(sectionId, name, endpointKind, { assetKind, dimensions });
  if (!result?.ok) throw new Error(result?.error || 'Create failed');
  },
  [sectionId, createKind],

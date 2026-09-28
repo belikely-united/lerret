@@ -67,6 +67,7 @@ import {
   loadAssetData,
   collectAssets,
   validateEntryName,
+  validateAssetDimensions,
 } from '@lerret/core';
 
 import {
@@ -1798,7 +1799,9 @@ export function createRevealMiddleware(opts) {
 
 /**
  * `POST /__lerret/create` — body
- *   `{ parentPath, name, kind: 'folder'|'asset', assetKind?: 'component'|'markdown' }`.
+ *   `{ parentPath, name, kind: 'folder'|'asset', assetKind?: 'component'|'markdown',
+ *     dimensions?: { width, height } }` — `dimensions` is the artboard size the
+ *   create dialog picked (platform preset or custom); omitted → 800×450.
  *
  * Creates a new page/group folder (parent === `.lerret/` → page; deeper →
  * group) or a starter asset file inside `parentPath`. The parent is validated
@@ -1821,7 +1824,7 @@ export function createRevealMiddleware(opts) {
 export function createCreateMiddleware(opts) {
   return withJsonBody(async (_req, res, body) => {
     const lerretDir = resolveLerretDir(opts);
-    const { parentPath, name, kind, assetKind } = body;
+    const { parentPath, name, kind, assetKind, dimensions } = body;
     if (typeof parentPath !== 'string') {
       sendJson(res, 400, { ok: false, error: 'parentPath must be a string' });
       return;
@@ -1842,6 +1845,13 @@ export function createCreateMiddleware(opts) {
     ) {
       sendJson(res, 400, { ok: false, error: 'assetKind must be "component" or "markdown"' });
       return;
+    }
+    if (kind === 'asset' && dimensions !== undefined) {
+      const dimsCheck = validateAssetDimensions(dimensions);
+      if (!dimsCheck.ok) {
+        sendJson(res, 400, { ok: false, error: `dimensions: ${dimsCheck.error}` });
+        return;
+      }
     }
 
     // Validate the parent folder (allows the bare `.lerret/` root for pages).
@@ -1864,7 +1874,10 @@ export function createCreateMiddleware(opts) {
     }
 
     try {
-      const result = await createEntry(parentCheck.normalized, nameCheck.name, kind, { assetKind });
+      const result = await createEntry(parentCheck.normalized, nameCheck.name, kind, {
+        assetKind,
+        dimensions,
+      });
       sendJson(res, 200, { ok: true, path: result.path });
     } catch (err) {
       const code = err && err.code;

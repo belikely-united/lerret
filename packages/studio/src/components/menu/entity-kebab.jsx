@@ -328,6 +328,7 @@ export async function move(fromPath, toFolderPath, opts = {}) {
  * @param {'folder'|'asset'} kind
  * @param {object} [opts]
  * @param {'component'|'markdown'} [opts.assetKind]
+ * @param {{ width: number, height: number }} [opts.dimensions]
  * @returns {Promise<{ ok: boolean, path?: string, error?: string }>}
  */
 export async function create(parentPath, name, kind, opts = {}) {
