@@ -512,6 +512,22 @@ describe('createProjectEntry', () => {
  expect(JSON.parse(fetchMock.mock.calls[0][1].body).assetKind).toBe('markdown');
  });
 
+ it('forwards a component asset dimensions, and drops them for markdown', async () => {
+ const fetchMock = vi.fn().mockResolvedValue({
+ ok: true, status: 200,
+ json: async () => ({ ok: true, path: '/x/.lerret/landing/story.jsx' }),
+ });
+ const dimensions = { width: 1080, height: 1920 };
+ await createProjectEntry('/x/.lerret/landing', 'story', 'asset', { fetch: fetchMock, dimensions });
+ expect(JSON.parse(fetchMock.mock.calls[0][1].body).dimensions).toEqual(dimensions);
+ await createProjectEntry('/x/.lerret/landing', 'notes', 'asset', {
+ fetch: fetchMock,
+ assetKind: 'markdown',
+ dimensions,
+ });
+ expect(JSON.parse(fetchMock.mock.calls[1][1].body).dimensions).toBeUndefined();
+ });
+
  it('surfaces a server error without throwing', async () => {
  const fetchMock = vi.fn().mockResolvedValue({
  ok: false, status: 409,

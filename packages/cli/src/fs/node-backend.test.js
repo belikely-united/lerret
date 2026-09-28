@@ -833,6 +833,15 @@ describe('createEntry', () => {
     expect(data).toEqual({ title: 'tw-banner' });
   });
 
+  it('writes the picked dimensions into a component asset meta', async () => {
+    await createEntry(asLerretPath(workDir), 'story', 'asset', {
+      assetKind: 'component',
+      dimensions: { width: 1080, height: 1920 },
+    });
+    const src = await fsp.readFile(join(workDir, 'story.jsx'), 'utf-8');
+    expect(src).toContain('dimensions: { width: 1080, height: 1920 }');
+  });
+
   it('creates a markdown asset (.md)', async () => {
     const result = await createEntry(asLerretPath(workDir), 'notes', 'asset', {
       assetKind: 'markdown',
