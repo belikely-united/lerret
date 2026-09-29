@@ -106,6 +106,33 @@ button.lm-focusable {
 }
 button.lm-focusable:not(:disabled):active { scale: 0.97; }
 
+/* ---------- New-asset dialog: platform → format steps ----------
+   Each step is keyed, so it mounts fresh and slides in from the side the
+   user is heading (forward from the right, Back from the left). */
+.lm-create-step {
+  transition:
+    opacity var(--lm-duration-base) var(--lm-ease),
+    translate var(--lm-duration-base) var(--lm-ease);
+}
+@starting-style {
+  .lm-create-step { opacity: 0; translate: 12px 0; }
+  .lm-create-step[data-dir="back"] { translate: -12px 0; }
+}
+
+/* Platform tiles + format rows: quiet hover tint, press dip, and the
+   selected ring easing in rather than snapping. */
+.lm-create-choice {
+  transition:
+    background var(--lm-duration-fast) var(--lm-ease),
+    color var(--lm-duration-fast) var(--lm-ease),
+    box-shadow var(--lm-duration-fast) var(--lm-ease),
+    scale var(--lm-duration-fast) var(--lm-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lm-create-choice:not(.lm-seg--on):hover { background: var(--lm-bg-tertiary, #E8E2D4) !important; }
+}
+.lm-create-choice:active { scale: 0.97; }
+
 /* ---------- Reduced motion: keep the fades, drop movement ---------- */
 @media (prefers-reduced-motion: reduce) {
   .lm-motion-pop-up,
@@ -118,8 +145,10 @@ button.lm-focusable:not(:disabled):active { scale: 0.97; }
   .lm-ai-disclosure,
   .lm-ollama-guide,
   [data-testid="walkthrough-overlay"] [role="dialog"],
-  [data-testid="walkthrough-offer"] {
+  [data-testid="walkthrough-offer"],
+  .lm-create-step {
     transition-property: opacity;
   }
-  button.lm-focusable:not(:disabled):active { scale: none; }
+  button.lm-focusable:not(:disabled):active,
+  .lm-create-choice:active { scale: none; }
 }

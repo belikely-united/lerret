@@ -94,6 +94,10 @@ export {
   componentIdentifier,
   starterAssetContent,
   starterAssetData,
+  validateAssetDimensions,
+  DEFAULT_ASSET_DIMENSIONS,
+  MIN_ASSET_DIMENSION,
+  MAX_ASSET_DIMENSION,
   MAX_ENTRY_NAME_LENGTH,
 } from './loader/entry-name.js';
 

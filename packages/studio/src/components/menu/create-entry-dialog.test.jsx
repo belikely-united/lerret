@@ -81,24 +81,85 @@ describe('CreateEntryDialog', () => {
     expect(q('[data-testid="lm-create-confirm"]').disabled).toBe(true);
   });
 
-  it('asset kind shows a Component/Markdown toggle and passes assetKind', async () => {
+  it('a new asset starts on the platform step with Create hidden', () => {
+    renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={vi.fn()} />);
+    expect(q('[data-testid="lm-create-dialog"]').dataset.step).toBe('platform');
+    expect(q('[data-testid="lm-create-platform-instagram"]')).toBeTruthy();
+    expect(q('[data-testid="lm-create-platform-custom"]')).toBeTruthy();
+    expect(q('[data-testid="lm-create-name-input"]')).toBeFalsy();
+    expect(q('[data-testid="lm-create-confirm"]')).toBeFalsy();
+  });
+
+  it('picking a platform lists its formats, defaults to the first, and passes its size', async () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={onConfirm} />);
-    expect(q('[data-testid="lm-create-type-component"]')).toBeTruthy();
-    expect(q('[data-testid="lm-create-type-markdown"]')).toBeTruthy();
-    typeInput('hero');
+    act(() => {
+      q('[data-testid="lm-create-platform-instagram"]').click();
+    });
+    expect(q('[data-testid="lm-create-dialog"]').getAttribute('aria-label')).toBe('New Instagram asset');
+    expect(q('[data-testid="lm-create-format-post-portrait"]').getAttribute('aria-checked')).toBe('true');
+    act(() => {
+      q('[data-testid="lm-create-format-story"]').click();
+    });
+    typeInput('launch-story');
     await act(async () => {
       q('[data-testid="lm-create-confirm"]').click();
     });
-    expect(onConfirm).toHaveBeenCalledWith({ name: 'hero', assetKind: 'component' });
+    expect(onConfirm).toHaveBeenCalledWith({
+      name: 'launch-story',
+      assetKind: 'component',
+      dimensions: { width: 1080, height: 1920 },
+    });
   });
 
-  it('switching to Markdown changes the asset kind in the payload', async () => {
+  it('Back returns to the platform grid', () => {
+    renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={vi.fn()} />);
+    act(() => {
+      q('[data-testid="lm-create-platform-appstore"]').click();
+    });
+    act(() => {
+      q('[data-testid="lm-create-back"]').click();
+    });
+    expect(q('[data-testid="lm-create-dialog"]').dataset.step).toBe('platform');
+  });
+
+  it('custom size validates W×H and passes it through', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={onConfirm} />);
+    act(() => {
+      q('[data-testid="lm-create-platform-custom"]').click();
+    });
+    typeInput('banner');
+    const setNumber = (edge, value) => {
+      const input = q(`[data-testid="lm-create-custom-${edge}"]`);
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      act(() => {
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    };
+    setNumber('width', '5');
+    expect(q('[data-testid="lm-create-size-error"]').textContent).toMatch(/between 16 and 10000/);
+    expect(q('[data-testid="lm-create-confirm"]').disabled).toBe(true);
+    setNumber('width', '1500');
+    setNumber('height', '500');
+    await act(async () => {
+      q('[data-testid="lm-create-confirm"]').click();
+    });
+    expect(onConfirm).toHaveBeenCalledWith({
+      name: 'banner',
+      assetKind: 'component',
+      dimensions: { width: 1500, height: 500 },
+    });
+  });
+
+  it('the Markdown option skips sizing and sends no dimensions', async () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={onConfirm} />);
     act(() => {
       q('[data-testid="lm-create-type-markdown"]').click();
     });
+    expect(q('[data-testid="lm-create-formats"]')).toBeFalsy();
     typeInput('notes');
     await act(async () => {
       q('[data-testid="lm-create-confirm"]').click();

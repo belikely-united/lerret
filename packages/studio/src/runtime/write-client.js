@@ -602,13 +602,14 @@ export async function moveProjectFile(fromPath, toFolderPath, opts = {}) {
  * raw name — the server validates + normalizes it (the studio dialog runs the
  * same `validateEntryName` for instant feedback). For `kind: 'asset'`,
  * `opts.assetKind` picks `'component'` (`.jsx`, default) or `'markdown'`
- * (`.md`).
+ * (`.md`); `opts.dimensions` sets a component's starting artboard size.
  *
  * @param {string} parentPath  Destination folder's LerretPath.
  * @param {string} name        Raw entry name (no extension needed).
  * @param {'folder'|'asset'} kind
  * @param {object} [opts]
  * @param {'component'|'markdown'} [opts.assetKind]
+ * @param {{ width: number, height: number }} [opts.dimensions]
  * @param {typeof fetch} [opts.fetch]
  * @returns {Promise<{ ok: boolean, path?: string, error?: string }>}
  *   On success, `path` is the created entry's LerretPath.
@@ -627,6 +628,9 @@ export async function createProjectEntry(parentPath, name, kind, opts = {}) {
   const reqBody = { parentPath, name, kind };
   if (kind === 'asset') {
     reqBody.assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
+    if (reqBody.assetKind === 'component' && opts.dimensions) {
+      reqBody.dimensions = { width: opts.dimensions.width, height: opts.dimensions.height };
+    }
   }
   const result = await callLifecycleEndpoint(CREATE_ENDPOINT, reqBody, opts);
   if (!result.ok) return { ok: false, error: result.error };

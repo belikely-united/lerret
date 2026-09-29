@@ -17,7 +17,13 @@
 //   component-prefixed images — mirroring the Node backend's contract).
 // (Epic 10 / H2–H4.)
 
-import { validateEntryName, assetFileName, starterAssetContent, starterAssetData } from '@lerret/core';
+import {
+  validateEntryName,
+  validateAssetDimensions,
+  assetFileName,
+  starterAssetContent,
+  starterAssetData,
+} from '@lerret/core';
 
 import { PermissionDeniedError } from './fsa-backend.js';
 
@@ -202,7 +208,15 @@ export function createHostedWriter(backend) {
         const fileName = assetFileName(v.name, assetKind);
         const path = joinPath(parentPath, fileName);
         if (await backend.exists(path)) return { ok: false, error: `"${fileName}" already exists here.` };
-        await backend.writeFile(path, starterAssetContent(v.name, assetKind), { encoding: 'utf-8' });
+        if (opts.dimensions !== undefined) {
+          const dimsCheck = validateAssetDimensions(opts.dimensions);
+          if (!dimsCheck.ok) return { ok: false, error: dimsCheck.error };
+        }
+        await backend.writeFile(
+          path,
+          starterAssetContent(v.name, assetKind, { dimensions: opts.dimensions }),
+          { encoding: 'utf-8' },
+        );
         // Component assets ship a companion `.data.json` (Tier-1 text, editable
         // without code + live on save). Markdown has none.
         if (path.endsWith('.jsx')) {
