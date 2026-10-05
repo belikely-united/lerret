@@ -118,6 +118,35 @@ export function withDataValue(fileValue, variant, key, value) {
   return { ...fileValue, [key]: value };
 }
 
+/**
+ * Keep the selection pointing at the same element after a save rewrote the
+ * file. Selections are addressed by source offset; a change entirely BEFORE
+ * the element (an image's URL line added at the top, a style added to the
+ * artboard root) shifts that offset, so shift the selection with it. Changes
+ * at or after the element leave it alone.
+ *
+ * @param {string} path
+ * @param {string | null} before
+ * @param {string | null} after
+ */
+export function rebaseSelection(path, before, after) {
+  const sel = state.selection;
+  if (!sel || sel.path !== path || typeof before !== 'string' || typeof after !== 'string') return;
+  let p = 0;
+  const max = Math.min(before.length, after.length);
+  while (p < max && before[p] === after[p]) p += 1;
+  if (p >= sel.offset) return; // the change starts at/after the element
+  let sfx = 0;
+  while (
+    sfx < max - p &&
+    before[before.length - 1 - sfx] === after[after.length - 1 - sfx]
+  ) sfx += 1;
+  const oldChangeEnd = before.length - sfx;
+  if (oldChangeEnd > sel.offset) return; // the change overlaps the element itself
+  const offset = sel.offset + (after.length - before.length);
+  set({ selection: { ...sel, offset, stamp: `${sel.path}:${offset}` } });
+}
+
 // ── Saves (queued) ──────────────────────────────────────────────────────────
 
 let queue = Promise.resolve();
@@ -161,9 +190,96 @@ export function saveSourceEdit(path, offset, change) {
     const w = await write(path, res.code);
     if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
     undoStack.push({ path, before: read.source, after: res.code });
+    rebaseSelection(path, read.source, res.code);
     redoStack.length = 0;
     syncHistoryFlags();
     return { ok: true, code: res.code };
+  }));
+}
+
+/**
+ * Apply several style changes to one element as ONE save and ONE undo step —
+ * a resize (width + height + left/top) or a move (left + top) reads as a
+ * single action. Each change is a `{ key, value }` (value undefined = remove).
+ *
+ * @param {string} path
+ * @param {number} offset
+ * @param {Array<{ key: string, value: unknown }>} changes
+ * @param {string} [expectTag]
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export function saveStyles(path, offset, changes, expectTag) {
+  return enqueue(() => saving(async () => {
+    const [{ applyEdit, EDIT_REASONS }, read] = await Promise.all([loadEngine(), readSource(path)]);
+    if (!read.ok) return { ok: false, error: read.error || 'Couldn’t read the file.' };
+    let code = read.source;
+    for (const { key, value } of changes) {
+      // Style edits never move the element's own `<`, so the offset holds.
+      const res = applyEdit(code, offset, { type: 'style', key, value, expectTag }, path);
+      if (!res.ok) return { ok: false, error: EDIT_REASONS[res.reason] || res.reason };
+      code = res.code;
+    }
+    if (code === read.source) return { ok: true };
+    const w = await write(path, code);
+    if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
+    undoStack.push({ path, before: read.source, after: code });
+    rebaseSelection(path, read.source, code);
+    redoStack.length = 0;
+    syncHistoryFlags();
+    return { ok: true };
+  }));
+}
+
+/**
+ * Add an element (Add menu: text, shape, phone frame) as the top layer of the
+ * element at `offset` — normally an artboard's root.
+ *
+ * @param {string} path
+ * @param {number} offset
+ * @param {string} jsx
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export function addElement(path, offset, jsx) {
+  return enqueue(() => saving(async () => {
+    const [{ insertElement, EDIT_REASONS }, read] = await Promise.all([loadEngine(), readSource(path)]);
+    if (!read.ok) return { ok: false, error: read.error || 'Couldn’t read the file.' };
+    const res = insertElement(read.source, offset, jsx, path);
+    if (!res.ok) return { ok: false, error: EDIT_REASONS[res.reason] || res.reason };
+    const w = await write(path, res.code);
+    if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
+    undoStack.push({ path, before: read.source, after: res.code });
+    rebaseSelection(path, read.source, res.code);
+    redoStack.length = 0;
+    syncHistoryFlags();
+    return { ok: true };
+  }));
+}
+
+/**
+ * Put an image file into the element at `offset`: an image slot (phone
+ * screen) is filled, an `<img>` gets the new picture. The file is written next
+ * to the source; the source change joins the undo stack.
+ *
+ * @param {string} path
+ * @param {number} offset
+ * @param {{ file: string, base64: string }} image
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export function placeImage(path, offset, image) {
+  return enqueue(() => saving(async () => {
+    const [{ fillImageSlot, EDIT_REASONS }, read] = await Promise.all([loadEngine(), readSource(path)]);
+    if (!read.ok) return { ok: false, error: read.error || 'Couldn’t read the file.' };
+    const res = fillImageSlot(read.source, offset, image.file, path);
+    if (!res.ok) return { ok: false, error: EDIT_REASONS[res.reason] || res.reason };
+    const wi = await writeProjectFile(`${path.slice(0, path.lastIndexOf('/'))}/${image.file}`, image.base64, { encoding: 'base64' });
+    if (!wi.ok) return { ok: false, error: wi.error || `Couldn’t save ${image.file}.` };
+    const w = await write(path, res.code);
+    if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
+    undoStack.push({ path, before: read.source, after: res.code });
+    rebaseSelection(path, read.source, res.code);
+    redoStack.length = 0;
+    syncHistoryFlags();
+    return { ok: true };
   }));
 }
 
@@ -177,6 +293,7 @@ export function saveDataEdit(assetPath, variant, key, value) {
     const w = await write(path, next);
     if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
     undoStack.push({ path, before: raw, after: next });
+    rebaseSelection(path, raw, next);
     redoStack.length = 0;
     syncHistoryFlags();
     return { ok: true };
@@ -211,11 +328,13 @@ export function createVariant(assetPath, name, from = 'default') {
       const w = await write(data.path, content);
       if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save the data file.' };
       undoStack.push({ path: data.path, before: data.raw, after: content, group });
+      rebaseSelection(data.path, data.raw, content);
     }
 
     const w = await write(assetPath, res.code);
     if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
     undoStack.push({ path: assetPath, before: read.source, after: res.code, group });
+    rebaseSelection(assetPath, read.source, res.code);
     redoStack.length = 0;
     syncHistoryFlags();
     return { ok: true };
@@ -255,6 +374,7 @@ export function insertImagesIntoAsset({ path, offset, images }) {
     const w = await write(path, res.code);
     if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
     undoStack.push({ path, before: read.source, after: res.code });
+    rebaseSelection(path, read.source, res.code);
     redoStack.length = 0;
     syncHistoryFlags();
     return { ok: true };
@@ -281,6 +401,7 @@ export function createImageAssets({ folder, images }) {
       const wa = await write(assetPath, content);
       if (!wa.ok) return { ok: false, error: wa.error || 'Couldn’t save.' };
       undoStack.push({ path: assetPath, before: null, after: content, group });
+      rebaseSelection(assetPath, null, content);
     }
     redoStack.length = 0;
     syncHistoryFlags();
@@ -300,6 +421,7 @@ async function step(from, to, pick) {
   }
   const w = await write(entry.path, restore);
   if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
+  rebaseSelection(entry.path, now, restore);
   to.push(from.pop());
   syncHistoryFlags();
   // One user action that wrote several files (e.g. New variant) undoes as one.

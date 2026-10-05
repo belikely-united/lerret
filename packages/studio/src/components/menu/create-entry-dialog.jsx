@@ -27,6 +27,7 @@ import {
   validateAssetDimensions,
   MIN_ASSET_DIMENSION,
   MAX_ASSET_DIMENSION,
+  POSTER_TEMPLATES,
 } from '@lerret/core';
 
 import { suspendLiveRefresh } from '../canvas/live-refresh-suspend.js';
@@ -230,6 +231,53 @@ function PlatformShapes({ formats }) {
 
 const DEFAULT_CUSTOM_SIZE = { width: '1080', height: '1080' };
 
+/** Store listings start from a layout by default; everything else from blank. */
+const TEMPLATE_DEFAULT_PLATFORMS = new Set(['appstore', 'playstore', 'microsoftstore']);
+
+/**
+ * A tiny sketch of a template at the chosen format's proportions — bars for
+ * text, a rounded block for the phone — so the choice is visual, not verbal.
+ *
+ * @param {{ id: string, width: number, height: number }} props
+ */
+function TemplateThumb({ id, width, height }) {
+  const box = 44;
+  const s = box / Math.max(width, height);
+  const w = Math.max(18, Math.round(width * s));
+  const h = Math.max(18, Math.round(height * s));
+  const dark = id === 'big-headline';
+  const bar = (top, wPct, thick = 3) => (
+    <span style={{ position: 'absolute', top, left: `${(100 - wPct) / 2}%`, width: `${wPct}%`, height: thick, borderRadius: 2, background: dark ? '#fff' : 'currentColor', opacity: dark ? 0.9 : 0.55 }} />
+  );
+  const phone = (top) => (
+    <span style={{ position: 'absolute', top, left: '22%', width: '56%', height: '70%', borderRadius: 4, background: 'currentColor', opacity: 0.8 }} />
+  );
+  return (
+    <span aria-hidden="true" style={{ width: box, height: box, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <span style={{ position: 'relative', width: w, height: h, borderRadius: 3, overflow: 'hidden', background: dark ? '#1C1C1E' : 'var(--lm-bg-tertiary, #EBEBEB)', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)' }}>
+        {id === 'blank' ? null : id === 'big-headline' ? (
+          <>
+            {bar('40%', 70, 4)}
+            {bar('52%', 50)}
+          </>
+        ) : id === 'headline-phone' ? (
+          <>
+            {bar('8%', 70, 3)}
+            {bar('16%', 50, 2)}
+            {phone('30%')}
+          </>
+        ) : (
+          <>
+            {phone('-6%')}
+            {bar('74%', 70, 3)}
+            {bar('84%', 50, 2)}
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Parse the custom W/H text fields into a dimensions object + validation.
  *
@@ -366,6 +414,8 @@ export function CreateEntryDialog({
   const [platformId, setPlatformId] = React.useState(null);
   const [formatId, setFormatId] = React.useState(null);
   const [customSize, setCustomSize] = React.useState(DEFAULT_CUSTOM_SIZE);
+  // 'blank' or a POSTER_TEMPLATES id — what a new component asset starts from.
+  const [template, setTemplate] = React.useState('blank');
   const [pending, setPending] = React.useState(false);
   const [serverError, setServerError] = React.useState(null);
   const inputRef = React.useRef(null);
@@ -405,6 +455,7 @@ export function CreateEntryDialog({
     setAssetKind('component');
     const p = findPlatform(id);
     setFormatId(p ? p.formats[0].id : null);
+    setTemplate(TEMPLATE_DEFAULT_PLATFORMS.has(id) ? 'headline-phone' : 'blank');
     setStepDir('fwd');
     setStep('details');
   };
@@ -483,6 +534,7 @@ export function CreateEntryDialog({
     try {
       const payload = { name: v.name, assetKind: isAsset ? assetKind : undefined };
       if (dimensions) payload.dimensions = dimensions;
+      if (dimensions && template !== 'blank') payload.template = template;
       await onConfirm(payload);
       onClose();
     } catch (err) {
@@ -490,7 +542,7 @@ export function CreateEntryDialog({
     } finally {
       setPending(false);
     }
-  }, [name, kind, pending, sizeCheck, onConfirm, isAsset, assetKind, dimensions, onClose]);
+  }, [name, kind, pending, sizeCheck, onConfirm, isAsset, assetKind, dimensions, template, onClose]);
 
   const onInputKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -607,7 +659,7 @@ export function CreateEntryDialog({
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
-            maxHeight: 264,
+            maxHeight: 200,
             overflowY: 'auto',
             margin: -3,
             padding: 3,
@@ -696,10 +748,40 @@ export function CreateEntryDialog({
     );
   }
 
+  // ── Step 2: what the asset starts from (component assets with a size) ───
+  const templatePicker =
+    pickSize && isComponent && dimensions ? (
+      <div>
+        <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Start with</p>
+        <div role="radiogroup" aria-label="Start with" data-testid="lm-create-templates" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          {[{ id: 'blank', label: 'Blank' }, ...POSTER_TEMPLATES].map((t) => {
+            const active = template === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                title={t.description || 'An empty canvas'}
+                className={'lm-seg lm-create-choice' + (active ? ' lm-seg--on' : '')}
+                style={{ ...choiceStyle(active), display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 4px 6px', fontSize: 11, fontWeight: 600, color: active ? 'var(--lm-accent-text, #111111)' : 'var(--lm-text-secondary, #404040)' }}
+                onClick={() => setTemplate(t.id)}
+                data-testid={`lm-create-template-${t.id}`}
+              >
+                <TemplateThumb id={t.id} width={dimensions.width} height={dimensions.height} />
+                <span style={{ textAlign: 'center', lineHeight: 1.2 }}>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
   // ── Step 2 / single step: name + confirm ────────────────────────────────
   const detailsStep = (
     <>
       {sizePicker}
+      {templatePicker}
 
       <div>
         {sizePicker ? <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Name</p> : null}

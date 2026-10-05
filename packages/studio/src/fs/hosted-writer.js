@@ -23,6 +23,7 @@ import {
   assetFileName,
   starterAssetContent,
   starterAssetData,
+  posterTemplateContent,
 } from '@lerret/core';
 
 import { PermissionDeniedError } from './fsa-backend.js';
@@ -212,16 +213,22 @@ export function createHostedWriter(backend) {
           const dimsCheck = validateAssetDimensions(opts.dimensions);
           if (!dimsCheck.ok) return { ok: false, error: dimsCheck.error };
         }
+        const fromTemplate =
+          assetKind === 'component' && opts.template
+            ? posterTemplateContent(opts.template, v.name, opts.dimensions)
+            : null;
         await backend.writeFile(
           path,
-          starterAssetContent(v.name, assetKind, { dimensions: opts.dimensions }),
+          fromTemplate ? fromTemplate.source : starterAssetContent(v.name, assetKind, { dimensions: opts.dimensions }),
           { encoding: 'utf-8' },
         );
         // Component assets ship a companion `.data.json` (Tier-1 text, editable
         // without code + live on save). Markdown has none.
         if (path.endsWith('.jsx')) {
           const dataPath = `${path.slice(0, -'.jsx'.length)}.data.json`;
-          await backend.writeFile(dataPath, starterAssetData(v.name), { encoding: 'utf-8' });
+          await backend.writeFile(dataPath, fromTemplate ? fromTemplate.data : starterAssetData(v.name), {
+            encoding: 'utf-8',
+          });
         }
         return { ok: true, path };
       } catch (err) {

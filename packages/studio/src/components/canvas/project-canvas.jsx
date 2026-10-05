@@ -542,10 +542,10 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // Create-dialog confirm + element, shared by the empty-state CTAs and the
  // empty-group placeholders. Defined after all hooks, before the first early
  // return, so every branch can include the dialog.
- const onConfirmCreate = async ({ name, assetKind, dimensions }) => {
+ const onConfirmCreate = async ({ name, assetKind, dimensions, template }) => {
  if (!createState) return;
  const endpointKind = createState.kind === 'asset' ? 'asset' : 'folder';
- const result = await create(createState.parentPath, name, endpointKind, { assetKind, dimensions });
+ const result = await create(createState.parentPath, name, endpointKind, { assetKind, dimensions, template });
  if (!result?.ok) throw new Error(result?.error || 'Create failed');
  };
  const createDialog = createState ? (

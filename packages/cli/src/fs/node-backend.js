@@ -35,6 +35,7 @@ import {
   serializeJson,
   assetFileName,
   starterAssetContent,
+  posterTemplateContent,
   starterAssetData,
 } from '@lerret/core';
 
@@ -1114,7 +1115,9 @@ async function moveEntry(sourcePath, toFolderPath) {
  * @param {string} parentPath  Contract-level (forward-slash) destination folder.
  * @param {string} name        Validated base name (no extension).
  * @param {'folder'|'asset'} kind
- * @param {{ assetKind?: 'component'|'markdown', dimensions?: { width: number, height: number } }} [opts]
+ * @param {{ assetKind?: 'component'|'markdown', dimensions?: { width: number, height: number }, template?: string }} [opts]
+ *   `template` — a poster template id (component assets): the asset starts
+ *   from that layout instead of the plain starter.
  * @returns {Promise<{ path: string }>}  The created entry's LerretPath.
  *
  *   Throws `Error` with:
@@ -1187,13 +1190,19 @@ async function createEntry(parentPath, name, kind, opts = {}) {
 
   // asset — write the starter content atomically (the parent exists, so the
   // temp-file-then-rename write lands cleanly).
-  const content = starterAssetContent(name, assetKind, { dimensions: opts.dimensions });
+  const fromTemplate =
+    assetKind === 'component' && opts.template
+      ? posterTemplateContent(opts.template, name, opts.dimensions)
+      : null;
+  const content = fromTemplate ? fromTemplate.source : starterAssetContent(name, assetKind, { dimensions: opts.dimensions });
   await writeFile(toLerretPath(targetNative), content, { encoding: 'utf-8' });
   // Component assets ship a companion `.data.json` so their text is editable
   // without touching code (Tier 1) and updates live on save. Markdown: none.
   if (targetNative.endsWith('.jsx')) {
     const dataNative = `${targetNative.slice(0, -'.jsx'.length)}.data.json`;
-    await writeFile(toLerretPath(dataNative), starterAssetData(name), { encoding: 'utf-8' });
+    await writeFile(toLerretPath(dataNative), fromTemplate ? fromTemplate.data : starterAssetData(name), {
+      encoding: 'utf-8',
+    });
   }
   return { path: toLerretPath(targetNative) };
 }

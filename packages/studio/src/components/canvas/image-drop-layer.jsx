@@ -18,7 +18,7 @@ import React from 'react';
 import * as ReactDOM from 'react-dom';
 
 import { listProjectDir } from '../../runtime/write-client.js';
-import { createImageAssets, insertImagesIntoAsset } from '../edit-mode/edit-session.js';
+import { createImageAssets, insertImagesIntoAsset, placeImage } from '../edit-mode/edit-session.js';
 import { dcToast } from '../../design-canvas.jsx';
 import {
   dragHasFiles,
@@ -91,8 +91,10 @@ async function existsIn(folder) {
  *
  * @param {Element | null} el
  * @param {string} pagePath
- * @returns {null | { kind: 'insert', box: Element, slot: Element, assetPath: string, label: string }
- *              | { kind: 'create', box: Element, folder: string, label: string }}
+ * @returns {null
+ *   | { kind: 'fill', box: Element, slot: Element, assetPath: string, stamp: string, label: string }
+ *   | { kind: 'insert', box: Element, slot: Element, assetPath: string, label: string }
+ *   | { kind: 'create', box: Element, folder: string, label: string }}
  */
 export function resolveDropTarget(el, pagePath) {
   if (!el || typeof el.closest !== 'function') return null;
@@ -102,6 +104,19 @@ export function resolveDropTarget(el, pagePath) {
   const slot = el.closest('[data-dc-asset-path]');
   const assetPath = slot?.getAttribute('data-dc-asset-path') || '';
   if (slot && /\.(jsx|tsx)$/.test(assetPath)) {
+    // A phone screen (image slot) or an existing image takes the picture
+    // itself instead of getting a new layer on top.
+    const hole = el.closest(`[data-image-slot][${SRC_ATTR}], img[${SRC_ATTR}]`);
+    if (hole && slot.contains(hole)) {
+      return {
+        kind: 'fill',
+        box: hole,
+        slot,
+        assetPath,
+        stamp: hole.getAttribute(SRC_ATTR),
+        label: hole.tagName === 'IMG' ? 'Replace image' : 'Place screenshot here',
+      };
+    }
     const name = slot.getAttribute('data-dc-label') || baseName(assetPath);
     return { kind: 'insert', box: slot.querySelector('.dc-card') || slot, slot, assetPath, label: `Insert into ${name}` };
   }
@@ -159,6 +174,27 @@ async function dropIntoAsset(target, files, client) {
   const res = await insertImagesIntoAsset({ path: stampPath, offset, images });
   const what = images.length === 1 ? images[0].file : `${images.length} images`;
   dcToast(res.ok ? `Added ${what} to ${baseName(target.assetPath)}` : `Couldn’t add the image: ${res.error}`);
+}
+
+/**
+ * Drop an image INTO a slot (phone screen) or onto an image (replace it).
+ * One image fills one slot — extra files are ignored with a notice.
+ *
+ * @param {{ assetPath: string, stamp: string }} target
+ * @param {File[]} files
+ */
+async function dropIntoSlot(target, files) {
+  const m = /^(.*):(\d+)$/.exec(target.stamp || '');
+  if (!m) return;
+  const stampPath = m[1];
+  const folder = stampPath.slice(0, stampPath.lastIndexOf('/'));
+  const exists = await existsIn(folder);
+  const { base, ext } = splitImageName(files[0].name);
+  const name = await uniqueBase(base, (c) => [`${folder}/${c}.${ext}`], exists);
+  const read = await readImageFile(files[0]);
+  const res = await placeImage(stampPath, Number(m[2]), { file: `${name}.${ext}`, base64: read.base64 });
+  if (files.length > 1) dcToast('One image per spot — used the first one.');
+  else dcToast(res.ok ? `Placed ${name}.${ext}` : `Couldn’t place the image: ${res.error}`);
 }
 
 /**
@@ -234,7 +270,12 @@ export function ImageDropLayer({ pagePath, enabled }) {
       }
       if (files.length < all.length) dcToast(`Skipped ${all.length - files.length} file(s) that aren’t images.`);
       const client = { x: e.clientX, y: e.clientY };
-      const run = target.kind === 'insert' ? dropIntoAsset(target, files, client) : dropAsNewAssets(target, files);
+      const run =
+        target.kind === 'fill'
+          ? dropIntoSlot(target, files)
+          : target.kind === 'insert'
+            ? dropIntoAsset(target, files, client)
+            : dropAsNewAssets(target, files);
       run.catch((err) => dcToast(`Couldn’t add the image: ${err?.message ?? err}`));
     };
     document.addEventListener('dragover', onDragOver);
