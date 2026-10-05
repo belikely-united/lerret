@@ -102,6 +102,16 @@ export {
   MAX_ENTRY_NAME_LENGTH,
 } from './loader/entry-name.js';
 
+// Poster templates + Add-menu elements for designing without code.
+export {
+  POSTER_TEMPLATES,
+  ELEMENTS,
+  DEFAULT_FONT_STACK,
+  IMAGE_SLOT_ATTR,
+  posterTemplateContent,
+  elementJsx,
+} from './loader/poster-templates.js';
+
 // ---------------------------------------------------------------------------
 // Asset variants & meta
 // ---------------------------------------------------------------------------

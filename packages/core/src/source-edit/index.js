@@ -601,6 +601,114 @@ export function insertImageLayers(code, offset, images, relPath = '') {
 }
 
 /**
+ * Insert one arbitrary JSX element as the LAST child of the element at
+ * `offset` (normally an artboard's root), giving that element
+ * `position: 'relative'` when its literal style has none — the counterpart of
+ * {@link insertImageLayers} for text, shapes and frames added from the
+ * editor's Add menu. `jsx` must be a single, self-contained JSX element.
+ *
+ * @param {string} code
+ * @param {number} offset
+ * @param {string} jsx
+ * @param {string} [relPath]
+ * @returns {{ ok: true, code: string } | { ok: false, reason: string }}
+ */
+export function insertElement(code, offset, jsx, relPath = '') {
+  if (typeof jsx !== 'string' || !jsx.trim().startsWith('<')) return { ok: false, reason: 'bad-element' };
+  try {
+    parseSource(`(${jsx});`, relPath);
+  } catch {
+    return { ok: false, reason: 'bad-element' };
+  }
+  let ast;
+  try {
+    ast = parseSource(code, relPath);
+  } catch {
+    return { ok: false, reason: 'parse-error' };
+  }
+  const el = findElement(ast, offset);
+  if (!el || !isDomTag(el.openingElement)) return { ok: false, reason: 'changed' };
+  const op = el.openingElement;
+  const tag = op.name.name;
+  const indent = lineIndent(code, el.start);
+  const child = jsx.trim().replace(/\n/g, `\n${indent}  `);
+  let out;
+  if (op.selfClosing) {
+    let closeAt = code.lastIndexOf('/>', op.end);
+    while (closeAt > 0 && /[ \t]/.test(code[closeAt - 1])) closeAt -= 1;
+    out = splice(code, closeAt, op.end, `>\n${indent}  ${child}\n${indent}</${tag}>`).code;
+  } else {
+    const closing = el.closingElement;
+    const lineStart = code.lastIndexOf('\n', closing.start - 1) + 1;
+    const ownLine = /^[ \t]*$/.test(code.slice(lineStart, closing.start));
+    out = ownLine
+      ? splice(code, lineStart, lineStart, `${code.slice(lineStart, closing.start)}  ${child}\n`).code
+      : splice(code, closing.start, closing.start, child).code;
+  }
+  const { obj } = styleObject(op);
+  if (!(obj && obj.properties.some((p) => propKey(p) === 'position'))) {
+    const positioned = editStyle(out, op, 'position', 'relative');
+    if (positioned.ok) out = positioned.code;
+  }
+  return { ok: true, code: out };
+}
+
+/**
+ * Put an image file into the element at `offset`:
+ *   • an `<img>` → its `src` becomes the file (Replace image);
+ *   • any other element (an image slot such as a phone screen) → its children
+ *     are replaced by an `<img>` that covers it.
+ * The file's URL constant is declared after the imports, module-relative.
+ *
+ * @param {string} code
+ * @param {number} offset
+ * @param {string} file  The image's filename in the asset's folder.
+ * @param {string} [relPath]
+ * @returns {{ ok: true, code: string, varName: string } | { ok: false, reason: string }}
+ */
+export function fillImageSlot(code, offset, file, relPath = '') {
+  if (typeof file !== 'string' || !/^[^/\\]+$/.test(file)) return { ok: false, reason: 'bad-image' };
+  let ast;
+  try {
+    ast = parseSource(code, relPath);
+  } catch {
+    return { ok: false, reason: 'parse-error' };
+  }
+  const el = findElement(ast, offset);
+  if (!el || !isDomTag(el.openingElement)) return { ok: false, reason: 'changed' };
+  const op = el.openingElement;
+  const varName = imageVarName(code, file);
+  let out;
+  if (op.name.name === 'img') {
+    const src = op.attributes.find((a) => a.type === 'JSXAttribute' && a.name.name === 'src');
+    out = src
+      ? splice(code, src.start, src.end, `src={${varName}}`).code
+      : splice(code, op.name.end, op.name.end, ` src={${varName}}`).code;
+  } else {
+    const img =
+      `<img src={${varName}} alt="" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />`;
+    if (op.selfClosing) {
+      let closeAt = code.lastIndexOf('/>', op.end);
+      while (closeAt > 0 && /[ \t]/.test(code[closeAt - 1])) closeAt -= 1;
+      out = splice(code, closeAt, op.end, `>${img}</${op.name.name}>`).code;
+    } else {
+      out = splice(code, op.end, el.closingElement.start, img).code;
+    }
+  }
+  const body = ast.program.body;
+  const imports = body.filter((n) => n.type === 'ImportDeclaration');
+  const decl = `const ${varName} = new URL(${JSON.stringify(`./${file}`)}, import.meta.url).href;`;
+  if (imports.length) {
+    const at = imports[imports.length - 1].end;
+    out = splice(out, at, at, `\n${decl}`).code;
+  } else {
+    const at = body.length ? body[0].start : 0;
+    out = splice(out, at, at, `${decl}\n\n`).code;
+  }
+  return { ok: true, code: out, varName };
+}
+
+/**
  * Single-image form of {@link insertImageLayers}.
  *
  * @param {string} code
@@ -698,4 +806,5 @@ export const EDIT_REASONS = {
   'structure-is-code': 'This element is placed by code (a condition, list or return) — edit the file.',
   'unknown-change': 'Unsupported change.',
   'bad-image': 'That image file name can’t be used.',
+  'bad-element': 'That element couldn’t be added.',
 };

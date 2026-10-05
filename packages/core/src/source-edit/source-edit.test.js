@@ -10,6 +10,8 @@ import {
   SRC_ATTR,
   insertImageLayer,
   insertImageLayers,
+  insertElement,
+  fillImageSlot,
 } from './index.js';
 
 const HERO = `const TONES = { warm: 'linear-gradient(#fb923c, #f43f5e)' };
@@ -315,5 +317,42 @@ describe('insertImageLayer', () => {
     const { parse } = await import('@babel/parser');
     const r = insertImageLayer(SRC, rootAt, box);
     expect(() => parse(r.code, { sourceType: 'module', plugins: ['jsx'] })).not.toThrow();
+  });
+});
+
+describe('insertElement', () => {
+  const SRC = "export default () => (\n  <div style={{ width: '100%' }}>\n    <p>Hi</p>\n  </div>\n);\n";
+  const at = SRC.indexOf('<div');
+
+  it('appends the element as the last child and positions the parent', () => {
+    const r = insertElement(SRC, at, "<div style={{ position: 'absolute', left: 1 }}>New</div>");
+    expect(r.ok).toBe(true);
+    expect(r.code).toContain("<p>Hi</p>\n    <div style={{ position: 'absolute', left: 1 }}>New</div>\n  </div>");
+    expect(r.code).toContain("width: '100%', position: 'relative'");
+  });
+
+  it('indents a multi-line element and refuses invalid JSX', () => {
+    const r = insertElement(SRC, at, '<div>\n  <span>a</span>\n</div>');
+    expect(r.code).toContain('    <div>\n      <span>a</span>\n    </div>\n  </div>');
+    expect(insertElement(SRC, at, '<div>')).toEqual({ ok: false, reason: 'bad-element' });
+    expect(insertElement(SRC, at, 'hello')).toEqual({ ok: false, reason: 'bad-element' });
+  });
+});
+
+describe('fillImageSlot', () => {
+  it('replaces a slot\'s placeholder with a covering image', () => {
+    const src = "export default () => <div data-image-slot=\"s\" style={{ height: 10 }}>\n  Drop here\n</div>;\n";
+    const r = fillImageSlot(src, src.indexOf('<div'), 'shot.png');
+    expect(r.ok).toBe(true);
+    expect(r.code).toContain('const shotSrc = new URL("./shot.png", import.meta.url).href;');
+    expect(r.code).toContain("<img src={shotSrc} alt=\"\" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /></div>");
+    expect(r.code).not.toContain('Drop here');
+  });
+
+  it('swaps an <img> src (Replace image)', () => {
+    const src = "const aSrc = 'x';\nexport default () => <img src={aSrc} alt=\"a\" />;\n";
+    const r = fillImageSlot(src, src.indexOf('<img'), 'b.png');
+    expect(r.code).toContain('<img src={bSrc} alt="a" />');
+    expect(fillImageSlot(src, src.indexOf('<img'), '../b.png')).toEqual({ ok: false, reason: 'bad-image' });
   });
 });
