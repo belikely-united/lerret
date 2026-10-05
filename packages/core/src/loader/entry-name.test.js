@@ -7,6 +7,7 @@ import {
   assetFileName,
   componentIdentifier,
   starterAssetContent,
+  imageAssetContent,
   validateAssetDimensions,
   starterAssetData,
   MAX_ENTRY_NAME_LENGTH,
@@ -162,5 +163,19 @@ describe('validateAssetDimensions', () => {
     expect(validateAssetDimensions({ width: '100', height: 100 }).ok).toBe(false);
     expect(validateAssetDimensions({ width: 15, height: 100 }).error).toMatch(/between 16 and 10000/);
     expect(validateAssetDimensions({ width: 100, height: 10001 }).ok).toBe(false);
+  });
+});
+
+describe('imageAssetContent', () => {
+  it('sizes the artboard to the image and shows it module-relative', () => {
+    const src = imageAssetContent('app-icon', 'app-icon.png', { width: 1024, height: 512 });
+    expect(src).toContain('dimensions: { width: 1024, height: 512 }');
+    expect(src).toContain('const imageSrc = new URL("./app-icon.png", import.meta.url).href;');
+    expect(src).toContain('export default function AppIcon()');
+    expect(src).toContain('alt="app-icon"');
+  });
+
+  it('falls back to the default size for unusable dimensions', () => {
+    expect(imageAssetContent('x', 'x.svg', { width: 0, height: 0 })).toContain('dimensions: { width: 800, height: 450 }');
   });
 });
