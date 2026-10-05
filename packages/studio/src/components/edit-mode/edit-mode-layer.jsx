@@ -307,7 +307,13 @@ export function EditModeLayer() {
       const sel = selectionFrom(el);
       selectElement(sel);
       const text = String(el.textContent ?? '').replace(/\s+/g, ' ').trim();
-      setScope(fileScope(sel.assetPath, undefined, text.length <= 120 ? { text, tag: sel.tag } : undefined));
+      const frameEl = el.closest('[data-dc-asset-path]');
+      setScope(
+        fileScope(sel.assetPath, undefined, text.length <= 120 ? { text, tag: sel.tag } : undefined, {
+          variant: frameEl?.getAttribute('data-dc-variant') || undefined,
+          slotId: frameEl?.getAttribute('data-dc-slot') || undefined,
+        }),
+      );
     };
 
     const onDbl = (e) => {

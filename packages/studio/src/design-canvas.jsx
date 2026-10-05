@@ -1451,8 +1451,18 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  }
  let element = null;
  let assetPath = null;
+ // Which artboard of the asset was clicked — the variant export and the
+ // exact slot — so the AI targets that variant and sees that artboard.
+ let frame;
  if (t && typeof t.closest === 'function') {
- assetPath = t.closest('[data-dc-asset-path]')?.getAttribute('data-dc-asset-path') || null;
+ const frameEl = t.closest('[data-dc-asset-path]');
+ assetPath = frameEl?.getAttribute('data-dc-asset-path') || null;
+ if (frameEl) {
+ frame = {
+ variant: frameEl.getAttribute('data-dc-variant') || undefined,
+ slotId: frameEl.getAttribute('data-dc-slot') || undefined,
+ };
+ }
  if (!t.closest('.dc-labelrow')) {
  const text = String(t.textContent ?? '').replace(/\s+/g, ' ').trim();
  // Leaf-ish, human-pointable nodes only: short text, no element children
@@ -1466,7 +1476,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  }
  }
  }
- onSelectScope(element, assetPath);
+ onSelectScope(element, assetPath, frame);
  };
 
  // The container's name tag (page or group) — see .dc-section-tag CSS.
@@ -1778,7 +1788,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  };
 
  return (
- <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} {...(assetPath ? { 'data-dc-asset-path': assetPath } : {})} style={{ position: 'relative', flexShrink: 0, '--dc-w': `${width}px` }}>
+ <div ref={ref} data-dc-slot={id} data-dc-label={label || rawLabel || id} data-dc-section-title={sectionTitle || ''} data-dc-w={width} data-dc-h={height} {...(assetPath ? { 'data-dc-asset-path': assetPath } : {})} {...(variantName ? { 'data-dc-variant': variantName } : {})} style={{ position: 'relative', flexShrink: 0, '--dc-w': `${width}px` }}>
  {/* Labelrow stretches the full card width so the portaled kebab
  (artboard-kebab.jsx) can right-align inside it via margin-left:auto.
  The right-edge button cluster (ANIM/JPG/PNG/expand/kebab) is rendered

@@ -353,7 +353,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // to a `page` scope labelled with the page name. Wrapped in useCallback so
  // the per-section handler identity is stable.
  const emitSectionScope = React.useCallback(
- (section, sectionKind, pageName, element, assetPath) => {
+ (section, sectionKind, pageName, element, assetPath, frame) => {
  if (!setAiScope) return;
  const assets = section?.entries || [];
  const firstAsset = assets[0]?.asset;
@@ -365,7 +365,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // scope and the AI lost the target). The `element` pinpoint rides on
  // the file scope as before.
  if (assetPath) {
- setAiScope(fileScope(assetPath, undefined, element));
+ setAiScope(fileScope(assetPath, undefined, element, frame));
  return;
  }
  // A single-asset section IS that asset — file-scope it whether the
@@ -730,7 +730,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  subtitle={subtitle}
  sectionStyle={sectionStyle}
  bare={sectionKind === 'page'}
- onSelectScope={(element, assetPath) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath)}
+ onSelectScope={(element, assetPath, frame) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath, frame)}
  >
  {node.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),
