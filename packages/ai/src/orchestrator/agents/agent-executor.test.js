@@ -22,6 +22,7 @@ import {
     createAgentExecutorNode,
     buildExecutors,
     buildLoopSystemPrompt,
+    createSelectionGuard,
     collectTreeForRemoval,
     isProtectedDirTarget,
 } from './agent-executor.js';
@@ -489,6 +490,125 @@ describe('buildExecutors — Worker-backed mutations, sandbox reads', () => {
 });
 
 // ── delete_dir helpers (pure) ───────────────────────────────────────────────────
+
+describe('selection write guard — ask before other files', () => {
+    const allowed = new Set(['.lerret/store/hero.jsx', '.lerret/store/hero.data.json']);
+
+    function makeGuardEnv({ onClarify } = {}) {
+        const sandbox = makeSandbox({ '.lerret/store/hero.jsx': 'A', '.lerret/brand/logo.jsx': 'B' });
+        const workerNode = vi.fn(async ({ manifest, plan }) => ({
+            manifest,
+            writtenFiles: plan
+                .filter((s) => s.op === 'write' || s.op === 'delete')
+                .map((s) => ({ path: s.path, op: s.op === 'delete' ? 'delete' : 'edit' })),
+        }));
+        const executors = buildExecutors({
+            sandbox,
+            workerNode,
+            manifestRef: { current: { id: 'm1' } },
+            writtenFiles: [],
+            signal: undefined,
+            onClarify,
+            allowedWritePaths: allowed,
+        });
+        return { executors, workerNode };
+    }
+
+    it('writes the selected asset and its data file without asking', async () => {
+        const onClarify = vi.fn();
+        const { executors, workerNode } = makeGuardEnv({ onClarify });
+        expect((await executors.write_file({ path: 'store/hero.jsx', content: 'X' })).isError).toBeUndefined();
+        expect((await executors.write_file({ path: 'store/hero.data.json', content: '{}' })).isError).toBeUndefined();
+        expect(onClarify).not.toHaveBeenCalled();
+        expect(workerNode).toHaveBeenCalledTimes(2);
+    });
+
+    it('asks before writing another file, and honors "Allow"', async () => {
+        const onClarify = vi.fn(async () => 'Allow');
+        const { executors, workerNode } = makeGuardEnv({ onClarify });
+        const res = await executors.write_file({ path: 'brand/logo.jsx', content: 'X' });
+        expect(res.isError).toBeUndefined();
+        expect(onClarify).toHaveBeenCalledWith(
+            expect.objectContaining({
+                question: expect.stringContaining('brand/logo.jsx'),
+                options: ['Allow', 'Allow all for this request', "Don't allow"],
+            }),
+        );
+        expect(workerNode).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses on "Don\'t allow", remembers it, and never reaches the Worker', async () => {
+        const onClarify = vi.fn(async () => "Don't allow");
+        const { executors, workerNode } = makeGuardEnv({ onClarify });
+        const first = await executors.delete_file({ path: 'brand/logo.jsx' });
+        const again = await executors.write_file({ path: 'brand/logo.jsx', content: 'X' });
+        expect(first.isError).toBe(true);
+        expect(again.isError).toBe(true);
+        expect(first.content).toContain('did not allow');
+        expect(onClarify).toHaveBeenCalledTimes(1);
+        expect(workerNode).not.toHaveBeenCalled();
+    });
+
+    it('"Allow all for this request" stops asking for the rest of the turn', async () => {
+        const onClarify = vi.fn(async () => 'Allow all for this request');
+        const { executors } = makeGuardEnv({ onClarify });
+        await executors.write_file({ path: 'brand/logo.jsx', content: 'X' });
+        await executors.write_file({ path: 'brand/other.jsx', content: 'Y' });
+        expect(onClarify).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses outside writes when no user is available to ask', async () => {
+        const { executors, workerNode } = makeGuardEnv({ onClarify: undefined });
+        const res = await executors.write_file({ path: 'brand/logo.jsx', content: 'X' });
+        expect(res.isError).toBe(true);
+        expect(workerNode).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when nothing is selected', async () => {
+        const guard = createSelectionGuard({ allowedWritePaths: null, onClarify: vi.fn() });
+        expect(await guard('.lerret/anything.jsx', 'write')).toBeNull();
+    });
+
+    it('lets an attached image be saved next to the selected asset without asking', async () => {
+        const onClarify = vi.fn();
+        const guard = createSelectionGuard({ allowedWritePaths: allowed, onClarify });
+        expect(await guard('.lerret/store/logo.png', 'save an image to', { attachment: true })).toBeNull();
+        expect(onClarify).not.toHaveBeenCalled();
+    });
+});
+
+describe('selection preview image', () => {
+    const preview = { kind: 'image', base64: 'AAAA', mimeType: 'image/png' };
+    const files = { '.lerret/store/hero.jsx': 'export default () => null;' };
+
+    async function userContentFor(handle) {
+        runAgentLoop.mockResolvedValue({ status: 'done', text: 'ok' });
+        const { node } = makeNode({ sandbox: makeSandbox({ ...files }), providerHandle: handle });
+        await node({
+            prompt: 'make the headline bigger',
+            scope: { kind: 'file', filePath: 'store/hero.jsx' },
+            selectionPreview: preview,
+            manifest: { id: 'm1' },
+        });
+        return runAgentLoop.mock.calls[0][0].messages;
+    }
+
+    it('attaches the rendered artboard for a vision-capable model', async () => {
+        const messages = await userContentFor(makeHandle({ tools: true }));
+        expect(messages[1].content).toEqual([
+            { type: 'text', text: 'make the headline bigger' },
+            { type: 'image', mimeType: 'image/png', base64: 'AAAA' },
+        ]);
+        expect(messages[0].content).toContain('rendered image of the selected artboard');
+    });
+
+    it('sends text only to a model without vision', async () => {
+        const handle = { ...makeHandle({ tools: true }), modelSupportsVision: () => false };
+        const messages = await userContentFor(handle);
+        expect(messages[1].content).toBe('make the headline bigger');
+        expect(messages[0].content).not.toContain('rendered image of the selected artboard');
+    });
+});
 
 describe('collectTreeForRemoval', () => {
     it('returns files in discovery order and dirs deepest-first ending at the root', async () => {

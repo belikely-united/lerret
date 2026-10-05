@@ -9,6 +9,7 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ## [Unreleased]
 
 ### Added
+- **Microsoft Store preset** in the New-asset platform picker: desktop screenshots (1920×1080, 4K), hero art, poster art, box art and store logo.
 - **Platform size presets when creating an asset.** The studio's "New asset" dialog now asks where the asset will be published — Instagram, Facebook, LinkedIn, X, Product Hunt, App Store, Google Play, YouTube, Pinterest, TikTok, or Web & email — then offers that platform's formats (e.g. Instagram Post, Story, Reel cover) with to-scale previews, or a custom W×H. The pick becomes the starter component's `meta.dimensions`. The `/__lerret/create` endpoint accepts an optional `dimensions: { width, height }`, and `@lerret/core` exports `validateAssetDimensions`.
 - Marketing landing site scaffold (Astro 5) for `lerret.io`, hosted on Firebase. Private — lives in the maintainer workspace.
 - `app/sitemap.js` and `app/robots.js` for the docs site so search crawlers (Algolia DocSearch first) can discover all pages.

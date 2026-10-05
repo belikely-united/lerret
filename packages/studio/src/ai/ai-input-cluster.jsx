@@ -72,6 +72,7 @@ import { VisionAttachButton } from './vision-attach-button.jsx';
 import { PromptContextTray } from './attachment-preview.jsx';
 import { VisionFallbackPrompt } from './vision-fallback-prompt.jsx';
 import { useVisionGate, VISION_PILL_LABEL } from './use-vision-gate.js';
+import { captureSelectionPreview } from './selection-preview.js';
 // §6.5 fix: the activity feed must PORTAL to <body>. The dock has overflow:auto
 // + backdrop-filter (a containing block), so a feed positioned inside it — even
 // absolute/fixed — is CLIPPED (it rendered into the void above the dock and was
@@ -925,11 +926,21 @@ function SelectionChip({ scope, onClear }) {
             ? `${scope.element.text.slice(0, 24)}…`
             : scope.element.text
         : null;
+    // A non-default variant rides on the file label (`card.jsx · Dark`) so the
+    // user can see which artboard of the asset the request targets.
+    const fileLabel =
+        scope.kind === 'file' && scope.variant && scope.variant !== 'default'
+            ? `${scope.label} · ${scope.variant}`
+            : scope.label;
     // The full, untruncated breadcrumb for the hover tooltip — the chip itself
-    // truncates the file first, never the element.
-    const chipTitle = scope.element?.text
-        ? `${scope.label} › “${scope.element.text}”`
-        : scope.label;
+    // truncates the file first, never the element. A file scope also says what
+    // the AI is given and what it may change.
+    const chipTitle =
+        (scope.element?.text ? `${fileLabel} › “${scope.element.text}”` : fileLabel) +
+        (scope.kind === 'file'
+            ? '\nThe AI sees this asset’s code, its text data and a picture of it. ' +
+              'Changes to other files ask you first.'
+            : '');
     return (
         <span
             className="lm-ai-cluster__chip"
@@ -942,12 +953,12 @@ function SelectionChip({ scope, onClear }) {
             <span className="lm-ai-cluster__chip-label" title={chipTitle}>
                 {elementText ? (
                     <>
-                        <span className="lm-ai-cluster__chip-file">{scope.label}</span>
+                        <span className="lm-ai-cluster__chip-file">{fileLabel}</span>
                         <span className="lm-ai-cluster__chip-sep" aria-hidden="true">›</span>
                         <span className="lm-ai-cluster__chip-el">{`“${elementText}”`}</span>
                     </>
                 ) : (
-                    <span className="lm-ai-cluster__chip-solo">{scope.label}</span>
+                    <span className="lm-ai-cluster__chip-solo">{fileLabel}</span>
                 )}
             </span>
             <button
@@ -1813,8 +1824,12 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                       filePath: scope.filePath,
                       count: scope.count,
                       ...(scope.element ? { element: scope.element } : {}),
+                      ...(scope.variant ? { variant: scope.variant } : {}),
                   }
                 : { kind: 'project' };
+            // What the user SEES: a rendered image of the selected artboard,
+            // for vision-capable models (best-effort — null on any failure).
+            const selectionPreview = await captureSelectionPreview(scope);
             let terminalSeen = false;
             let turnId = null;
             // DS Curator clarifying notes (brand-authority conflicts) — calm
@@ -1878,6 +1893,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                     ...(Array.isArray(opts.attachments) && opts.attachments.length > 0
                         ? { attachments: opts.attachments }
                         : null),
+                    ...(selectionPreview ? { selectionPreview } : null),
                     ...(opts.providerOverride ? { providerOverride: opts.providerOverride } : null),
                     ...(typeof opts.onVisionDecision === 'function'
                         ? { onVisionDecision: opts.onVisionDecision }

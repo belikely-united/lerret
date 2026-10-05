@@ -50,6 +50,9 @@ export const TurnState = Annotation.Root({
     mode: Annotation(),
     currentPage: Annotation(),
     attachments: Annotation(),
+    // The selected artboard's rendered image ({ kind:'image', base64, mimeType })
+    // captured by the studio at send time — context for vision models only.
+    selectionPreview: Annotation(),
     providerHandle: Annotation(),
     signal: Annotation(),
     manifest: Annotation({ reducer: (_, u) => u }),

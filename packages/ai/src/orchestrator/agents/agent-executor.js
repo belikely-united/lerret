@@ -41,6 +41,8 @@ import { createWorkerNode } from './worker.js';
 import { createPlannerNode, imageBlocksFromAttachments } from './planner.js';
 import {
     readScopedFile,
+    describeScopedFile,
+    selectionWritePaths,
     elementPinpoint,
     toProjectRelativeLerretPath,
     canonLerretPath,
@@ -83,10 +85,13 @@ export function dedupeWrittenFiles(files) {
  * the tool guidance that replaces the JSON-plan instruction.
  *
  * @param {object} state
- * @param {{ path: string, content: string } | null} scopedFile
+ * @param {Awaited<ReturnType<typeof readScopedFile>>} scopedFile
+ * @param {{ previewAttached?: boolean }} [opts]
+ *   `previewAttached` — a rendered image of the selected artboard rides on the
+ *   user message, so the prompt tells the model to look at it.
  * @returns {string}
  */
-export function buildLoopSystemPrompt(state, scopedFile = null) {
+export function buildLoopSystemPrompt(state, scopedFile = null, opts = {}) {
     const brand =
         state.brandTokens && Object.keys(state.brandTokens).length
             ? `\n\nBrand tokens (authoritative): ${JSON.stringify(state.brandTokens)}`
@@ -100,7 +105,14 @@ export function buildLoopSystemPrompt(state, scopedFile = null) {
           `writing the COMPLETE updated file at exactly this path. ` +
           `This selection takes precedence over every project-wide rule — including the ` +
           `_design-system.md rewrite — UNLESS the request explicitly says it applies to ` +
-          `all assets / everything / the whole project.${pinpoint}\n` +
+          `all assets / everything / the whole project.${pinpoint} ` +
+          `Writing any OTHER file pauses to ask the user for permission, so stay within this ` +
+          `asset and its data file unless the request genuinely needs more.` +
+          (opts.previewAttached
+              ? ` A rendered image of the selected artboard is attached to the user's message — ` +
+                `use it to see what the user sees before changing layout or style.`
+              : '') +
+          `${describeScopedFile(scopedFile)}\n` +
           `--- ${scopedFile.path} (current content) ---\n${scopedFile.content}\n--- end ---`
         : '';
     const scopeKind = state.scope && typeof state.scope === 'object' ? state.scope.kind : null;
@@ -304,7 +316,14 @@ export async function collectTreeForRemoval(sandbox, root) {
  *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
  *   attachments?: Array<{ name?: string, base64?: string, mimeType?: string }>,
  *   maxQuestions?: number,
+ *   allowedWritePaths?: Set<string> | null,
  * }} deps
+ *
+ * `allowedWritePaths` — while an asset is selected, the canonical paths the
+ * agent may mutate freely (the asset + its data file). Any other mutation
+ * first asks the user through `onClarify` ("ask before others"); with no UI
+ * resolver it is refused, so a headless run can never wander off the
+ * selection. Decisions are remembered per path for the rest of the turn.
  */
 /**
  * Decode a base64 string to raw bytes — browser + Node, no Buffer dependency.
@@ -321,6 +340,82 @@ function base64ToBytes(base64) {
     return bytes;
 }
 
+/**
+ * The selection write guard ("ask before others"). While an asset is selected,
+ * mutations of the asset and its data file proceed; any other path first asks
+ * the user through `onClarify` (Allow / Allow all for this request / Don't
+ * allow). With no UI resolver the mutation is refused, so a headless run can
+ * never wander off the selection. Decisions are remembered per path for the
+ * rest of the turn.
+ *
+ * @param {{
+ *   allowedWritePaths: Set<string> | null,
+ *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
+ *   signal?: AbortSignal,
+ * }} deps
+ * @returns {(p: string, verb: string, opts?: { attachment?: boolean }) =>
+ *   Promise<null | { content: string, isError: true }>}
+ *   Resolves null to proceed, or the refusal the caller returns instead.
+ */
+export function createSelectionGuard({ allowedWritePaths, onClarify, signal }) {
+    /** @type {Map<string, boolean>} path → the user's allow/deny for this turn */
+    const writeDecisions = new Map();
+    let allowAllOutside = false;
+    // The selected asset's folder: user-attached images saved next to it are
+    // part of editing it (a logo, a photo), so they don't need a prompt.
+    const selectionFolder = allowedWritePaths
+        ? [...allowedWritePaths][0].split('/').slice(0, -1).join('/')
+        : null;
+    const ALLOW = 'Allow';
+    const ALLOW_ALL = 'Allow all for this request';
+    const DENY = "Don't allow";
+    /**
+     * Resolve whether a mutation of `p` may proceed. Returns null to proceed,
+     * or the tool result to return instead (a refusal the model reads).
+     *
+     * @param {string} p        Canonical `.lerret/<rel>` target.
+     * @param {string} verb     'write' | 'delete' | 'remove' — for the question.
+     * @param {{ attachment?: boolean }} [opts]
+     */
+    return async function guardOutsideSelection(p, verb, opts = {}) {
+        if (!allowedWritePaths || allowedWritePaths.has(p) || allowAllOutside) return null;
+        if (opts.attachment && selectionFolder && p.split('/').slice(0, -1).join('/') === selectionFolder) {
+            return null;
+        }
+        const refuse = (why) => ({
+            content:
+                `${why} Do not touch ${p}; keep your changes within the selected asset ` +
+                `(${[...allowedWritePaths].join(', ')}) and mention in your summary what you skipped.`,
+            isError: true,
+        });
+        if (writeDecisions.has(p)) {
+            return writeDecisions.get(p) ? null : refuse(`The user did not allow changing ${p}.`);
+        }
+        if (typeof onClarify !== 'function') {
+            return refuse('Changing files outside the selected asset needs the user\'s approval, and no user is available.');
+        }
+        const rel = p.replace(/^\.lerret\//, '');
+        let answer = null;
+        try {
+            answer = await onClarify({
+                question: `This request also wants to ${verb} ${rel}, which is outside the selected asset. Allow it?`,
+                options: [ALLOW, ALLOW_ALL, DENY],
+            });
+        } catch {
+            answer = null;
+        }
+        if (signal?.aborted) return { content: 'The user stopped the turn.', isError: true };
+        const text = typeof answer === 'string' ? answer.trim() : '';
+        if (text === ALLOW_ALL) {
+            allowAllOutside = true;
+            return null;
+        }
+        const allowed = text === ALLOW;
+        writeDecisions.set(p, allowed);
+        return allowed ? null : refuse(`The user did not allow changing ${p}.`);
+    };
+}
+
 export function buildExecutors({
     sandbox,
     workerNode,
@@ -330,12 +425,16 @@ export function buildExecutors({
     onClarify,
     attachments,
     maxQuestions = 3,
+    allowedWritePaths = null,
 }) {
     const badPath = (p) => ({
         content: `Invalid path "${String(p)}" — paths must be inside .lerret/ (e.g. "social/card.jsx").`,
         isError: true,
     });
     let questionsAsked = 0;
+
+    const guardOutsideSelection = createSelectionGuard({ allowedWritePaths, onClarify, signal });
+
     return {
         ask_user: async (args) => {
             const question = typeof args?.question === 'string' ? args.question.trim() : '';
@@ -434,6 +533,8 @@ export function buildExecutors({
             if (typeof args?.content !== 'string') {
                 return { content: 'write_file requires string `content` (the COMPLETE file).', isError: true };
             }
+            const blocked = await guardOutsideSelection(p, 'write');
+            if (blocked) return blocked;
             try {
                 // Parent folders auto-create (the tool contract) — one mkdir
                 // step ahead of the write, but ONLY when the parent is
@@ -466,6 +567,8 @@ export function buildExecutors({
             if (!wanted) {
                 return { content: 'save_attachment requires the attachment `name` (its filename).', isError: true };
             }
+            const blocked = await guardOutsideSelection(p, 'save an image to', { attachment: true });
+            if (blocked) return blocked;
             const list = Array.isArray(attachments) ? attachments : [];
             const wantedBase = wanted.split('/').pop();
             // Match by exact filename, then basename; if there is exactly ONE
@@ -511,6 +614,8 @@ export function buildExecutors({
         delete_file: async (args) => {
             const p = canonLerretPath(args?.path);
             if (!p || p === '.lerret/') return badPath(args?.path);
+            const blocked = await guardOutsideSelection(p, 'delete');
+            if (blocked) return blocked;
             try {
                 const res = await workerNode({
                     manifest: manifestRef.current,
@@ -541,6 +646,9 @@ export function buildExecutors({
                     isError: true,
                 };
             }
+            // A folder is never the selected asset itself — always asks.
+            const blocked = await guardOutsideSelection(p, 'remove the folder');
+            if (blocked) return blocked;
             try {
                 if (!(await sandbox.exists(p))) {
                     return {
@@ -583,6 +691,38 @@ export function buildExecutors({
             }
         },
     };
+}
+
+/**
+ * Apply the selection write guard to a single-shot plan (the tool-incapable
+ * branch writes a whole plan at once, so each mutating step is checked before
+ * the Worker runs it). Steps the user declines are dropped with a note.
+ *
+ * @param {Array<{ op: string, path?: string }>} plan
+ * @param {object} state
+ * @param {object} sandbox
+ * @param {{ onClarify?: Function, emit: (ev: unknown) => void }} deps
+ * @returns {Promise<Array<object>>}
+ */
+async function guardPlan(plan, state, sandbox, { onClarify, emit }) {
+    if (plan.length === 0) return plan;
+    const scopedFile = await readScopedFile(state.scope, sandbox);
+    const allowedWritePaths = scopedFile ? selectionWritePaths(state.scope) : null;
+    if (!allowedWritePaths) return plan;
+    const guard = createSelectionGuard({ allowedWritePaths, onClarify, signal: state.signal });
+    const kept = [];
+    for (const step of plan) {
+        const p = canonLerretPath(step?.path);
+        const mutating = step && (step.op === 'write' || step.op === 'delete');
+        if (!mutating || !p) {
+            kept.push(step);
+            continue;
+        }
+        const blocked = await guard(p, step.op === 'delete' ? 'delete' : 'write');
+        if (blocked) emit(clarifyingNote(`Skipped ${p.replace(/^\.lerret\//, '')} — it is outside the selected asset.`));
+        else kept.push(step);
+    }
+    return kept;
 }
 
 /**
@@ -672,7 +812,10 @@ export function createAgentExecutorNode({
                 );
             }
             const planned = await plannerNode(state);
-            const plan = Array.isArray(planned?.plan) ? planned.plan : [];
+            const plan = await guardPlan(Array.isArray(planned?.plan) ? planned.plan : [], state, sandbox, {
+                onClarify,
+                emit,
+            });
             const res = await workerNode({ manifest: state.manifest, signal: state.signal, plan });
             return { manifest: res.manifest, writtenFiles: dedupeWrittenFiles(res.writtenFiles), answer: '', plan };
         }
@@ -692,14 +835,25 @@ export function createAgentExecutorNode({
                 ? imageBlocksFromAttachments(state.attachments)
                 : [];
         const scopedFile = await readScopedFile(state.scope, sandbox);
+        // The selected artboard's rendered image (captured by the studio at
+        // send time). Only sent to a model that can see — it is context, not
+        // the user's request, so it never triggers the vision-fallback prompt.
+        const previewBlocks =
+            scopedFile && handle.modelSupportsVision(handle.model)
+                ? imageBlocksFromAttachments(state.selectionPreview ? [state.selectionPreview] : [])
+                : [];
         const promptText = String(state.prompt ?? '');
+        const userImages = [...previewBlocks, ...imageBlocks];
         const messages = [
-            { role: 'system', content: buildLoopSystemPrompt(state, scopedFile) },
+            {
+                role: 'system',
+                content: buildLoopSystemPrompt(state, scopedFile, { previewAttached: previewBlocks.length > 0 }),
+            },
             {
                 role: 'user',
                 content:
-                    imageBlocks.length > 0
-                        ? [{ type: 'text', text: promptText }, ...imageBlocks]
+                    userImages.length > 0
+                        ? [{ type: 'text', text: promptText }, ...userImages]
                         : promptText,
             },
         ];
@@ -715,6 +869,7 @@ export function createAgentExecutorNode({
             signal: state.signal,
             onClarify,
             attachments: state.attachments,
+            allowedWritePaths: scopedFile ? selectionWritePaths(state.scope) : null,
         });
 
         if (state?.signal?.aborted) return { writtenFiles, answer: '', plan: [] };

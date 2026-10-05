@@ -493,6 +493,128 @@ export function applyEdit(code, offset, change, relPath = '') {
 }
 
 // ---------------------------------------------------------------------------
+// Image layers (drag-and-drop an image onto an artboard)
+// ---------------------------------------------------------------------------
+
+/** A JS identifier for an image file's URL constant (`hero-shot.png` → `heroShotSrc`). */
+function imageVarName(code, file) {
+  const base = String(file).replace(/\.[^.]+$/, '');
+  const words = base.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  let stem = words.map((w, i) => (i === 0 ? w.charAt(0).toLowerCase() : w.charAt(0).toUpperCase()) + w.slice(1)).join('');
+  if (!stem || /^[0-9]/.test(stem)) stem = `image${stem}`;
+  let name = `${stem}Src`;
+  for (let n = 2; new RegExp(`\\b${name}\\b`).test(code); n += 1) name = `${stem}Src${n}`;
+  return name;
+}
+
+/**
+ * Insert images as absolutely-positioned top layers inside the element at
+ * `offset` (normally the artboard's root element), each referencing a file
+ * that sits next to the asset. Several images (a multi-file drop) are placed
+ * in ONE pass, in order, so later ones draw on top.
+ *
+ * Splices are applied from the END of the file backwards so earlier offsets
+ * stay valid without re-parsing:
+ *   1. the `<img>`s become the element's LAST children (drawn on top);
+ *   2. the element gets `position: 'relative'` when its literal style has no
+ *      `position`, so the layers are placed against it;
+ *   3. a `const <x>Src = new URL('./<file>', import.meta.url).href;` per image
+ *      is added after the imports — module-relative, so it resolves under both
+ *      the CLI dev server and the hosted service worker.
+ *
+ * @param {string} code
+ * @param {number} offset  The target element's `<` in `code` (a source stamp).
+ * @param {Array<{ file: string, alt?: string, left: number, top: number, width: number, height: number }>} images
+ *   `file` — each image's filename in the asset's folder; box in artboard px.
+ * @param {string} [relPath]
+ * @returns {{ ok: true, code: string, varNames: string[] } | { ok: false, reason: string }}
+ */
+export function insertImageLayers(code, offset, images, relPath = '') {
+  const list = Array.isArray(images) ? images : [];
+  if (list.length === 0 || list.some((im) => !im || typeof im.file !== 'string' || !/^[^/\\]+$/.test(im.file))) {
+    return { ok: false, reason: 'bad-image' };
+  }
+  let ast;
+  try {
+    ast = parseSource(code, relPath);
+  } catch {
+    return { ok: false, reason: 'parse-error' };
+  }
+  const el = findElement(ast, offset);
+  if (!el || !isDomTag(el.openingElement)) return { ok: false, reason: 'changed' };
+  const op = el.openingElement;
+  const tag = op.name.name;
+  const px = (n) => Math.round(Number(n) || 0);
+  const varNames = [];
+  let taken = code;
+  const imgJsx = list.map((image) => {
+    const varName = imageVarName(taken, image.file);
+    varNames.push(varName);
+    taken += ` ${varName}`; // reserve the name for the next image
+    const alt = JSON.stringify(String(image.alt ?? image.file.replace(/\.[^.]+$/, '')));
+    return (
+      `<img src={${varName}} alt=${alt} style={{ position: 'absolute', left: ${px(image.left)}, ` +
+      `top: ${px(image.top)}, width: ${px(image.width)}, height: ${px(image.height)}, objectFit: 'contain' }} />`
+    );
+  });
+
+  // 1. The children, last inside the element.
+  let out;
+  const indent = lineIndent(code, el.start);
+  if (op.selfClosing) {
+    let closeAt = code.lastIndexOf('/>', op.end);
+    while (closeAt > 0 && /[ \t]/.test(code[closeAt - 1])) closeAt -= 1; // `<div … />` → `<div …>`
+    const kids = imgJsx.map((j) => `\n${indent}  ${j}`).join('');
+    out = splice(code, closeAt, op.end, `>${kids}\n${indent}</${tag}>`).code;
+  } else {
+    const closing = el.closingElement;
+    const lineStart = code.lastIndexOf('\n', closing.start - 1) + 1;
+    const ownLine = /^[ \t]*$/.test(code.slice(lineStart, closing.start));
+    const childIndent = `${code.slice(lineStart, closing.start)}  `;
+    out = ownLine
+      ? splice(code, lineStart, lineStart, imgJsx.map((j) => `${childIndent}${j}\n`).join('')).code
+      : splice(code, closing.start, closing.start, imgJsx.join('')).code;
+  }
+
+  // 2. Make the element the positioning context (only a literal style without one).
+  const { obj } = styleObject(op);
+  const hasPosition = obj && obj.properties.some((p) => propKey(p) === 'position');
+  if (!hasPosition) {
+    const positioned = editStyle(out, op, 'position', 'relative');
+    if (positioned.ok) out = positioned.code;
+  }
+
+  // 3. The URL constants after the last import (else before the first statement).
+  const body = ast.program.body;
+  const imports = body.filter((n) => n.type === 'ImportDeclaration');
+  const decls = list
+    .map((image, i) => `const ${varNames[i]} = new URL(${JSON.stringify(`./${image.file}`)}, import.meta.url).href;\n`)
+    .join('');
+  if (imports.length) {
+    const at = imports[imports.length - 1].end;
+    out = splice(out, at, at, `\n${decls.replace(/\n$/, '')}`).code;
+  } else {
+    const at = body.length ? body[0].start : 0;
+    out = splice(out, at, at, `${decls}\n`).code;
+  }
+  return { ok: true, code: out, varNames };
+}
+
+/**
+ * Single-image form of {@link insertImageLayers}.
+ *
+ * @param {string} code
+ * @param {number} offset
+ * @param {{ file: string, alt?: string, left: number, top: number, width: number, height: number }} image
+ * @param {string} [relPath]
+ * @returns {{ ok: true, code: string, varName: string } | { ok: false, reason: string }}
+ */
+export function insertImageLayer(code, offset, image, relPath = '') {
+  const r = insertImageLayers(code, offset, [image], relPath);
+  return r.ok ? { ok: true, code: r.code, varName: r.varNames[0] } : r;
+}
+
+// ---------------------------------------------------------------------------
 // Variants
 // ---------------------------------------------------------------------------
 
@@ -575,4 +697,5 @@ export const EDIT_REASONS = {
   'variant-anonymous': 'The main component has no name — give it one (export default function Card…) to add variants.',
   'structure-is-code': 'This element is placed by code (a condition, list or return) — edit the file.',
   'unknown-change': 'Unsupported change.',
+  'bad-image': 'That image file name can’t be used.',
 };

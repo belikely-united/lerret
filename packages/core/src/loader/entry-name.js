@@ -223,6 +223,46 @@ export function starterAssetContent(name, assetKind, opts = {}) {
 }
 
 /**
+ * Starter content for an IMAGE asset — a component that shows one image file
+ * from its own folder at the artboard's full size. Used when an image is
+ * dropped onto the canvas background: the artboard takes the image's natural
+ * dimensions, so the picture is shown 1:1 and can be built on from there.
+ *
+ * The image is referenced module-relative (`new URL('./x.png', import.meta.url)`)
+ * so it resolves under both the CLI dev server and the hosted service worker.
+ *
+ * @param {string} name       Validated asset base name.
+ * @param {string} imageFile  The image's filename, in the same folder.
+ * @param {{ width: number, height: number }} dimensions  Natural image size (px).
+ * @returns {string}
+ */
+export function imageAssetContent(name, imageFile, dimensions) {
+  const id = componentIdentifier(name);
+  const dims = validateAssetDimensions(dimensions).ok ? dimensions : DEFAULT_ASSET_DIMENSIONS;
+  return [
+    `// ${id} — image asset. Build on it freely; the canvas re-renders on save.`,
+    `const imageSrc = new URL(${JSON.stringify(`./${imageFile}`)}, import.meta.url).href;`,
+    '',
+    'export const meta = {',
+    `  dimensions: { width: ${dims.width}, height: ${dims.height} },`,
+    '};',
+    '',
+    `export default function ${id}() {`,
+    '  return (',
+    "    <div style={{ position: 'relative', width: '100%', height: '100%' }}>",
+    '      <img',
+    '        src={imageSrc}',
+    `        alt=${JSON.stringify(String(name))}`,
+    "        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}",
+    '      />',
+    '    </div>',
+    '  );',
+    '}',
+    '',
+  ].join('\n');
+}
+
+/**
  * The companion `.data.json` for a freshly-created COMPONENT asset — the Tier-1
  * data its starter component reads through the `title` prop. Pairing every new
  * asset with a data file makes its text editable WITHOUT touching code (and it

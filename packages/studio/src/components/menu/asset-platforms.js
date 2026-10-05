@@ -104,6 +104,19 @@ export const ASSET_PLATFORMS = Object.freeze([
     ],
   },
   {
+    // Formerly the Windows Store.
+    id: 'microsoftstore',
+    label: 'Microsoft Store',
+    formats: [
+      { id: 'screenshot', label: 'Desktop screenshot', width: 1920, height: 1080 },
+      { id: 'screenshot-4k', label: 'Desktop screenshot · 4K', width: 3840, height: 2160 },
+      { id: 'hero', label: 'Hero art', width: 1920, height: 1080 },
+      { id: 'poster', label: 'Poster art', width: 1440, height: 2160 },
+      { id: 'box', label: 'Box art', width: 2160, height: 2160 },
+      { id: 'logo', label: 'Store logo', width: 300, height: 300 },
+    ],
+  },
+  {
     id: 'youtube',
     label: 'YouTube',
     formats: [

@@ -7,7 +7,7 @@
 // sequence of edits never reads a file another edit is still writing.
 
 import React from 'react';
-import { serializeJson } from '@lerret/core';
+import { serializeJson, imageAssetContent } from '@lerret/core';
 
 import {
   readProjectFile,
@@ -216,6 +216,72 @@ export function createVariant(assetPath, name, from = 'default') {
     const w = await write(assetPath, res.code);
     if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
     undoStack.push({ path: assetPath, before: read.source, after: res.code, group });
+    redoStack.length = 0;
+    syncHistoryFlags();
+    return { ok: true };
+  }));
+}
+
+// ── Dropped images ──────────────────────────────────────────────────────────
+
+const folderOf = (path) => path.slice(0, path.lastIndexOf('/'));
+
+/**
+ * Insert dropped images into an asset: write each image file next to the
+ * source that renders the target element, then add them as top layers inside
+ * that element (`insertImageLayers`). The source change joins the undo stack;
+ * the image files are left in place on undo (harmless, and re-usable).
+ *
+ * @param {{ path: string, offset: number, images: Array<{ file: string, base64: string,
+ *   left: number, top: number, width: number, height: number }> }} args
+ *   `path`/`offset` — the target element's source stamp.
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export function insertImagesIntoAsset({ path, offset, images }) {
+  return enqueue(() => saving(async () => {
+    const [{ insertImageLayers, EDIT_REASONS }, read] = await Promise.all([loadEngine(), readSource(path)]);
+    if (!read.ok) return { ok: false, error: read.error || 'Couldn’t read the file.' };
+    const res = insertImageLayers(
+      read.source,
+      offset,
+      images.map(({ base64: _b, ...box }) => box),
+      path,
+    );
+    if (!res.ok) return { ok: false, error: EDIT_REASONS[res.reason] || res.reason };
+    for (const im of images) {
+      const w = await writeProjectFile(`${folderOf(path)}/${im.file}`, im.base64, { encoding: 'base64' });
+      if (!w.ok) return { ok: false, error: w.error || `Couldn’t save ${im.file}.` };
+    }
+    const w = await write(path, res.code);
+    if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
+    undoStack.push({ path, before: read.source, after: res.code });
+    redoStack.length = 0;
+    syncHistoryFlags();
+    return { ok: true };
+  }));
+}
+
+/**
+ * Create one image asset per dropped image in `folder`: the image file plus a
+ * `<name>.jsx` sized to the image (`imageAssetContent`). Each new asset joins
+ * the undo stack as one group (undo removes the asset; the image file stays).
+ *
+ * @param {{ folder: string, images: Array<{ name: string, file: string, base64: string,
+ *   width: number, height: number }> }} args
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export function createImageAssets({ folder, images }) {
+  return enqueue(() => saving(async () => {
+    const group = `images:${Date.now()}`;
+    for (const im of images) {
+      const wi = await writeProjectFile(`${folder}/${im.file}`, im.base64, { encoding: 'base64' });
+      if (!wi.ok) return { ok: false, error: wi.error || `Couldn’t save ${im.file}.` };
+      const assetPath = `${folder}/${im.name}.jsx`;
+      const content = imageAssetContent(im.name, im.file, { width: im.width, height: im.height });
+      const wa = await write(assetPath, content);
+      if (!wa.ok) return { ok: false, error: wa.error || 'Couldn’t save.' };
+      undoStack.push({ path: assetPath, before: null, after: content, group });
+    }
     redoStack.length = 0;
     syncHistoryFlags();
     return { ok: true };

@@ -94,6 +94,7 @@ export {
   componentIdentifier,
   starterAssetContent,
   starterAssetData,
+  imageAssetContent,
   validateAssetDimensions,
   DEFAULT_ASSET_DIMENSIONS,
   MIN_ASSET_DIMENSION,
