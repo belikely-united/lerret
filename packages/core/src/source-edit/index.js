@@ -697,4 +697,5 @@ export const EDIT_REASONS = {
   'variant-anonymous': 'The main component has no name — give it one (export default function Card…) to add variants.',
   'structure-is-code': 'This element is placed by code (a condition, list or return) — edit the file.',
   'unknown-change': 'Unsupported change.',
+  'bad-image': 'That image file name can’t be used.',
 };

@@ -74,6 +74,7 @@ import { SectionKebab } from './section-kebab.jsx';
 // in-canvas creation — the empty-page CTAs and empty-group placeholders open
 // the shared CreateEntryDialog; `create` performs the write.
 import { CreateEntryDialog, create, inCliMode } from '../menu/index.js';
+import { ImageDropLayer } from './image-drop-layer.jsx';
 import { readProjectFile, writeProjectFile } from '../../runtime/write-client.js';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -603,11 +604,13 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  ];
  return (
  <>
+ <ImageDropLayer pagePath={page.path} enabled={cliMode} />
  <ProjectCanvasNotice
  title={page.name}
+ dropPage={cliMode}
  body={
  cliMode
- ? 'This page is empty. Create a group to organize your assets — or drop in a loose asset.'
+ ? 'This page is empty. Create a group, add an asset, or drop an image here.'
  : 'This page has no assets yet. Drop a .jsx, .tsx, or .md file into it.'
  }
  actions={
@@ -858,6 +861,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  />
  )}
  </DesignCanvas>
+ <ImageDropLayer pagePath={page.path} enabled={cliMode} />
  {createDialog}
  </>
  );
@@ -961,9 +965,11 @@ function nextCueKey(bag) {
  *   Optional CTA buttons rendered below the body (e.g. "+ Add asset").
  * @returns {React.ReactElement}
  */
-function ProjectCanvasNotice({ title, body, actions }) {
+function ProjectCanvasNotice({ title, body, actions, dropPage = false }) {
  return (
  <div
+ // An empty page still accepts dropped images (image-drop-layer.jsx).
+ {...(dropPage ? { 'data-lm-drop-page': '' } : {})}
  style={{
  width: '100vw',
  height: '100vh',

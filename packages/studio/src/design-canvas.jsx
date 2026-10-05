@@ -615,7 +615,7 @@ async function renameSectionFolder(folderPath, text, el, currentName) {
 
 // A short, self-removing status line above the dock (the studio has no toast
 // surface; this is the minimum so a drag-move says what happened).
-function dcToast(text) {
+export function dcToast(text) {
  if (typeof document === 'undefined') return;
  const el = document.createElement('div');
  el.className = 'dc-toast';
