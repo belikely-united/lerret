@@ -75,15 +75,15 @@ describe('buildVarsStyle', () => {
  });
 
  it('converts a single valid key to a --key custom property', () => {
- const result = buildVarsStyle({ brandColor: '#B85B33' });
- expect(result).toEqual({ '--brandColor': '#B85B33' });
+ const result = buildVarsStyle({ brandColor: '#111111' });
+ expect(result).toEqual({ '--brandColor': '#111111' });
  });
 
  it('converts multiple valid keys', () => {
- const vars = { brandColor: '#B85B33', maxWidth: '1200px', spacing: '8px' };
+ const vars = { brandColor: '#111111', maxWidth: '1200px', spacing: '8px' };
  const result = buildVarsStyle(vars);
  expect(result).toEqual({
- '--brandColor': '#B85B33',
+ '--brandColor': '#111111',
  '--maxWidth': '1200px',
  '--spacing': '8px',
  });
@@ -131,13 +131,13 @@ describe('buildVarsStyle', () => {
  it('skips invalid keys but still injects valid ones (mixed batch)', () => {
  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
  const vars = {
- validKey: '#B85B33', // valid
+ validKey: '#111111', // valid
  '2bad': 'red', // invalid — starts with digit
  anotherValid: '24px', // valid
  };
  const result = buildVarsStyle(vars, '/some/folder');
  expect(result).toEqual({
- '--validKey': '#B85B33',
+ '--validKey': '#111111',
  '--anotherValid': '24px',
  });
  // One warn for the invalid key.
@@ -160,9 +160,9 @@ describe('buildVarsStyle', () => {
  // The cascade's effective config already contains the deep-merged vars
  // (child wins on collision). This test verifies that buildVarsStyle emits
  // the merged value correctly — i.e. child's "#FF0000" for "brandColor"
- // overrides parent's "#B85B33".
+ // overrides parent's "#111111".
  const mergedVars = {
- brandColor: '#FF0000', // child overrode the parent's #B85B33
+ brandColor: '#FF0000', // child overrode the parent's #111111
  maxWidth: '1200px', // parent-only key, still present
  };
  const result = buildVarsStyle(mergedVars);
@@ -230,7 +230,7 @@ describe('assetFolderPath', () => {
 describe('VarsWrapper', () => {
  it('injects a single vars key as a CSS custom property on the wrapper div', () => {
  const cascadeEntries = [
- ['/.lerret/ui-components', { vars: { brandColor: '#B85B33' } }],
+ ['/.lerret/ui-components', { vars: { brandColor: '#111111' } }],
  ];
  const { container } = renderToDom(
  <CascadedConfigProvider cascadeEntries={cascadeEntries}>
@@ -243,12 +243,12 @@ describe('VarsWrapper', () => {
  expect(wrapper).not.toBeNull();
  // React sets custom properties via style.setProperty — jsdom exposes them
  // on the element's inline style.
- expect(wrapper.style.getPropertyValue('--brandColor')).toBe('#B85B33');
+ expect(wrapper.style.getPropertyValue('--brandColor')).toBe('#111111');
  });
 
  it('injects multiple vars keys as CSS custom properties', () => {
  const cascadeEntries = [
- ['/.lerret/ui-components', { vars: { brandColor: '#B85B33', maxWidth: '1200px' } }],
+ ['/.lerret/ui-components', { vars: { brandColor: '#111111', maxWidth: '1200px' } }],
  ];
  const { container } = renderToDom(
  <CascadedConfigProvider cascadeEntries={cascadeEntries}>
@@ -258,7 +258,7 @@ describe('VarsWrapper', () => {
  </CascadedConfigProvider>,
  );
  const wrapper = container.firstChild;
- expect(wrapper.style.getPropertyValue('--brandColor')).toBe('#B85B33');
+ expect(wrapper.style.getPropertyValue('--brandColor')).toBe('#111111');
  expect(wrapper.style.getPropertyValue('--maxWidth')).toBe('1200px');
  });
 
@@ -365,11 +365,11 @@ describe('VarsWrapper', () => {
  it('deep-merge precedence: child folder value wins for a colliding key', () => {
  // The cascade Map already holds the *effective* (deep-merged) config for
  // each folder. Simulate a child folder whose effective config has already
- // had child's brandColor merged in (child "#FF0000" beats parent "#B85B33").
+ // had child's brandColor merged in (child "#FF0000" beats parent "#111111").
  const cascadeEntries = [
  ['/.lerret/ui/buttons', {
  vars: {
- brandColor: '#FF0000', // child's value (won collision with parent's #B85B33)
+ brandColor: '#FF0000', // child's value (won collision with parent's #111111)
  maxWidth: '1200px', // parent-only key — still present after merge
  },
  }],

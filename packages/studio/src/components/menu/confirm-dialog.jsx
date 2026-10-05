@@ -22,8 +22,8 @@ const overlayStyle = {
 };
 
 const sheetStyle = {
-  background: 'var(--lm-bg-primary, #fdfaf3)',
-  color: 'var(--lm-text-primary, #1A1714)',
+  background: 'var(--lm-bg-primary, #ffffff)',
+  color: 'var(--lm-text-primary, #0A0A0A)',
   borderRadius: 14,
   padding: 24,
   width: 400,
@@ -39,12 +39,12 @@ const titleStyle = { margin: 0, fontSize: 16, fontWeight: 600 };
 const messageStyle = {
   fontSize: 13,
   lineHeight: 1.5,
-  color: 'var(--lm-text-secondary, #3A3530)',
+  color: 'var(--lm-text-secondary, #404040)',
 };
 
 const errorRowStyle = {
   fontSize: 12,
-  color: '#B85B33',
+  color: 'var(--lm-error, #D92D20)',
   lineHeight: 1.4,
 };
 
@@ -60,7 +60,7 @@ const buttonSecondary = {
 };
 
 const buttonPrimary = {
-  background: 'var(--lm-accent, #B85B33)',
+  background: 'var(--lm-accent, #111111)',
   color: '#fff',
   border: 'none',
   borderRadius: 8,
@@ -72,7 +72,7 @@ const buttonPrimary = {
 
 const buttonDestructive = {
   ...buttonPrimary,
-  background: 'var(--lm-error, #A8412B)',
+  background: 'var(--lm-error, #D92D20)',
 };
 
 /**

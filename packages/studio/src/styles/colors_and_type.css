@@ -3,21 +3,19 @@
  Source of truth for the studio's brand tokens.
  Variable names are kept under the --lm- prefix to preserve
  compatibility with the existing component CSS — only the
- values change, swapping LeafMarker's blue/slate palette for
- Lerret's sienna/linen/ink.
+ values change. The palette is a neutral, gallery-style
+ monochrome: white surfaces, cool greys, ink actions.
 
  ACCESSIBILITY USAGE RULES (UX-DR16, NFR15, WCAG AA 4.5:1)
  ─────────────────────────────────────────────────────────────
- • Mist (--lm-text-muted, #B8B3A8) falls below WCAG AA for
- normal text (≈3.0:1 on paper). RESTRICT to decorative,
+ • Mist (--lm-text-muted, #A3A3A3) falls below WCAG AA for
+ normal text (≈2.5:1 on white). RESTRICT to decorative,
  placeholder, and disabled content only — never for
  information the user must read.
 
- • For accent-colored TEXT, use --lm-accent-hover (#92421E,
- ≈5.5:1 on paper) which clears WCAG AA 4.5:1.
- Use --lm-accent (#B85B33) only for decorative uses such as
- borders, backgrounds, icon fills, and button backgrounds
- where the text on top uses a contrasting color.
+ • Accent is ink (#111111), so accent-coloured text clears
+ WCAG AA everywhere. Text ON an accent fill must use white
+ (light theme) or ink (dark theme).
 
  • Focus ring: all interactive elements must use --lm-focus-ring
  (a visible, accent-border-based box-shadow) so the focus
@@ -61,11 +59,14 @@
 
  --lm-tracking-caps: 0.5px;
 
- /* ---------- LIGHT PALETTE — Lerret canvas/ink ---------- */
- /* Backgrounds — three surface tiers (warm off-white range) */
- --lm-bg-primary: #FAF8F2; /* paper */
- --lm-bg-secondary: #F2EEE6; /* linen */
- --lm-bg-tertiary: #E8E2D4; /* canvas (deeper warm tone) */
+ /* ---------- LIGHT PALETTE — neutral monochrome ----------
+ Gallery-style: pure white surfaces, cool neutral greys, near-black ink.
+ Colour is reserved for the work on the canvas — the chrome stays quiet.
+ Primary actions are solid ink (black pills), not a brand hue. */
+ /* Backgrounds — three surface tiers (pure white → light greys) */
+ --lm-bg-primary: #FFFFFF; /* white */
+ --lm-bg-secondary: #F5F5F5; /* smoke */
+ --lm-bg-tertiary: #EBEBEB; /* fog */
 
  /* Borders — flat aesthetic.
  Hairline borders are removed studio-wide; separation now comes from the
@@ -75,55 +76,56 @@
  --lm-border: transparent;
  --lm-border-light: transparent;
 
- /* Text — four tiers (warm near-blacks, never #000) */
- --lm-text-primary: #1A1714; /* ink */
- --lm-text-secondary: #3A3530; /* graphite */
- --lm-text-tertiary: #6E6960; /* stone */
- --lm-text-muted: #B8B3A8; /* mist */
+ /* Text — four tiers (neutral near-blacks) */
+ --lm-text-primary: #0A0A0A; /* ink */
+ --lm-text-secondary: #404040; /* graphite */
+ --lm-text-tertiary: #6B6B6B; /* slate */
+ --lm-text-muted: #A3A3A3; /* mist */
 
- /* Accent — Lerret sienna (painter's burnt umber) */
- --lm-accent: #B85B33;
- --lm-accent-hover: #92421E;
- --lm-accent-light: rgba(184, 91, 51, 0.10);
- --lm-accent-border: rgba(184, 91, 51, 0.20);
+ /* Accent — ink. Buttons, active states and selection are solid
+ near-black; tints are translucent ink so they sit on any surface. */
+ --lm-accent: #111111;
+ --lm-accent-hover: #2B2B2B;
+ --lm-accent-light: rgba(17, 17, 17, 0.06);
+ --lm-accent-border: rgba(17, 17, 17, 0.16);
 
- /* Sienna gradient stops — used for hero emphasis (.lm-display em, etc.) */
- --lm-grad-1: #92421E;
- --lm-grad-2: #B85B33;
- --lm-grad-3: #D08259;
- --lm-grad-4: #E8C9B8;
- --lm-grad-5: #F2D9C8;
- --lm-gradient: linear-gradient(160deg, #92421E 0%, #B85B33 30%, #D08259 60%, #E8C9B8 100%);
+ /* Ink gradient stops — used for hero emphasis (.lm-display em, etc.) */
+ --lm-grad-1: #0A0A0A;
+ --lm-grad-2: #2B2B2B;
+ --lm-grad-3: #6B6B6B;
+ --lm-grad-4: #D4D4D4;
+ --lm-grad-5: #EDEDED;
+ --lm-gradient: linear-gradient(160deg, #0A0A0A 0%, #2B2B2B 30%, #6B6B6B 60%, #D4D4D4 100%);
 
- /* Status (kept in a calm range) */
- --lm-success: #4A6B3F;
- --lm-success-light: rgba(74, 107, 63, 0.10);
- --lm-success-border: rgba(74, 107, 63, 0.20);
- --lm-error: #A8412B;
- --lm-error-light: rgba(168, 65, 43, 0.10);
- --lm-error-border: rgba(168, 65, 43, 0.20);
- --lm-warning: #B07B1F;
- --lm-warning-light: rgba(176, 123, 31, 0.10);
- --lm-warning-border: rgba(176, 123, 31, 0.20);
+ /* Status — the only saturated colour in the chrome */
+ --lm-success: #12805C;
+ --lm-success-light: rgba(18, 128, 92, 0.10);
+ --lm-success-border: rgba(18, 128, 92, 0.22);
+ --lm-error: #D92D20;
+ --lm-error-light: rgba(217, 45, 32, 0.08);
+ --lm-error-border: rgba(217, 45, 32, 0.22);
+ --lm-warning: #B54708;
+ --lm-warning-light: rgba(181, 71, 8, 0.10);
+ --lm-warning-border: rgba(181, 71, 8, 0.22);
 
  /* Status dot accents — used as left-border stripes on cards */
- --lm-task-todo: #B07B1F; /* warm amber */
- --lm-task-doing: #5A6B72; /* screen blue-grey */
- --lm-task-done: #4A6B3F; /* moss green */
- --lm-task-fail: #A8412B; /* warm error */
+ --lm-task-todo: #B54708; /* amber */
+ --lm-task-doing: #525252; /* graphite */
+ --lm-task-done: #12805C; /* green */
+ --lm-task-fail: #D92D20; /* red */
 
- /* Premium / upsell — sienna gradient */
- --lm-premium-1: #E8C9B8;
- --lm-premium-2: #B85B33;
- --lm-premium-3: #92421E;
- --lm-premium-gradient: linear-gradient(135deg, #E8C9B8 0%, #B85B33 55%, #92421E 100%);
+ /* Premium / upsell — ink gradient */
+ --lm-premium-1: #D4D4D4;
+ --lm-premium-2: #2B2B2B;
+ --lm-premium-3: #0A0A0A;
+ --lm-premium-gradient: linear-gradient(135deg, #D4D4D4 0%, #2B2B2B 55%, #0A0A0A 100%);
 
- /* Shadows — warm-ink-tinted, never neutral grey */
- --lm-shadow-xs: 0 1px 2px rgba(26, 23, 20, 0.05);
- --lm-shadow-sm: 0 1px 3px rgba(26, 23, 20, 0.10);
- --lm-shadow-md: 0 4px 12px rgba(26, 23, 20, 0.10);
- --lm-shadow-lg: 0 8px 24px rgba(26, 23, 20, 0.15);
- --lm-shadow-popup: 0 18px 48px rgba(26, 23, 20, 0.22);
+ /* Shadows — neutral, soft and wide */
+ --lm-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+ --lm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+ --lm-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
+ --lm-shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.12);
+ --lm-shadow-popup: 0 16px 48px rgba(0, 0, 0, 0.16);
 
  /* Radii */
  --lm-radius-xs: 4px;
@@ -149,47 +151,48 @@
  --lm-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
  /* Focus ring — used by every interactive element.
- Matches the accent-border value so the ring is visually consistent
- with the sienna palette. Use var(--lm-focus-ring) as a box-shadow
+ A translucent-ink halo, consistent with the accent. Use var(--lm-focus-ring) as a box-shadow
  on :focus-visible to satisfy NFR14 (keyboard operability, WCAG 2.1 2.4.7).
  --lm-focus-ring-inset is the inset variant for elements where an outer
  ring would overflow a clipping ancestor. */
- --lm-focus-ring: 0 0 0 2px var(--lm-accent-border);
- --lm-focus-ring-inset: inset 0 0 0 2px var(--lm-accent-border);
+ --lm-focus-ring: 0 0 0 2px rgba(17, 17, 17, 0.28);
+ --lm-focus-ring-inset: inset 0 0 0 2px rgba(17, 17, 17, 0.28);
 
- /* Accent-colored text token — WCAG AA (≈5.5:1 on paper, ).
- Use for any foreground text rendered in the sienna accent.
- Decorative uses (borders, fills, icon color, button background)
- continue to use --lm-accent (#B85B33). */
- --lm-accent-text: #92421E;
+ /* Accent-colored text token — ink, ≈18:1 on white. */
+ --lm-accent-text: #111111;
 
  /* Popover surface tokens — used by the menu popover (, 3.11).
  Kept here so no inline rgba survives outside the token file. */
- --lm-popover-bg: rgba(255, 255, 255, 0.97);
+ --lm-popover-bg: rgba(255, 255, 255, 0.98);
  --lm-popover-border: transparent; /* flat: popovers float on --lm-shadow-popup */
 
- /* Warning hover state — Mist-warning hover (, 3.11). */
- --lm-warning-hover: rgba(176, 123, 31, 0.16);
+ /* Warning hover state (, 3.11). */
+ --lm-warning-hover: rgba(181, 71, 8, 0.14);
 }
 
-/* ---------- DARK PALETTE — Lerret gallery ---------- */
+/* ---------- DARK PALETTE — neutral monochrome ---------- */
 [data-leafmarker-theme="dark"] {
- --lm-bg-primary: #1F1D1A; /* gallery */
- --lm-bg-secondary: #2A2723; /* gallery-soft */
- --lm-bg-tertiary: #3A3530;
+ --lm-bg-primary: #0A0A0A;
+ --lm-bg-secondary: #171717;
+ --lm-bg-tertiary: #262626;
 
  --lm-border: transparent;
  --lm-border-light: transparent;
 
- --lm-text-primary: #ECE7DC;
- --lm-text-secondary: #C4BFB4;
- --lm-text-tertiary: #A39E94;
- --lm-text-muted: #6E6960;
+ --lm-text-primary: #FAFAFA;
+ --lm-text-secondary: #D4D4D4;
+ --lm-text-tertiary: #A3A3A3;
+ --lm-text-muted: #6B6B6B;
 
- --lm-accent: #D08259;
- --lm-accent-hover: #B85B33;
- --lm-accent-light: rgba(208, 130, 89, 0.14);
- --lm-accent-border: rgba(208, 130, 89, 0.24);
+ /* Inverted: primary actions become white pills on black. */
+ --lm-accent: #FAFAFA;
+ --lm-accent-hover: #E5E5E5;
+ --lm-accent-light: rgba(250, 250, 250, 0.08);
+ --lm-accent-border: rgba(250, 250, 250, 0.20);
+ --lm-accent-text: #FAFAFA;
+ --lm-focus-ring: 0 0 0 2px rgba(250, 250, 250, 0.32);
+ --lm-focus-ring-inset: inset 0 0 0 2px rgba(250, 250, 250, 0.32);
+ --lm-popover-bg: rgba(23, 23, 23, 0.98);
 
  --lm-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
  --lm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.40);

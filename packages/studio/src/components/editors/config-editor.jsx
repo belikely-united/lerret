@@ -70,7 +70,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
 }
 .lm-config-editor__cascade-note {
  font: var(--lm-weight-regular, 400) var(--lm-size-hint, 10px)/var(--lm-lh-body, 1.45) var(--lm-font-sans);
- color: var(--lm-text-muted, #B8B3A8);
+ color: var(--lm-text-muted, #A3A3A3);
  letter-spacing: 0.04em;
  margin: 0;
  padding: 0 0 var(--lm-space-1, 4px);
@@ -78,7 +78,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
 .lm-config-editor__path {
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
  font-size: var(--lm-size-hint, 10px);
- color: var(--lm-text-muted, #B8B3A8);
+ color: var(--lm-text-muted, #A3A3A3);
  margin: 0;
  letter-spacing: 0.04em;
 }
@@ -88,19 +88,19 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  flex-direction: column;
  gap: var(--lm-space-3, 12px);
  padding: var(--lm-space-4, 16px);
- background: var(--lm-accent-light, rgba(184,91,51,0.07));
+ background: var(--lm-accent-light, rgba(17, 17, 17,0.07));
  border-radius: var(--lm-radius-sm, 6px);
 }
 .lm-config-editor__create-msg {
  font-size: var(--lm-size-body, 13px);
- color: var(--lm-text-secondary, #3A3530);
+ color: var(--lm-text-secondary, #404040);
  margin: 0;
  line-height: var(--lm-lh-body, 1.45);
 }
 .lm-config-editor__create-path {
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
  font-size: var(--lm-size-hint, 10px);
- color: var(--lm-text-muted, #B8B3A8);
+ color: var(--lm-text-muted, #A3A3A3);
  letter-spacing: 0.04em;
  word-break: break-all;
 }
@@ -111,18 +111,18 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  font-size: var(--lm-size-body-sm, 12px);
  font-weight: var(--lm-weight-semibold, 600);
  letter-spacing: 0.04em;
- color: var(--lm-text-primary, #1A1714);
- background: var(--lm-bg-primary, #FAF8F2);
+ color: var(--lm-text-primary, #0A0A0A);
+ background: var(--lm-bg-primary, #FFFFFF);
  border: none;
  border-radius: var(--lm-radius-sm, 6px);
  cursor: pointer;
  transition: background var(--lm-duration-fast, 120ms);
 }
 .lm-config-editor__create-btn:hover {
- background: var(--lm-bg-tertiary, #E8E2D4);
+ background: var(--lm-bg-tertiary, #EBEBEB);
 }
 .lm-config-editor__create-btn:focus-visible {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20));
 }
 .lm-config-editor__create-btn:disabled {
  opacity: 0.6;
@@ -135,7 +135,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  gap: var(--lm-space-1, 4px);
  font-family: var(--lm-font-sans);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-text-tertiary, #6E6960);
+ color: var(--lm-text-tertiary, #6B6B6B);
  background: none;
  border: none;
  cursor: pointer;
@@ -144,11 +144,11 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  text-underline-offset: 2px;
 }
 .lm-config-editor__raw-toggle:focus-visible {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20));
  border-radius: 2px;
 }
 .lm-config-editor__raw-toggle:hover {
- color: var(--lm-text-primary, #1A1714);
+ color: var(--lm-text-primary, #0A0A0A);
 }
 /* Raw JSON textarea */
 .lm-config-editor__json {
@@ -159,8 +159,8 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
  font-size: var(--lm-size-body, 13px);
  line-height: var(--lm-lh-body, 1.45);
- color: var(--lm-text-primary, #1A1714);
- background: var(--lm-bg-tertiary, #E8E2D4);
+ color: var(--lm-text-primary, #0A0A0A);
+ background: var(--lm-bg-tertiary, #EBEBEB);
  border: none;
  border-radius: var(--lm-radius-sm, 6px);
  outline: none;
@@ -179,7 +179,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  align-items: flex-start;
  gap: var(--lm-space-1, 4px);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-error, #A8412B);
+ color: var(--lm-error, #D92D20);
  line-height: var(--lm-lh-body, 1.45);
  margin: 0;
 }
@@ -189,7 +189,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  align-items: center;
  gap: var(--lm-space-1, 4px);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-text-tertiary, #6E6960);
+ color: var(--lm-text-tertiary, #6B6B6B);
  opacity: 0;
  transition: opacity var(--lm-duration-base, 220ms) var(--lm-ease);
 }
@@ -198,7 +198,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  width: 6px;
  height: 6px;
  border-radius: var(--lm-radius-pill, 999px);
- background: var(--lm-success, #4A6B3F);
+ background: var(--lm-success, #12805C);
 }
 /* Error banner */
 .lm-config-editor__error-banner {
@@ -209,7 +209,7 @@ if (typeof document !== 'undefined' && !document.getElementById('config-editor-s
  background: var(--lm-error-light);
  border-radius: var(--lm-radius-sm, 6px);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-text-primary, #1A1714);
+ color: var(--lm-text-primary, #0A0A0A);
  line-height: var(--lm-lh-body, 1.45);
  word-break: break-all;
 }
@@ -349,7 +349,7 @@ const PRESENTATION_SCHEMA = {
  },
  color: {
  type: 'string',
- description: 'CSS text / foreground color for this section (e.g. #1a1714, rgba(255,255,255,0.92))',
+ description: 'CSS text / foreground color for this section (e.g. #0a0a0a, rgba(255,255,255,0.92))',
  },
  },
 };
@@ -668,7 +668,7 @@ export function ConfigEditor({ open, onClose, folderPath, folderName, writer, re
 
  {/* Loading state */}
  {fileExists === null && (
- <p style={{ fontSize: 'var(--lm-size-body, 13px)', color: 'var(--lm-text-muted, #B8B3A8)' }}>
+ <p style={{ fontSize: 'var(--lm-size-body, 13px)', color: 'var(--lm-text-muted, #A3A3A3)' }}>
  Loading…
  </p>
  )}
@@ -716,7 +716,7 @@ export function ConfigEditor({ open, onClose, folderPath, folderName, writer, re
  </button>
  {showRaw && (
  <div style={{ marginTop: 'var(--lm-space-2, 8px)' }}>
- <p style={{ fontSize: 'var(--lm-size-hint, 10px)', color: 'var(--lm-text-muted, #B8B3A8)', margin: '0 0 6px', letterSpacing: '0.04em' }}>
+ <p style={{ fontSize: 'var(--lm-size-hint, 10px)', color: 'var(--lm-text-muted, #A3A3A3)', margin: '0 0 6px', letterSpacing: '0.04em' }}>
  Unknown / free-form keys (will be preserved on save)
  </p>
  <textarea

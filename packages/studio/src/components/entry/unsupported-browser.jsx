@@ -29,9 +29,9 @@ const wrapperStyle = {
  display: 'flex',
  alignItems: 'center',
  justifyContent: 'center',
- background: 'var(--lm-bg-secondary, #F2EEE6)',
+ background: 'var(--lm-bg-secondary, #F5F5F5)',
  fontFamily: 'var(--lm-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  padding: 'var(--lm-space-8, 32px)',
  boxSizing: 'border-box',
 };
@@ -52,7 +52,7 @@ const eyebrowStyle = {
  fontWeight: 'var(--lm-weight-semibold, 600)',
  letterSpacing: '0.18em',
  textTransform: 'uppercase',
- color: 'var(--lm-text-tertiary, #6E6960)',
+ color: 'var(--lm-text-tertiary, #6B6B6B)',
  margin: 0,
 };
 
@@ -61,7 +61,7 @@ const headingStyle = {
  fontSize: 'var(--lm-size-h2, 20px)',
  fontWeight: 'var(--lm-weight-semibold, 600)',
  lineHeight: 'var(--lm-lh-tight, 1.2)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
 };
 
@@ -69,13 +69,13 @@ const headingStyle = {
 const bodyStyle = {
  fontSize: 'var(--lm-size-body-lg, 14px)',
  lineHeight: 'var(--lm-lh-relaxed, 1.6)',
- color: 'var(--lm-text-secondary, #3A3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  margin: 0,
 };
 
 /** @type {React.CSSProperties} */
 const listSectionStyle = {
- background: 'var(--lm-bg-primary, #FAF8F2)',
+ background: 'var(--lm-bg-primary, #FFFFFF)',
  borderRadius: 'var(--lm-radius-lg, 12px)',
  padding: 'var(--lm-space-6, 24px)',
  width: '100%',
@@ -83,7 +83,7 @@ const listSectionStyle = {
  display: 'flex',
  flexDirection: 'column',
  gap: 'var(--lm-space-4, 16px)',
- boxShadow: 'var(--lm-shadow-sm, 0 2px 8px rgba(26,23,20,0.08))',
+ boxShadow: 'var(--lm-shadow-sm, 0 2px 8px rgba(0, 0, 0,0.08))',
 };
 
 /** @type {React.CSSProperties} */
@@ -92,7 +92,7 @@ const sectionLabelStyle = {
  fontWeight: 'var(--lm-weight-semibold, 600)',
  letterSpacing: '0.12em',
  textTransform: 'uppercase',
- color: 'var(--lm-text-tertiary, #6E6960)',
+ color: 'var(--lm-text-tertiary, #6B6B6B)',
  margin: 0,
 };
 
@@ -112,17 +112,17 @@ const listItemStyle = {
  alignItems: 'center',
  gap: 'var(--lm-space-3, 12px)',
  fontSize: 'var(--lm-size-body-lg, 14px)',
- color: 'var(--lm-text-secondary, #3A3530)',
+ color: 'var(--lm-text-secondary, #404040)',
 };
 
 /** @type {React.CSSProperties} */
 const codeBlockStyle = {
- background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ background: 'var(--lm-bg-tertiary, #EBEBEB)',
  borderRadius: 'var(--lm-radius-sm, 6px)',
  padding: 'var(--lm-space-3, 12px) var(--lm-space-4, 16px)',
  fontSize: 'var(--lm-size-body-sm, 12px)',
  fontFamily: 'var(--lm-font-mono, monospace)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
  whiteSpace: 'pre',
  overflowX: 'auto',
@@ -138,7 +138,7 @@ function BrowserDot() {
  width="8"
  height="8"
  viewBox="0 0 8 8"
- fill="var(--lm-accent, #B85B33)"
+ fill="var(--lm-accent, #111111)"
  aria-hidden="true"
  style={{ flex: 'none' }}
  >
@@ -161,9 +161,9 @@ function InfoIcon() {
  aria-hidden="true"
  style={{ flex: 'none' }}
  >
- <circle cx="18" cy="18" r="16" fill="var(--lm-accent-light, rgba(184,91,51,0.10))" />
- <circle cx="18" cy="11" r="1.5" fill="var(--lm-accent, #B85B33)" />
- <rect x="16.5" y="15" width="3" height="10" rx="1.5" fill="var(--lm-accent, #B85B33)" />
+ <circle cx="18" cy="18" r="16" fill="var(--lm-accent-light, rgba(17, 17, 17,0.10))" />
+ <circle cx="18" cy="11" r="1.5" fill="var(--lm-accent, #111111)" />
+ <rect x="16.5" y="15" width="3" height="10" rx="1.5" fill="var(--lm-accent, #111111)" />
  </svg>
  );
 }
@@ -230,7 +230,7 @@ export function UnsupportedBrowser({ className } = {}) {
  style={{
  fontSize: 'var(--lm-size-body, 13px)',
  fontWeight: 'var(--lm-weight-semibold, 600)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
  }}
  >
@@ -255,7 +255,7 @@ export function UnsupportedBrowser({ className } = {}) {
  style={{
  fontSize: 'var(--lm-size-body, 13px)',
  fontWeight: 'var(--lm-weight-semibold, 600)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
  }}
  >
@@ -265,7 +265,7 @@ export function UnsupportedBrowser({ className } = {}) {
  style={{
  fontSize: 'var(--lm-size-body, 13px)',
  lineHeight: 'var(--lm-lh-body, 1.45)',
- color: 'var(--lm-text-secondary, #3A3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  margin: 0,
  }}
  >
@@ -278,7 +278,7 @@ export function UnsupportedBrowser({ className } = {}) {
  <p
  style={{
  fontSize: 'var(--lm-size-body-sm, 12px)',
- color: 'var(--lm-text-tertiary, #6E6960)',
+ color: 'var(--lm-text-tertiary, #6B6B6B)',
  margin: 0,
  }}
  >
@@ -291,7 +291,7 @@ export function UnsupportedBrowser({ className } = {}) {
  <p
  style={{
  fontSize: 'var(--lm-size-body-sm, 12px)',
- color: 'var(--lm-text-tertiary, #6E6960)',
+ color: 'var(--lm-text-tertiary, #6B6B6B)',
  margin: 0,
  }}
  >
@@ -301,7 +301,7 @@ export function UnsupportedBrowser({ className } = {}) {
  href="https://github.com/belikely-united/lerret"
  target="_blank"
  rel="noopener noreferrer"
- style={{ color: 'var(--lm-accent-text, #92421E)', textDecoration: 'underline' }}
+ style={{ color: 'var(--lm-accent-text, #2B2B2B)', textDecoration: 'underline' }}
  data-testid="github-link"
  >
  View on GitHub

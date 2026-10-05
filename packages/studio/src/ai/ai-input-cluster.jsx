@@ -128,17 +128,17 @@ const BABEL_PARSER_SPECIFIER = '@babel/parser';
  * @type {Record<string, { label: string, color: string, bg: string }>}
  */
 const PILL_STATES = Object.freeze({
-    idle: { label: 'Idle', color: 'var(--lm-text-tertiary, #6E6960)', bg: 'var(--lm-mist, #B8B3A8)' },
-    thinking: { label: 'Thinking…', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-warning, #C98A3C)' },
-    reading: { label: 'Reading…', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-warning, #C98A3C)' },
-    writing: { label: 'Writing files…', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-warning, #C98A3C)' },
-    stopping: { label: 'Stopping…', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-stone, #6E6960)' },
-    done: { label: 'Done', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-moss, #4A6B3F)' },
-    stopped: { label: 'Stopped', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-stone, #6E6960)' },
-    error: { label: 'Error — see thread', color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-error, #B4503C)' },
+    idle: { label: 'Idle', color: 'var(--lm-text-tertiary, #6B6B6B)', bg: 'var(--lm-mist, #A3A3A3)' },
+    thinking: { label: 'Thinking…', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-warning, #C98A3C)' },
+    reading: { label: 'Reading…', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-warning, #C98A3C)' },
+    writing: { label: 'Writing files…', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-warning, #C98A3C)' },
+    stopping: { label: 'Stopping…', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-stone, #6B6B6B)' },
+    done: { label: 'Done', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-moss, #12805C)' },
+    stopped: { label: 'Stopped', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-stone, #6B6B6B)' },
+    error: { label: 'Error — see thread', color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-error, #B4503C)' },
     // Story 8.7 State A: a 1500ms transient flash while the gate's inline note
     // explains why the vision turn did not run (Stone — calm, not an error).
-    'vision-unavailable': { label: VISION_PILL_LABEL, color: 'var(--lm-text-onAccent, #FAF8F2)', bg: 'var(--lm-stone, #6E6960)' },
+    'vision-unavailable': { label: VISION_PILL_LABEL, color: 'var(--lm-text-onAccent, #FFFFFF)', bg: 'var(--lm-stone, #6B6B6B)' },
 });
 
 /** Terminal-label dwell (ms) before the pill fades to idle (AC-7/8). */
@@ -231,8 +231,8 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
        LAST line as the textarea grows upward — a single line looks identical. */
     align-items: flex-end;
     gap: 6px;
-    background: var(--lm-bg-primary, #FAF8F2);
-    border: 1px solid var(--lm-border-light, #E8E2D4);
+    background: var(--lm-bg-primary, #FFFFFF);
+    border: 1px solid var(--lm-border-light, #EBEBEB);
     border-radius: 10px;
     padding: 4px 6px 4px 8px;
     transition: border-color var(--lm-duration-fast, 120ms);
@@ -245,15 +245,15 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     box-shadow: none;
 }
 .lm-ai-cluster__field[data-absent="true"] {
-    background: var(--lm-bg-secondary, #F2EEE6);
-    border-color: var(--lm-border-light, #E8E2D4);
+    background: var(--lm-bg-secondary, #F5F5F5);
+    border-color: var(--lm-border-light, #EBEBEB);
 }
 .lm-ai-cluster__input {
     border: none;
     background: transparent;
     outline: none;
     font: 400 13px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     width: 220px;
     min-width: 80px;
     padding: 4px 2px;
@@ -268,10 +268,10 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     max-height: ${MAX_INPUT_HEIGHT}px;
 }
 .lm-ai-cluster__input::placeholder {
-    color: var(--lm-text-tertiary, #9A958C);
+    color: var(--lm-text-tertiary, #8F8F8F);
 }
 .lm-ai-cluster__input:disabled {
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     cursor: default;
 }
 @media (max-width: ${NARROW_BP}px) {
@@ -281,8 +281,8 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: var(--lm-bg-primary, #FAF8F2);
-    border: 1px solid var(--lm-accent, #B85B33);
+    background: var(--lm-bg-primary, #FFFFFF);
+    border: 1px solid var(--lm-accent, #111111);
     border-radius: 999px;
     padding: 2px 4px 2px 8px;
     min-width: 0;
@@ -310,7 +310,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
 }
 /* Element scope: the file is a quiet, dimmed breadcrumb with a HIGH shrink
    factor, so it truncates BEFORE the element does. */
@@ -320,11 +320,11 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
 .lm-ai-cluster__chip-sep {
     flex: 0 0 auto;
-    color: var(--lm-text-tertiary, #9A958C);
+    color: var(--lm-text-tertiary, #8F8F8F);
 }
 /* The element pinpoint — primary tone, LOW shrink so it keeps its room while
    the file yields. (Its text is also capped at 24 chars in JS, so it can never
@@ -335,7 +335,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
 }
 .lm-ai-cluster__chip-x {
     display: inline-flex;
@@ -346,17 +346,17 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     border: none;
     border-radius: 999px;
     background: transparent;
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     cursor: pointer;
     padding: 0;
     flex-shrink: 0;
 }
 .lm-ai-cluster__chip-x:hover {
-    background: var(--lm-bg-tertiary, #E8E2D4);
-    color: var(--lm-text-primary, #1A1714);
+    background: var(--lm-bg-tertiary, #EBEBEB);
+    color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-ai-cluster__chip-x:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 1px;
 }
 .lm-ai-cluster__pill {
@@ -381,7 +381,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     border: none;
     background: transparent;
     cursor: pointer;
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     border-radius: 6px;
     flex-shrink: 0;
 }
@@ -392,18 +392,18 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 .lm-ai-cluster__stop:hover,
 .lm-ai-cluster__chevron:hover,
 .lm-ai-cluster__revert:hover {
-    background: var(--lm-bg-tertiary, #E8E2D4);
+    background: var(--lm-bg-tertiary, #EBEBEB);
 }
 .lm-ai-cluster__stop:focus-visible,
 .lm-ai-cluster__chevron:focus-visible,
 .lm-ai-cluster__revert:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 1px;
 }
 .lm-ai-cluster__revert {
     font: 500 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
     padding: 3px 9px;
-    color: var(--lm-accent, #B85B33);
+    color: var(--lm-accent, #111111);
 }
 .lm-ai-cluster__chevron {
     width: 22px;
@@ -420,13 +420,13 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 }
 .lm-ai-cluster__absent-note {
     font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     white-space: nowrap;
 }
 /* Story 9.4 §2: quiet spend line while a turn runs. */
 .lm-ai-cluster__spend {
     font: 400 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     white-space: nowrap;
 }
 /* Epic 9 follow-up #3 + §6.5 fix: the live activity timeline floats above the
@@ -456,17 +456,17 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     backdrop-filter: blur(12px) saturate(120%);
     -webkit-backdrop-filter: blur(12px) saturate(120%);
     border-radius: var(--lm-radius-md, 10px);
-    box-shadow: 0 6px 20px rgba(26, 23, 20, 0.14), 0 1px 3px rgba(26, 23, 20, 0.08);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
     font: 400 11px/1.5 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
 /* §6.5: "N steps done" header — keeps a scrolled/tail-followed history legible
    at a glance once older rows scroll out of view. */
 .lm-ai-cluster__activity-count {
     flex: 0 0 auto;
     padding: 6px 12px;
-    border-bottom: 1px solid rgba(26, 23, 20, 0.07);
-    color: var(--lm-text-tertiary, #6E6960);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
 /* §6.5: the PAST — completed steps, newest nearest the now-line. Capped to a
    slice of the viewport so it TAIL-FOLLOWS (scrolls) rather than growing; the
@@ -487,7 +487,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     display: none;
 }
 .lm-ai-cluster__activity-why {
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
 /* §6.5: the PRESENT — pinned, ALWAYS visible (it never scrolls away, even on a
    tiny pane), full detail + a live per-step timer + a shimmer dot so a silent
@@ -498,8 +498,8 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     align-items: baseline;
     gap: 7px;
     padding: 7px 12px;
-    border-top: 1px solid rgba(26, 23, 20, 0.07);
-    color: var(--lm-text-secondary, #44403A);
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
+    color: var(--lm-text-secondary, #454545);
     font-weight: 500;
 }
 .lm-ai-cluster__activity-now-dot {
@@ -518,7 +518,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 .lm-ai-cluster__activity-now-time {
     flex: 0 0 auto;
     margin-left: 4px;
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     font-weight: 400;
     font-variant-numeric: tabular-nums;
 }
@@ -553,26 +553,26 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     backdrop-filter: blur(12px) saturate(120%);
     -webkit-backdrop-filter: blur(12px) saturate(120%);
     border-radius: var(--lm-radius-md, 10px);
-    box-shadow: 0 6px 20px rgba(26, 23, 20, 0.14), 0 1px 3px rgba(26, 23, 20, 0.08);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
     font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     white-space: normal;
 }
 .lm-ai-cluster__continue-btn {
     font: 500 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-accent, #B85B33);
+    color: var(--lm-accent, #111111);
     background: transparent;
-    border: 1px solid var(--lm-border-light, #E8E2D4);
+    border: 1px solid var(--lm-border-light, #EBEBEB);
     border-radius: 6px;
     padding: 2px 8px;
     cursor: pointer;
     flex-shrink: 0;
 }
 .lm-ai-cluster__continue-btn:hover {
-    background: var(--lm-bg-tertiary, #E8E2D4);
+    background: var(--lm-bg-tertiary, #EBEBEB);
 }
 .lm-ai-cluster__continue-btn:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 1px;
 }
 /* Thread overlay cards */
@@ -583,25 +583,25 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 }
 .lm-ai-thread__empty {
     font: 400 13px/1.5 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
 .lm-ai-thread__card {
-    border: 1px solid var(--lm-border-light, #E8E2D4);
+    border: 1px solid var(--lm-border-light, #EBEBEB);
     border-radius: var(--lm-radius-md, 8px);
     padding: var(--lm-space-4, 16px);
     display: flex;
     flex-direction: column;
     gap: var(--lm-space-2, 8px);
-    background: var(--lm-bg-secondary, #F2EEE6);
+    background: var(--lm-bg-secondary, #F5F5F5);
 }
 .lm-ai-thread__prompt {
     font: 400 13px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     margin: 0;
 }
 .lm-ai-thread__outcome {
     font: 400 12px/1.45 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     margin: 0;
 }
 .lm-ai-thread__actions {
@@ -612,7 +612,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 }
 .lm-ai-thread__action {
     font: 500 11px/1.2 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-accent, #B85B33);
+    color: var(--lm-accent, #111111);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -620,14 +620,14 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
 }
 .lm-ai-thread__action:hover { text-decoration: underline; }
 .lm-ai-thread__action:disabled {
-    color: var(--lm-text-tertiary, #9A958C);
+    color: var(--lm-text-tertiary, #8F8F8F);
     cursor: default;
     text-decoration: none;
 }
 /* Story 9.4 §4: collapsed tool trail + its expanded quiet list. */
 .lm-ai-thread__trail {
     font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -636,10 +636,10 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     align-self: flex-start;
 }
 .lm-ai-thread__trail:hover {
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
 }
 .lm-ai-thread__trail:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 1px;
 }
 .lm-ai-thread__trail-list {
@@ -655,12 +655,12 @@ if (typeof document !== 'undefined' && !document.getElementById('ai-input-cluste
     align-items: baseline;
     gap: 6px;
     font: 400 11px/1.4 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
 }
 /* Story 9.4 §2/§5: quiet meta lines (spend, secondary files line). */
 .lm-ai-thread__meta {
     font: 400 11px/1.4 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     margin: 0;
 }
     `.trim();
@@ -1239,7 +1239,7 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
                                             className="lm-ai-thread__meta"
                                             data-testid="ai-thread-clarification"
                                             key={`${turn.id}-clarify-${i}`}
-                                            style={{ color: 'var(--lm-text-tertiary, #6E6960)' }}
+                                            style={{ color: 'var(--lm-text-tertiary, #6B6B6B)' }}
                                         >
                                             {`Asked: ${c.question}${
                                                 c.answer ? ` → You: ${c.answer}` : ' → (dismissed)'
@@ -1255,7 +1255,7 @@ function ThreadOverlay({ open, onClose, turns, onRevertTurn, onViewFiles, onOpen
                                             className="lm-ai-thread__outcome"
                                             data-testid="ai-thread-note"
                                             key={`${turn.id}-note-${i}`}
-                                            style={{ color: 'var(--lm-text-tertiary, #6E6960)' }}
+                                            style={{ color: 'var(--lm-text-tertiary, #6B6B6B)' }}
                                         >
                                             {note}
                                         </p>
@@ -2580,10 +2580,10 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                 minWidth: 100,
                                 font: 'inherit',
                                 padding: '2px 6px',
-                                border: '1px solid var(--lm-border, #D8D2C4)',
+                                border: '1px solid var(--lm-border, #DEDEDE)',
                                 borderRadius: 6,
-                                background: 'var(--lm-bg-primary, #FAF8F2)',
-                                color: 'var(--lm-text-primary, #1A1714)',
+                                background: 'var(--lm-bg-primary, #FFFFFF)',
+                                color: 'var(--lm-text-primary, #0A0A0A)',
                             }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -2778,7 +2778,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                                     className={old ? 'is-old' : undefined}
                                                     style={{
                                                         marginTop: i === 0 ? 0 : 5,
-                                                        color: 'var(--lm-text-secondary, #3A3530)',
+                                                        color: 'var(--lm-text-secondary, #404040)',
                                                         fontWeight: 500,
                                                     }}
                                                 >
@@ -2794,7 +2794,7 @@ export function AiInputCluster({ onOpenRevertTimeline }) {
                                                     className={old ? 'is-old' : undefined}
                                                     style={{
                                                         paddingLeft: 14,
-                                                        color: 'var(--lm-accent, #B85B33)',
+                                                        color: 'var(--lm-accent, #111111)',
                                                     }}
                                                 >
                                                     {`◆ ${step.label ?? ''}`}

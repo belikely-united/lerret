@@ -68,10 +68,10 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-entity-kebab
  s.textContent = `
 .lm-kebab-confirm-row {
  font: var(--lm-weight-medium, 600) var(--lm-size-body-sm, 12px)/1.3 var(--lm-font-sans, sans-serif);
- color: var(--lm-error, #A8412B);
+ color: var(--lm-error, #D92D20);
 }
-.lm-kebab-item-destructive { color: var(--lm-error, #A8412B); }
-.lm-kebab-item-destructive:hover { background: var(--lm-error-light, rgba(168, 65, 43, 0.10)) !important; }
+.lm-kebab-item-destructive { color: var(--lm-error, #D92D20); }
+.lm-kebab-item-destructive:hover { background: var(--lm-error-light, rgba(217, 45, 32, 0.10)) !important; }
  `.trim();
  document.head.appendChild(s);
 }

@@ -78,8 +78,8 @@ const overlayStyle = {
 };
 
 const sheetStyle = {
-    background: 'var(--lm-bg-primary, #fdfaf3)',
-    color: 'var(--lm-text-primary, #1A1714)',
+    background: 'var(--lm-bg-primary, #ffffff)',
+    color: 'var(--lm-text-primary, #0A0A0A)',
     borderRadius: 14,
     padding: 24,
     minWidth: 420,
@@ -95,7 +95,7 @@ const labelStyle = {
     fontWeight: 600,
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
-    color: 'var(--lm-text-secondary, #6E6960)',
+    color: 'var(--lm-text-secondary, #6B6B6B)',
     marginBottom: 6,
     display: 'block',
 };
@@ -124,7 +124,7 @@ function segButtonStyle(active) {
         borderRadius: 8,
         cursor: 'pointer',
         border: 'none',
-        background: active ? 'var(--lm-accent, #B85B33)' : 'var(--lm-bg-tertiary)',
+        background: active ? 'var(--lm-accent, #111111)' : 'var(--lm-bg-tertiary)',
         color: active ? '#fff' : 'inherit',
         fontSize: 13,
         fontWeight: active ? 600 : 500,
@@ -135,14 +135,14 @@ function segButtonStyle(active) {
 
 const fieldHintStyle = {
     fontSize: 11,
-    color: 'var(--lm-text-secondary, #6E6960)',
+    color: 'var(--lm-text-secondary, #6B6B6B)',
     lineHeight: 1.4,
     marginTop: 6,
     opacity: 0.9,
 };
 
 const buttonPrimary = {
-    background: 'var(--lm-accent, #B85B33)',
+    background: 'var(--lm-accent, #111111)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
@@ -401,12 +401,12 @@ export function AnimatedExportDialog({
                             : `Export ${assetName || 'artboard'} animated`}
                     </h2>
                     {moduleError && (
-                        <span style={{ fontSize: 11, color: '#B85B33' }}>animation unavailable</span>
+                        <span style={{ fontSize: 11, color: 'var(--lm-error, #D92D20)' }}>animation unavailable</span>
                     )}
                 </div>
 
                 {moduleError ? (
-                    <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--lm-text-secondary, #6E6960)' }}>
+                    <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--lm-text-secondary, #6B6B6B)' }}>
                         Animated export is not available — your install is missing <code>@lerret/animation</code>.
                         Run <code>pnpm add @lerret/animation</code> (or your runner's equivalent) to enable.
                         <div style={{ marginTop: 4, fontSize: 11, opacity: 0.7 }}>{moduleError}</div>
@@ -451,7 +451,7 @@ export function AnimatedExportDialog({
                                     list="lm-duration-presets"
                                     value={durationSecStr}
                                     onChange={(e) => onDurationInput(e.target.value)}
-                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))'; }}
                                     onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; onDurationBlur(); }}
                                     style={{ ...inputBase, width: '100%' }}
                                     aria-label="Duration in seconds"
@@ -471,7 +471,7 @@ export function AnimatedExportDialog({
                                     list="lm-fps-presets"
                                     value={fpsStr}
                                     onChange={(e) => onFpsInput(e.target.value)}
-                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))'; }}
                                     onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; onFpsBlur(); }}
                                     style={{ ...inputBase, width: '100%' }}
                                     aria-label="Frames per second"
@@ -504,7 +504,7 @@ export function AnimatedExportDialog({
                                     type="text"
                                     value={filename}
                                     onChange={(e) => setFilename(e.target.value)}
-                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+                                    onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))'; }}
                                     onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
                                     style={{ ...inputBase, width: '100%' }}
                                 />
@@ -512,13 +512,13 @@ export function AnimatedExportDialog({
                         )}
 
                         {progressText && (
-                            <div style={{ fontSize: 12, color: 'var(--lm-text-secondary, #6E6960)' }}>
+                            <div style={{ fontSize: 12, color: 'var(--lm-text-secondary, #6B6B6B)' }}>
                                 {progressText}
                             </div>
                         )}
 
                         {errorMsg && (
-                            <div style={{ fontSize: 12, color: '#B85B33', lineHeight: 1.4 }}>
+                            <div style={{ fontSize: 12, color: 'var(--lm-error, #D92D20)', lineHeight: 1.4 }}>
                                 {errorMsg}
                             </div>
                         )}

@@ -143,22 +143,22 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     position: fixed;
     inset: 0;
     z-index: 220;
-    background: rgba(26, 23, 20, 0.45);
+    background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 .lm-revert-timeline {
-    background: var(--lm-bg-primary, #FAF8F2);
+    background: var(--lm-bg-primary, #FFFFFF);
     border-radius: var(--lm-radius-xl, 14px);
-    box-shadow: var(--lm-shadow-popup, 0 18px 48px rgba(26, 23, 20, 0.22));
+    box-shadow: var(--lm-shadow-popup, 0 18px 48px rgba(0, 0, 0, 0.22));
     width: min(720px, calc(100vw - 32px));
     height: min(600px, calc(100vh - 64px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     font-family: var(--lm-font-sans, -apple-system, BlinkMacSystemFont, sans-serif);
 }
 .lm-revert-timeline__header {
@@ -166,7 +166,7 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     align-items: center;
     gap: var(--lm-space-3, 12px);
     padding: var(--lm-space-5, 20px) var(--lm-space-6, 24px) var(--lm-space-4, 16px);
-    background: var(--lm-bg-secondary, #F2EEE6);
+    background: var(--lm-bg-secondary, #F5F5F5);
     flex-shrink: 0;
 }
 .lm-revert-timeline__title {
@@ -183,17 +183,17 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     border: none;
     border-radius: var(--lm-radius-sm, 6px);
     background: transparent;
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     cursor: pointer;
     transition: background var(--lm-duration-fast, 120ms);
     flex-shrink: 0;
 }
 .lm-revert-timeline__close:hover {
-    background: var(--lm-bg-tertiary, #E8E2D4);
-    color: var(--lm-text-primary, #1A1714);
+    background: var(--lm-bg-tertiary, #EBEBEB);
+    color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-revert-timeline__close:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 2px;
 }
 .lm-revert-timeline__body {
@@ -213,7 +213,7 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
 }
 .lm-revert-timeline__note {
     font: 400 13px/1.5 var(--lm-font-sans);
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     text-align: center;
     max-width: 44ch;
     margin: 0;
@@ -241,18 +241,18 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     font-family: inherit;
 }
 .lm-revert-timeline__row[data-selected="true"] {
-    background: var(--lm-bg-tertiary, #E8E2D4);
+    background: var(--lm-bg-tertiary, #EBEBEB);
 }
 .lm-revert-timeline__row:hover:not([data-selected="true"]) {
-    background: var(--lm-bg-secondary, #F2EEE6);
+    background: var(--lm-bg-secondary, #F5F5F5);
 }
 .lm-revert-timeline__row:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: -2px;
 }
 .lm-revert-timeline__row-prompt {
     font: 400 12px/1.35 var(--lm-font-sans);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -265,21 +265,21 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
 }
 .lm-revert-timeline__row-time {
     font: 400 10.5px/1.2 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
-    color: var(--lm-stone, #6E6960);
+    color: var(--lm-stone, #6B6B6B);
     white-space: nowrap;
 }
 .lm-revert-timeline__row-status {
     font: 500 10.5px/1.2 var(--lm-font-sans);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
-.lm-revert-timeline__row-status[data-status="applied"] { color: var(--lm-moss, #4A6B3F); }
+.lm-revert-timeline__row-status[data-status="applied"] { color: var(--lm-moss, #12805C); }
 .lm-revert-timeline__row-status[data-status="reverted"],
-.lm-revert-timeline__row-status[data-status="reverted-forward"] { color: var(--lm-stone, #6E6960); }
+.lm-revert-timeline__row-status[data-status="reverted-forward"] { color: var(--lm-stone, #6B6B6B); }
 .lm-revert-timeline__detail {
     display: flex;
     flex-direction: column;
     gap: var(--lm-space-4, 16px);
-    border-left: 1px solid var(--lm-border, #D8D2C4);
+    border-left: 1px solid var(--lm-border, #DEDEDE);
     padding-left: var(--lm-space-5, 20px);
     overflow-y: auto;
     min-height: 0;
@@ -287,13 +287,13 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
 }
 .lm-revert-timeline__detail-prompt {
     font: 500 13px/1.45 var(--lm-font-sans);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     margin: 0;
     overflow-wrap: break-word;
 }
 .lm-revert-timeline__detail-provenance {
     font: 400 11px/1.3 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     margin: 0;
 }
 .lm-revert-timeline__files {
@@ -313,13 +313,13 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     width: 52px;
     flex-shrink: 0;
 }
-.lm-revert-timeline__file-op[data-op="create"] { color: var(--lm-moss, #4A6B3F); }
-.lm-revert-timeline__file-op[data-op="edit"] { color: var(--lm-stone, #6E6960); }
-.lm-revert-timeline__file-op[data-op="delete"] { color: var(--lm-error-text, #8A3A1F); }
+.lm-revert-timeline__file-op[data-op="create"] { color: var(--lm-moss, #12805C); }
+.lm-revert-timeline__file-op[data-op="edit"] { color: var(--lm-stone, #6B6B6B); }
+.lm-revert-timeline__file-op[data-op="delete"] { color: var(--lm-error-text, #B42318); }
 .lm-revert-timeline__file-path {
     flex: 1;
     font: 400 12px/1.3 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -338,25 +338,25 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     cursor: default;
 }
 .lm-revert-timeline__btn[data-tier="secondary"] {
-    background: var(--lm-bg-secondary, #F2EEE6);
-    color: var(--lm-text-primary, #1A1714);
-    border-color: var(--lm-border, #D8D2C4);
+    background: var(--lm-bg-secondary, #F5F5F5);
+    color: var(--lm-text-primary, #0A0A0A);
+    border-color: var(--lm-border, #DEDEDE);
 }
 .lm-revert-timeline__btn[data-tier="secondary"]:hover:not(:disabled) {
-    background: var(--lm-bg-tertiary, #E8E2D4);
+    background: var(--lm-bg-tertiary, #EBEBEB);
 }
 .lm-revert-timeline__btn[data-tier="ghost"] {
     background: transparent;
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     border-color: transparent;
     padding: 4px 10px;
 }
 .lm-revert-timeline__btn[data-tier="ghost"]:hover:not(:disabled) {
-    background: var(--lm-bg-tertiary, #E8E2D4);
-    color: var(--lm-text-primary, #1A1714);
+    background: var(--lm-bg-tertiary, #EBEBEB);
+    color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-revert-timeline__btn:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 2px;
 }
 .lm-revert-timeline__footer-actions {
@@ -365,7 +365,7 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
     gap: var(--lm-space-2, 8px);
     flex-wrap: wrap;
     padding-top: var(--lm-space-3, 12px);
-    border-top: 1px solid var(--lm-border, #D8D2C4);
+    border-top: 1px solid var(--lm-border, #DEDEDE);
 }
 .lm-revert-timeline__cue-strip {
     flex-shrink: 0;
@@ -377,11 +377,11 @@ if (typeof document !== 'undefined' && !document.getElementById('revert-timeline
 }
 .lm-revert-timeline__cue {
     font: 500 12px/1.2 var(--lm-font-sans);
-    color: var(--lm-moss, #4A6B3F);
+    color: var(--lm-moss, #12805C);
 }
 .lm-revert-timeline__action-note {
     font: 400 12px/1.2 var(--lm-font-sans);
-    color: var(--lm-stone, #6E6960);
+    color: var(--lm-stone, #6B6B6B);
 }
     `.trim();
     document.head.appendChild(s);

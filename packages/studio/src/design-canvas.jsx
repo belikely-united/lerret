@@ -39,7 +39,7 @@ if (typeof window !== 'undefined' && !window.htmlToImage) {
 }
 
 const DC = {
- bg: '#f0eee9',
+ bg: '#f0f0f0',
  grid: 'rgba(0,0,0,0.06)',
  label: 'rgba(60,50,40,0.7)',
  title: 'rgba(40,30,20,0.85)',
@@ -59,17 +59,17 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
 // never bleeds into the neighbour; the clamp lifts on focus so inline-rename
 // shows the full text while typing.
 '.dc-editable{cursor:text;outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block;border-radius:3px;padding:0 2px;margin:0 -2px}',
- '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #c96442;overflow:visible;text-overflow:clip;max-width:none}',
+ '.dc-editable:focus{background:#fff;box-shadow:0 0 0 1.5px #111111;overflow:visible;text-overflow:clip;max-width:none}',
  '[data-dc-slot]{transition:transform .18s cubic-bezier(.2,.7,.3,1)}',
  '[data-dc-slot].dc-dragging{transition:none;z-index:10;pointer-events:none}',
  // Group an artboard is being dragged INTO (cross-group move on drop).
- '[data-dc-section].dc-drop-target{outline:2px dashed #c96442;outline-offset:4px;border-radius:16px}',
- '.dc-toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:80;padding:8px 14px;border-radius:10px;background:#1A1714;color:#FAF8F2;font:500 12.5px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(26,23,20,.2);pointer-events:none;transition:opacity 220ms var(--lm-ease),translate 220ms var(--lm-ease)}',
+ '[data-dc-section].dc-drop-target{outline:2px dashed #111111;outline-offset:4px;border-radius:16px}',
+ '.dc-toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:80;padding:8px 14px;border-radius:10px;background:#0A0A0A;color:#FFFFFF;font:500 12.5px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0, 0, 0,.2);pointer-events:none;transition:opacity 220ms var(--lm-ease),translate 220ms var(--lm-ease)}',
  // Enter from just below (translate composes with the centering transform); exit the same way.
  '@starting-style{.dc-toast{opacity:0;translate:0 8px}}',
  '.dc-toast--out{opacity:0;translate:0 8px;transition-duration:160ms}',
  '@media (prefers-reduced-motion:reduce){.dc-toast{transition-property:opacity}}',
- '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #c96442;transform:scale(1.02)}',
+ '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #111111;transform:scale(1.02)}',
  '.dc-card{transition:box-shadow .15s,transform .15s}',
  '.dc-card *{scrollbar-width:none}',
  '.dc-card *::-webkit-scrollbar{display:none}',
@@ -77,7 +77,7 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // Page / group NAME TAG — sits on the container's top-left edge (like a Figma
  // section title) and counter-scales by --dc-inv so it reads at any zoom. A
  // filled tag with an icon = container; plain grey text above a card = artboard.
- '.dc-section-tag{position:absolute;left:0;bottom:100%;margin-bottom:calc(8px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:left bottom;z-index:3;display:flex;align-items:center;gap:6px;height:30px;padding:0 4px 0 6px;border-radius:9px;background:var(--lm-bg-primary,#FAF8F2);box-shadow:0 1px 3px rgba(26,23,20,.10),0 0 0 1px rgba(26,23,20,.05);color:var(--lm-text-primary,#1A1714);font:600 14px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;white-space:nowrap}',
+ '.dc-section-tag{position:absolute;left:0;bottom:100%;margin-bottom:calc(8px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:left bottom;z-index:3;display:flex;align-items:center;gap:6px;height:30px;padding:0 4px 0 6px;border-radius:9px;background:var(--lm-bg-primary,#FFFFFF);box-shadow:0 1px 3px rgba(0, 0, 0,.10),0 0 0 1px rgba(0, 0, 0,.05);color:var(--lm-text-primary,#0A0A0A);font:600 14px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;white-space:nowrap}',
  // A GROUP's tag is a folder tab joined to its frame: same fill, square
  // bottom corners, shared outline, overlapping the frame's top stroke by 1
  // screen px so the line doesn't run under the tab. A PAGE keeps the floating
@@ -91,20 +91,20 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // tab's right edge always lands on the frame's top edge.
  '.dc-group-frame{min-width:max(400px, calc((var(--dc-tag-w, 0px) + 40px) * var(--dc-inv, 1)))}',
  '.dc-group-frame{box-shadow:0 0 0 calc(1px * var(--dc-inv, 1)) var(--dc-group-stroke);transition:box-shadow .12s}',
- '[data-dc-section]{--dc-group-stroke:rgba(26,23,20,.14)}',
+ '[data-dc-section]{--dc-group-stroke:rgba(0, 0, 0,.14)}',
  // Hover shows exactly where a group starts and ends — innermost group only.
- '[data-dc-section]:hover:not(:has([data-dc-section]:hover)){--dc-group-stroke:var(--lm-accent,#B85B33)}',
+ '[data-dc-section]:hover:not(:has([data-dc-section]:hover)){--dc-group-stroke:var(--lm-accent,#111111)}',
  '[data-dc-section]:hover:not(:has([data-dc-section]:hover))>.dc-group-frame{box-shadow:0 0 0 calc(1.5px * var(--dc-inv, 1)) var(--dc-group-stroke)}',
  '.dc-section-tag .dc-section-grip{margin:0 -2px 0 0}',
  // The PAGE's tag is a heading, not a pill: larger, set higher above its
  // content — the title of the whole canvas. Groups keep the folder tab.
  '.dc-section-tag[data-dc-kind=page]{height:40px;padding:0 4px 0 0;gap:8px;background:transparent;box-shadow:none;font-size:22px;font-weight:700;letter-spacing:-0.3px;margin-bottom:calc(22px * var(--dc-inv, 1))}',
  '.dc-section-tag[data-dc-kind=page] .dc-section-tag-icon svg{width:18px;height:18px}',
- '.dc-section-tag[data-dc-kind=page] .dc-section-tag-meta{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:var(--lm-bg-tertiary,#E8E2D4)}',
- '.dc-section-tag-icon{display:inline-flex;color:var(--lm-accent,#B85B33)}',
+ '.dc-section-tag[data-dc-kind=page] .dc-section-tag-meta{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:var(--lm-bg-tertiary,#EBEBEB)}',
+ '.dc-section-tag-icon{display:inline-flex;color:var(--lm-accent,#111111)}',
  '.dc-section-tag .dc-editable{outline:none;border-radius:4px;padding:2px 3px;max-width:320px;overflow:hidden;text-overflow:ellipsis}',
- '.dc-section-tag .dc-editable:focus{background:var(--lm-bg-tertiary,#E8E2D4)}',
- '.dc-section-tag-meta{font-size:11.5px;font-weight:500;color:var(--lm-text-tertiary,#6E6960)}',
+ '.dc-section-tag .dc-editable:focus{background:var(--lm-bg-tertiary,#EBEBEB)}',
+ '.dc-section-tag-meta{font-size:11.5px;font-weight:500;color:var(--lm-text-tertiary,#6B6B6B)}',
  '.dc-section-tag-slot{display:inline-flex;position:relative}',
  // Artboard label row: name + ⋮ (+ status badges) at rest; size chip and Data
  // appear on hover/focus. Opacity (not display) keeps the row's width stable.
@@ -127,7 +127,7 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-grip{cursor:grab;display:flex;align-items:center;padding:5px 4px;border-radius:4px;transition:background .12s}',
  '.dc-grip:hover{background:rgba(0,0,0,.08)}',
  '.dc-grip:active{cursor:grabbing}',
- '.dc-grip:focus-visible{outline:2px solid #c96442;outline-offset:1px}',
+ '.dc-grip:focus-visible{outline:2px solid #111111;outline-offset:1px}',
  // Label truncation: an ABSOLUTE max-width on the editable (scoped rules below) —
 // reserves the always-visible right cluster + grip, and MORE when the hover/error
 // export badges show, so it ellipsizes ONLY when the text truly exceeds the artboard's
@@ -140,12 +140,12 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-expand{position:absolute;bottom:100%;right:calc((var(--dc-cluster-w, 26px) + 6px) * var(--dc-inv, 1));margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' width:22px;height:22px;border-radius:5px;border:none;cursor:pointer;padding:0;',
  ' background:transparent;color:rgba(60,50,40,.7);display:flex;align-items:center;justify-content:center}',
- '.dc-expand:hover{background:rgba(0,0,0,.06);color:#2a251f}',
+ '.dc-expand:hover{background:rgba(0,0,0,.06);color:#1f1f1f}',
  '[data-dc-slot]:hover .dc-expand{opacity:1}',
- '.dc-expand:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
+ '.dc-expand:focus-visible{opacity:1;outline:2px solid #111111;outline-offset:1px}',
  '.dc-dl{position:absolute;bottom:100%;margin-bottom:calc(5px * var(--dc-inv, 1));transform:scale(var(--dc-inv, 1));transform-origin:right bottom;z-index:2;opacity:0;transition:opacity .12s,background .12s;',
  ' height:22px;padding:0 8px;border-radius:5px;border:none;cursor:pointer;',
- ' background:rgba(255,255,255,.85);color:#2a251f;font:600 10px/1 var(--lm-font-mono,monospace);',
+ ' background:rgba(255,255,255,.85);color:#1f1f1f;font:600 10px/1 var(--lm-font-mono,monospace);',
  ' letter-spacing:.06em;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;',
  ' box-shadow:0 1px 2px rgba(0,0,0,.06)}',
  '.dc-dl:hover{background:#fff;color:#000}',
@@ -167,7 +167,7 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-dl-pdf{right:calc((var(--dc-cluster-w, 26px) + 122px) * var(--dc-inv, 1))}',
  // markdown edit: EDIT sits in the fourth slot, left of PDF.
  '.dc-dl-edit{right:calc((var(--dc-cluster-w, 26px) + 166px) * var(--dc-inv, 1))}',
- '.dc-dl:focus-visible{opacity:1;outline:2px solid #c96442;outline-offset:1px}',
+ '.dc-dl:focus-visible{opacity:1;outline:2px solid #111111;outline-offset:1px}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');
  document.head.appendChild(s);
@@ -1129,20 +1129,20 @@ function DCZoomControls({ api }) {
  };
  const iconBtn = {
  width: 26, height: 26, borderRadius: 8, border: 'none',
- background: 'transparent', color: '#3a3530', cursor: 'pointer',
+ background: 'transparent', color: '#404040', cursor: 'pointer',
  fontSize: 17, lineHeight: 1, display: 'inline-flex',
  alignItems: 'center', justifyContent: 'center',
  transition: 'background .12s',
  };
  const pctBtn = {
  width: 26, height: 20, borderRadius: 6, border: 'none', padding: 0,
- background: 'transparent', color: '#3a3530', cursor: 'pointer',
+ background: 'transparent', color: '#404040', cursor: 'pointer',
  font: '600 10px/1 ' + DC.font, fontVariantNumeric: 'tabular-nums',
  transition: 'background .12s',
  };
  const fitBtn = {
  width: 26, height: 26, borderRadius: 8, border: 'none',
- background: 'transparent', color: '#3a3530', cursor: 'pointer',
+ background: 'transparent', color: '#404040', cursor: 'pointer',
  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
  transition: 'background .12s',
  };
@@ -1300,8 +1300,8 @@ function DCMiniMap({ api }) {
  width={Math.max(4, vmW)}
  height={Math.max(4, vmH)}
  rx={2}
- fill="rgba(184,91,51,0.12)"
- stroke="#B85B33"
+ fill="rgba(17, 17, 17,0.12)"
+ stroke="#111111"
  strokeWidth="1.25"
  />
  </svg>
@@ -1333,7 +1333,7 @@ function DCMiniMap({ api }) {
  * @returns {string} A CSS color.
  */
 export function sectionDepthBg(depth) {
- const steps = ['#fdfcfa', '#f6f1e9', '#efe7da', '#e8decc'];
+ const steps = ['#ffffff', '#f7f7f7', '#f0f0f0', '#e8e8e8'];
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
@@ -1587,7 +1587,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  bottom: 6,
  width: 3,
  borderRadius: 999,
- background: 'var(--lm-accent-border, rgba(184,91,51,0.20))',
+ background: 'var(--lm-accent-border, rgba(17, 17, 17,0.20))',
  }}
  />
  )}
@@ -1890,7 +1890,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  >Edit</button>
  ) : null}
  <div ref={cardRef} className="dc-card"
- style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: 'var(--lm-bg-primary, #FDFCFA)', ...style }}>
+ style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: 'var(--lm-bg-primary, #FFFFFF)', ...style }}>
  {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}
  </div>
  {/* Calm inline capture-failure message — overlaid on the slot
@@ -2079,7 +2079,7 @@ function DCFocusOverlay({ entry, sectionMeta, sectionOrder }) {
  {meta.subtitle && <span style={{ display: 'block', fontSize: 13, opacity: .6, fontWeight: 400, marginTop: 2 }}>{meta.subtitle}</span>}
  </button>
  {ddOpen && (
- <div role="listbox" style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#2a251f', borderRadius: 8,
+ <div role="listbox" style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#1f1f1f', borderRadius: 8,
  boxShadow: '0 8px 32px rgba(0,0,0,.4)', padding: 4, minWidth: 200, zIndex: 10 }}>
  {sectionOrder.map((sid) => (
  <button key={sid} role="option" aria-selected={sid === sectionId}

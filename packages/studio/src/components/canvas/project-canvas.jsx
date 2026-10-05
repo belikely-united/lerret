@@ -893,8 +893,8 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  gap: 7,
  padding: '12px 20px',
  borderRadius: 12,
- background: 'var(--lm-accent-light, rgba(184,91,51,0.06))',
- color: 'var(--lm-accent-text, #B85B33)',
+ background: 'var(--lm-accent-light, rgba(17, 17, 17,0.06))',
+ color: 'var(--lm-accent-text, #111111)',
  fontFamily: 'inherit',
  fontSize: 14,
  fontWeight: 600,
@@ -914,8 +914,8 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  gap: 6,
  padding: '12px 16px',
  borderRadius: 12,
- background: 'var(--lm-bg-secondary, #F2EEE6)',
- color: 'var(--lm-text-secondary, #3a3530)',
+ background: 'var(--lm-bg-secondary, #F5F5F5)',
+ color: 'var(--lm-text-secondary, #404040)',
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: 600,
@@ -972,20 +972,20 @@ function ProjectCanvasNotice({ title, body, actions }) {
  alignItems: 'center',
  justifyContent: 'center',
  gap: 12,
- background: 'var(--lm-bg-tertiary, #f0eee9)',
+ background: 'var(--lm-bg-tertiary, #f0f0f0)',
  fontFamily: 'var(--lm-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif)',
- color: 'var(--lm-text-secondary, #3a3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  textAlign: 'center',
  padding: 24,
  boxSizing: 'border-box',
  }}
  >
  {title && (
- <div style={{ fontSize: 32, fontWeight: 600, letterSpacing: -0.6, color: 'var(--lm-text-primary, #1a1714)' }}>
+ <div style={{ fontSize: 32, fontWeight: 600, letterSpacing: -0.6, color: 'var(--lm-text-primary, #0a0a0a)' }}>
  {title}
  </div>
  )}
- <div style={{ fontSize: 14, color: 'var(--lm-text-tertiary, #6e6960)', maxWidth: '44ch', lineHeight: 1.5 }}>
+ <div style={{ fontSize: 14, color: 'var(--lm-text-tertiary, #6b6b6b)', maxWidth: '44ch', lineHeight: 1.5 }}>
  {body}
  </div>
  {actions ? (
@@ -1018,8 +1018,8 @@ function NoticeButton({ label, onClick, primary }) {
  padding: '8px 16px',
  borderRadius: 8,
  border: 'none',
- background: primary ? 'var(--lm-accent, #B85B33)' : 'transparent',
- color: primary ? '#fff' : 'var(--lm-text-primary, #1a1714)',
+ background: primary ? 'var(--lm-accent, #111111)' : 'transparent',
+ color: primary ? '#fff' : 'var(--lm-text-primary, #0a0a0a)',
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: 600,
@@ -1055,7 +1055,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  return isEmpty ? (
  <div
  className="dc-section-cta"
- style={{ marginTop: 10, fontSize: 12, color: 'var(--lm-text-tertiary, #6e6960)' }}
+ style={{ marginTop: 10, fontSize: 12, color: 'var(--lm-text-tertiary, #6b6b6b)' }}
  >
  Add a .jsx, .tsx, or .md file into this group.
  </div>
@@ -1067,8 +1067,8 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  gap: 5,
  padding: '6px 12px',
  borderRadius: 8,
- background: 'var(--lm-bg-secondary, #F2EEE6)',
- color: 'var(--lm-text-secondary, #6e6960)',
+ background: 'var(--lm-bg-secondary, #F5F5F5)',
+ color: 'var(--lm-text-secondary, #6b6b6b)',
  fontFamily: 'inherit',
  fontSize: 12,
  fontWeight: 600,
@@ -1087,7 +1087,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  gap: 12,
  padding: 20,
  borderRadius: 12,
- border: '1.5px dashed rgba(26,23,20,0.14)',
+ border: '1.5px dashed rgba(0, 0, 0,0.14)',
  };
  return (
  <div
@@ -1099,7 +1099,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  style={isEmpty ? emptyStyle : { marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
  >
  {isEmpty && (
- <span style={{ fontSize: 13, color: 'var(--lm-text-tertiary, #6e6960)' }}>
+ <span style={{ fontSize: 13, color: 'var(--lm-text-tertiary, #6b6b6b)' }}>
  Empty group — add an asset, or drag an artboard here
  </span>
  )}

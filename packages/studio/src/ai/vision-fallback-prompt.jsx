@@ -64,10 +64,10 @@ if (typeof document !== 'undefined' && !document.getElementById('vision-fallback
     display: flex;
     flex-direction: column;
     gap: var(--lm-space-2, 8px);
-    background: var(--lm-bg-primary, #FAF8F2);
-    border: 1px solid var(--lm-border-light, #E8E2D4);
+    background: var(--lm-bg-primary, #FFFFFF);
+    border: 1px solid var(--lm-border-light, #EBEBEB);
     border-radius: var(--lm-radius-md, 8px);
-    box-shadow: var(--lm-shadow-sm, 0 4px 12px rgba(26, 23, 20, 0.10));
+    box-shadow: var(--lm-shadow-sm, 0 4px 12px rgba(0, 0, 0, 0.10));
     padding: var(--lm-space-3, 12px) var(--lm-space-4, 16px);
     min-width: 300px;
     max-width: 400px;
@@ -76,11 +76,11 @@ if (typeof document !== 'undefined' && !document.getElementById('vision-fallback
 .lm-vision-fallback__copy {
     margin: 0;
     font: 400 13px/1.45 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-vision-fallback__cost-hint {
     font: 400 12px/1 var(--lm-font-sans, -apple-system, sans-serif);
-    color: var(--lm-mist, #B8B3A8);
+    color: var(--lm-mist, #A3A3A3);
 }
 .lm-vision-fallback__actions {
     display: flex;
@@ -97,23 +97,23 @@ if (typeof document !== 'undefined' && !document.getElementById('vision-fallback
     border: 1px solid transparent;
 }
 .lm-vision-fallback__btn--primary {
-    background: var(--lm-accent, #B85B33);
-    color: var(--lm-text-onAccent, #FAF8F2);
-    border-color: var(--lm-accent, #B85B33);
+    background: var(--lm-accent, #111111);
+    color: var(--lm-text-onAccent, #FFFFFF);
+    border-color: var(--lm-accent, #111111);
 }
 .lm-vision-fallback__btn--primary:hover {
-    background: var(--lm-accent-hover, #A24E2C);
+    background: var(--lm-accent-hover, #2B2B2B);
 }
 .lm-vision-fallback__btn--secondary {
     background: transparent;
-    color: var(--lm-text-primary, #1A1714);
-    border-color: var(--lm-border, #D8D2C4);
+    color: var(--lm-text-primary, #0A0A0A);
+    border-color: var(--lm-border, #DEDEDE);
 }
 .lm-vision-fallback__btn--secondary:hover {
-    background: var(--lm-bg-secondary, #F2EEE6);
+    background: var(--lm-bg-secondary, #F5F5F5);
 }
 .lm-vision-fallback__btn:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 2px;
 }
     `.trim();

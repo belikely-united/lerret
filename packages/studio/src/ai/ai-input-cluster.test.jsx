@@ -1750,7 +1750,7 @@ describe('selection chip — element pinpoint display + turn threading', () => {
 describe('clarifying-note pipeline (DS Curator conflict surface)', () => {
     it('captures clarifying-note events into the turn record and renders them in the thread card', async () => {
         const note =
-            "brand-token conflict on 'brand': _design-system.md says '#B85B33', config.json vars (as 'brandColor') says '#FF0000' — using _design-system.md (primary)";
+            "brand-token conflict on 'brand': _design-system.md says '#111111', config.json vars (as 'brandColor') says '#FF0000' — using _design-system.md (primary)";
         aiMock.current = makeAi({
             events: [
                 { type: 'thinking' },

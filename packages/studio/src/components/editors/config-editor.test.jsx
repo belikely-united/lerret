@@ -167,7 +167,7 @@ describe('ConfigEditor — well-known key form', () => {
  it('renders FormControls for always-shown keys when file has those keys', async () => {
  const reader = makeReader({
  presentation: { background: 'rgba(241, 237, 229, 0.85)' },
- vars: { brandColor: '#B85B33' },
+ vars: { brandColor: '#111111' },
  });
  const writer = vi.fn().mockResolvedValue({ ok: true });
 
@@ -220,7 +220,7 @@ describe('ConfigEditor — well-known key form', () => {
 
  it('renders colors/fonts fields when present in the file', async () => {
  const reader = makeReader({
- colors: { primary: '#B85B33' },
+ colors: { primary: '#111111' },
  fonts: { heading: 'Georgia' },
  });
  const writer = vi.fn().mockResolvedValue({ ok: true });
@@ -246,7 +246,7 @@ describe('ConfigEditor — well-known key form', () => {
  it('commits a field write with stable JSON content and trailing newline', async () => {
  const reader = makeReader({
  presentation: { background: '#fff' },
- vars: { brandColor: '#B85B33', maxWidth: '1200px' },
+ vars: { brandColor: '#111111', maxWidth: '1200px' },
  });
  const writer = vi.fn().mockResolvedValue({ ok: true });
 

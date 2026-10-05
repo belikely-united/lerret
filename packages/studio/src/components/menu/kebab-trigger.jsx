@@ -46,7 +46,7 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-kebab-trigge
  border: none;
  border-radius: var(--lm-radius-sm, 5px);
  background: transparent;
- color: var(--lm-text-secondary, #3A3530);
+ color: var(--lm-text-secondary, #404040);
  cursor: pointer;
  outline: none;
  transition:
@@ -56,11 +56,11 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-kebab-trigge
 }
 .lm-kebab-trigger:hover,
 .lm-kebab-trigger[aria-expanded="true"] {
- background: var(--lm-bg-tertiary, #E8E2D4);
- color: var(--lm-text-primary, #1A1714);
+ background: var(--lm-bg-tertiary, #EBEBEB);
+ color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-kebab-trigger:focus-visible {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20));
  opacity: 1;
 }
 .lm-kebab-trigger svg {

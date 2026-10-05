@@ -373,7 +373,7 @@ export function DevHarness() {
  }
  if (!loaded) {
  return (
- <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#6e6960' }}>
+ <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#6b6b6b' }}>
  Loading fixture project through the Vite runtime…
  </div>
  );

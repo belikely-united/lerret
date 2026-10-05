@@ -81,8 +81,8 @@ export function ConnectProjectDialog({ onClose }) {
  padding: '10px 12px',
  fontSize: 13,
  fontFamily: 'var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace)',
- color: '#1A1714',
- background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ color: '#0A0A0A',
+ background: 'var(--lm-bg-tertiary, #EBEBEB)',
  border: 'none',
  borderRadius: 8,
  outline: 'none',
@@ -93,8 +93,8 @@ export function ConnectProjectDialog({ onClose }) {
  padding: '10px 18px',
  borderRadius: 8,
  border: 'none',
- background: connecting ? 'rgba(184,91,51,0.6)' : '#B85B33',
- color: '#FAF8F2',
+ background: connecting ? 'rgba(17, 17, 17,0.6)' : '#111111',
+ color: '#FFFFFF',
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: 600,
@@ -110,7 +110,7 @@ export function ConnectProjectDialog({ onClose }) {
  style={{
  position: 'fixed',
  inset: 0,
- background: 'rgba(26,23,20,0.38)',
+ background: 'rgba(0, 0, 0,0.38)',
  backdropFilter: 'blur(2px)',
  display: 'flex',
  alignItems: 'center',
@@ -127,9 +127,9 @@ export function ConnectProjectDialog({ onClose }) {
  style={{
  width: '100%',
  maxWidth: 460,
- background: '#FAF8F2',
+ background: '#FFFFFF',
  borderRadius: 14,
- boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(0, 0, 0,0.22))',
  padding: 22,
  display: 'flex',
  flexDirection: 'column',
@@ -138,8 +138,8 @@ export function ConnectProjectDialog({ onClose }) {
  }}
  >
  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
- <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#1A1714' }}>Switch project</h2>
- <p style={{ margin: 0, fontSize: 12, color: '#6E6960', lineHeight: 1.5 }}>
+ <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#0A0A0A' }}>Switch project</h2>
+ <p style={{ margin: 0, fontSize: 12, color: '#6B6B6B', lineHeight: 1.5 }}>
  Connect the studio to a different folder that contains a <code>.lerret/</code> project.
  </p>
  </div>
@@ -153,7 +153,7 @@ export function ConnectProjectDialog({ onClose }) {
  placeholder="/path/to/your/project"
  value={folderInput}
  onChange={(e) => setFolderInput(e.target.value)}
- onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'; }}
+ onFocus={(e) => { e.currentTarget.style.boxShadow = 'var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))'; }}
  onBlur={(e) => { e.currentTarget.style.boxShadow = 'none'; }}
  disabled={connecting}
  aria-label="Project folder path"
@@ -164,7 +164,7 @@ export function ConnectProjectDialog({ onClose }) {
  </button>
  </div>
  {connectError && (
- <p role="alert" style={{ margin: 0, fontSize: 12, color: '#A8412B' }} data-testid="connect-dialog-error">
+ <p role="alert" style={{ margin: 0, fontSize: 12, color: '#D92D20' }} data-testid="connect-dialog-error">
  {connectError}
  </p>
  )}
@@ -172,7 +172,7 @@ export function ConnectProjectDialog({ onClose }) {
 
  {recents.length > 0 && (
  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
- <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#9a958c' }}>
+ <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#8f8f8f' }}>
  Recent projects
  </span>
  <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }} data-testid="connect-dialog-recents">
@@ -187,15 +187,15 @@ export function ConnectProjectDialog({ onClose }) {
  style={{
  display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
  width: '100%', padding: '8px 12px', textAlign: 'left',
- background: 'var(--lm-bg-tertiary, #E8E2D4)', border: 'none', borderRadius: 8,
+ background: 'var(--lm-bg-tertiary, #EBEBEB)', border: 'none', borderRadius: 8,
  cursor: connecting ? 'default' : 'pointer', fontFamily: 'inherit',
  transition: 'background var(--lm-duration-fast, 120ms)',
  }}
- onMouseEnter={(e) => { if (!connecting) e.currentTarget.style.background = 'var(--lm-bg-secondary, #F2EEE6)'; }}
- onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--lm-bg-tertiary, #E8E2D4)'; }}
+ onMouseEnter={(e) => { if (!connecting) e.currentTarget.style.background = 'var(--lm-bg-secondary, #F5F5F5)'; }}
+ onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--lm-bg-tertiary, #EBEBEB)'; }}
  >
- <span style={{ fontSize: 13, fontWeight: 600, color: '#1A1714' }}>{r.name}</span>
- <span style={{ fontSize: 10, fontFamily: 'var(--lm-font-mono, monospace)', color: '#B8B3A8' }}>{r.path}</span>
+ <span style={{ fontSize: 13, fontWeight: 600, color: '#0A0A0A' }}>{r.name}</span>
+ <span style={{ fontSize: 10, fontFamily: 'var(--lm-font-mono, monospace)', color: '#A3A3A3' }}>{r.path}</span>
  </button>
  </li>
  ))}
@@ -211,8 +211,8 @@ export function ConnectProjectDialog({ onClose }) {
  data-testid="connect-dialog-cancel"
  style={{
  padding: '8px 16px', borderRadius: 8,
- border: 'none', background: 'var(--lm-bg-tertiary, #E8E2D4)',
- color: '#3A3530', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+ border: 'none', background: 'var(--lm-bg-tertiary, #EBEBEB)',
+ color: '#404040', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer',
  }}
  >
  Cancel

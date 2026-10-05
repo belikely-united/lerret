@@ -129,7 +129,7 @@ button.lm-focusable:not(:disabled):active { scale: 0.97; }
     scale var(--lm-duration-fast) var(--lm-ease);
 }
 @media (hover: hover) and (pointer: fine) {
-  .lm-create-choice:not(.lm-seg--on):hover { background: var(--lm-bg-tertiary, #E8E2D4) !important; }
+  .lm-create-choice:not(.lm-seg--on):hover { background: var(--lm-bg-tertiary, #EBEBEB) !important; }
 }
 .lm-create-choice:active { scale: 0.97; }
 

@@ -104,7 +104,7 @@ const rowIconBtnStyle = {
   borderRadius: 6,
   border: 'none',
   background: 'transparent',
-  color: 'var(--lm-text-tertiary, #6e6960)',
+  color: 'var(--lm-text-tertiary, #6b6b6b)',
   cursor: 'pointer',
   transition: 'background .12s, color .12s',
 };
@@ -186,7 +186,7 @@ function PageManagerZero({ projectModel, onNavigate }) {
         data-testid="page-picker-new-zero"
         style={triggerButtonStyle(false)}
       >
-        <span style={{ display: 'inline-flex', color: 'var(--lm-text-tertiary, #6e6960)' }}>
+        <span style={{ display: 'inline-flex', color: 'var(--lm-text-tertiary, #6b6b6b)' }}>
           <PagesGlyph />
         </span>
         <span>+ New page</span>
@@ -219,11 +219,11 @@ function PagePickerStaticLabel({ label }) {
         fontFamily: 'inherit',
         fontSize: 13,
         fontWeight: 600,
-        color: 'var(--lm-text-secondary, #3a3530)',
+        color: 'var(--lm-text-secondary, #404040)',
         whiteSpace: 'nowrap',
       }}
     >
-      <span style={{ display: 'inline-flex', color: 'var(--lm-text-tertiary, #6e6960)' }}>
+      <span style={{ display: 'inline-flex', color: 'var(--lm-text-tertiary, #6b6b6b)' }}>
         <PagesGlyph />
       </span>
       <span>{label}</span>
@@ -240,7 +240,7 @@ function triggerButtonStyle(open) {
     borderRadius: 8,
     border: 'none',
     background: open ? 'rgba(0,0,0,0.06)' : 'transparent',
-    color: 'var(--lm-text-secondary, #3a3530)',
+    color: 'var(--lm-text-secondary, #404040)',
     fontFamily: 'inherit',
     fontSize: 13,
     fontWeight: 600,
@@ -446,7 +446,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
           if (!open) e.currentTarget.style.background = 'transparent';
         }}
       >
-        <span style={{ display: 'inline-flex', color: 'var(--lm-text-tertiary, #6e6960)' }}>
+        <span style={{ display: 'inline-flex', color: 'var(--lm-text-tertiary, #6b6b6b)' }}>
           <PagesGlyph />
         </span>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentPage.label}</span>
@@ -491,7 +491,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                 fontWeight: 600,
                 letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color: 'var(--lm-text-muted, #9a958c)',
+                color: 'var(--lm-text-muted, #8f8f8f)',
                 padding: '6px 12px 6px',
               }}
             >
@@ -518,14 +518,14 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                     cursor: 'pointer',
                     fontSize: 13,
                     fontWeight: isCurrent ? 600 : 500,
-                    color: 'var(--lm-text-primary, #1a1714)',
-                    background: isActive ? 'var(--lm-accent-light, rgba(184,91,51,0.10))' : 'transparent',
-                    boxShadow: isActive ? 'inset 0 0 0 1.5px var(--lm-accent, #B85B33)' : 'none',
+                    color: 'var(--lm-text-primary, #0a0a0a)',
+                    background: isActive ? 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' : 'transparent',
+                    boxShadow: isActive ? 'inset 0 0 0 1.5px var(--lm-accent, #111111)' : 'none',
                   }}
                 >
                   <span
                     aria-hidden="true"
-                    style={{ width: 12, display: 'inline-flex', justifyContent: 'center', color: 'var(--lm-accent, #B85B33)' }}
+                    style={{ width: 12, display: 'inline-flex', justifyContent: 'center', color: 'var(--lm-accent, #111111)' }}
                   >
                     {isCurrent ? (
                       <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -551,11 +551,11 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                       style={rowIconBtnStyle}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = 'rgba(0,0,0,0.06)';
-                        e.currentTarget.style.color = 'var(--lm-text-secondary, #3a3530)';
+                        e.currentTarget.style.color = 'var(--lm-text-secondary, #404040)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'var(--lm-text-tertiary, #6e6960)';
+                        e.currentTarget.style.color = 'var(--lm-text-tertiary, #6b6b6b)';
                       }}
                     >
                       <PencilGlyph />
@@ -583,17 +583,17 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                         borderRadius: 6,
                         border: 'none',
                         background: 'transparent',
-                        color: 'var(--lm-text-tertiary, #6e6960)',
+                        color: 'var(--lm-text-tertiary, #6b6b6b)',
                         cursor: 'pointer',
                         transition: 'background .12s, color .12s',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--lm-error-light, rgba(168,65,43,0.12))';
-                        e.currentTarget.style.color = 'var(--lm-error, #A8412B)';
+                        e.currentTarget.style.background = 'var(--lm-error-light, rgba(217, 45, 32,0.12))';
+                        e.currentTarget.style.color = 'var(--lm-error, #D92D20)';
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'var(--lm-text-tertiary, #6e6960)';
+                        e.currentTarget.style.color = 'var(--lm-text-tertiary, #6b6b6b)';
                       }}
                     >
                       <TrashGlyph />
@@ -620,14 +620,14 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                       borderRadius: 8,
                       border: 'none',
                       background: 'transparent',
-                      color: 'var(--lm-accent, #B85B33)',
+                      color: 'var(--lm-accent, #111111)',
                       fontFamily: 'inherit',
                       fontSize: 13,
                       fontWeight: 600,
                       cursor: 'pointer',
                       textAlign: 'left',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--lm-accent-light, rgba(184,91,51,0.10))')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--lm-accent-light, rgba(17, 17, 17,0.10))')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <span aria-hidden="true" style={{ width: 12, textAlign: 'center', fontSize: 15, lineHeight: 1 }}>+</span>

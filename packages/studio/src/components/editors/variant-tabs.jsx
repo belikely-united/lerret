@@ -37,7 +37,7 @@ if (typeof document !== 'undefined' && !document.getElementById('variant-tabs-st
  gap: var(--lm-space-1, 4px);
  padding: var(--lm-space-1, 4px) var(--lm-space-3, 12px);
  font: var(--lm-weight-regular, 400) var(--lm-size-body, 13px)/var(--lm-lh-body, 1.45) var(--lm-font-sans, ui-sans-serif);
- color: var(--lm-text-tertiary, #6E6960);
+ color: var(--lm-text-tertiary, #6B6B6B);
  background: transparent;
  border: none;
  border-radius: var(--lm-radius-pill, 999px);
@@ -49,19 +49,19 @@ if (typeof document !== 'undefined' && !document.getElementById('variant-tabs-st
  outline: none;
 }
 .lm-variant-tab:focus-visible {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20));
  border-radius: var(--lm-radius-pill, 999px);
 }
 .lm-variant-tab[aria-selected="true"] {
  font-weight: var(--lm-weight-medium, 600);
- color: var(--lm-accent-text, #B85B33);
- background: var(--lm-accent-light, rgba(184,91,51,0.10));
+ color: var(--lm-accent-text, #111111);
+ background: var(--lm-accent-light, rgba(17, 17, 17,0.10));
 }
 .lm-variant-tab__dot {
  width: 6px;
  height: 6px;
  border-radius: var(--lm-radius-pill, 999px);
- background: var(--lm-accent, #B85B33);
+ background: var(--lm-accent, #111111);
  flex-shrink: 0;
  /* Only visible on the active tab (icon/text + dot, not color alone). */
  visibility: hidden;

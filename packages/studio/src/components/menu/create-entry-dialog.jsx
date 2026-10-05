@@ -50,8 +50,8 @@ const overlayStyle = {
 };
 
 const sheetStyle = {
-  background: 'var(--lm-bg-primary, #fdfaf3)',
-  color: 'var(--lm-text-primary, #1A1714)',
+  background: 'var(--lm-bg-primary, #ffffff)',
+  color: 'var(--lm-text-primary, #0A0A0A)',
   borderRadius: 14,
   padding: 24,
   width: 380,
@@ -66,26 +66,26 @@ const titleStyle = { margin: 0, fontSize: 16, fontWeight: 600 };
 
 const subtitleStyle = {
   fontSize: 11,
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   marginTop: 2,
 };
 
 const hintRowStyle = {
   fontSize: 11,
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   marginTop: 6,
   lineHeight: 1.4,
 };
 
 const errorRowStyle = {
   fontSize: 12,
-  color: '#B85B33',
+  color: 'var(--lm-error, #D92D20)',
   marginTop: 6,
   lineHeight: 1.4,
 };
 
 const buttonPrimary = {
-  background: 'var(--lm-accent, #B85B33)',
+  background: 'var(--lm-accent, #111111)',
   color: '#fff',
   border: 'none',
   borderRadius: 8,
@@ -111,7 +111,7 @@ const sectionLabelStyle = {
   fontWeight: 600,
   letterSpacing: '0.04em',
   textTransform: 'uppercase',
-  color: 'var(--lm-text-tertiary, #6E6960)',
+  color: 'var(--lm-text-tertiary, #6B6B6B)',
   margin: 0,
 };
 
@@ -132,8 +132,8 @@ function choiceStyle(active) {
   return {
     border: 'none',
     borderRadius: 10,
-    background: active ? 'var(--lm-accent-light, rgba(184,91,51,0.10))' : 'var(--lm-bg-secondary, #F2EEE6)',
-    color: 'var(--lm-text-primary, #1A1714)',
+    background: active ? 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' : 'var(--lm-bg-secondary, #F5F5F5)',
+    color: 'var(--lm-text-primary, #0A0A0A)',
     fontFamily: 'inherit',
     textAlign: 'left',
     cursor: 'pointer',
@@ -143,13 +143,13 @@ function choiceStyle(active) {
 const monoStyle = {
   fontFamily: 'var(--lm-font-mono, ui-monospace, monospace)',
   fontSize: 11,
-  color: 'var(--lm-text-tertiary, #6E6960)',
+  color: 'var(--lm-text-tertiary, #6B6B6B)',
 };
 
 const backButtonStyle = {
   border: 'none',
   background: 'transparent',
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   borderRadius: 6,
   width: 26,
   height: 26,
@@ -164,7 +164,7 @@ const linkButtonStyle = {
   border: 'none',
   background: 'transparent',
   padding: '8px 4px',
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   fontFamily: 'inherit',
   fontSize: 12,
   fontWeight: 500,
@@ -255,12 +255,12 @@ function inputStyle(hasError) {
     borderRadius: 8,
     border: 'none',
     background: 'var(--lm-bg-tertiary)',
-    color: 'var(--lm-text-primary, #1A1714)',
+    color: 'var(--lm-text-primary, #0A0A0A)',
     fontFamily: 'inherit',
     fontSize: 14,
     outline: 'none',
     boxShadow: hasError
-      ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B)'
+      ? 'inset 0 0 0 1.5px var(--lm-error, #D92D20)'
       : 'none',
     transition: 'box-shadow 120ms ease',
   };
@@ -555,7 +555,7 @@ export function CreateEntryDialog({
             <PlatformShapes formats={p.formats} />
             <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{p.label}</span>
-              <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6E6960)' }}>
+              <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6B6B6B)' }}>
                 {p.formats.length} sizes
               </span>
             </span>
@@ -574,7 +574,7 @@ export function CreateEntryDialog({
           </span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>Custom size</span>
-            <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6E6960)' }}>Any W × H</span>
+            <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6B6B6B)' }}>Any W × H</span>
           </span>
         </button>
       </div>
@@ -628,7 +628,7 @@ export function CreateEntryDialog({
                   alignItems: 'center',
                   gap: 10,
                   padding: '6px 10px',
-                  color: active ? 'var(--lm-accent-text, #B85B33)' : 'var(--lm-text-primary, #1A1714)',
+                  color: active ? 'var(--lm-accent-text, #111111)' : 'var(--lm-text-primary, #0A0A0A)',
                 }}
                 onClick={() => setFormatId(f.id)}
                 data-testid={`lm-create-format-${f.id}`}
@@ -678,10 +678,10 @@ export function CreateEntryDialog({
         <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Size (px)</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {numberField('width')}
-          <span aria-hidden="true" style={{ color: 'var(--lm-text-tertiary, #6E6960)' }}>×</span>
+          <span aria-hidden="true" style={{ color: 'var(--lm-text-tertiary, #6B6B6B)' }}>×</span>
           {numberField('height')}
           {preview.check.ok ? (
-            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--lm-text-secondary, #6E6960)' }}>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--lm-text-secondary, #6B6B6B)' }}>
               <RatioShape width={preview.dims.width} height={preview.dims.height} />
               <span style={monoStyle}>{formatRatio(preview.dims.width, preview.dims.height)}</span>
             </span>
@@ -711,12 +711,12 @@ export function CreateEntryDialog({
           onKeyDown={onInputKeyDown}
           onFocus={(e) => {
             e.currentTarget.style.boxShadow = inlineError
-              ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B), var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'
-              : 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))';
+              ? 'inset 0 0 0 1.5px var(--lm-error, #D92D20), var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))'
+              : 'var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))';
           }}
           onBlur={(e) => {
             e.currentTarget.style.boxShadow = inlineError
-              ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B)'
+              ? 'inset 0 0 0 1.5px var(--lm-error, #D92D20)'
               : 'none';
           }}
           placeholder={copy.placeholder}
