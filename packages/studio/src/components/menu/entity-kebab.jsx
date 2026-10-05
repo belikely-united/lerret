@@ -192,6 +192,9 @@ export function buildSectionItems(ctx) {
  { kind: 'item', id: 'edit-config', label: 'Settings…', onSelect: ctx.onEditConfig },
  SEP,
  { kind: 'item', id: 'export', label: 'Export…', onSelect: ctx.onExport },
+ typeof ctx.onExportAppStore === 'function' && {
+ kind: 'item', id: 'export-app-store', label: 'Export for App Store…', onSelect: ctx.onExportAppStore,
+ },
  typeof ctx.onExportAnimated === 'function' && {
  kind: 'item', id: 'export-animated', label: 'Export animated…', onSelect: ctx.onExportAnimated,
  },

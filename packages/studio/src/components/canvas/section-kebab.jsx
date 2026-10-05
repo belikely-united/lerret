@@ -18,6 +18,7 @@
 // calm inline text below the trigger.
 
 import React from 'react';
+import { AppStoreExportDialog } from '../export/app-store-export-dialog.jsx';
 import { createPortal } from 'react-dom';
 
 import {
@@ -252,6 +253,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  */
 export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', project, children }) {
  const [configOpen, setConfigOpen] = React.useState(false);
+ const [appStoreOpen, setAppStoreOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
 
  // ── Export state ──────────────────────────────────────────────
@@ -409,6 +411,7 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  onMove,
  onDelete,
  onExport,
+ onExportAppStore: () => setAppStoreOpen(true),
  onRevealEditor,
  onRevealFinder,
  cliMode,
@@ -515,6 +518,9 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  currentParentPath={sectionParent}
  destinations={destinations}
  />
+ )}
+ {appStoreOpen && (
+ <AppStoreExportDialog sectionId={sectionId} title={sectionTitle} onClose={() => setAppStoreOpen(false)} />
  )}
  {createKind && (
  <CreateEntryDialog
