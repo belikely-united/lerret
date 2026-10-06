@@ -25,8 +25,6 @@ import '../forms/form-controls.css';
 import './edit-mode.css';
 import {
   useEditMode,
-  toggleEditMode,
-  setEditEnabled,
   selectElement,
   canSave,
   readAssetData,
@@ -71,22 +69,17 @@ const SRC_ATTR = 'data-lerret-src';
 // ── Dock entry point ────────────────────────────────────────────────────────
 
 /**
- * The dock's Edit slot: a plain "Edit" button when off; Done · Add · history
- * when on, with the Design panel docked on the right.
+ * The dock's editing controls: + Add · Undo / Redo · save status. Editing is
+ * always on — clicking anything on a design selects it and opens the Design
+ * panel on the right; Esc or a click on empty canvas closes it.
  */
-export function EditModeDock({ Button, Separator }) {
-  const { enabled, selection } = useEditMode();
-  if (!enabled) {
-    return <Button label="Edit" icon="✎" onClick={toggleEditMode} title="Edit — click anything on a design to change it (E)" />;
-  }
+export function EditModeDock() {
+  const { selection } = useEditMode();
   return (
     <div className="lm-edock" data-edit-ui role="toolbar" aria-label="Edit">
-      <Button label="Done" icon="✎" active onClick={() => setEditEnabled(false)} title="Finish editing (Esc)" />
-      <Separator />
       <AddMenu selection={selection} />
-      <Separator />
       <History />
-      <DesignPanel selection={selection} />
+      {selection && <DesignPanel selection={selection} />}
     </div>
   );
 }
@@ -220,6 +213,7 @@ function AddMenu({ selection }) {
         aria-expanded={open}
         disabled={!board}
         title={board ? 'Add text, an image, a shape or a phone frame' : 'Click a design first, then add to it'}
+        aria-label={board ? 'Add to this design' : 'Add — click a design first'}
         onClick={() => setOpen((o) => !o)}
         data-testid="lm-design-add"
       >
@@ -288,6 +282,7 @@ const ACTION_ICONS = {
   duplicate: 'M6 6h8v8H6zM3 11V3h8',
   delete: 'M3 5h12M7 5V3h4v2M5 5l1 10h6l1-10',
   front: 'M4 7h10v8H4zM7 3h8v8',
+  close: 'M4.5 4.5l9 9M13.5 4.5l-9 9',
   back: 'M7 3h8v8H7zM4 7h10v8H4z',
 };
 
@@ -316,20 +311,7 @@ const KIND_TITLES = {
 function DesignPanel({ selection }) {
   return createPortal(
     <aside className="lm-design-panel" data-edit-ui aria-label="Design" data-testid="lm-design-panel">
-      {selection ? (
-        <ElementPanel key={`${selection.stamp}|${selection.slot}`} selection={selection} />
-      ) : (
-        <div className="lm-design-empty">
-          <h2>Design</h2>
-          <p>Click anything on a design to change it.</p>
-          <ul>
-            <li>Double-click text to type</li>
-            <li>Drag to move · pull the handles to resize</li>
-            <li>Drop images from your computer onto a design</li>
-            <li>Use <b>+ Add</b> for text, shapes or a phone frame</li>
-          </ul>
-        </div>
-      )}
+      <ElementPanel key={`${selection.stamp}|${selection.slot}`} selection={selection} />
     </aside>,
     document.body,
   );
@@ -348,6 +330,7 @@ function ElementPanel({ selection }) {
       <header className="lm-design-head">
         <h2>{KIND_TITLES[kind]}</h2>
         <span className="lm-design-head__actions">
+          <PanelAction icon="close" label="Close (Esc)" onClick={() => selectElement(null)} />
           {hasParent && <PanelAction icon="parent" label="Select what it’s inside" onClick={() => selectElement(selectionFrom(parent))} />}
           {!root && (
             <PanelAction

@@ -22,7 +22,9 @@ import { getAssetDataPath } from '../../runtime/asset-data-registry.js';
 // ── Store ───────────────────────────────────────────────────────────────────
 
 // `revision` bumps on every successful write so the Inspector re-reads the file.
-let state = { enabled: false, selection: null, status: 'idle', error: null, canUndo: false, canRedo: false, revision: 0 };
+// Editing is always on: clicking a design selects what was clicked. `enabled`
+// stays in the state for callers that still read it.
+let state = { enabled: true, selection: null, status: 'idle', error: null, canUndo: false, canRedo: false, revision: 0 };
 const listeners = new Set();
 
 function set(patch) {
@@ -442,5 +444,5 @@ export function __resetEditSession() {
   undoStack.length = 0;
   redoStack.length = 0;
   queue = Promise.resolve();
-  state = { enabled: false, selection: null, status: 'idle', error: null, canUndo: false, canRedo: false, revision: 0 };
+  state = { enabled: true, selection: null, status: 'idle', error: null, canUndo: false, canRedo: false, revision: 0 };
 }

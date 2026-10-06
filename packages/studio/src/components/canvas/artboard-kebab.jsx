@@ -68,7 +68,7 @@ import { suspendLiveRefresh } from './live-refresh-suspend.js';
 import { SizeBadge, SizePopover } from './size-control.jsx';
 import { writeProjectFile, deleteProjectFile, readProjectFile, hostedWritesEnabled } from '../../runtime/write-client.js';
 import { CreateEntryDialog } from '../menu/create-entry-dialog.jsx';
-import { createVariant, setEditEnabled } from '../edit-mode/edit-session.js';
+import { createVariant } from '../edit-mode/edit-session.js';
 import { KIND_ICONS } from '../menu/kind-icons.jsx';
 import { rewriteMetaExport } from '../editors/meta-source-rewriter.js';
 import { defaultReadAssetSource } from '../editors/meta-editor.jsx';
@@ -706,7 +706,6 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  meta: (entry?.variantNames?.length || 0) > 1 ? 'Variant' : 'Artboard',
  icon: KIND_ICONS.component,
  },
- onEditVisually: () => setEditEnabled(true),
  onEditData: openData,
  onEditMeta: () => setMetaOpen(true),
  onLiveRefresh,

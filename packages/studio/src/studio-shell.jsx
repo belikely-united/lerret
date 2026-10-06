@@ -25,7 +25,6 @@ import * as ReactDOM from 'react-dom';
 import { PagePicker } from './components/dock/page-picker.jsx';
 import { EditModeLayer } from './components/edit-mode/edit-mode-layer.jsx';
 import { EditModeDock } from './components/edit-mode/edit-dock.jsx';
-import { useEditMode } from './components/edit-mode/edit-session.js';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
 // Epic 8 / Story 8.2 — the dock-mounted AI input cluster. It reaches @lerret/ai
@@ -407,9 +406,9 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  // When `null` (e.g. the brownfield `#storyboard` page, not a Lerret
  // project), the dock falls back to the studio-shell page buttons.
  const projectPages = useProjectPages();
- // While editing, the dock IS the edit toolbar: brand + page nav step aside
- // (hidden, not unmounted, so their dialogs/state survive).
- const { enabled: editing } = useEditMode();
+ // Editing is always on and lives beside the brand + page nav, never instead
+ // of them.
+ const editing = false;
  // The loaded ProjectNode — used by the "Export project" button.
  const projectModel = useProjectModel();
  // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
@@ -668,7 +667,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
   idle-only fallback and the surrounding brand / page-picker children keep
   working. */}
  {!editing && <StudioDockSeparator />}
- <EditModeDock Button={StudioDockButton} Separator={StudioDockSeparator} />
+ <EditModeDock />
  {SHOW_AI_INPUT && <StudioDockSeparator />}
  {SHOW_AI_INPUT && (
  <AiInputCluster

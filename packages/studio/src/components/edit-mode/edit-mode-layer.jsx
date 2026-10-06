@@ -18,8 +18,6 @@ import { useSelectionScope, fileScope } from '../../ai/selection-scope-context.j
 import {
   useEditMode,
   getEditState,
-  toggleEditMode,
-  setEditEnabled,
   selectElement,
   loadEngine,
   readSource,
@@ -379,16 +377,9 @@ export function EditModeLayer() {
       // A dialog owns the keyboard while it is open (New asset, confirms, …).
       if (document.querySelector('[aria-modal="true"]')) return;
       const mod = e.metaKey || e.ctrlKey;
-      if (!mod && !e.altKey && (e.key === 'e' || e.key === 'E')) {
-        e.preventDefault();
-        toggleEditMode();
-        return;
-      }
-      const { enabled: on, selection: sel } = getEditState();
-      if (!on) return;
+      const { selection: sel } = getEditState();
       if (e.key === 'Escape') {
         if (sel) selectElement(null);
-        else setEditEnabled(false);
       } else if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -440,8 +431,13 @@ export function EditModeLayer() {
       hoverRef.current = stampedTarget(e.target);
     };
 
+    // Where the last press started — a click that ends a canvas pan isn't a
+    // "click on empty canvas" and must not clear the selection.
+    let downAt = null;
+
     const onDown = (e) => {
       if (e.button !== 0) return;
+      downAt = { x: e.clientX, y: e.clientY };
       const sel = getEditState().selection;
       const el = stampedTarget(e.target);
       if (!sel || !el || el.isContentEditable) return;
@@ -496,7 +492,20 @@ export function EditModeLayer() {
 
     const onClick = (e) => {
       const el = stampedTarget(e.target);
-      if (!el) return;
+      if (!el) {
+        // A plain click on empty canvas (not a pan, not chrome) clears the selection.
+        const t = e.target;
+        const still = downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < DRAG_THRESHOLD_PX;
+        if (
+          still &&
+          t && typeof t.closest === 'function' &&
+          t.closest('.design-canvas') &&
+          !t.closest('[data-dc-slot], button, a, input, select, textarea, [role="menu"], .dc-section-tag')
+        ) {
+          selectElement(null);
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       if (swallowClick) {
