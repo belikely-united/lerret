@@ -75,6 +75,8 @@ import { SectionKebab } from './section-kebab.jsx';
 // the shared CreateEntryDialog; `create` performs the write.
 import { CreateEntryDialog, create, inCliMode } from '../menu/index.js';
 import { ImageDropLayer } from './image-drop-layer.jsx';
+import { WorkflowView } from '../workflow/workflow-view.jsx';
+import { useWorkflowMode } from '../workflow/workflow-mode.js';
 import { readProjectFile, writeProjectFile } from '../../runtime/write-client.js';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -348,6 +350,8 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // `page` scope (the page itself / a multi-asset section). The scope persists
  // across turns; only the chip's × / Delete / Backspace clears it (AC-4).
  const { setScope: setAiScope } = useSelectionScope();
+ // Workflow mode replaces the canvas view with the node workflow for this page.
+ const workflowOn = useWorkflowMode();
  // Emit a selection scope for a clicked section. `kind` distinguishes a page
  // section (whole-page scope) from a group/asset section. A section holding
  // exactly one asset maps to a `file` scope on that asset; anything else maps
@@ -597,6 +601,14 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  </>
  );
  }
+ // Workflow mode: the page's renderable designs become nodes.
+ const workflowView = workflowOn ? (
+ <WorkflowView
+ page={page}
+ lerretDir={project.path}
+ entries={sections.flatMap((s) => s.entries).filter((e) => e.assetKind === 'component' && e.Component && e.status !== 'error')}
+ />
+ ) : null;
  if (sections.length === 0) {
  const pageChildNames = [
  ...(page.groups || []).map((g) => g.name),
@@ -605,6 +617,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  return (
  <>
  <ImageDropLayer pagePath={page.path} enabled={cliMode} />
+ {workflowView}
  <ProjectCanvasNotice
  title={page.name}
  dropPage={cliMode}
@@ -862,6 +875,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  )}
  </DesignCanvas>
  <ImageDropLayer pagePath={page.path} enabled={cliMode} />
+ {workflowView}
  {createDialog}
  </>
  );
