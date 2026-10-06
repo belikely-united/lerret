@@ -24,6 +24,7 @@ import * as ReactDOM from 'react-dom';
 
 import { PagePicker } from './components/dock/page-picker.jsx';
 import { EditModeLayer } from './components/edit-mode/edit-mode-layer.jsx';
+import { WorkflowSwitch } from './components/workflow/workflow-switch.jsx';
 import { EditModeDock } from './components/edit-mode/edit-dock.jsx';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
@@ -667,6 +668,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
   idle-only fallback and the surrounding brand / page-picker children keep
   working. */}
  {!editing && <StudioDockSeparator />}
+ <WorkflowSwitch />
  <EditModeDock />
  {SHOW_AI_INPUT && <StudioDockSeparator />}
  {SHOW_AI_INPUT && (
