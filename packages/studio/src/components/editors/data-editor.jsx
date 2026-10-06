@@ -144,13 +144,13 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
 }
 .lm-data-editor__empty {
  font: var(--lm-weight-regular, 400) var(--lm-size-body, 13px)/var(--lm-lh-body, 1.45) var(--lm-font-sans);
- color: var(--lm-text-tertiary, #6E6960);
+ color: var(--lm-text-tertiary, #6B6B6B);
  padding: var(--lm-space-3, 12px) 0;
 }
 .lm-data-editor__path {
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
  font-size: var(--lm-size-hint, 10px);
- color: var(--lm-text-muted, #B8B3A8);
+ color: var(--lm-text-muted, #A3A3A3);
  margin: 0;
  letter-spacing: 0.04em;
 }
@@ -165,8 +165,8 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
  font-size: var(--lm-size-body, 13px);
  line-height: var(--lm-lh-body, 1.45);
- color: var(--lm-text-primary, #1A1714);
- background: var(--lm-bg-tertiary, #E8E2D4);
+ color: var(--lm-text-primary, #0A0A0A);
+ background: var(--lm-bg-tertiary, #EBEBEB);
  border: none;
  border-radius: var(--lm-radius-sm, 6px);
  outline: none;
@@ -185,7 +185,7 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  align-items: flex-start;
  gap: var(--lm-space-1, 4px);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-error, #A8412B);
+ color: var(--lm-error, #D92D20);
  line-height: var(--lm-lh-body, 1.45);
  margin: 0;
 }
@@ -194,7 +194,7 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  align-items: center;
  gap: var(--lm-space-1, 4px);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-text-tertiary, #6E6960);
+ color: var(--lm-text-tertiary, #6B6B6B);
  opacity: 0;
  transition: opacity var(--lm-duration-base, 220ms) var(--lm-ease);
 }
@@ -203,7 +203,7 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  width: 6px;
  height: 6px;
  border-radius: var(--lm-radius-pill, 999px);
- background: var(--lm-success, #4A6B3F);
+ background: var(--lm-success, #12805C);
 }
 .lm-data-editor__error-banner {
  display: flex;
@@ -213,7 +213,7 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  background: var(--lm-error-light);
  border-radius: var(--lm-radius-sm, 6px);
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-text-primary, #1A1714);
+ color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-data-editor__create {
  display: flex;
@@ -223,13 +223,13 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
 }
 .lm-data-editor__create-msg {
  font: var(--lm-weight-regular, 400) var(--lm-size-body, 13px)/var(--lm-lh-body, 1.45) var(--lm-font-sans, ui-sans-serif);
- color: var(--lm-text-secondary, #3A3530);
+ color: var(--lm-text-secondary, #404040);
  margin: 0;
 }
 .lm-data-editor__create-path {
  font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
  font-size: var(--lm-size-hint, 10px);
- color: var(--lm-text-muted, #B8B3A8);
+ color: var(--lm-text-muted, #A3A3A3);
  letter-spacing: 0.04em;
 }
 .lm-data-editor__create-btn {
@@ -238,8 +238,8 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  gap: var(--lm-space-1, 4px);
  padding: var(--lm-space-2, 8px) var(--lm-space-3, 12px);
  font: var(--lm-weight-medium, 600) var(--lm-size-body, 13px)/var(--lm-lh-body, 1.45) var(--lm-font-sans, ui-sans-serif);
- color: var(--lm-bg-primary, #FAF8F2);
- background: var(--lm-accent, #B85B33);
+ color: var(--lm-bg-primary, #FFFFFF);
+ background: var(--lm-accent, #111111);
  border: none;
  border-radius: var(--lm-radius-sm, 6px);
  cursor: pointer;
@@ -248,7 +248,7 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
  transition: opacity var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
 }
 .lm-data-editor__create-btn:focus-visible {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20));
 }
 .lm-data-editor__create-btn:disabled {
  opacity: 0.5;
@@ -256,7 +256,7 @@ if (typeof document !== 'undefined' && !document.getElementById('data-editor-sty
 }
 .lm-data-editor__create-error {
  font-size: var(--lm-size-body-sm, 12px);
- color: var(--lm-error, #A8412B);
+ color: var(--lm-error, #D92D20);
  margin: 0;
 }
 

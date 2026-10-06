@@ -150,7 +150,7 @@ export function ObjectControl({ fieldKey, schema, value, onChange, onCommit, dis
  margin: 0,
  fontFamily: 'var(--lm-font-sans)',
  fontSize: 'var(--lm-size-body-sm, 12px)',
- color: 'var(--lm-text-muted, #B8B3A8)',
+ color: 'var(--lm-text-muted, #A3A3A3)',
  }}
  >
  No properties defined.

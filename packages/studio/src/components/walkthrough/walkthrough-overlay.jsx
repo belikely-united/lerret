@@ -74,13 +74,13 @@ function getFocusable(container) {
 // ── Button styles — matching the brownfield's tourBtn* tokens ───────────────
 const tourBtnGhost = {
  border: 'none', background: 'transparent',
- color: 'var(--lm-text-secondary, #3A3530)', fontSize: 13, fontWeight: 500,
+ color: 'var(--lm-text-secondary, #404040)', fontSize: 13, fontWeight: 500,
  padding: '7px 12px', borderRadius: 6, cursor: 'pointer',
  fontFamily: 'inherit',
 };
 const tourBtnPrimary = {
- border: 'none', background: 'var(--lm-accent, #B85B33)',
- color: 'var(--lm-surface, #FAF8F2)', fontSize: 13, fontWeight: 600,
+ border: 'none', background: 'var(--lm-accent, #111111)',
+ color: 'var(--lm-surface, #FFFFFF)', fontSize: 13, fontWeight: 600,
  padding: '8px 16px', borderRadius: 6, cursor: 'pointer',
  fontFamily: 'inherit',
 };
@@ -139,11 +139,11 @@ function WalkthroughCaptionCard({
  position: 'absolute',
  ...captionPos,
  width: 320,
- background: 'var(--lm-surface, #FAF8F2)',
+ background: 'var(--lm-surface, #FFFFFF)',
  borderRadius: 12,
  padding: '18px 20px 16px',
- boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
- color: 'var(--lm-text-primary, #1A1714)',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(0, 0, 0,0.22))',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  pointerEvents: 'auto',
  // No transition when prefers-reduced-motion
  transition: prefersReducedMotion ? 'none' : undefined,
@@ -155,17 +155,17 @@ function WalkthroughCaptionCard({
  <div style={{
  fontSize: 10, fontWeight: 600,
  letterSpacing: '0.14em', textTransform: 'uppercase',
- color: 'var(--lm-accent-muted, #92421E)',
+ color: 'var(--lm-accent-muted, #2B2B2B)',
  marginBottom: 10,
  }}>Step {stepIdx + 1} of {total}</div>
  <div style={{
  fontFamily: '"Instrument Serif", Georgia, serif',
  fontSize: 22, lineHeight: 1.15, letterSpacing: '-0.01em',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  marginBottom: 8,
  }}>{step.title}</div>
  {body && (
- <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--lm-text-secondary, #3A3530)' }}>
+ <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--lm-text-secondary, #404040)' }}>
  {body}
  </div>
  )}
@@ -232,11 +232,11 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  top: '50%', left: '50%',
  transform: 'translate(-50%, -50%)',
  width: 420,
- background: 'var(--lm-surface, #FAF8F2)',
+ background: 'var(--lm-surface, #FFFFFF)',
  borderRadius: 16,
  padding: '28px 28px 24px',
- boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
- color: 'var(--lm-text-primary, #1A1714)',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(0, 0, 0,0.22))',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  pointerEvents: 'auto',
  outline: 'none',
  transition: prefersReducedMotion ? 'none' : undefined,
@@ -247,26 +247,26 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  <div style={{
  fontSize: 10, fontWeight: 600,
  letterSpacing: '0.14em', textTransform: 'uppercase',
- color: 'var(--lm-accent-muted, #92421E)',
+ color: 'var(--lm-accent-muted, #2B2B2B)',
  marginBottom: 14,
  }}>Done · Step {stepIdx + 1} of {total}</div>
  <div style={{
  fontFamily: '"Instrument Serif", Georgia, serif',
  fontSize: 30, lineHeight: 1.1, letterSpacing: '-0.02em',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  marginBottom: 14,
  }}>You&rsquo;re all set.</div>
- <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--lm-text-secondary, #3A3530)', marginBottom: 22 }}>
+ <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--lm-text-secondary, #404040)', marginBottom: 22 }}>
  Edit files in your code editor or with an AI tool — Lerret renders changes in real time.
  For data, config, meta, and Markdown, use the kebab menu forms inside the studio.
  Export single artboards or the whole project as a ZIP from the dock.
  </div>
  <div style={{
- background: 'var(--lm-accent-light, rgba(184,91,51,0.10))',
+ background: 'var(--lm-accent-light, rgba(17, 17, 17,0.10))',
  borderRadius: 8,
  padding: '10px 14px',
  fontSize: 13,
- color: 'var(--lm-text-secondary, #3A3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  marginBottom: 22,
  }}>
  Read the docs at{' '}
@@ -275,7 +275,7 @@ function WalkthroughDoneCard({ stepIdx, total, onBack, onClose, prefersReducedMo
  href="https://docs.lerret.io"
  target="_blank"
  rel="noopener noreferrer"
- style={{ color: 'var(--lm-accent, #B85B33)', fontWeight: 600, textDecoration: 'none' }}
+ style={{ color: 'var(--lm-accent, #111111)', fontWeight: 600, textDecoration: 'none' }}
  >
  docs.lerret.io
  </a>
@@ -453,7 +453,7 @@ export function StudioWalkthroughOverlay({ onClose }) {
  height: rect.height + PAD * 2,
  borderRadius: 10,
  pointerEvents: 'none',
- boxShadow: '0 0 0 2px var(--lm-accent, #B85B33), 0 0 0 6px rgba(184,91,51,0.18), 0 0 28px rgba(184,91,51,0.32)',
+ boxShadow: '0 0 0 2px var(--lm-accent, #111111), 0 0 0 6px rgba(17, 17, 17,0.18), 0 0 28px rgba(17, 17, 17,0.32)',
  // No layout-property transition: the dim strips snap, so the ring snaps with them.
  }} />
  </React.Fragment>
@@ -532,7 +532,7 @@ export function WalkthroughOffer({ onAccept, onDecline }) {
  WebkitBackdropFilter: 'blur(14px) saturate(120%)',
  borderRadius: 12,
  padding: '12px 16px',
- boxShadow: 'var(--lm-shadow-lg, 0 8px 24px rgba(26,23,20,0.16))',
+ boxShadow: 'var(--lm-shadow-lg, 0 8px 24px rgba(0, 0, 0,0.16))',
  display: 'flex',
  alignItems: 'center',
  gap: 12,
@@ -540,7 +540,7 @@ export function WalkthroughOffer({ onAccept, onDecline }) {
  whiteSpace: 'nowrap',
  }}
  >
- <span style={{ fontSize: 13, color: 'var(--lm-text-secondary, #3A3530)' }}>
+ <span style={{ fontSize: 13, color: 'var(--lm-text-secondary, #404040)' }}>
  First time here? Take the quick tour.
  </span>
  <button

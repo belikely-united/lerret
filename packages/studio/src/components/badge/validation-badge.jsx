@@ -55,10 +55,10 @@ if (typeof document !== 'undefined' && !document.getElementById('validation-badg
  letter-spacing: 0.04em;
  line-height: 1;
  /* Warning-amber (calm, never error-red) */
- color: var(--lm-warning, #B07B1F);
+ color: var(--lm-warning, #B54708);
  background: var(--lm-warning-light, rgba(176, 123, 31, 0.10));
  border-radius: var(--lm-radius-sm, 6px);
- box-shadow: var(--lm-shadow-xs, 0 1px 2px rgba(26, 23, 20, 0.05));
+ box-shadow: var(--lm-shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.05));
  cursor: pointer;
  user-select: none;
  outline: none;
@@ -69,12 +69,12 @@ if (typeof document !== 'undefined' && !document.getElementById('validation-badg
 
 .lm-validation-badge:hover {
  background: var(--lm-warning-hover, rgba(176, 123, 31, 0.16));
- box-shadow: var(--lm-shadow-sm, 0 1px 3px rgba(26, 23, 20, 0.10));
+ box-shadow: var(--lm-shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.10));
 }
 
 /* NFR14: keyboard focus ring — uses the shared accent-border focus token */
 .lm-validation-badge:focus-visible {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20));
 }
 
 /* Tooltip (shown on hover and focus via HTML title attribute — native, no JS) */

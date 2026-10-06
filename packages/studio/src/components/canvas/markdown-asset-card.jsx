@@ -46,11 +46,11 @@ export function ensureMarkdownCardStyles() {
 .lm-md-card{
  box-sizing:border-box;
  width:100%;
- background:var(--lm-bg-primary,#FAF8F2);
+ background:var(--lm-bg-primary,#FFFFFF);
  border-radius:var(--lm-radius-lg,12px);
- box-shadow:var(--lm-shadow-sm,0 1px 3px rgba(26,23,20,.10));
+ box-shadow:var(--lm-shadow-sm,0 1px 3px rgba(0, 0, 0,.10));
  font-family:var(--lm-font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
- color:var(--lm-text-secondary,#3A3530);
+ color:var(--lm-text-secondary,#404040);
  overflow:hidden;
 }
 .lm-md-card__tag{
@@ -58,7 +58,7 @@ export function ensureMarkdownCardStyles() {
  margin-bottom:var(--lm-space-4,16px);
  font:var(--lm-weight-semibold,600) var(--lm-size-hint,10px)/1 var(--lm-font-sans,sans-serif);
  letter-spacing:var(--lm-tracking-caps,0.5px);
- color:var(--lm-text-muted,#B8B3A8);
+ color:var(--lm-text-muted,#A3A3A3);
 }
 .lm-md-card__tag svg{flex:none;}
 .lm-md-card__body{
@@ -71,7 +71,7 @@ export function ensureMarkdownCardStyles() {
 .lm-md-doc>*:last-child{margin-bottom:0;}
 .lm-md-doc h1,.lm-md-doc h2,.lm-md-doc h3,
 .lm-md-doc h4,.lm-md-doc h5,.lm-md-doc h6{
- color:var(--lm-text-primary,#1A1714);
+ color:var(--lm-text-primary,#0A0A0A);
  font-family:var(--lm-font-sans,sans-serif);
  font-weight:var(--lm-weight-semibold,600);
  line-height:var(--lm-lh-tight,1.2);
@@ -87,28 +87,28 @@ export function ensureMarkdownCardStyles() {
 }
 .lm-md-doc p{margin:var(--lm-space-3,12px) 0;}
 .lm-md-doc a{
- color:var(--lm-accent,#B85B33);
+ color:var(--lm-accent,#111111);
  text-decoration:underline;
  text-underline-offset:2px;
 }
-.lm-md-doc a:hover{color:var(--lm-accent-hover,#92421E);}
-.lm-md-doc strong{color:var(--lm-text-primary,#1A1714);font-weight:var(--lm-weight-semibold,600);}
+.lm-md-doc a:hover{color:var(--lm-accent-hover,#2B2B2B);}
+.lm-md-doc strong{color:var(--lm-text-primary,#0A0A0A);font-weight:var(--lm-weight-semibold,600);}
 .lm-md-doc em{font-style:italic;}
 .lm-md-doc ul,.lm-md-doc ol{margin:var(--lm-space-3,12px) 0;padding-left:var(--lm-space-6,24px);}
 .lm-md-doc li{margin:var(--lm-space-1,4px) 0;}
-.lm-md-doc li::marker{color:var(--lm-text-tertiary,#6E6960);}
+.lm-md-doc li::marker{color:var(--lm-text-tertiary,#6B6B6B);}
 .lm-md-doc code{
  font-family:var(--lm-font-mono,"Geist Mono",monospace);
  font-size:0.92em;
- background:var(--lm-bg-tertiary,#E8E2D4);
- color:var(--lm-text-primary,#1A1714);
+ background:var(--lm-bg-tertiary,#EBEBEB);
+ color:var(--lm-text-primary,#0A0A0A);
  padding:2px 6px;
  border-radius:var(--lm-radius-xs,4px);
 }
 .lm-md-doc pre{
  margin:var(--lm-space-4,16px) 0;
  padding:var(--lm-space-4,16px);
- background:var(--lm-bg-tertiary,#E8E2D4);
+ background:var(--lm-bg-tertiary,#EBEBEB);
  border-radius:var(--lm-radius-md,8px);
  overflow:auto;
 }
@@ -118,21 +118,21 @@ export function ensureMarkdownCardStyles() {
  padding:0;
  font-size:var(--lm-size-body-sm,12px);
  line-height:var(--lm-lh-body,1.45);
- color:var(--lm-text-secondary,#3A3530);
+ color:var(--lm-text-secondary,#404040);
 }
 .lm-md-doc blockquote{
  margin:var(--lm-space-4,16px) 0;
  padding:var(--lm-space-2,8px) var(--lm-space-4,16px);
- background:var(--lm-accent-light,rgba(184,91,51,0.06));
+ background:var(--lm-accent-light,rgba(17, 17, 17,0.06));
  border-radius:var(--lm-radius-sm,6px);
- color:var(--lm-text-tertiary,#6E6960);
+ color:var(--lm-text-tertiary,#6B6B6B);
  font-style:italic;
 }
 .lm-md-doc hr{
  margin:var(--lm-space-5,20px) 0;
  border:none;
  height:1px;
- background:var(--lm-bg-tertiary,#E8E2D4);
+ background:var(--lm-bg-tertiary,#EBEBEB);
 }
 .lm-md-doc img{max-width:100%;border-radius:var(--lm-radius-sm,6px);}
 .lm-md-doc table{
@@ -144,9 +144,9 @@ export function ensureMarkdownCardStyles() {
  padding:var(--lm-space-2,8px) var(--lm-space-3,12px);
  text-align:left;
 }
-.lm-md-doc th{background:var(--lm-bg-secondary,#F2EEE6);color:var(--lm-text-primary,#1A1714);}
+.lm-md-doc th{background:var(--lm-bg-secondary,#F5F5F5);color:var(--lm-text-primary,#0A0A0A);}
 .lm-md-card__empty{
- color:var(--lm-text-muted,#B8B3A8);
+ color:var(--lm-text-muted,#A3A3A3);
  font-size:var(--lm-size-body-sm,12px);
  font-style:italic;
 }

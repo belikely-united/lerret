@@ -117,7 +117,7 @@ export function RerenderCue({ cueKey }) {
  // palette.
  boxShadow:
  phase === 'show'
- ? '0 0 0 1.5px var(--lm-accent, #B85B33), 0 0 12px 1px var(--lm-accent-border, rgba(184,91,51,0.35))'
+ ? '0 0 0 1.5px var(--lm-accent, #111111), 0 0 12px 1px var(--lm-accent-border, rgba(17, 17, 17,0.35))'
  : '0 0 0 1.5px transparent, 0 0 0 0 transparent',
  }}
  />

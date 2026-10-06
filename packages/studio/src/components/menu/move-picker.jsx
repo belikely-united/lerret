@@ -39,8 +39,8 @@ const overlayStyle = {
 };
 
 const sheetStyle = {
- background: 'var(--lm-bg-primary, #fdfaf3)',
- color: 'var(--lm-text-primary, #1A1714)',
+ background: 'var(--lm-bg-primary, #ffffff)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  borderRadius: 14,
  padding: 24,
  minWidth: 380,
@@ -66,7 +66,7 @@ const titleStyle = {
 
 const subtitleStyle = {
  fontSize: 11,
- color: 'var(--lm-text-secondary, #6E6960)',
+ color: 'var(--lm-text-secondary, #6B6B6B)',
  marginTop: 2,
 };
 
@@ -81,7 +81,7 @@ const listStyle = {
 };
 
 const buttonPrimary = {
- background: 'var(--lm-accent, #B85B33)',
+ background: 'var(--lm-accent, #111111)',
  color: '#fff',
  border: 'none',
  borderRadius: 8,
@@ -104,7 +104,7 @@ const buttonSecondary = {
 
 const errorRowStyle = {
  fontSize: 12,
- color: '#B85B33',
+ color: 'var(--lm-error, #D92D20)',
  lineHeight: 1.4,
 };
 
@@ -291,7 +291,7 @@ export function MovePicker({
  <div
  style={{
  fontSize: 13,
- color: 'var(--lm-text-secondary, #6E6960)',
+ color: 'var(--lm-text-secondary, #6B6B6B)',
  padding: 16,
  textAlign: 'center',
  background: 'var(--lm-bg-secondary)',
@@ -323,14 +323,14 @@ export function MovePicker({
  alignItems: 'flex-start',
  width: '100%',
  padding: '8px 12px',
- background: isSelected ? 'var(--lm-accent-light, rgba(184,91,51,0.10))' : 'transparent',
+ background: isSelected ? 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' : 'transparent',
  border: 'none',
  textAlign: 'left',
  color: isSelected
- ? 'var(--lm-accent-text, #B85B33)'
+ ? 'var(--lm-accent-text, #111111)'
  : d.disabled
- ? 'var(--lm-text-tertiary, #9C968A)'
- : 'var(--lm-text-primary, #1A1714)',
+ ? 'var(--lm-text-tertiary, #6B6B6B)'
+ : 'var(--lm-text-primary, #0A0A0A)',
  cursor: d.disabled ? 'not-allowed' : 'pointer',
  fontFamily: 'inherit',
  fontSize: 13,
@@ -340,7 +340,7 @@ export function MovePicker({
  <span
  style={{
  fontSize: 11,
- color: 'var(--lm-text-secondary, #6E6960)',
+ color: 'var(--lm-text-secondary, #6B6B6B)',
  marginTop: 2,
  }}
  >

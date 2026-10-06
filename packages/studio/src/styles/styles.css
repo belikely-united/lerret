@@ -63,8 +63,8 @@ textarea { border: none; }
  background: #fff;
 }
 .lm-art--dark {
- background: #1F1D1A;
- color: #ECE7DC;
+ background: #141414;
+ color: #EDEDED;
 }
 
 /* gradient blob + grain backdrop — sienna painter palette */
@@ -76,7 +76,7 @@ textarea { border: none; }
  radial-gradient(circle at 18% 28%, rgba(146, 66, 30, 0.55) 0%, transparent 40%),
  radial-gradient(circle at 82% 72%, rgba(232, 201, 184, 0.55) 0%, transparent 45%),
  radial-gradient(circle at 60% 18%, rgba(208, 130, 89, 0.45) 0%, transparent 38%),
- linear-gradient(160deg, #92421E 0%, #B85B33 30%, #D08259 60%, #E8C9B8 100%);
+ linear-gradient(160deg, #2B2B2B 0%, #111111 30%, #525252 60%, #E5E5E5 100%);
  filter: blur(120px) saturate(110%);
  opacity: 0.32;
  z-index: 0;
@@ -413,19 +413,19 @@ textarea { border: none; }
  text-transform: uppercase; letter-spacing: 0.14em;
  color: var(--lm-accent-hover);
  padding: 6px 10px;
- background: #FAF8F2;
+ background: #FFFFFF;
  border: none;
  border-radius: 999px;
- box-shadow: 0 2px 8px rgba(26,23,20,0.06);
+ box-shadow: 0 2px 8px rgba(0, 0, 0,0.06);
 }
 .lm-mark-eyebrow--amber {
- color: #92421E;
- background: #FAF8F2;
+ color: #2B2B2B;
+ background: #FFFFFF;
  border: none;
 }
 .lm-mark-eyebrow--ondark {
- color: #ECE7DC;
- background: rgba(26,23,20,0.55);
+ color: #EDEDED;
+ background: rgba(0, 0, 0,0.55);
  border: none;
  backdrop-filter: blur(8px);
  -webkit-backdrop-filter: blur(8px);
@@ -434,32 +434,32 @@ textarea { border: none; }
 .lm-display {
  font: 400 72px/0.98 var(--lm-font-display);
  letter-spacing: -0.025em;
- color: #1A1714;
+ color: #0A0A0A;
  margin: 0;
  text-wrap: balance;
 }
-.lm-display--dark { color: #ECE7DC; }
+.lm-display--dark { color: #EDEDED; }
 .lm-display em {
  font-style: italic;
- color: #3A3530;
+ color: #404040;
  background: none;
  -webkit-text-fill-color: currentColor;
 }
 .lm-display--dark em {
  font-style: italic;
- color: #C4BFB4;
+ color: #BDBDBD;
  background: none;
  -webkit-text-fill-color: currentColor;
 }
 
 .lm-sub {
  font: 400 18px/1.5 var(--lm-font-sans);
- color: #3A3530;
+ color: #404040;
  max-width: 540px;
  margin: 0;
  text-wrap: pretty;
 }
-.lm-sub--dark { color: #C4BFB4; }
+.lm-sub--dark { color: #BDBDBD; }
 
 /* hero kbd */
 .lm-bigkbd {
@@ -467,15 +467,15 @@ textarea { border: none; }
  font: 600 14px/1 var(--lm-font-mono);
  min-width: 26px; height: 26px;
  padding: 0 8px;
- background: #FAF8F2;
- color: #1A1714;
- border: 1px solid #DDD7CA;
- border-bottom: 3px solid #C7C0AF;
+ background: #FFFFFF;
+ color: #0A0A0A;
+ border: 1px solid #DCDCDC;
+ border-bottom: 3px solid #C9C9C9;
  border-radius: 6px;
 }
 .lm-bigkbd--dark {
- background: #2A2723; color: #ECE7DC;
- border-color: #3A3530; border-bottom-color: #1F1D1A;
+ background: #1F1F1F; color: #EDEDED;
+ border-color: #404040; border-bottom-color: #141414;
 }
 
 /* tool chip strip */
@@ -497,23 +497,23 @@ textarea { border: none; }
 
 /* code block — Lerret gallery surface */
 .lm-codeblock {
- background: #1F1D1A;
- border: 1px solid #2A2723;
+ background: #141414;
+ border: 1px solid #1F1F1F;
  border-radius: 12px;
  padding: 18px 20px;
  font: 500 14px/1.7 var(--lm-font-mono);
- color: #ECE7DC;
+ color: #EDEDED;
  position: relative;
 }
-.lm-codeblock .prompt { color: #D08259; user-select: none; }
-.lm-codeblock .cmd { color: #ECE7DC; }
-.lm-codeblock .comment { color: #6E6960; }
+.lm-codeblock .prompt { color: #525252; user-select: none; }
+.lm-codeblock .cmd { color: #EDEDED; }
+.lm-codeblock .comment { color: #6B6B6B; }
 .lm-codeblock .ok { color: #B0C99A; }
 .lm-codeblock .warn { color: #D8C99B; }
 
 /* dotted bg — warm ink dots on linen / ash on gallery */
 .lm-dotgrid {
- background-image: radial-gradient(rgba(26,23,20,0.08) 1px, transparent 1px);
+ background-image: radial-gradient(rgba(0, 0, 0,0.08) 1px, transparent 1px);
  background-size: 22px 22px;
 }
 .lm-dotgrid--dark {

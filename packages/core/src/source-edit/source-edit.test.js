@@ -8,6 +8,10 @@ import {
   inspectElement,
   applyEdit,
   SRC_ATTR,
+  insertImageLayer,
+  insertImageLayers,
+  insertElement,
+  fillImageSlot,
 } from './index.js';
 
 const HERO = `const TONES = { warm: 'linear-gradient(#fb923c, #f43f5e)' };
@@ -249,5 +253,106 @@ export const Complete = Card;
 
   it('lists export names', () => {
     expect(listExportNames(CARD)).toEqual(['default', 'Complete']);
+  });
+});
+
+describe('insertImageLayer', () => {
+  const SRC = [
+    'export default function Card() {',
+    '  return (',
+    "    <div style={{ width: '100%', height: '100%', background: '#fff' }}>",
+    '      <h1>Hello</h1>',
+    '    </div>',
+    '  );',
+    '}',
+    '',
+  ].join('\n');
+  const rootAt = SRC.indexOf('<div');
+  const box = { file: 'logo.png', left: 10.4, top: 20, width: 300, height: 150 };
+
+  it('adds the image as the last child, positions the root, and declares a module-relative URL', () => {
+    const r = insertImageLayer(SRC, rootAt, box);
+    expect(r.ok).toBe(true);
+    expect(r.varName).toBe('logoSrc');
+    expect(r.code.startsWith(`const logoSrc = new URL("./logo.png", import.meta.url).href;\n\nexport default`)).toBe(true);
+    expect(r.code).toContain("background: '#fff', position: 'relative' }}");
+    expect(r.code).toContain(
+      `      <h1>Hello</h1>\n      <img src={logoSrc} alt="logo" style={{ position: 'absolute', left: 10, top: 20, width: 300, height: 150, objectFit: 'contain' }} />\n    </div>`,
+    );
+  });
+
+  it('keeps an existing position and places the URL after the imports', () => {
+    const src = `import x from './x.png';\n${SRC.replace("background: '#fff'", "position: 'absolute'")}`;
+    const r = insertImageLayer(src, src.indexOf('<div'), box);
+    expect(r.ok).toBe(true);
+    expect(r.code).toContain("import x from './x.png';\nconst logoSrc = new URL(");
+    expect(r.code.match(/position: 'relative'/g)).toBeNull();
+  });
+
+  it('opens a self-closing root and avoids a name clash', () => {
+    const src = 'const logoSrc = 1;\nexport default () => <div style={{ width: 10 }} />;\n';
+    const r = insertImageLayer(src, src.indexOf('<div'), box);
+    expect(r.ok).toBe(true);
+    expect(r.varName).toBe('logoSrc2');
+    expect(r.code).toContain('<div style={{ width: 10, position: \'relative\' }}>');
+    expect(r.code).toContain('</div>;');
+  });
+
+  it('refuses a stale offset, a path-like file, and unparsable code', () => {
+    expect(insertImageLayer(SRC, rootAt + 1, box)).toEqual({ ok: false, reason: 'changed' });
+    expect(insertImageLayer(SRC, rootAt, { ...box, file: '../x.png' })).toEqual({ ok: false, reason: 'bad-image' });
+    expect(insertImageLayer('<<<', 0, box)).toEqual({ ok: false, reason: 'parse-error' });
+  });
+
+  it('places several images in one pass, in order, with distinct names', () => {
+    const r = insertImageLayers(SRC, rootAt, [box, { ...box, file: 'logo.png', left: 50 }]);
+    expect(r.ok).toBe(true);
+    expect(r.varNames).toEqual(['logoSrc', 'logoSrc2']);
+    expect(r.code).toContain('const logoSrc = new URL("./logo.png", import.meta.url).href;\nconst logoSrc2 = new URL(');
+    expect(r.code.indexOf('src={logoSrc}')).toBeLessThan(r.code.indexOf('src={logoSrc2}'));
+    expect(insertImageLayers(SRC, rootAt, [])).toEqual({ ok: false, reason: 'bad-image' });
+  });
+
+  it('produces code that still parses', async () => {
+    const { parse } = await import('@babel/parser');
+    const r = insertImageLayer(SRC, rootAt, box);
+    expect(() => parse(r.code, { sourceType: 'module', plugins: ['jsx'] })).not.toThrow();
+  });
+});
+
+describe('insertElement', () => {
+  const SRC = "export default () => (\n  <div style={{ width: '100%' }}>\n    <p>Hi</p>\n  </div>\n);\n";
+  const at = SRC.indexOf('<div');
+
+  it('appends the element as the last child and positions the parent', () => {
+    const r = insertElement(SRC, at, "<div style={{ position: 'absolute', left: 1 }}>New</div>");
+    expect(r.ok).toBe(true);
+    expect(r.code).toContain("<p>Hi</p>\n    <div style={{ position: 'absolute', left: 1 }}>New</div>\n  </div>");
+    expect(r.code).toContain("width: '100%', position: 'relative'");
+  });
+
+  it('indents a multi-line element and refuses invalid JSX', () => {
+    const r = insertElement(SRC, at, '<div>\n  <span>a</span>\n</div>');
+    expect(r.code).toContain('    <div>\n      <span>a</span>\n    </div>\n  </div>');
+    expect(insertElement(SRC, at, '<div>')).toEqual({ ok: false, reason: 'bad-element' });
+    expect(insertElement(SRC, at, 'hello')).toEqual({ ok: false, reason: 'bad-element' });
+  });
+});
+
+describe('fillImageSlot', () => {
+  it('replaces a slot\'s placeholder with a covering image', () => {
+    const src = "export default () => <div data-image-slot=\"s\" style={{ height: 10 }}>\n  Drop here\n</div>;\n";
+    const r = fillImageSlot(src, src.indexOf('<div'), 'shot.png');
+    expect(r.ok).toBe(true);
+    expect(r.code).toContain('const shotSrc = new URL("./shot.png", import.meta.url).href;');
+    expect(r.code).toContain("<img src={shotSrc} alt=\"\" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} /></div>");
+    expect(r.code).not.toContain('Drop here');
+  });
+
+  it('swaps an <img> src (Replace image)', () => {
+    const src = "const aSrc = 'x';\nexport default () => <img src={aSrc} alt=\"a\" />;\n";
+    const r = fillImageSlot(src, src.indexOf('<img'), 'b.png');
+    expect(r.code).toContain('<img src={bSrc} alt="a" />');
+    expect(fillImageSlot(src, src.indexOf('<img'), '../b.png')).toEqual({ ok: false, reason: 'bad-image' });
   });
 });

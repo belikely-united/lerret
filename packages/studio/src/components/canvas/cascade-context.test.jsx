@@ -126,7 +126,7 @@ describe('CascadedConfigProvider + useCascadedConfig', () => {
  });
 
  it('returns the config object for a known path', () => {
- const cfg = { presentation: { background: '#f00' }, vars: { brandColor: '#B85B33' } };
+ const cfg = { presentation: { background: '#f00' }, vars: { brandColor: '#111111' } };
  const entries = [['/ui-components', cfg]];
  let result;
  function Consumer() {

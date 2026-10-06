@@ -108,22 +108,22 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
     position: fixed;
     inset: 0;
     z-index: 250;
-    background: rgba(26, 23, 20, 0.45);
+    background: rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 .lm-ollama-guide {
-    background: var(--lm-bg-primary, #FAF8F2);
+    background: var(--lm-bg-primary, #FFFFFF);
     border-radius: var(--lm-radius-lg, 12px);
-    box-shadow: var(--lm-shadow-sm, 0 4px 12px rgba(26, 23, 20, 0.10));
+    box-shadow: var(--lm-shadow-sm, 0 4px 12px rgba(0, 0, 0, 0.10));
     width: min(520px, calc(100vw - 32px));
     padding: var(--lm-space-6, 24px);
     display: flex;
     flex-direction: column;
     gap: var(--lm-space-4, 16px);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     font-family: var(--lm-font-sans, -apple-system, BlinkMacSystemFont, sans-serif);
 }
 .lm-ollama-guide__header {
@@ -140,7 +140,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
 }
 .lm-ollama-guide__indicator {
     font: 400 11px/1.2 var(--lm-font-sans);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     letter-spacing: 0.04em;
     white-space: nowrap;
 }
@@ -148,7 +148,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
     font-size: 13px;
     line-height: 1.5;
     margin: 0;
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     display: flex;
     flex-direction: column;
     gap: var(--lm-space-3, 12px);
@@ -159,7 +159,7 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
 .lm-ollama-guide__inline-code {
     font-family: var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
     font-size: 12px;
-    background: var(--lm-bg-tertiary, #E8E2D4);
+    background: var(--lm-bg-tertiary, #EBEBEB);
     padding: 1px 5px;
     border-radius: 4px;
 }
@@ -167,23 +167,23 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
     display: flex;
     align-items: center;
     gap: var(--lm-space-2, 8px);
-    background: var(--lm-bg-primary, #FAF8F2);
-    border: 1px solid var(--lm-border, #D8D2C4);
+    background: var(--lm-bg-primary, #FFFFFF);
+    border: 1px solid var(--lm-border, #DEDEDE);
     border-radius: var(--lm-radius-sm, 6px);
     padding: 10px 12px;
 }
 .lm-ollama-guide__code {
     flex: 1;
     font: 400 13px/1.5 var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace);
-    color: var(--lm-text-primary, #1A1714);
+    color: var(--lm-text-primary, #0A0A0A);
     user-select: text;
     word-break: break-all;
 }
 .lm-ollama-guide__copy {
     background: transparent;
-    border: 1px solid var(--lm-border, #D8D2C4);
+    border: 1px solid var(--lm-border, #DEDEDE);
     border-radius: var(--lm-radius-sm, 6px);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     cursor: pointer;
     padding: 5px 6px;
     display: flex;
@@ -191,32 +191,32 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
     flex-shrink: 0;
 }
 .lm-ollama-guide__copy:hover {
-    background: var(--lm-bg-tertiary, #E8E2D4);
-    color: var(--lm-text-primary, #1A1714);
+    background: var(--lm-bg-tertiary, #EBEBEB);
+    color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-ollama-guide__copy:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 2px;
 }
 .lm-ollama-guide__copied {
     font: 500 12px/1.2 var(--lm-font-sans);
-    color: var(--lm-success, #4A6B3F);
+    color: var(--lm-success, #12805C);
     min-height: 14px;
 }
 .lm-ollama-guide__note {
     font: 400 12px/1.45 var(--lm-font-sans);
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
 }
 .lm-ollama-guide__retry-note {
     font: 400 12px/1.45 var(--lm-font-sans);
-    color: var(--lm-text-secondary, #44403A);
-    background: var(--lm-bg-secondary, #F2EEE6);
-    border: 1px solid var(--lm-border, #D8D2C4);
+    color: var(--lm-text-secondary, #454545);
+    background: var(--lm-bg-secondary, #F5F5F5);
+    border: 1px solid var(--lm-border, #DEDEDE);
     border-radius: var(--lm-radius-sm, 6px);
     padding: 8px 10px;
 }
 .lm-ollama-guide__retry-note a {
-    color: var(--lm-accent-text, #92421E);
+    color: var(--lm-accent-text, #2B2B2B);
     text-decoration: underline;
     text-underline-offset: 2px;
 }
@@ -236,12 +236,12 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
     border: 1px solid transparent;
 }
 .lm-ollama-guide__btn--primary {
-    background: var(--lm-accent, #B85B33);
-    color: var(--lm-text-onAccent, #FAF8F2);
-    border-color: var(--lm-accent, #B85B33);
+    background: var(--lm-accent, #111111);
+    color: var(--lm-text-onAccent, #FFFFFF);
+    border-color: var(--lm-accent, #111111);
 }
 .lm-ollama-guide__btn--primary:hover {
-    background: var(--lm-accent-hover, #A24E2C);
+    background: var(--lm-accent-hover, #2B2B2B);
 }
 .lm-ollama-guide__btn--primary:disabled {
     opacity: 0.6;
@@ -249,23 +249,23 @@ if (typeof document !== 'undefined' && !document.getElementById('ollama-origins-
 }
 .lm-ollama-guide__btn--secondary {
     background: transparent;
-    color: var(--lm-text-primary, #1A1714);
-    border-color: var(--lm-border, #D8D2C4);
+    color: var(--lm-text-primary, #0A0A0A);
+    border-color: var(--lm-border, #DEDEDE);
 }
 .lm-ollama-guide__btn--secondary:hover {
-    background: var(--lm-bg-secondary, #F2EEE6);
+    background: var(--lm-bg-secondary, #F5F5F5);
 }
 .lm-ollama-guide__btn--ghost {
     background: transparent;
-    color: var(--lm-text-tertiary, #6E6960);
+    color: var(--lm-text-tertiary, #6B6B6B);
     border-color: transparent;
 }
 .lm-ollama-guide__btn--ghost:hover {
-    background: var(--lm-bg-tertiary, #E8E2D4);
-    color: var(--lm-text-primary, #1A1714);
+    background: var(--lm-bg-tertiary, #EBEBEB);
+    color: var(--lm-text-primary, #0A0A0A);
 }
 .lm-ollama-guide__btn:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 2px;
 }
 .lm-ollama-guide__spacer {

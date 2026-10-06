@@ -12,7 +12,7 @@ import { bringUpHostedStudio } from './hosted-bringup.js';
  *  in-memory-backed loadProject so the model genuinely loads. */
 function makeDeps(overrides = {}) {
   const backend = createMemoryBackend({
-    '.lerret/config.json': JSON.stringify({ vars: { brand: '#B85B33' } }),
+    '.lerret/config.json': JSON.stringify({ vars: { brand: '#111111' } }),
     '.lerret/marketing/Hero.jsx': 'export default () => null;',
   });
   const sw = { postMessage: vi.fn() };
@@ -43,7 +43,7 @@ describe('bringUpHostedStudio', () => {
     expect(result.runtime.__tag).toBe('runtime');
     // The model actually loaded through the in-memory backend.
     expect(result.project.pages.map((p) => p.name)).toEqual(['marketing']);
-    expect(result.cascadeEntries.find(([p]) => p === '.lerret/marketing')[1].vars.brand).toBe('#B85B33');
+    expect(result.cascadeEntries.find(([p]) => p === '.lerret/marketing')[1].vars.brand).toBe('#111111');
   });
 
   it('installs the React import map BEFORE loading any asset (order contract)', async () => {

@@ -1,37 +1,45 @@
-// Visual Edit mode — the controls, living in the dock (spec-visual-edit-mode.md).
+// The editor's controls — built for people who design, not people who code.
 //
-// Edit mode turns the dock into the edit toolbar, so there is one place to look:
-//   • nothing selected → a one-line hint
-//   • an element selected → only the few controls it most likely needs
-//       text → Size · Weight · Color · Align      box → Fill · Radius · Padding
-//   • "More" → everything else (text content, layout, position, props) in one
-//     popover above the dock
-// Style edits preview on the DOM instantly and save after a short pause; the
-// canvas side (outlines, click, drag, double-click) is edit-mode-layer.jsx.
+//   • The dock, in Edit mode: Done · Add (text, image, shapes, phone frame) ·
+//     Undo / Redo · save status.
+//   • The Design panel (right side): what the selected thing is, in plain
+//     words — Background, Text, Image, Screenshot, Phone, Shape — with only the
+//     controls that kind of thing needs: fonts, colours and gradients, corners,
+//     shadows, position and size, arrange. No tag names, file names or CSS.
+//
+// Every change previews instantly on the canvas and saves after a short pause
+// through the edit session (undoable). The canvas side — select, drag to move,
+// handles to resize, snap guides, double-click to type — is
+// edit-mode-layer.jsx.
+//
+// Motion: the panel slides in from the right edge it lives on (spatial
+// consistency, 220ms --lm-ease, translate + opacity) and only fades under
+// prefers-reduced-motion; the Add menu grows from its button.
 
 import React from 'react';
 import { createPortal } from 'react-dom';
+
+import { elementJsx, ELEMENTS } from '@lerret/core';
 
 import '../forms/form-controls.css';
 import './edit-mode.css';
 import {
   useEditMode,
-  toggleEditMode,
-  setEditEnabled,
   selectElement,
   canSave,
   readAssetData,
   dataValueFor,
   saveSourceEdit,
+  saveStyles,
   saveDataEdit,
+  addElement,
+  placeImage,
+  insertImagesIntoAsset,
   undo,
   redo,
 } from './edit-session.js';
 import {
   SAVE_DELAY_MS,
-  WEIGHTS,
-  GROUPED,
-  EDITABLE_ATTRS,
   nodesFor,
   selectedNodes,
   slotOf,
@@ -39,11 +47,10 @@ import {
   toHex,
   isTransparent,
   parseStyleInput,
-  parsePropInput,
-  humanize,
   parseTranslate,
   formatTranslate,
   isArtboardRoot,
+  absoluteBox,
   inspect,
   textTarget,
   commitText,
@@ -51,27 +58,28 @@ import {
   selectionFrom,
   deleteElement,
 } from './edit-mode-layer.jsx';
+import { CURATED_FONTS, matchCuratedFont, loadCuratedFonts } from '../../fonts/curated-fonts.js';
+import { readImageFile, splitImageName, insertBoxFor, isImageFile } from '../canvas/image-drop.js';
+import { listProjectDir } from '../../runtime/write-client.js';
+
+loadCuratedFonts();
+
+const SRC_ATTR = 'data-lerret-src';
 
 // ── Dock entry point ────────────────────────────────────────────────────────
 
 /**
- * The dock's Edit slot: a plain "Edit" button when off; the edit toolbar when
- * on. The dock passes its own button + separator so everything matches.
+ * The dock's editing controls: + Add · Undo / Redo · save status. Editing is
+ * always on — clicking anything on a design selects it and opens the Design
+ * panel on the right; Esc or a click on empty canvas closes it.
  */
-export function EditModeDock({ Button, Separator }) {
-  const { enabled, selection } = useEditMode();
-  if (!enabled) {
-    return <Button label="Edit" icon="✎" onClick={toggleEditMode} title="Edit mode — click an element to change it (E)" />;
-  }
+export function EditModeDock() {
+  const { selection } = useEditMode();
   return (
     <div className="lm-edock" data-edit-ui role="toolbar" aria-label="Edit">
-      <Button label="Done" icon="✎" active onClick={() => setEditEnabled(false)} title="Exit Edit mode (Esc)" />
-      <Separator />
-      {selection
-        ? <ElementControls key={`${selection.stamp}|${selection.slot}`} selection={selection} />
-        : <span className="lm-edock-hint" title="Double-click text to type · drag or use arrow keys to move">Click an element to edit</span>}
-      <Separator />
+      <AddMenu selection={selection} />
       <History />
+      {selection && <DesignPanel selection={selection} />}
     </div>
   );
 }
@@ -85,105 +93,562 @@ function History() {
       <button type="button" className="lm-edock-btn lm-edock-icon" disabled={!canUndo} onClick={undo} title="Undo (⌘Z)" aria-label="Undo">↶</button>
       <button type="button" className="lm-edock-btn lm-edock-icon" disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)" aria-label="Redo">↷</button>
       {!canSave() ? (
-        <span className="lm-edock-status lm-edock-status--warn" title="This studio can’t save files. Run `@lerret/cli dev` to save edits.">Preview only</span>
+        <span className="lm-edock-status lm-edock-status--warn" title="This studio can’t save files. Run `lerret dev` to save edits.">Preview only</span>
       ) : label ? (
-        // keyed on the text: each new status mounts fresh and fades in (CSS @starting-style)
         <span key={label} className={`lm-edock-status lm-edock-status--${status}`} role="status" title={label}>{label}</span>
       ) : null}
     </React.Fragment>
   );
 }
 
-// ── The selected element's controls ─────────────────────────────────────────
+// ── The selected artboard ───────────────────────────────────────────────────
 
-function ElementControls({ selection }) {
-  const ins = useInspector(selection);
-  const [moreOpen, setMoreOpen] = React.useState(false);
-  const moreRef = React.useRef(null);
-  const { info, style, isText } = ins;
-  const fileName = selection.path.split('/').pop();
+/**
+ * The artboard a selection lives in: its root element's source stamp and its
+ * size, for adding things to it.
+ *
+ * @param {object | null} selection
+ * @returns {{ slot: Element, root: Element, path: string, offset: number, width: number, height: number } | null}
+ */
+export function artboardOf(selection) {
+  if (!selection) return null;
+  const slot = [...document.querySelectorAll('[data-dc-slot]')].find((n) => n.getAttribute('data-dc-slot') === selection.slot);
+  const root = slot?.querySelector(`.dc-card [${SRC_ATTR}]`);
+  const m = /^(.*):(\d+)$/.exec(root?.getAttribute(SRC_ATTR) || '');
+  if (!slot || !root || !m) return null;
+  return {
+    slot,
+    root,
+    path: m[1],
+    offset: Number(m[2]),
+    width: Number(slot.getAttribute('data-dc-w')) || root.offsetWidth,
+    height: Number(slot.getAttribute('data-dc-h')) || root.offsetHeight,
+  };
+}
 
-  let primary;
-  if (!info) {
-    primary = <span className="lm-edock-hint">{ins.loadError || 'Loading…'}</span>;
-  } else if (style === null) {
-    primary = <span className="lm-edock-hint">Styles are set in code</span>;
-  } else if (isText) {
-    primary = (
-      <React.Fragment>
-        {ins.field('fontSize', 'Size', { compact: true })}
-        {ins.field('fontWeight', 'Weight', { kind: 'weight', compact: true })}
-        {ins.field('color', 'Color', { kind: 'swatch' })}
-        <AlignControl value={style.textAlign} fallback={ins.computed?.textAlign} onInput={(v) => ins.onStyle('textAlign', v)} />
-      </React.Fragment>
-    );
-  } else {
-    primary = (
-      <React.Fragment>
-        {ins.field(ins.bgKey, 'Fill', { kind: 'swatch' })}
-        {ins.field('borderRadius', 'Radius', { compact: true })}
-        {ins.field('padding', 'Padding', { compact: true })}
-      </React.Fragment>
-    );
-  }
+/** Wait for a newly-added top layer to render, then select it. */
+function selectNewestChild(board, before) {
+  const started = Date.now();
+  const tick = () => {
+    const fresh = artboardOf({ slot: board.slot.getAttribute('data-dc-slot') });
+    const kids = fresh ? [...fresh.root.children].filter((n) => n.hasAttribute(SRC_ATTR)) : [];
+    if (fresh && kids.length > before) {
+      selectElement(selectionFrom(kids[kids.length - 1]));
+      return;
+    }
+    if (Date.now() - started < 3000) setTimeout(tick, 120);
+  };
+  setTimeout(tick, 120);
+}
+
+// ── Add menu ────────────────────────────────────────────────────────────────
+
+const ADD_ICONS = {
+  text: 'M4 4h10M9 4v11',
+  image: 'M3 4h12v10H3zM3 12l4-4 3 3 2-2 3 3',
+  rectangle: 'M3.5 4.5h11v9h-11z',
+  circle: 'M9 3.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11z',
+  phone: 'M6 2.5h6a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 14V4A1.5 1.5 0 0 1 6 2.5zM8 13.5h2',
+};
+
+function Icon({ name, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 18 18" aria-hidden="true">
+      <path d={ADD_ICONS[name] || ACTION_ICONS[name]} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+function AddMenu({ selection }) {
+  const [open, setOpen] = React.useState(false);
+  const btnRef = React.useRef(null);
+  const fileRef = React.useRef(null);
+  const board = artboardOf(selection);
+
+  const add = async (kind) => {
+    setOpen(false);
+    if (!board) return;
+    if (kind === 'image') {
+      fileRef.current?.click();
+      return;
+    }
+    const before = [...board.root.children].filter((n) => n.hasAttribute(SRC_ATTR)).length;
+    const res = await addElement(board.path, board.offset, elementJsx(kind, board));
+    if (res.ok) selectNewestChild(board, before);
+  };
+
+  const onFile = async (e) => {
+    const files = [...(e.target.files || [])].filter(isImageFile);
+    e.target.value = '';
+    if (!board || files.length === 0) return;
+    const folder = board.path.slice(0, board.path.lastIndexOf('/'));
+    const listing = await listProjectDir(folder);
+    const taken = new Set((listing.entries || []).map((x) => String(x.name).toLowerCase()));
+    const images = [];
+    for (const [i, file] of files.entries()) {
+      const { base, ext } = splitImageName(file.name);
+      let name = base;
+      for (let n = 2; taken.has(`${name}.${ext}`.toLowerCase()); n += 1) name = `${base}-${n}`;
+      taken.add(`${name}.${ext}`.toLowerCase());
+      const read = await readImageFile(file);
+      images.push({
+        file: `${name}.${ext}`,
+        base64: read.base64,
+        alt: name,
+        ...insertBoxFor(read, board, { x: board.width / 2, y: board.height / 2 }, i),
+      });
+    }
+    const before = [...board.root.children].filter((n) => n.hasAttribute(SRC_ATTR)).length;
+    const res = await insertImagesIntoAsset({ path: board.path, offset: board.offset, images });
+    if (res.ok) selectNewestChild(board, before);
+  };
 
   return (
     <React.Fragment>
-      <span className="lm-edock-tag" title={`<${selection.tag}> in ${fileName}`}>{selection.tag}</span>
-      {primary}
-      <ElementActions selection={selection} node={ins.first} />
-      {info && (
-        <button
-          ref={moreRef}
-          type="button"
-          className="lm-edock-btn"
-          aria-expanded={moreOpen}
-          aria-haspopup="dialog"
-          onClick={() => setMoreOpen((o) => !o)}
-          title="All properties"
-        >
-          More
-        </button>
-      )}
-      {moreOpen && info && (
-        <MorePopover anchorRef={moreRef} onClose={() => setMoreOpen(false)} ins={ins} selection={selection} fileName={fileName} />
+      <button
+        ref={btnRef}
+        type="button"
+        className="lm-edock-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={!board}
+        title={board ? 'Add text, an image, a shape or a phone frame' : 'Click a design first, then add to it'}
+        aria-label={board ? 'Add to this design' : 'Add — click a design first'}
+        onClick={() => setOpen((o) => !o)}
+        data-testid="lm-design-add"
+      >
+        + Add
+      </button>
+      <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFile} data-testid="lm-design-add-file" />
+      {open && (
+        <Popover anchorRef={btnRef} onClose={() => setOpen(false)} width={200} label="Add">
+          <div role="menu" className="lm-design-menu">
+            {[{ id: 'text', label: 'Text' }, { id: 'image', label: 'Image…' }, ...ELEMENTS.filter((x) => x.id !== 'text')].map((item) => (
+              <button key={item.id} type="button" role="menuitem" className="lm-design-menu__item" onClick={() => add(item.id)} data-testid={`lm-design-add-${item.id}`}>
+                <Icon name={item.id} />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </Popover>
       )}
     </React.Fragment>
   );
 }
 
+/** A small popover above the dock, anchored to a button. */
+function Popover({ anchorRef, onClose, width, label, children }) {
+  const ref = React.useRef(null);
+  const [pos, setPos] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const a = anchorRef.current;
+    if (!a) return;
+    const dock = a.closest('[data-tour="dock"]') || a;
+    const ar = a.getBoundingClientRect();
+    const dr = dock.getBoundingClientRect();
+    const left = Math.min(Math.max(ar.left + ar.width / 2 - width / 2, 12), window.innerWidth - width - 12);
+    setPos({ left, bottom: window.innerHeight - dr.top + 8, originX: ar.left + ar.width / 2 - left });
+  }, [anchorRef, width]);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    const onDown = (e) => {
+      if (ref.current?.contains(e.target) || anchorRef.current?.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.removeEventListener('pointerdown', onDown, true);
+    };
+  }, [onClose, anchorRef]);
+  if (!pos) return null;
+  return createPortal(
+    <div ref={ref} className="lm-edit-pop" data-edit-ui aria-label={label} style={{ left: pos.left, bottom: pos.bottom, width, transformOrigin: `${pos.originX}px 100%` }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+// ── Design panel ────────────────────────────────────────────────────────────
+
 const ACTION_ICONS = {
   parent: 'M6 13V5h8M6 5l4-4M6 5l4 4',
   duplicate: 'M6 6h8v8H6zM3 11V3h8',
   delete: 'M3 5h12M7 5V3h4v2M5 5l1 10h6l1-10',
+  front: 'M4 7h10v8H4zM7 3h8v8',
+  close: 'M4.5 4.5l9 9M13.5 4.5l-9 9',
+  back: 'M7 3h8v8H7zM4 7h10v8H4z',
 };
 
-function ActionButton({ icon, label, onClick, disabled }) {
+/**
+ * What the selected thing IS, in the user's words.
+ *
+ * @returns {'background' | 'text' | 'image' | 'screenshot' | 'phone' | 'shape'}
+ */
+export function kindOf(node, isText) {
+  if (!node || isArtboardRoot(node)) return 'background';
+  if (node.tagName === 'IMG') return 'image';
+  if (node.hasAttribute('data-image-slot')) return 'screenshot';
+  if (node.getAttribute('data-lerret-role') === 'phone') return 'phone';
+  return isText ? 'text' : 'shape';
+}
+
+const KIND_TITLES = {
+  background: 'Background',
+  text: 'Text',
+  image: 'Image',
+  screenshot: 'Screenshot',
+  phone: 'Phone frame',
+  shape: 'Shape',
+};
+
+function DesignPanel({ selection }) {
+  return createPortal(
+    <aside className="lm-design-panel" data-edit-ui aria-label="Design" data-testid="lm-design-panel">
+      <ElementPanel key={`${selection.stamp}|${selection.slot}`} selection={selection} />
+    </aside>,
+    document.body,
+  );
+}
+
+function ElementPanel({ selection }) {
+  const ins = useInspector(selection);
+  const { info, style, isText, first } = ins;
+  const kind = kindOf(first, isText);
+  const root = first ? isArtboardRoot(first) : true;
+  const parent = first?.parentElement?.closest(`[${SRC_ATTR}]`);
+  const hasParent = !!parent && slotOf(parent) === selection.slot && !isArtboardRoot(first);
+
   return (
-    <button type="button" className="lm-edock-btn lm-edock-icon" onClick={onClick} disabled={disabled} title={label} aria-label={label}>
-      <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
-        <path d={ACTION_ICONS[icon]} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
+    <div className="lm-design-body">
+      <header className="lm-design-head">
+        <h2>{KIND_TITLES[kind]}</h2>
+        <span className="lm-design-head__actions">
+          <PanelAction icon="close" label="Close (Esc)" onClick={() => selectElement(null)} />
+          {hasParent && <PanelAction icon="parent" label="Select what it’s inside" onClick={() => selectElement(selectionFrom(parent))} />}
+          {!root && (
+            <PanelAction
+              icon="duplicate"
+              label="Duplicate"
+              onClick={() => saveSourceEdit(selection.path, selection.offset, { type: 'duplicate', expectTag: selection.tag })}
+            />
+          )}
+          {!root && <PanelAction icon="delete" label="Delete (⌫)" onClick={() => deleteElement(selection)} />}
+        </span>
+      </header>
+      {ins.otherArtboards > 0 && (
+        <p className="lm-edit-note">Changes here also show on {ins.otherArtboards === 1 ? '1 other design' : `${ins.otherArtboards} other designs`} that share this layout.</p>
+      )}
+      {!info ? (
+        <p className="lm-edit-hint">{ins.loadError || 'Loading…'}</p>
+      ) : style === null ? (
+        <p className="lm-edit-hint">This part is built in a way the editor can’t change. Ask the AI, or edit the file.</p>
+      ) : (
+        <React.Fragment>
+          {kind === 'text' && <TextSection ins={ins} selection={selection} />}
+          {kind === 'image' && <ImageSection ins={ins} selection={selection} />}
+          {kind === 'screenshot' && <ScreenshotSection selection={selection} hasImage={!!first?.querySelector('img')} />}
+          {(kind === 'background' || kind === 'shape' || kind === 'phone') && (
+            <Section title={kind === 'background' ? 'Fill' : 'Fill'}>
+              <FillControl ins={ins} allowNone={kind !== 'background'} />
+            </Section>
+          )}
+          {(kind === 'shape' || kind === 'phone' || kind === 'image' || kind === 'screenshot') && <CornersAndBorder ins={ins} kind={kind} />}
+          {!root && <PositionSection ins={ins} />}
+          {!root && <ArrangeSection ins={ins} selection={selection} />}
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
+function PanelAction({ icon, label, onClick }) {
+  return (
+    <button type="button" className="lm-edock-btn lm-edock-icon" onClick={onClick} title={label} aria-label={label}>
+      <Icon name={icon} />
     </button>
   );
 }
 
-/** Select parent · Duplicate · Delete — the element-level actions. */
-function ElementActions({ selection, node }) {
-  const parent = node?.parentElement?.closest('[data-lerret-src]');
-  const hasParent = !!parent && slotOf(parent) === selection.slot;
-  const root = node ? isArtboardRoot(node) : true;
+// ── Sections ────────────────────────────────────────────────────────────────
+
+const WEIGHT_OPTIONS = [
+  ['300', 'Light'], ['400', 'Regular'], ['500', 'Medium'], ['600', 'Semibold'],
+  ['700', 'Bold'], ['800', 'Extra bold'], ['900', 'Black'],
+];
+
+function TextSection({ ins, selection }) {
+  const { info, target, data, style, computed } = ins;
+  const textValue = target?.kind === 'prop'
+    ? String(dataValueFor(data, selection.variant, target.name) ?? ins.first?.textContent ?? '')
+    : info.text.kind === 'literal' ? String(info.text.value) : '';
+  const fontValue = style?.fontFamily?.kind === 'literal' ? style.fontFamily.value : computed?.fontFamily;
+  const fontMatch = matchCuratedFont(fontValue);
+  const weight = style?.fontWeight?.kind === 'literal' ? String(style.fontWeight.value) : String(computed?.fontWeight ?? '400');
   return (
-    <span className="lm-edock-group">
-      <ActionButton icon="parent" label="Select parent" disabled={!hasParent} onClick={() => selectElement(selectionFrom(parent))} />
-      <ActionButton
-        icon="duplicate"
-        label="Duplicate"
-        disabled={root}
-        onClick={() => saveSourceEdit(selection.path, selection.offset, { type: 'duplicate', expectTag: selection.tag })}
+    <Section title="Text">
+      {target ? (
+        <TextInput label="Text" multiline commitOnBlur value={textValue} onInput={ins.commitText} />
+      ) : (
+        <p className="lm-edit-hint">This text is filled in automatically — ask the AI to change how.</p>
+      )}
+      <Field label="Font">
+        <select className="lm-input lm-select lm-edit-input" value={fontMatch || ''} onChange={(e) => ins.onStyle('fontFamily', e.target.value)} aria-label="Font">
+          {!fontMatch && <option value="">Custom</option>}
+          {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
+        </select>
+      </Field>
+      <div className="lm-edit-grid">
+        <NumberField ins={ins} k="fontSize" label="Size" />
+        <Field label="Weight">
+          <select className="lm-input lm-select lm-edit-input" value={WEIGHT_OPTIONS.some(([v]) => v === weight) ? weight : '400'} onChange={(e) => ins.onStyle('fontWeight', e.target.value)} aria-label="Weight">
+            {WEIGHT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </Field>
+      </div>
+      <Field label="Colour"><ColorRow ins={ins} k="color" /></Field>
+      <AlignControl value={style?.textAlign} fallback={computed?.textAlign} onInput={(v) => ins.onStyle('textAlign', v)} />
+      <div className="lm-edit-grid">
+        <NumberField ins={ins} k="lineHeight" label="Line" unitless step={0.05} />
+        <NumberField ins={ins} k="letterSpacing" label="Letter" />
+      </div>
+    </Section>
+  );
+}
+
+/** Pick an image file, then hand its bytes + a free name to `place`. */
+function useImagePicker(selection, place) {
+  const ref = React.useRef(null);
+  const onChange = async (e) => {
+    const file = [...(e.target.files || [])].find(isImageFile);
+    e.target.value = '';
+    if (!file) return;
+    const folder = selection.path.slice(0, selection.path.lastIndexOf('/'));
+    const listing = await listProjectDir(folder);
+    const taken = new Set((listing.entries || []).map((x) => String(x.name).toLowerCase()));
+    const { base, ext } = splitImageName(file.name);
+    let name = base;
+    for (let n = 2; taken.has(`${name}.${ext}`.toLowerCase()); n += 1) name = `${base}-${n}`;
+    const read = await readImageFile(file);
+    place({ file: `${name}.${ext}`, base64: read.base64 });
+  };
+  return {
+    open: () => ref.current?.click(),
+    input: <input ref={ref} type="file" accept="image/*" hidden onChange={onChange} />,
+  };
+}
+
+function ImageSection({ ins, selection }) {
+  const picker = useImagePicker(selection, (image) => placeImage(selection.path, selection.offset, image));
+  const fit = ins.style?.objectFit?.kind === 'literal' ? ins.style.objectFit.value : ins.computed?.objectFit;
+  return (
+    <Section title="Image">
+      <button type="button" className="lm-design-btn" onClick={picker.open}>Replace image…</button>
+      {picker.input}
+      <Segmented
+        label="Fit"
+        value={fit === 'cover' ? 'cover' : 'contain'}
+        options={[['contain', 'Show all'], ['cover', 'Fill frame']]}
+        onChange={(v) => ins.onStyle('objectFit', v)}
       />
-      <ActionButton icon="delete" label="Delete (⌫)" disabled={root} onClick={() => deleteElement(selection)} />
-    </span>
+    </Section>
+  );
+}
+
+function ScreenshotSection({ selection, hasImage }) {
+  const picker = useImagePicker(selection, (image) => placeImage(selection.path, selection.offset, image));
+  return (
+    <Section title="Screenshot">
+      <p className="lm-edit-hint">{hasImage ? 'Swap in a different screen.' : 'Add a screenshot of your app — or drop one onto the phone.'}</p>
+      <button type="button" className="lm-design-btn lm-design-btn--primary" onClick={picker.open}>{hasImage ? 'Replace screenshot…' : 'Add screenshot…'}</button>
+      {picker.input}
+    </Section>
+  );
+}
+
+const SWATCHES = ['#FFFFFF', '#F5F5F7', '#D1D1D6', '#111111', '#2F5BFF', '#5856D6', '#FF2D55', '#FF9500', '#34C759', '#00C7BE'];
+const GRADIENTS = [
+  ['Mist', 'linear-gradient(180deg, #F5F5F7 0%, #E3E3E8 100%)'],
+  ['Night', 'linear-gradient(160deg, #1C1C1E 0%, #000000 100%)'],
+  ['Ocean', 'linear-gradient(160deg, #2F80ED 0%, #56CCF2 100%)'],
+  ['Sunset', 'linear-gradient(160deg, #FF6A88 0%, #FF9A8B 100%)'],
+  ['Grape', 'linear-gradient(160deg, #5B2EFF 0%, #B86BFF 100%)'],
+  ['Mint', 'linear-gradient(160deg, #11998E 0%, #38EF7D 100%)'],
+];
+
+function FillControl({ ins, allowNone }) {
+  const key = ins.bgKey;
+  const current = ins.style?.[key]?.kind === 'literal' ? String(ins.style[key].value) : '';
+  const set = (v) => {
+    // A gradient only works as `background`; normalize to it.
+    if (key === 'backgroundColor' && /gradient/.test(v)) {
+      ins.onStyle('backgroundColor', '');
+      ins.onStyle('background', v);
+    } else ins.onStyle(key, v);
+  };
+  return (
+    <div className="lm-design-fill">
+      <div className="lm-design-swatches" role="radiogroup" aria-label="Colour">
+        {allowNone && (
+          <button type="button" role="radio" aria-checked={!current} className="lm-design-swatch lm-design-swatch--none" title="None" aria-label="None" onClick={() => ins.onStyle(key, '')} />
+        )}
+        {SWATCHES.map((c) => (
+          <button key={c} type="button" role="radio" aria-checked={current.toUpperCase() === c} className="lm-design-swatch" style={{ background: c }} title={c} aria-label={c} onClick={() => set(c)} />
+        ))}
+        <label className="lm-design-swatch lm-design-swatch--custom" title="Pick any colour">
+          <input type="color" aria-label="Pick any colour" value={toHex(/gradient/.test(current) ? '' : current || ins.computed?.backgroundColor)} onChange={(e) => set(e.target.value)} />
+        </label>
+      </div>
+      <div className="lm-design-gradients" role="radiogroup" aria-label="Gradient">
+        {GRADIENTS.map(([name, g]) => (
+          <button key={name} type="button" role="radio" aria-checked={current === g} className="lm-design-gradient" style={{ background: g }} title={name} aria-label={`${name} gradient`} onClick={() => set(g)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const SHADOWS = [
+  ['none', 'None', undefined],
+  ['soft', 'Soft', '0 12px 32px rgba(0, 0, 0, 0.12)'],
+  ['strong', 'Strong', '0 40px 80px rgba(0, 0, 0, 0.22)'],
+];
+
+function CornersAndBorder({ ins, kind }) {
+  const shadow = ins.style?.boxShadow?.kind === 'literal' ? ins.style.boxShadow.value : '';
+  const shadowId = SHADOWS.find(([, , v]) => v === shadow)?.[0] || (shadow ? '' : 'none');
+  return (
+    <Section title="Shape">
+      <NumberField ins={ins} k="borderRadius" label="Corners" />
+      {kind !== 'screenshot' && (
+        <Segmented
+          label="Shadow"
+          value={shadowId}
+          options={SHADOWS.map(([id, label]) => [id, label])}
+          onChange={(id) => ins.onStyle('boxShadow', SHADOWS.find(([x]) => x === id)?.[2] ?? '')}
+        />
+      )}
+    </Section>
+  );
+}
+
+function PositionSection({ ins }) {
+  const { style, first } = ins;
+  const abs = first ? absoluteBox(first) : null;
+  const tr = style?.translate;
+  const t = tr?.kind === 'literal' ? parseTranslate(tr.value) : tr ? null : [0, 0];
+  const num = (k) => (style?.[k]?.kind === 'literal' && typeof style[k].value === 'number' ? style[k].value : null);
+  const x = abs ? num('left') ?? abs.left : t?.[0];
+  const y = abs ? num('top') ?? abs.top : t?.[1];
+  const setXY = (nx, ny) => {
+    if (abs) {
+      ins.onStyle('left', String(Math.round(Number(nx) || 0)));
+      ins.onStyle('top', String(Math.round(Number(ny) || 0)));
+    } else {
+      ins.onStyle('translate', formatTranslate(Number(nx) || 0, Number(ny) || 0) ?? '');
+    }
+  };
+  return (
+    <Section title="Position & size">
+      <div className="lm-edit-grid">
+        {x !== undefined && x !== null ? (
+          <React.Fragment>
+            <Field label="X"><TextInput value={String(Math.round(x))} onInput={(v) => setXY(v, y)} /></Field>
+            <Field label="Y"><TextInput value={String(Math.round(y))} onInput={(v) => setXY(x, v)} /></Field>
+          </React.Fragment>
+        ) : null}
+        <NumberField ins={ins} k="width" label="W" fallback={first?.offsetWidth} />
+        <NumberField ins={ins} k="height" label="H" fallback={first?.offsetHeight} />
+      </div>
+      <OpacitySlider ins={ins} />
+    </Section>
+  );
+}
+
+function ArrangeSection({ ins, selection }) {
+  const toFront = () => saveStyles(selection.path, selection.offset, [{ key: 'zIndex', value: 10 }], selection.tag);
+  const toBack = async () => {
+    // The element first (its offset is current), then the root: z-index -1
+    // stays above the design's background because the root isolates stacking.
+    // The root edit sits before the element — the session rebases the selection.
+    const res = await saveStyles(selection.path, selection.offset, [{ key: 'zIndex', value: -1 }], selection.tag);
+    const board = artboardOf(selection);
+    if (res.ok && board) {
+      const m = /^(.*):(\d+)$/.exec(board.root.getAttribute(SRC_ATTR));
+      if (m) await saveStyles(m[1], Number(m[2]), [{ key: 'isolation', value: 'isolate' }], board.root.tagName.toLowerCase());
+    }
+  };
+  return (
+    <Section title="Arrange">
+      <div className="lm-edit-grid">
+        <button type="button" className="lm-design-btn" onClick={toFront}><Icon name="front" /> Bring to front</button>
+        <button type="button" className="lm-design-btn" onClick={toBack}><Icon name="back" /> Send to back</button>
+      </div>
+    </Section>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+/** A number box bound to one style key (px unless `unitless`). */
+function NumberField({ ins, k, label, unitless = false, step = 1, fallback }) {
+  const v = ins.style?.[k];
+  if (v && v.kind !== 'literal') {
+    return <Field label={label}><span className="lm-edit-code" title="Set automatically">Auto</span></Field>;
+  }
+  const raw = v ? v.value : undefined;
+  const shown = typeof raw === 'number' ? raw : raw !== undefined ? parseFloat(raw) : NaN;
+  const computedPx = parseFloat(ins.computed?.[k]);
+  const placeholder = Number.isFinite(fallback) ? String(Math.round(fallback))
+    : Number.isFinite(computedPx) && !unitless ? String(Math.round(computedPx * 100) / 100) : '';
+  return (
+    <Field label={label}>
+      <TextInput
+        value={Number.isFinite(shown) ? String(shown) : ''}
+        placeholder={placeholder}
+        onInput={(val) => {
+          const n = Number(val);
+          ins.onStyle(k, val === '' ? '' : Number.isFinite(n) ? String(step < 1 || unitless ? n : Math.round(n)) : val);
+        }}
+      />
+    </Field>
+  );
+}
+
+function OpacitySlider({ ins }) {
+  const v = ins.style?.opacity;
+  const value = v?.kind === 'literal' ? Number(v.value) : 1;
+  return (
+    <label className="lm-design-slider">
+      <span className="lm-edit-field__k">Opacity</span>
+      <input type="range" min="0" max="100" value={Math.round((Number.isFinite(value) ? value : 1) * 100)} onChange={(e) => ins.onStyle('opacity', String(Number(e.target.value) / 100))} />
+      <span className="lm-design-slider__v">{Math.round((Number.isFinite(value) ? value : 1) * 100)}%</span>
+    </label>
+  );
+}
+
+function ColorRow({ ins, k }) {
+  const v = ins.style?.[k];
+  const value = v?.kind === 'literal' ? String(v.value) : '';
+  return <ColorInput value={value} fallback={ins.computed?.[k]} label="Colour" onInput={(c) => ins.onStyle(k, c)} />;
+}
+
+function Segmented({ label, value, options, onChange }) {
+  return (
+    <div className="lm-design-seg-row">
+      <span className="lm-edit-field__k">{label}</span>
+      <div className="lm-edit-seg" role="radiogroup" aria-label={label}>
+        {options.map(([v, l]) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} data-set={value === v || undefined} onClick={() => onChange(v)}>{l}</button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -294,7 +759,7 @@ function useInspector(selection) {
     return (
       <Field key={key} label={label} compact={compact} kind={kind}>
         {kind === 'color' ? <ColorInput value={value} fallback={shown} label={label} onInput={onInput} />
-          : kind === 'weight' ? <SelectInput value={value} options={WEIGHTS} onInput={onInput} />
+          : kind === 'weight' ? <SelectInput value={value} options={WEIGHT_OPTIONS} onInput={onInput} />
             : <TextInput value={value} placeholder={shortPlaceholder(shown)} onInput={onInput} />}
       </Field>
     );
@@ -318,182 +783,6 @@ function useInspector(selection) {
     onProp,
     commitText: (v) => commitText(selection, textTarget(info, selection), v).then((r) => afterSave(r)),
   };
-}
-
-// ── "More" popover ──────────────────────────────────────────────────────────
-
-function MorePopover({ anchorRef, onClose, ins, selection, fileName }) {
-  const ref = React.useRef(null);
-  const [pos, setPos] = React.useState(null);
-
-  // Sit above the dock, centered on the More button, kept on screen.
-  React.useLayoutEffect(() => {
-    const place = () => {
-      const a = anchorRef.current;
-      if (!a) return;
-      const dock = a.closest('[data-tour="dock"]') || a;
-      const ar = a.getBoundingClientRect();
-      const dr = dock.getBoundingClientRect();
-      const width = 300;
-      const left = Math.min(Math.max(ar.left + ar.width / 2 - width / 2, 12), window.innerWidth - width - 12);
-      // originX: the More button's center, so the popover grows out of it.
-      setPos({ left, bottom: window.innerHeight - dr.top + 8, width, originX: ar.left + ar.width / 2 - left });
-    };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
-  }, [anchorRef]);
-
-  // Close on Esc (before the canvas sees it) and on a click outside.
-  React.useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      onClose();
-    };
-    const onDown = (e) => {
-      if (ref.current?.contains(e.target) || anchorRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    document.addEventListener('keydown', onKey, true);
-    document.addEventListener('pointerdown', onDown, true);
-    return () => {
-      document.removeEventListener('keydown', onKey, true);
-      document.removeEventListener('pointerdown', onDown, true);
-    };
-  }, [onClose, anchorRef]);
-
-  const { info, style, isText, target, data } = ins;
-  const dataName = fileName.replace(/\.[jt]sx?$/, '.data.json');
-  const variantNote = selection.variant !== 'default' ? ` (${selection.variant})` : '';
-  const props = info.component ? referencedProps(info) : [];
-  const moveValue = style?.translate;
-  const pos2 = moveValue?.kind === 'literal' ? parseTranslate(moveValue.value) : moveValue ? null : [0, 0];
-  const setXY = (x, y) => ins.onStyle('translate', formatTranslate(Number(x) || 0, Number(y) || 0) ?? '');
-  const canMove = ins.first && !isArtboardRoot(ins.first);
-  const extraKeys = style ? Object.keys(style).filter((k) => !GROUPED.has(k)) : [];
-  const attrs = Object.entries(info.attrs).filter(([n]) => EDITABLE_ATTRS.includes(n));
-
-  if (!pos) return null;
-  return createPortal(
-    <div
-      ref={ref}
-      className="lm-edit-pop"
-      data-edit-ui
-      role="dialog"
-      aria-label="Element properties"
-      style={{ left: pos.left, bottom: pos.bottom, width: pos.width, transformOrigin: `${pos.originX}px 100%` }}
-    >
-      <header className="lm-edit-pop__head">
-        <span className="lm-edock-tag">{selection.tag}</span>
-        <span className="lm-edit-pop__title" title={selection.path}>{fileName}</span>
-      </header>
-      {ins.otherArtboards > 0 && (
-        <p className="lm-edit-note">
-          Style and text changes also apply to this element in {ins.otherArtboards === 1 ? '1 other artboard' : `${ins.otherArtboards} other artboards`}.
-        </p>
-      )}
-
-      {isText && (
-        <Section title="Text">
-          {target ? (
-            <React.Fragment>
-              <TextInput
-                label="Text"
-                multiline
-                commitOnBlur
-                value={target.kind === 'prop'
-                  ? String(dataValueFor(data, selection.variant, target.name) ?? ins.first?.textContent ?? '')
-                  : info.text.value}
-                onInput={ins.commitText}
-              />
-              {target.kind === 'prop' && (
-                <p className="lm-edit-hint">Prop <code>{target.name}</code> · saved to {dataName}{variantNote}</p>
-              )}
-            </React.Fragment>
-          ) : <Code block />}
-          <div className="lm-edit-grid">
-            {ins.field('lineHeight', 'Line')}
-            {ins.field('letterSpacing', 'Spacing')}
-          </div>
-        </Section>
-      )}
-
-      {style && (
-        <React.Fragment>
-          <Section title="Appearance">
-            {isText && ins.field(ins.bgKey, 'Fill', { kind: 'color' })}
-            <div className="lm-edit-grid">
-              {ins.field('opacity', 'Opacity')}
-              {isText && ins.field('borderRadius', 'Radius')}
-            </div>
-          </Section>
-
-          <Section title="Layout">
-            <div className="lm-edit-grid">
-              {ins.field('width', 'W')}
-              {ins.field('height', 'H')}
-              {isText && ins.field('padding', 'Padding')}
-              {ins.field('margin', 'Margin')}
-              {/flex|grid/.test(ins.computed?.display || '') && ins.field('gap', 'Gap')}
-            </div>
-          </Section>
-
-          {canMove && (
-            <Section
-              title="Position"
-              action={pos2 && (pos2[0] || pos2[1]) ? { label: 'Reset', onClick: () => setXY(0, 0) } : null}
-            >
-              {pos2 ? (
-                <div className="lm-edit-grid">
-                  <Field label="X"><TextInput value={String(pos2[0])} onInput={(x) => setXY(x, pos2[1])} /></Field>
-                  <Field label="Y"><TextInput value={String(pos2[1])} onInput={(y) => setXY(pos2[0], y)} /></Field>
-                </div>
-              ) : <Code block title={moveValue.text} />}
-            </Section>
-          )}
-
-          {extraKeys.length > 0 && (
-            <Section title="Other styles">
-              {extraKeys.map((k) => ins.field(k, humanize(k)))}
-            </Section>
-          )}
-        </React.Fragment>
-      )}
-
-      {attrs.length > 0 && (
-        <Section title="Attributes">
-          {attrs.map(([name, v]) => (
-            <Field key={name} label={humanize(name)}>
-              {v.kind === 'literal'
-                ? <TextInput commitOnBlur value={String(v.value)} onInput={(val) => ins.onAttr(name, val)} />
-                : <Code title={v.text || v.name} />}
-            </Field>
-          ))}
-        </Section>
-      )}
-
-      {props.length > 0 && (
-        <Section title="Props">
-          {props.map((name) => {
-            const def = info.component.props[name];
-            const sample = dataValueFor(data, selection.variant, name) ?? (def?.kind === 'literal' ? def.value : '');
-            return (
-              <Field key={name} label={name}>
-                {typeof sample === 'boolean' ? (
-                  <input type="checkbox" checked={sample} onChange={(e) => ins.onProp(name, e.target.checked)} />
-                ) : (
-                  <TextInput commitOnBlur value={String(sample)} onInput={(v) => ins.onProp(name, parsePropInput(v, sample))} />
-                )}
-              </Field>
-            );
-          })}
-          <p className="lm-edit-hint">Saved to {dataName}{variantNote}</p>
-        </Section>
-      )}
-    </div>,
-    document.body,
-  );
 }
 
 /** Computed values make useful placeholders only when short ("24px", "normal"). */

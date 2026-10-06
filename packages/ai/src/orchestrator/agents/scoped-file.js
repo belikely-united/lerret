@@ -15,8 +15,16 @@
 // readFile) — safe for the Inspector's structural read-only guarantee
 // (inspect-no-worker.test.js scans this module too via its import edge).
 
-/** Max characters of a selection-scoped file folded into an agent prompt. */
-export const SCOPED_FILE_CHAR_CAP = 12000;
+/**
+ * Max characters of a selection-scoped file folded into an agent prompt. The
+ * prompt tells the model to rewrite the COMPLETE file, so this must comfortably
+ * hold a real asset — a truncated selection is flagged (`truncated`) so the
+ * model knows the tail is missing rather than silently dropping it.
+ */
+export const SCOPED_FILE_CHAR_CAP = 40000;
+
+/** Max characters of the selection's companion data file folded into a prompt. */
+export const SCOPED_DATA_CHAR_CAP = 8000;
 
 /**
  * Normalize a selection-chip file path to the project-relative form the
@@ -59,6 +67,46 @@ export function canonLerretPath(p) {
 }
 
 /**
+ * The companion data-file paths for an asset path — `card.jsx` →
+ * `card.data.json` / `card.data.js`. Empty for a non-component path.
+ *
+ * @param {string} assetPath  A `.lerret/<rel>.jsx|.tsx` path.
+ * @returns {string[]}
+ */
+export function dataFilePathsFor(assetPath) {
+    const m = /^(.*)\.(jsx|tsx)$/.exec(String(assetPath ?? ''));
+    return m ? [`${m[1]}.data.json`, `${m[1]}.data.js`] : [];
+}
+
+/**
+ * Best-effort read of an asset's `meta.dimensions` from its source — a plain
+ * literal match, no parser (the prompt only needs the numbers as a hint).
+ *
+ * @param {string} source
+ * @returns {{ width: number, height: number } | null}
+ */
+export function dimensionsFromSource(source) {
+    const m = /dimensions\s*:\s*\{\s*width\s*:\s*(\d+)\s*,\s*height\s*:\s*(\d+)/.exec(String(source ?? ''));
+    return m ? { width: Number(m[1]), height: Number(m[2]) } : null;
+}
+
+/**
+ * The canonical `.lerret/<rel>` paths the agent may write WITHOUT asking while
+ * an asset is selected: the selected source file and its companion data
+ * files. Null when the scope is not a single selected file (no restriction).
+ *
+ * @param {object|undefined} scope
+ * @returns {Set<string> | null}
+ */
+export function selectionWritePaths(scope) {
+    if (!scope || typeof scope !== 'object' || scope.kind !== 'file') return null;
+    const rel = toProjectRelativeLerretPath(scope.filePath);
+    if (!rel) return null;
+    const assetPath = `.lerret/${rel.replace(/^\/+/, '')}`;
+    return new Set([assetPath, ...dataFilePathsFor(assetPath)]);
+}
+
+/**
  * Read the selection-scoped file through the sandbox. The chip's filePath is
  * project-relative (a LerretPath); the sandbox speaks `.lerret/`-prefixed
  * relative paths — try the prefixed form first, then the verbatim one.
@@ -68,7 +116,14 @@ export function canonLerretPath(p) {
  *
  * @param {object|undefined} scope - The turn's scope (`state.scope`).
  * @param {object|undefined} sandbox - core/fs sandbox (read surface used only).
- * @returns {Promise<{ path: string, content: string } | null>}
+ * @returns {Promise<{
+ *   path: string,
+ *   content: string,
+ *   truncated: boolean,
+ *   dimensions: { width: number, height: number } | null,
+ *   variant: string | null,
+ *   data: { path: string, content: string } | null,
+ * } | null>}
  */
 export async function readScopedFile(scope, sandbox) {
     if (!sandbox || !scope || typeof scope !== 'object') return null;
@@ -82,12 +137,77 @@ export async function readScopedFile(scope, sandbox) {
             if (!(await sandbox.exists(path))) continue;
             const raw = await sandbox.readFile(path, { encoding: 'utf-8' });
             const content = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
-            return { path, content: content.slice(0, SCOPED_FILE_CHAR_CAP) };
+            return {
+                path,
+                content: content.slice(0, SCOPED_FILE_CHAR_CAP),
+                truncated: content.length > SCOPED_FILE_CHAR_CAP,
+                dimensions: dimensionsFromSource(content),
+                variant: typeof scope.variant === 'string' && scope.variant ? scope.variant : null,
+                data: await readCompanionData(path, sandbox),
+            };
         } catch {
             // Violation / read error → try the next candidate, else no context.
         }
     }
     return null;
+}
+
+/**
+ * Read the selected asset's companion data file (`.data.json`, else
+ * `.data.js`), so text edits can target the data the asset actually renders.
+ * Null when there is none or it can't be read.
+ *
+ * @param {string} assetPath
+ * @param {object} sandbox
+ * @returns {Promise<{ path: string, content: string } | null>}
+ */
+async function readCompanionData(assetPath, sandbox) {
+    for (const path of dataFilePathsFor(assetPath)) {
+        try {
+            if (!(await sandbox.exists(path))) continue;
+            const raw = await sandbox.readFile(path, { encoding: 'utf-8' });
+            const content = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+            return { path, content: content.slice(0, SCOPED_DATA_CHAR_CAP) };
+        } catch {
+            // Unreadable data file → no data context, never an error turn.
+        }
+    }
+    return null;
+}
+
+/**
+ * The selection's structured context as prompt text — size, variant, the
+ * truncation flag, and the companion data file — shared by every agent that
+ * folds the selection into its prompt. Empty string for no selection.
+ *
+ * @param {Awaited<ReturnType<typeof readScopedFile>>} scopedFile
+ * @returns {string}
+ */
+export function describeScopedFile(scopedFile) {
+    if (!scopedFile) return '';
+    const lines = [];
+    if (scopedFile.dimensions) {
+        lines.push(`Artboard size: ${scopedFile.dimensions.width}×${scopedFile.dimensions.height}px.`);
+    }
+    if (scopedFile.variant && scopedFile.variant !== 'default') {
+        lines.push(
+            `The user selected the "${scopedFile.variant}" variant (the export named ${scopedFile.variant}); ` +
+                `apply the request to that variant unless it says otherwise.`,
+        );
+    }
+    if (scopedFile.truncated) {
+        lines.push(
+            `The source below is TRUNCATED at ${SCOPED_FILE_CHAR_CAP} characters. Do not rewrite the whole ` +
+                `file from it — the missing tail would be lost. Ask the user to split the asset instead.`,
+        );
+    }
+    let out = lines.length ? `\n${lines.join(' ')}` : '';
+    if (scopedFile.data) {
+        out +=
+            `\nIts TEXT lives in the companion data file — edit that file for wording changes:\n` +
+            `--- ${scopedFile.data.path} (current content) ---\n${scopedFile.data.content}\n--- end ---`;
+    }
+    return out;
 }
 
 /**

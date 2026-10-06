@@ -63,20 +63,20 @@ if (typeof document !== 'undefined' && !document.getElementById('vision-attach-b
     border: none;
     background: transparent;
     cursor: pointer;
-    color: var(--lm-text-secondary, #44403A);
+    color: var(--lm-text-secondary, #454545);
     border-radius: 6px;
     flex-shrink: 0;
     padding: 0;
 }
 .lm-vision-attach__btn:hover:not(:disabled) {
-    background: var(--lm-bg-tertiary, #E8E2D4);
+    background: var(--lm-bg-tertiary, #EBEBEB);
 }
 .lm-vision-attach__btn:focus-visible {
-    outline: 2px solid var(--lm-accent, #B85B33);
+    outline: 2px solid var(--lm-accent, #111111);
     outline-offset: 1px;
 }
 .lm-vision-attach__btn:disabled {
-    color: var(--lm-mist, #B8B3A8);
+    color: var(--lm-mist, #A3A3A3);
     cursor: default;
 }
     `.trim();

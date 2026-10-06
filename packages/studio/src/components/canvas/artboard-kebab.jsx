@@ -68,7 +68,7 @@ import { suspendLiveRefresh } from './live-refresh-suspend.js';
 import { SizeBadge, SizePopover } from './size-control.jsx';
 import { writeProjectFile, deleteProjectFile, readProjectFile, hostedWritesEnabled } from '../../runtime/write-client.js';
 import { CreateEntryDialog } from '../menu/create-entry-dialog.jsx';
-import { createVariant, setEditEnabled } from '../edit-mode/edit-session.js';
+import { createVariant } from '../edit-mode/edit-session.js';
 import { KIND_ICONS } from '../menu/kind-icons.jsx';
 import { rewriteMetaExport } from '../editors/meta-source-rewriter.js';
 import { defaultReadAssetSource } from '../editors/meta-editor.jsx';
@@ -155,8 +155,8 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
  font-size: 11px;
  font-weight: 600;
  line-height: 1;
- color: var(--lm-text-tertiary, #6E6960);
- background: var(--lm-bg-secondary, #F2EEE6);
+ color: var(--lm-text-tertiary, #6B6B6B);
+ background: var(--lm-bg-secondary, #F5F5F5);
  border: none;
  border-radius: var(--lm-radius-pill, 999px);
  cursor: pointer;
@@ -165,10 +165,10 @@ if (typeof document !== 'undefined' && !document.getElementById('lm-artboard-keb
  transition: background var(--lm-duration-fast, 120ms) var(--lm-ease, ease), color var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
 }
 .lm-data-badge:hover {
- background: var(--lm-surface-hover, rgba(26, 23, 20, 0.05));
- color: var(--lm-text-secondary, #3A3530);
+ background: var(--lm-surface-hover, rgba(0, 0, 0, 0.05));
+ color: var(--lm-text-secondary, #404040);
 }
-.lm-data-badge:focus-visible { box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184, 91, 51, 0.20)); }
+.lm-data-badge:focus-visible { box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17, 0.20)); }
  `.trim();
  document.head.appendChild(s);
 }
@@ -706,7 +706,6 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  meta: (entry?.variantNames?.length || 0) > 1 ? 'Variant' : 'Artboard',
  icon: KIND_ICONS.component,
  },
- onEditVisually: () => setEditEnabled(true),
  onEditData: openData,
  onEditMeta: () => setMetaOpen(true),
  onLiveRefresh,

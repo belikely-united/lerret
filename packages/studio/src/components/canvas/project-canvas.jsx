@@ -74,6 +74,7 @@ import { SectionKebab } from './section-kebab.jsx';
 // in-canvas creation — the empty-page CTAs and empty-group placeholders open
 // the shared CreateEntryDialog; `create` performs the write.
 import { CreateEntryDialog, create, inCliMode } from '../menu/index.js';
+import { ImageDropLayer } from './image-drop-layer.jsx';
 import { readProjectFile, writeProjectFile } from '../../runtime/write-client.js';
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -353,7 +354,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // to a `page` scope labelled with the page name. Wrapped in useCallback so
  // the per-section handler identity is stable.
  const emitSectionScope = React.useCallback(
- (section, sectionKind, pageName, element, assetPath) => {
+ (section, sectionKind, pageName, element, assetPath, frame) => {
  if (!setAiScope) return;
  const assets = section?.entries || [];
  const firstAsset = assets[0]?.asset;
@@ -365,7 +366,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // scope and the AI lost the target). The `element` pinpoint rides on
  // the file scope as before.
  if (assetPath) {
- setAiScope(fileScope(assetPath, undefined, element));
+ setAiScope(fileScope(assetPath, undefined, element, frame));
  return;
  }
  // A single-asset section IS that asset — file-scope it whether the
@@ -541,10 +542,10 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // Create-dialog confirm + element, shared by the empty-state CTAs and the
  // empty-group placeholders. Defined after all hooks, before the first early
  // return, so every branch can include the dialog.
- const onConfirmCreate = async ({ name, assetKind, dimensions }) => {
+ const onConfirmCreate = async ({ name, assetKind, dimensions, template }) => {
  if (!createState) return;
  const endpointKind = createState.kind === 'asset' ? 'asset' : 'folder';
- const result = await create(createState.parentPath, name, endpointKind, { assetKind, dimensions });
+ const result = await create(createState.parentPath, name, endpointKind, { assetKind, dimensions, template });
  if (!result?.ok) throw new Error(result?.error || 'Create failed');
  };
  const createDialog = createState ? (
@@ -603,11 +604,13 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  ];
  return (
  <>
+ <ImageDropLayer pagePath={page.path} enabled={cliMode} />
  <ProjectCanvasNotice
  title={page.name}
+ dropPage={cliMode}
  body={
  cliMode
- ? 'This page is empty. Create a group to organize your assets — or drop in a loose asset.'
+ ? 'This page is empty. Create a group, add an asset, or drop an image here.'
  : 'This page has no assets yet. Drop a .jsx, .tsx, or .md file into it.'
  }
  actions={
@@ -730,7 +733,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  subtitle={subtitle}
  sectionStyle={sectionStyle}
  bare={sectionKind === 'page'}
- onSelectScope={(element, assetPath) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath)}
+ onSelectScope={(element, assetPath, frame) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath, frame)}
  >
  {node.entries.map((entry) =>
  artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),
@@ -858,6 +861,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  />
  )}
  </DesignCanvas>
+ <ImageDropLayer pagePath={page.path} enabled={cliMode} />
  {createDialog}
  </>
  );
@@ -893,8 +897,8 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  gap: 7,
  padding: '12px 20px',
  borderRadius: 12,
- background: 'var(--lm-accent-light, rgba(184,91,51,0.06))',
- color: 'var(--lm-accent-text, #B85B33)',
+ background: 'var(--lm-accent-light, rgba(17, 17, 17,0.06))',
+ color: 'var(--lm-accent-text, #111111)',
  fontFamily: 'inherit',
  fontSize: 14,
  fontWeight: 600,
@@ -914,8 +918,8 @@ function PageAddBar({ onAddGroup, onAddAsset }) {
  gap: 6,
  padding: '12px 16px',
  borderRadius: 12,
- background: 'var(--lm-bg-secondary, #F2EEE6)',
- color: 'var(--lm-text-secondary, #3a3530)',
+ background: 'var(--lm-bg-secondary, #F5F5F5)',
+ color: 'var(--lm-text-secondary, #404040)',
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: 600,
@@ -961,9 +965,11 @@ function nextCueKey(bag) {
  *   Optional CTA buttons rendered below the body (e.g. "+ Add asset").
  * @returns {React.ReactElement}
  */
-function ProjectCanvasNotice({ title, body, actions }) {
+function ProjectCanvasNotice({ title, body, actions, dropPage = false }) {
  return (
  <div
+ // An empty page still accepts dropped images (image-drop-layer.jsx).
+ {...(dropPage ? { 'data-lm-drop-page': '' } : {})}
  style={{
  width: '100vw',
  height: '100vh',
@@ -972,20 +978,20 @@ function ProjectCanvasNotice({ title, body, actions }) {
  alignItems: 'center',
  justifyContent: 'center',
  gap: 12,
- background: 'var(--lm-bg-tertiary, #f0eee9)',
+ background: 'var(--lm-bg-tertiary, #f0f0f0)',
  fontFamily: 'var(--lm-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif)',
- color: 'var(--lm-text-secondary, #3a3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  textAlign: 'center',
  padding: 24,
  boxSizing: 'border-box',
  }}
  >
  {title && (
- <div style={{ fontSize: 32, fontWeight: 600, letterSpacing: -0.6, color: 'var(--lm-text-primary, #1a1714)' }}>
+ <div style={{ fontSize: 32, fontWeight: 600, letterSpacing: -0.6, color: 'var(--lm-text-primary, #0a0a0a)' }}>
  {title}
  </div>
  )}
- <div style={{ fontSize: 14, color: 'var(--lm-text-tertiary, #6e6960)', maxWidth: '44ch', lineHeight: 1.5 }}>
+ <div style={{ fontSize: 14, color: 'var(--lm-text-tertiary, #6b6b6b)', maxWidth: '44ch', lineHeight: 1.5 }}>
  {body}
  </div>
  {actions ? (
@@ -1018,8 +1024,8 @@ function NoticeButton({ label, onClick, primary }) {
  padding: '8px 16px',
  borderRadius: 8,
  border: 'none',
- background: primary ? 'var(--lm-accent, #B85B33)' : 'transparent',
- color: primary ? '#fff' : 'var(--lm-text-primary, #1a1714)',
+ background: primary ? 'var(--lm-accent, #111111)' : 'transparent',
+ color: primary ? '#fff' : 'var(--lm-text-primary, #0a0a0a)',
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: 600,
@@ -1055,7 +1061,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  return isEmpty ? (
  <div
  className="dc-section-cta"
- style={{ marginTop: 10, fontSize: 12, color: 'var(--lm-text-tertiary, #6e6960)' }}
+ style={{ marginTop: 10, fontSize: 12, color: 'var(--lm-text-tertiary, #6b6b6b)' }}
  >
  Add a .jsx, .tsx, or .md file into this group.
  </div>
@@ -1067,8 +1073,8 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  gap: 5,
  padding: '6px 12px',
  borderRadius: 8,
- background: 'var(--lm-bg-secondary, #F2EEE6)',
- color: 'var(--lm-text-secondary, #6e6960)',
+ background: 'var(--lm-bg-secondary, #F5F5F5)',
+ color: 'var(--lm-text-secondary, #6b6b6b)',
  fontFamily: 'inherit',
  fontSize: 12,
  fontWeight: 600,
@@ -1087,7 +1093,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  gap: 12,
  padding: 20,
  borderRadius: 12,
- border: '1.5px dashed rgba(26,23,20,0.14)',
+ border: '1.5px dashed rgba(0, 0, 0,0.14)',
  };
  return (
  <div
@@ -1099,7 +1105,7 @@ function SectionAddBar({ isEmpty, cliMode, onAddAsset, onAddGroup }) {
  style={isEmpty ? emptyStyle : { marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
  >
  {isEmpty && (
- <span style={{ fontSize: 13, color: 'var(--lm-text-tertiary, #6e6960)' }}>
+ <span style={{ fontSize: 13, color: 'var(--lm-text-tertiary, #6b6b6b)' }}>
  Empty group — add an asset, or drag an artboard here
  </span>
  )}

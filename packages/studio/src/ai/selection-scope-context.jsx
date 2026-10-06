@@ -115,11 +115,16 @@ export function SelectionScopeProvider({ children }) {
  * @param {{ text: string, tag?: string }} [element] - Optional element
  *   pinpoint: the clicked node INSIDE the artboard. The chip renders it after
  *   the file name and the AI planner targets the request at that element.
+ * @param {{ variant?: string, slotId?: string }} [frame] - Optional clicked
+ *   artboard: the variant export it renders and its canvas slot id, so the AI
+ *   targets that variant and the preview captures that exact artboard.
  * @returns {SelectionScope}
  */
-export function fileScope(filePath, label, element) {
+export function fileScope(filePath, label, element, frame) {
     const basename = String(filePath).split('/').filter(Boolean).pop() || String(filePath);
     const scope = { kind: 'file', filePath, label: label || basename };
+    if (frame && typeof frame.variant === 'string' && frame.variant) scope.variant = frame.variant;
+    if (frame && typeof frame.slotId === 'string' && frame.slotId) scope.slotId = frame.slotId;
     if (element && typeof element.text === 'string' && element.text.trim()) {
         scope.element = {
             text: element.text.trim().slice(0, 80),

@@ -6,7 +6,7 @@
 // Each entry in the effective config's `vars` block is turned into a CSS
 // custom property `--<key>` applied via React's `style` prop on the artboard's
 // inner wrapper element. React accepts custom property names in the `style`
-// prop object directly (e.g. `{ '--brandColor': '#B85B33' }`). This scopes the
+// prop object directly (e.g. `{ '--brandColor': '#111111' }`). This scopes the
 // property to the artboard subtree, so the asset's CSS can reference it with
 // `var(--brandColor)` without any global injection.
 //

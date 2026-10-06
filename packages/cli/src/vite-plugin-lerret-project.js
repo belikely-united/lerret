@@ -68,6 +68,7 @@ import {
   collectAssets,
   validateEntryName,
   validateAssetDimensions,
+  POSTER_TEMPLATES,
 } from '@lerret/core';
 
 import {
@@ -1824,7 +1825,7 @@ export function createRevealMiddleware(opts) {
 export function createCreateMiddleware(opts) {
   return withJsonBody(async (_req, res, body) => {
     const lerretDir = resolveLerretDir(opts);
-    const { parentPath, name, kind, assetKind, dimensions } = body;
+    const { parentPath, name, kind, assetKind, dimensions, template } = body;
     if (typeof parentPath !== 'string') {
       sendJson(res, 400, { ok: false, error: 'parentPath must be a string' });
       return;
@@ -1844,6 +1845,10 @@ export function createCreateMiddleware(opts) {
       assetKind !== 'markdown'
     ) {
       sendJson(res, 400, { ok: false, error: 'assetKind must be "component" or "markdown"' });
+      return;
+    }
+    if (kind === 'asset' && template !== undefined && !POSTER_TEMPLATES.some((t) => t.id === template)) {
+      sendJson(res, 400, { ok: false, error: 'template: unknown poster template' });
       return;
     }
     if (kind === 'asset' && dimensions !== undefined) {
@@ -1877,6 +1882,7 @@ export function createCreateMiddleware(opts) {
       const result = await createEntry(parentCheck.normalized, nameCheck.name, kind, {
         assetKind,
         dimensions,
+        template,
       });
       sendJson(res, 200, { ok: true, path: result.path });
     } catch (err) {

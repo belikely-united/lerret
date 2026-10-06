@@ -32,6 +32,8 @@ const {
   getEditState,
   withDataValue,
   __resetEditSession,
+  rebaseSelection,
+  selectElement,
 } = await import('./edit-session.js');
 
 const CARD = '/p/.lerret/card.jsx';
@@ -160,5 +162,23 @@ export const Complete = Card;
     const res = await createVariant(CARD, 'Complete');
     expect(res.ok).toBe(false);
     expect(disk.get(CARD)).toBe(SRC2);
+  });
+});
+
+describe('rebaseSelection', () => {
+  const sel = { path: '/p/a.jsx', offset: 20, stamp: '/p/a.jsx:20', tag: 'div' };
+
+  it('shifts the selection when a change lands entirely before it', () => {
+    selectElement({ ...sel });
+    rebaseSelection('/p/a.jsx', 'aaaaaaaaaa' + 'x'.repeat(20), 'aaaaaBBBaaaaa' + 'x'.repeat(20));
+    expect(getEditState().selection).toMatchObject({ offset: 23, stamp: '/p/a.jsx:23' });
+  });
+
+  it('leaves it alone for a change at/after it, in another file, or overlapping it', () => {
+    selectElement({ ...sel });
+    rebaseSelection('/p/a.jsx', 'x'.repeat(30), 'x'.repeat(25) + 'YY' + 'x'.repeat(5));
+    rebaseSelection('/p/b.jsx', 'aaa', 'aaaaaa');
+    rebaseSelection('/p/a.jsx', 'x'.repeat(15) + 'abcdefghij' + 'x'.repeat(5), 'x'.repeat(15) + 'Z' + 'x'.repeat(5));
+    expect(getEditState().selection).toMatchObject({ offset: 20 });
   });
 });

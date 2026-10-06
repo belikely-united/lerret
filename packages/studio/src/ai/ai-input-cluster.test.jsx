@@ -1734,7 +1734,10 @@ describe('selection chip — element pinpoint display + turn threading', () => {
         expect(chip.querySelector('.lm-ai-cluster__chip-file').textContent).toBe('card.jsx');
         expect(chip.querySelector('.lm-ai-cluster__chip-el').textContent).toBe('“$79”');
         expect(chip.querySelector('.lm-ai-cluster__chip-label').getAttribute('title'))
-            .toBe('card.jsx › “$79”');
+            .toBe(
+                'card.jsx › “$79”\nThe AI sees this asset’s code, its text data and a picture of it. ' +
+                    'Changes to other files ask you first.',
+            );
 
         const input = container.querySelector('[data-testid="ai-input"]');
         act(() => setReactInputValue(input, 'make it bold'));
@@ -1750,7 +1753,7 @@ describe('selection chip — element pinpoint display + turn threading', () => {
 describe('clarifying-note pipeline (DS Curator conflict surface)', () => {
     it('captures clarifying-note events into the turn record and renders them in the thread card', async () => {
         const note =
-            "brand-token conflict on 'brand': _design-system.md says '#B85B33', config.json vars (as 'brandColor') says '#FF0000' — using _design-system.md (primary)";
+            "brand-token conflict on 'brand': _design-system.md says '#111111', config.json vars (as 'brandColor') says '#FF0000' — using _design-system.md (primary)";
         aiMock.current = makeAi({
             events: [
                 { type: 'thinking' },

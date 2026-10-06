@@ -182,6 +182,7 @@ export function createVaultResolver({ folderId }) {
  *   onContinueDecision?: (info: { turnsUsed: number, spentTokens: number }) => Promise<boolean>,
  *   onClarify?: (q: { question: string, options?: string[] }) => Promise<string | null>,
  *   attachments?: Array<{ type: string }>,
+ *   selectionPreview?: { kind: 'image', base64: string, mimeType: string },   // rendered image of the selected artboard
  *   mode?: 'ask' | 'inspect',
  *   currentPage?: string,   // the page the user is viewing — default location for NEW assets (Epic 9 follow-up)
  *   folderId?: string,
@@ -200,6 +201,7 @@ export async function* runTurn({
     onContinueDecision,
     onClarify,
     attachments,
+    selectionPreview,
     mode,
     currentPage,
     folderId,
@@ -324,6 +326,7 @@ export async function* runTurn({
                 mode,
                 currentPage,
                 attachments,
+                selectionPreview,
                 providerHandle,
                 signal: effectiveSignal,
                 manifest,

@@ -18,7 +18,12 @@ import { isVisionRequired } from '../../vision/router.js';
 import { recognizeWorkflow } from '../workflows/recognize.js';
 import { planLaunchKit } from '../workflows/launch-kit.js';
 import { planSocialVariants } from '../workflows/social-variants.js';
-import { readScopedFile, elementPinpoint, toProjectRelativeLerretPath } from './scoped-file.js';
+import {
+    readScopedFile,
+    describeScopedFile,
+    elementPinpoint,
+    toProjectRelativeLerretPath,
+} from './scoped-file.js';
 
 /**
  * Collect provider-NEUTRAL image blocks (providers/interface.js ImageBlock)
@@ -90,7 +95,7 @@ function buildPlanningMessages(state, imageBlocks = [], scopedFile = null) {
           `This selection takes precedence over every project-wide rule — including the ` +
           `_design-system.md rewrite — UNLESS the request explicitly says it applies to ` +
           `all assets / everything / the whole project, in which case honor the request's ` +
-          `explicit project-wide intent instead.${pinpoint}\n` +
+          `explicit project-wide intent instead.${pinpoint}${describeScopedFile(scopedFile)}\n` +
           `--- ${scopedFile.path} (current content) ---\n${scopedFile.content}\n--- end ---`
         : '';
     // Page / multi-artboard scopes carry no single file to fold in, but the

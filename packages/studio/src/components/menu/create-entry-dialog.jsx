@@ -27,6 +27,7 @@ import {
   validateAssetDimensions,
   MIN_ASSET_DIMENSION,
   MAX_ASSET_DIMENSION,
+  POSTER_TEMPLATES,
 } from '@lerret/core';
 
 import { suspendLiveRefresh } from '../canvas/live-refresh-suspend.js';
@@ -50,8 +51,8 @@ const overlayStyle = {
 };
 
 const sheetStyle = {
-  background: 'var(--lm-bg-primary, #fdfaf3)',
-  color: 'var(--lm-text-primary, #1A1714)',
+  background: 'var(--lm-bg-primary, #ffffff)',
+  color: 'var(--lm-text-primary, #0A0A0A)',
   borderRadius: 14,
   padding: 24,
   width: 380,
@@ -66,26 +67,26 @@ const titleStyle = { margin: 0, fontSize: 16, fontWeight: 600 };
 
 const subtitleStyle = {
   fontSize: 11,
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   marginTop: 2,
 };
 
 const hintRowStyle = {
   fontSize: 11,
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   marginTop: 6,
   lineHeight: 1.4,
 };
 
 const errorRowStyle = {
   fontSize: 12,
-  color: '#B85B33',
+  color: 'var(--lm-error, #D92D20)',
   marginTop: 6,
   lineHeight: 1.4,
 };
 
 const buttonPrimary = {
-  background: 'var(--lm-accent, #B85B33)',
+  background: 'var(--lm-accent, #111111)',
   color: '#fff',
   border: 'none',
   borderRadius: 8,
@@ -111,7 +112,7 @@ const sectionLabelStyle = {
   fontWeight: 600,
   letterSpacing: '0.04em',
   textTransform: 'uppercase',
-  color: 'var(--lm-text-tertiary, #6E6960)',
+  color: 'var(--lm-text-tertiary, #6B6B6B)',
   margin: 0,
 };
 
@@ -132,8 +133,8 @@ function choiceStyle(active) {
   return {
     border: 'none',
     borderRadius: 10,
-    background: active ? 'var(--lm-accent-light, rgba(184,91,51,0.10))' : 'var(--lm-bg-secondary, #F2EEE6)',
-    color: 'var(--lm-text-primary, #1A1714)',
+    background: active ? 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' : 'var(--lm-bg-secondary, #F5F5F5)',
+    color: 'var(--lm-text-primary, #0A0A0A)',
     fontFamily: 'inherit',
     textAlign: 'left',
     cursor: 'pointer',
@@ -143,13 +144,13 @@ function choiceStyle(active) {
 const monoStyle = {
   fontFamily: 'var(--lm-font-mono, ui-monospace, monospace)',
   fontSize: 11,
-  color: 'var(--lm-text-tertiary, #6E6960)',
+  color: 'var(--lm-text-tertiary, #6B6B6B)',
 };
 
 const backButtonStyle = {
   border: 'none',
   background: 'transparent',
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   borderRadius: 6,
   width: 26,
   height: 26,
@@ -164,7 +165,7 @@ const linkButtonStyle = {
   border: 'none',
   background: 'transparent',
   padding: '8px 4px',
-  color: 'var(--lm-text-secondary, #6E6960)',
+  color: 'var(--lm-text-secondary, #6B6B6B)',
   fontFamily: 'inherit',
   fontSize: 12,
   fontWeight: 500,
@@ -230,6 +231,53 @@ function PlatformShapes({ formats }) {
 
 const DEFAULT_CUSTOM_SIZE = { width: '1080', height: '1080' };
 
+/** Store listings start from a layout by default; everything else from blank. */
+const TEMPLATE_DEFAULT_PLATFORMS = new Set(['appstore', 'playstore', 'microsoftstore']);
+
+/**
+ * A tiny sketch of a template at the chosen format's proportions — bars for
+ * text, a rounded block for the phone — so the choice is visual, not verbal.
+ *
+ * @param {{ id: string, width: number, height: number }} props
+ */
+function TemplateThumb({ id, width, height }) {
+  const box = 44;
+  const s = box / Math.max(width, height);
+  const w = Math.max(18, Math.round(width * s));
+  const h = Math.max(18, Math.round(height * s));
+  const dark = id === 'big-headline';
+  const bar = (top, wPct, thick = 3) => (
+    <span style={{ position: 'absolute', top, left: `${(100 - wPct) / 2}%`, width: `${wPct}%`, height: thick, borderRadius: 2, background: dark ? '#fff' : 'currentColor', opacity: dark ? 0.9 : 0.55 }} />
+  );
+  const phone = (top) => (
+    <span style={{ position: 'absolute', top, left: '22%', width: '56%', height: '70%', borderRadius: 4, background: 'currentColor', opacity: 0.8 }} />
+  );
+  return (
+    <span aria-hidden="true" style={{ width: box, height: box, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <span style={{ position: 'relative', width: w, height: h, borderRadius: 3, overflow: 'hidden', background: dark ? '#1C1C1E' : 'var(--lm-bg-tertiary, #EBEBEB)', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)' }}>
+        {id === 'blank' ? null : id === 'big-headline' ? (
+          <>
+            {bar('40%', 70, 4)}
+            {bar('52%', 50)}
+          </>
+        ) : id === 'headline-phone' ? (
+          <>
+            {bar('8%', 70, 3)}
+            {bar('16%', 50, 2)}
+            {phone('30%')}
+          </>
+        ) : (
+          <>
+            {phone('-6%')}
+            {bar('74%', 70, 3)}
+            {bar('84%', 50, 2)}
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Parse the custom W/H text fields into a dimensions object + validation.
  *
@@ -255,12 +303,12 @@ function inputStyle(hasError) {
     borderRadius: 8,
     border: 'none',
     background: 'var(--lm-bg-tertiary)',
-    color: 'var(--lm-text-primary, #1A1714)',
+    color: 'var(--lm-text-primary, #0A0A0A)',
     fontFamily: 'inherit',
     fontSize: 14,
     outline: 'none',
     boxShadow: hasError
-      ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B)'
+      ? 'inset 0 0 0 1.5px var(--lm-error, #D92D20)'
       : 'none',
     transition: 'box-shadow 120ms ease',
   };
@@ -366,6 +414,8 @@ export function CreateEntryDialog({
   const [platformId, setPlatformId] = React.useState(null);
   const [formatId, setFormatId] = React.useState(null);
   const [customSize, setCustomSize] = React.useState(DEFAULT_CUSTOM_SIZE);
+  // 'blank' or a POSTER_TEMPLATES id — what a new component asset starts from.
+  const [template, setTemplate] = React.useState('blank');
   const [pending, setPending] = React.useState(false);
   const [serverError, setServerError] = React.useState(null);
   const inputRef = React.useRef(null);
@@ -405,6 +455,7 @@ export function CreateEntryDialog({
     setAssetKind('component');
     const p = findPlatform(id);
     setFormatId(p ? p.formats[0].id : null);
+    setTemplate(TEMPLATE_DEFAULT_PLATFORMS.has(id) ? 'headline-phone' : 'blank');
     setStepDir('fwd');
     setStep('details');
   };
@@ -483,6 +534,7 @@ export function CreateEntryDialog({
     try {
       const payload = { name: v.name, assetKind: isAsset ? assetKind : undefined };
       if (dimensions) payload.dimensions = dimensions;
+      if (dimensions && template !== 'blank') payload.template = template;
       await onConfirm(payload);
       onClose();
     } catch (err) {
@@ -490,7 +542,7 @@ export function CreateEntryDialog({
     } finally {
       setPending(false);
     }
-  }, [name, kind, pending, sizeCheck, onConfirm, isAsset, assetKind, dimensions, onClose]);
+  }, [name, kind, pending, sizeCheck, onConfirm, isAsset, assetKind, dimensions, template, onClose]);
 
   const onInputKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -555,7 +607,7 @@ export function CreateEntryDialog({
             <PlatformShapes formats={p.formats} />
             <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>{p.label}</span>
-              <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6E6960)' }}>
+              <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6B6B6B)' }}>
                 {p.formats.length} sizes
               </span>
             </span>
@@ -574,7 +626,7 @@ export function CreateEntryDialog({
           </span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>Custom size</span>
-            <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6E6960)' }}>Any W × H</span>
+            <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6B6B6B)' }}>Any W × H</span>
           </span>
         </button>
       </div>
@@ -607,7 +659,7 @@ export function CreateEntryDialog({
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
-            maxHeight: 264,
+            maxHeight: 200,
             overflowY: 'auto',
             margin: -3,
             padding: 3,
@@ -628,7 +680,7 @@ export function CreateEntryDialog({
                   alignItems: 'center',
                   gap: 10,
                   padding: '6px 10px',
-                  color: active ? 'var(--lm-accent-text, #B85B33)' : 'var(--lm-text-primary, #1A1714)',
+                  color: active ? 'var(--lm-accent-text, #111111)' : 'var(--lm-text-primary, #0A0A0A)',
                 }}
                 onClick={() => setFormatId(f.id)}
                 data-testid={`lm-create-format-${f.id}`}
@@ -678,10 +730,10 @@ export function CreateEntryDialog({
         <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Size (px)</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {numberField('width')}
-          <span aria-hidden="true" style={{ color: 'var(--lm-text-tertiary, #6E6960)' }}>×</span>
+          <span aria-hidden="true" style={{ color: 'var(--lm-text-tertiary, #6B6B6B)' }}>×</span>
           {numberField('height')}
           {preview.check.ok ? (
-            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--lm-text-secondary, #6E6960)' }}>
+            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--lm-text-secondary, #6B6B6B)' }}>
               <RatioShape width={preview.dims.width} height={preview.dims.height} />
               <span style={monoStyle}>{formatRatio(preview.dims.width, preview.dims.height)}</span>
             </span>
@@ -696,10 +748,40 @@ export function CreateEntryDialog({
     );
   }
 
+  // ── Step 2: what the asset starts from (component assets with a size) ───
+  const templatePicker =
+    pickSize && isComponent && dimensions ? (
+      <div>
+        <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Start with</p>
+        <div role="radiogroup" aria-label="Start with" data-testid="lm-create-templates" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          {[{ id: 'blank', label: 'Blank' }, ...POSTER_TEMPLATES].map((t) => {
+            const active = template === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                title={t.description || 'An empty canvas'}
+                className={'lm-seg lm-create-choice' + (active ? ' lm-seg--on' : '')}
+                style={{ ...choiceStyle(active), display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 4px 6px', fontSize: 11, fontWeight: 600, color: active ? 'var(--lm-accent-text, #111111)' : 'var(--lm-text-secondary, #404040)' }}
+                onClick={() => setTemplate(t.id)}
+                data-testid={`lm-create-template-${t.id}`}
+              >
+                <TemplateThumb id={t.id} width={dimensions.width} height={dimensions.height} />
+                <span style={{ textAlign: 'center', lineHeight: 1.2 }}>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
   // ── Step 2 / single step: name + confirm ────────────────────────────────
   const detailsStep = (
     <>
       {sizePicker}
+      {templatePicker}
 
       <div>
         {sizePicker ? <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Name</p> : null}
@@ -711,12 +793,12 @@ export function CreateEntryDialog({
           onKeyDown={onInputKeyDown}
           onFocus={(e) => {
             e.currentTarget.style.boxShadow = inlineError
-              ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B), var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))'
-              : 'var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20))';
+              ? 'inset 0 0 0 1.5px var(--lm-error, #D92D20), var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))'
+              : 'var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20))';
           }}
           onBlur={(e) => {
             e.currentTarget.style.boxShadow = inlineError
-              ? 'inset 0 0 0 1.5px var(--lm-error, #A8412B)'
+              ? 'inset 0 0 0 1.5px var(--lm-error, #D92D20)'
               : 'none';
           }}
           placeholder={copy.placeholder}

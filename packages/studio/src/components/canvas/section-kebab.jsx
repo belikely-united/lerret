@@ -18,6 +18,7 @@
 // calm inline text below the trigger.
 
 import React from 'react';
+import { AppStoreExportDialog } from '../export/app-store-export-dialog.jsx';
 import { createPortal } from 'react-dom';
 
 import {
@@ -156,7 +157,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  minWidth: 180,
  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
  fontSize: 12,
- color: '#1A1714',
+ color: '#0A0A0A',
  }}
  >
  {/* Format row */}
@@ -172,8 +173,8 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  padding: '4px 0',
  borderRadius: 6,
  border: 'none',
- background: format === f ? '#B85B33' : 'var(--lm-bg-secondary, #F2EEE6)',
- color: format === f ? '#FAF8F2' : '#3A3530',
+ background: format === f ? '#111111' : 'var(--lm-bg-secondary, #F5F5F5)',
+ color: format === f ? '#FFFFFF' : '#404040',
  fontFamily: 'inherit',
  fontSize: 11,
  fontWeight: 600,
@@ -193,7 +194,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  onChange={(e) => onFlatChange(e.target.checked)}
  style={{ margin: 0 }}
  />
- <span style={{ fontSize: 11, color: '#6E6960' }}>Flat (no folders)</span>
+ <span style={{ fontSize: 11, color: '#6B6B6B' }}>Flat (no folders)</span>
  </label>
 
  {/* Export button */}
@@ -207,8 +208,8 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  padding: '6px 10px',
  borderRadius: 7,
  border: 'none',
- background: busy ? 'rgba(184,91,51,0.35)' : '#B85B33',
- color: '#FAF8F2',
+ background: busy ? 'rgba(17, 17, 17,0.35)' : '#111111',
+ color: '#FFFFFF',
  fontFamily: 'inherit',
  fontSize: 12,
  fontWeight: 600,
@@ -224,7 +225,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  <div style={{
  marginTop: 6,
  fontSize: 11,
- color: '#6E6960',
+ color: '#6B6B6B',
  lineHeight: 1.4,
  maxWidth: 220,
  }}>{notice}</div>
@@ -252,6 +253,7 @@ function SectionExportPopover({ format, flat, onFormatChange, onFlatChange, prog
  */
 export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', project, children }) {
  const [configOpen, setConfigOpen] = React.useState(false);
+ const [appStoreOpen, setAppStoreOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
 
  // ── Export state ──────────────────────────────────────────────
@@ -296,11 +298,11 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  const onAddGroup = React.useCallback(() => setCreateKind('group'), []);
  const onAddAsset = React.useCallback(() => setCreateKind('asset'), []);
  const onConfirmCreate = React.useCallback(
- async ({ name, assetKind, dimensions }) => {
+ async ({ name, assetKind, dimensions, template }) => {
  if (!sectionId || !createKind) return;
  // 'group' creates a folder inside this section; 'asset' a starter file.
  const endpointKind = createKind === 'asset' ? 'asset' : 'folder';
- const result = await create(sectionId, name, endpointKind, { assetKind, dimensions });
+ const result = await create(sectionId, name, endpointKind, { assetKind, dimensions, template });
  if (!result?.ok) throw new Error(result?.error || 'Create failed');
  },
  [sectionId, createKind],
@@ -409,6 +411,7 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  onMove,
  onDelete,
  onExport,
+ onExportAppStore: () => setAppStoreOpen(true),
  onRevealEditor,
  onRevealFinder,
  cliMode,
@@ -515,6 +518,9 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  currentParentPath={sectionParent}
  destinations={destinations}
  />
+ )}
+ {appStoreOpen && (
+ <AppStoreExportDialog sectionId={sectionId} title={sectionTitle} onClose={() => setAppStoreOpen(false)} />
  )}
  {createKind && (
  <CreateEntryDialog

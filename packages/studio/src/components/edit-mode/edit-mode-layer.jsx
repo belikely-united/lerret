@@ -18,12 +18,11 @@ import { useSelectionScope, fileScope } from '../../ai/selection-scope-context.j
 import {
   useEditMode,
   getEditState,
-  toggleEditMode,
-  setEditEnabled,
   selectElement,
   loadEngine,
   readSource,
   saveSourceEdit,
+  saveStyles,
   saveDataEdit,
   undo,
   redo,
@@ -160,11 +159,196 @@ function previewTranslate(stamp, value) {
   for (const n of nodesFor(stamp)) n.style.translate = value ?? '';
 }
 
-/** Save a move; on a refused/failed save put the previous position back. */
-async function commitMove(sel, value, previous) {
+/** Absolutely-positioned with plain px left/top — moved by rewriting left/top. */
+export function absoluteBox(el) {
+  const cs = getComputedStyle(el);
+  if (cs.position !== 'absolute') return null;
+  const left = parseFloat(el.style.left);
+  const top = parseFloat(el.style.top);
+  return Number.isFinite(left) && Number.isFinite(top) ? { left, top } : null;
+}
+
+/**
+ * Save a move; on a refused/failed save put the previous position back. An
+ * absolutely-positioned element (Add-menu / template layers) gets clean
+ * `left`/`top` values instead of an accumulating `translate`.
+ */
+async function commitMove(sel, value, previous, el) {
+  const abs = el ? absoluteBox(el) : null;
+  const delta = parseTranslate(value) || [0, 0];
+  const prev = parseTranslate(previous || 'none') || [0, 0];
+  if (abs && (delta[0] || delta[1] || prev[0] || prev[1])) {
+    const left = Math.round(abs.left + delta[0]);
+    const top = Math.round(abs.top + delta[1]);
+    for (const n of nodesFor(sel.stamp)) {
+      n.style.translate = '';
+      n.style.left = `${left}px`;
+      n.style.top = `${top}px`;
+    }
+    const res = await saveStyles(sel.path, sel.offset, [
+      { key: 'left', value: left },
+      { key: 'top', value: top },
+      { key: 'translate', value: undefined },
+    ], sel.tag);
+    if (!res.ok) {
+      for (const n of nodesFor(sel.stamp)) {
+        n.style.left = `${abs.left}px`;
+        n.style.top = `${abs.top}px`;
+      }
+    }
+    return res;
+  }
   const res = await saveSourceEdit(sel.path, sel.offset, { type: 'style', key: 'translate', value, expectTag: sel.tag });
   if (!res.ok) previewTranslate(sel.stamp, previous);
   return res;
+}
+
+// ── Snapping + guides ───────────────────────────────────────────────────────
+
+/** Screen px within which a moving element's center snaps to the artboard's. */
+export const SNAP_PX = 6;
+
+/**
+ * Snap a drag so the element's center lands on the artboard's center line
+ * when it is within {@link SNAP_PX}. Returns the adjusted delta and which axes
+ * snapped (for the guides).
+ *
+ * @param {DOMRect} el    The element's rect at drag start.
+ * @param {DOMRect} board The artboard card's rect.
+ * @param {number} dx
+ * @param {number} dy
+ * @returns {{ dx: number, dy: number, x: boolean, y: boolean }}
+ */
+export function snapToCenter(el, board, dx, dy) {
+  const cx = el.left + el.width / 2 + dx;
+  const cy = el.top + el.height / 2 + dy;
+  const bx = board.left + board.width / 2;
+  const by = board.top + board.height / 2;
+  const x = Math.abs(cx - bx) <= SNAP_PX;
+  const y = Math.abs(cy - by) <= SNAP_PX;
+  return { dx: x ? dx + (bx - cx) : dx, dy: y ? dy + (by - cy) : dy, x, y };
+}
+
+function createGuides() {
+  const make = (axis) => {
+    const d = document.createElement('div');
+    d.className = `lm-edit-guide lm-edit-guide--${axis}`;
+    d.style.display = 'none';
+    document.body.appendChild(d);
+    return d;
+  };
+  const v = make('v');
+  const h = make('h');
+  return {
+    show(board, snap) {
+      v.style.display = snap.x ? '' : 'none';
+      h.style.display = snap.y ? '' : 'none';
+      Object.assign(v.style, { left: `${board.left + board.width / 2}px`, top: `${board.top}px`, height: `${board.height}px` });
+      Object.assign(h.style, { top: `${board.top + board.height / 2}px`, left: `${board.left}px`, width: `${board.width}px` });
+    },
+    remove() {
+      v.remove();
+      h.remove();
+    },
+  };
+}
+
+// ── Resizing ────────────────────────────────────────────────────────────────
+
+const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+/** Elements whose shape should keep its proportions unless Shift is held. */
+function keepsRatio(el) {
+  return el.tagName === 'IMG' || el.getAttribute('data-lerret-role') === 'phone' || el.hasAttribute('data-image-slot')
+    || getComputedStyle(el).borderRadius === '50%';
+}
+
+/** Text boxes grow by width only — their height follows the text. */
+function isTextBox(el) {
+  return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && !el.style.height;
+}
+
+/**
+ * The size/position after dragging handle `dir` by (dx, dy) artboard px.
+ *
+ * @param {{ x: number, y: number, w: number, h: number }} start
+ * @param {string} dir   One of HANDLES.
+ * @param {number} dx
+ * @param {number} dy
+ * @param {{ ratio: boolean, widthOnly: boolean }} opts
+ * @returns {{ x: number, y: number, w: number, h: number }}
+ */
+export function resizeBox(start, dir, dx, dy, { ratio = false, widthOnly = false } = {}) {
+  let { x, y, w, h } = start;
+  if (dir.includes('e')) w = start.w + dx;
+  if (dir.includes('w')) w = start.w - dx;
+  if (!widthOnly) {
+    if (dir.includes('s')) h = start.h + dy;
+    if (dir.includes('n')) h = start.h - dy;
+  }
+  w = Math.max(8, w);
+  h = Math.max(8, h);
+  if (ratio && !widthOnly && start.w > 0 && start.h > 0) {
+    const r = start.w / start.h;
+    if (dir === 'n' || dir === 's') w = h * r;
+    else h = w / r;
+  }
+  if (dir.includes('w')) x = start.x + (start.w - w);
+  if (dir.includes('n')) y = start.y + (start.h - h);
+  return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+}
+
+function startResize(e, dir, sel) {
+  const el = selectedNodes(sel)[0];
+  if (!el || isArtboardRoot(el)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const scale = scaleOf(el);
+  const abs = absoluteBox(el);
+  const t0 = parseTranslate(el.style.translate || getComputedStyle(el).translate) || [0, 0];
+  const start = {
+    x: abs ? abs.left : t0[0],
+    y: abs ? abs.top : t0[1],
+    w: el.offsetWidth,
+    h: el.offsetHeight,
+  };
+  const widthOnly = isTextBox(el);
+  const ratioDefault = keepsRatio(el);
+  const x0 = e.clientX;
+  const y0 = e.clientY;
+  let box = start;
+  const apply = (b) => {
+    for (const n of nodesFor(sel.stamp)) {
+      n.style.width = `${b.w}px`;
+      if (!widthOnly) n.style.height = `${b.h}px`;
+      if (abs) {
+        n.style.left = `${b.x}px`;
+        n.style.top = `${b.y}px`;
+      } else {
+        n.style.translate = formatTranslate(b.x, b.y) ?? '';
+      }
+    }
+  };
+  const move = (ev) => {
+    box = resizeBox(start, dir, (ev.clientX - x0) / scale, (ev.clientY - y0) / scale, {
+      ratio: ev.shiftKey ? !ratioDefault : ratioDefault,
+      widthOnly,
+    });
+    apply(box);
+  };
+  const up = async () => {
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', up, true);
+    if (box === start) return;
+    const changes = [{ key: 'width', value: box.w }];
+    if (!widthOnly) changes.push({ key: 'height', value: box.h });
+    if (abs) changes.push({ key: 'left', value: box.x }, { key: 'top', value: box.y });
+    else if (box.x !== start.x || box.y !== start.y) changes.push({ key: 'translate', value: formatTranslate(box.x, box.y) });
+    const res = await saveStyles(sel.path, sel.offset, changes, sel.tag);
+    if (!res.ok) apply(start);
+  };
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('pointerup', up, true);
 }
 
 /** Delete the selected element from the source (undoable with ⌘Z). */
@@ -190,17 +374,12 @@ export function EditModeLayer() {
   React.useEffect(() => {
     const onKey = (e) => {
       if (isTyping()) return;
+      // A dialog owns the keyboard while it is open (New asset, confirms, …).
+      if (document.querySelector('[aria-modal="true"]')) return;
       const mod = e.metaKey || e.ctrlKey;
-      if (!mod && !e.altKey && (e.key === 'e' || e.key === 'E')) {
-        e.preventDefault();
-        toggleEditMode();
-        return;
-      }
-      const { enabled: on, selection: sel } = getEditState();
-      if (!on) return;
+      const { selection: sel } = getEditState();
       if (e.key === 'Escape') {
         if (sel) selectElement(null);
-        else setEditEnabled(false);
       } else if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -232,7 +411,7 @@ export function EditModeLayer() {
           value,
           timer: setTimeout(() => {
             nudgeRef.current = null;
-            commitMove(sel, value, start === 'none' ? '' : start);
+            commitMove(sel, value, start === 'none' ? '' : start, node);
           }, SAVE_DELAY_MS),
         };
       }
@@ -252,8 +431,13 @@ export function EditModeLayer() {
       hoverRef.current = stampedTarget(e.target);
     };
 
+    // Where the last press started — a click that ends a canvas pan isn't a
+    // "click on empty canvas" and must not clear the selection.
+    let downAt = null;
+
     const onDown = (e) => {
       if (e.button !== 0) return;
+      downAt = { x: e.clientX, y: e.clientY };
       const sel = getEditState().selection;
       const el = stampedTarget(e.target);
       if (!sel || !el || el.isContentEditable) return;
@@ -265,6 +449,9 @@ export function EditModeLayer() {
       const scale = scaleOf(el);
       const x0 = e.clientX;
       const y0 = e.clientY;
+      const rect0 = el.getBoundingClientRect();
+      const board = el.closest('.dc-card')?.getBoundingClientRect();
+      let guides = null;
       let dragging = false;
       let value;
       const move = (ev) => {
@@ -280,15 +467,24 @@ export function EditModeLayer() {
           if (Math.abs(dx) > Math.abs(dy)) dy = 0;
           else dx = 0;
         }
+        if (board) {
+          // Snap to the artboard's center lines (hold Alt to place freely).
+          const snap = ev.altKey ? { dx, dy, x: false, y: false } : snapToCenter(rect0, board, dx, dy);
+          dx = snap.dx;
+          dy = snap.dy;
+          guides = guides || createGuides();
+          guides.show(board, snap);
+        }
         value = formatTranslate(base[0] + dx / scale, base[1] + dy / scale);
         previewTranslate(sel.stamp, value);
       };
       const up = () => {
         document.removeEventListener('pointermove', move, true);
         document.removeEventListener('pointerup', up, true);
+        guides?.remove();
         if (!dragging) return;
         swallowClick = true; // the click that ends a drag isn't a selection
-        commitMove(sel, value, start === 'none' ? '' : start);
+        commitMove(sel, value, start === 'none' ? '' : start, el);
       };
       document.addEventListener('pointermove', move, true);
       document.addEventListener('pointerup', up, true);
@@ -296,7 +492,20 @@ export function EditModeLayer() {
 
     const onClick = (e) => {
       const el = stampedTarget(e.target);
-      if (!el) return;
+      if (!el) {
+        // A plain click on empty canvas (not a pan, not chrome) clears the selection.
+        const t = e.target;
+        const still = downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < DRAG_THRESHOLD_PX;
+        if (
+          still &&
+          t && typeof t.closest === 'function' &&
+          t.closest('.design-canvas') &&
+          !t.closest('[data-dc-slot], button, a, input, select, textarea, [role="menu"], .dc-section-tag')
+        ) {
+          selectElement(null);
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       if (swallowClick) {
@@ -307,7 +516,13 @@ export function EditModeLayer() {
       const sel = selectionFrom(el);
       selectElement(sel);
       const text = String(el.textContent ?? '').replace(/\s+/g, ' ').trim();
-      setScope(fileScope(sel.assetPath, undefined, text.length <= 120 ? { text, tag: sel.tag } : undefined));
+      const frameEl = el.closest('[data-dc-asset-path]');
+      setScope(
+        fileScope(sel.assetPath, undefined, text.length <= 120 ? { text, tag: sel.tag } : undefined, {
+          variant: frameEl?.getAttribute('data-dc-variant') || undefined,
+          slotId: frameEl?.getAttribute('data-dc-slot') || undefined,
+        }),
+      );
     };
 
     const onDbl = (e) => {
@@ -353,10 +568,23 @@ export function EditModeLayer() {
       marked.forEach((n) => n.removeAttribute('data-lm-edit-sel'));
       selNodes.forEach((n) => n.setAttribute('data-lm-edit-sel', ''));
       marked = selNodes;
-      boxesRef.current.replaceChildren(...boxes.map(([k, r]) => {
+      const sel = getEditState().selection;
+      const resizable = selNodes.length > 0 && !isArtboardRoot(selNodes[0]);
+      const widthOnly = resizable && isTextBox(selNodes[0]);
+      boxesRef.current.replaceChildren(...boxes.map(([k, r], i) => {
         const d = document.createElement('div');
         d.className = `lm-edit-box lm-edit-box--${k}`;
         Object.assign(d.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.width}px`, height: `${r.height}px` });
+        // Resize handles on the clicked instance of the selection.
+        if (k === 'sel' && i === 0 && resizable) {
+          for (const dir of widthOnly ? ['e', 'w'] : HANDLES) {
+            const h = document.createElement('div');
+            h.className = `lm-edit-handle lm-edit-handle--${dir}`;
+            h.setAttribute('data-edit-ui', '');
+            h.addEventListener('pointerdown', (ev) => startResize(ev, dir, sel));
+            d.appendChild(h);
+          }
+        }
         return d;
       }));
     };

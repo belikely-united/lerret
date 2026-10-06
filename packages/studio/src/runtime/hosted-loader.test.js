@@ -13,7 +13,7 @@ import { loadHostedProject, HOSTED_SCAN_ROOT } from './hosted-loader.js';
  *  carrying both a per-asset config (autoRefresh) and a data file. */
 function seedProject() {
   return createMemoryBackend({
-    '.lerret/config.json': JSON.stringify({ vars: { brand: '#B85B33' } }),
+    '.lerret/config.json': JSON.stringify({ vars: { brand: '#111111' } }),
     '.lerret/marketing/Hero.jsx': 'export default () => null;',
     '.lerret/marketing/Hero.config.json': JSON.stringify({ autoRefresh: 1000 }),
     '.lerret/marketing/Hero.data.json': JSON.stringify({ title: 'Hi' }),
@@ -41,7 +41,7 @@ describe('loadHostedProject', () => {
     const marketing = cascadeEntries.find(([path]) => path === '.lerret/marketing');
     expect(marketing).toBeTruthy();
     // Root config.json vars cascade down to the page (FR21).
-    expect(marketing[1].vars.brand).toBe('#B85B33');
+    expect(marketing[1].vars.brand).toBe('#111111');
   });
 
   it('serializes per-asset config as [assetPath, config] entries', async () => {

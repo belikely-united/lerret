@@ -25,7 +25,6 @@ import * as ReactDOM from 'react-dom';
 import { PagePicker } from './components/dock/page-picker.jsx';
 import { EditModeLayer } from './components/edit-mode/edit-mode-layer.jsx';
 import { EditModeDock } from './components/edit-mode/edit-dock.jsx';
-import { useEditMode } from './components/edit-mode/edit-session.js';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
 import { useProjectModel } from './components/dock/project-model-context.jsx';
 // Epic 8 / Story 8.2 — the dock-mounted AI input cluster. It reaches @lerret/ai
@@ -79,16 +78,16 @@ function StudioComingSoon({ label }) {
  justifyContent: 'center',
  flexDirection: 'column',
  gap: 14,
- background: '#f0eee9',
+ background: '#f0f0f0',
  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
- color: '#2a251f',
+ color: '#1f1f1f',
  }}>
  <div style={{
  fontSize: 11,
  fontWeight: 600,
  letterSpacing: '0.18em',
  textTransform: 'uppercase',
- color: '#9a958c',
+ color: '#8f8f8f',
  }}>Coming soon</div>
  <div style={{
  fontSize: 40,
@@ -97,7 +96,7 @@ function StudioComingSoon({ label }) {
  }}>{label}</div>
  <div style={{
  fontSize: 14,
- color: '#6e6960',
+ color: '#6b6b6b',
  maxWidth: '44ch',
  textAlign: 'center',
  lineHeight: 1.5,
@@ -118,7 +117,7 @@ function StudioComingSoon({ label }) {
 const SHOW_AI_INPUT = false;
 
 function StudioDockSeparator() {
- return <div style={{ width: 1, height: 24, background: 'var(--lm-bg-tertiary, #E8E2D4)', alignSelf: 'center' }} />;
+ return <div style={{ width: 1, height: 24, background: 'var(--lm-bg-tertiary, #EBEBEB)', alignSelf: 'center' }} />;
 }
 
 function StudioDockButton({
@@ -138,8 +137,8 @@ function StudioDockButton({
  padding: '8px 12px',
  borderRadius: 8,
  border: 'none',
- background: active ? '#2a251f' : 'transparent',
- color: active ? '#fff' : (disabled ? '#9a958c' : '#3a3530'),
+ background: active ? '#1f1f1f' : 'transparent',
+ color: active ? '#fff' : (disabled ? '#8f8f8f' : '#404040'),
  fontFamily: 'inherit',
  fontSize: 13,
  fontWeight: active ? 600 : 500,
@@ -160,7 +159,7 @@ function StudioDockButton({
  <span style={{
  fontSize: 9, fontWeight: 600,
  letterSpacing: '0.06em', textTransform: 'uppercase',
- color: '#9a958c',
+ color: '#8f8f8f',
  background: 'rgba(60,50,40,0.08)',
  padding: '3px 7px', borderRadius: 999,
  marginLeft: 2,
@@ -239,7 +238,7 @@ function StudioBrandMenu({
  border: 'none', borderRadius: 8,
  background: 'transparent',
  cursor: 'pointer', fontFamily: 'inherit',
- color: opts.quiet ? '#6E6960' : '#1A1714',
+ color: opts.quiet ? '#6B6B6B' : '#0A0A0A',
  transition: 'background .12s',
  }}
  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
@@ -255,8 +254,8 @@ function StudioBrandMenu({
  padding: '6px 0',
  borderRadius: 7,
  border: 'none',
- background: on ? '#B85B33' : 'var(--lm-bg-tertiary, #E8E2D4)',
- color: on ? '#FAF8F2' : '#3A3530',
+ background: on ? '#111111' : 'var(--lm-bg-tertiary, #EBEBEB)',
+ color: on ? '#FFFFFF' : '#404040',
  fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
  cursor: 'pointer', transition: 'background .12s',
  });
@@ -278,7 +277,7 @@ function StudioBrandMenu({
  WebkitBackdropFilter: 'blur(16px) saturate(120%)',
  borderRadius: 12,
  padding: 6,
- boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(26,23,20,0.22))',
+ boxShadow: 'var(--lm-shadow-popup, 0 18px 48px rgba(0, 0, 0,0.22))',
  display: 'flex', flexDirection: 'column', gap: 1,
  zIndex: 90,
  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
@@ -357,7 +356,7 @@ function StudioBrandMenu({
  padding: '6px 12px',
  borderRadius: 7,
  border: 'none',
- background: exportBusy ? 'rgba(42,37,31,0.5)' : '#2A251F',
+ background: exportBusy ? 'rgba(42,37,31,0.5)' : '#1F1F1F',
  color: '#fff',
  fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
  cursor: exportBusy ? 'wait' : 'pointer',
@@ -373,7 +372,7 @@ function StudioBrandMenu({
  </div>
  {exportNotice && (
  <div style={{
- fontSize: 11, color: '#6E6960', lineHeight: 1.4,
+ fontSize: 11, color: '#6B6B6B', lineHeight: 1.4,
  background: 'rgba(60,50,40,0.05)', borderRadius: 8, padding: '6px 8px',
  }}>
  {exportNotice}
@@ -381,7 +380,7 @@ function StudioBrandMenu({
  type="button"
  className="lm-focusable-inset"
  onClick={onDismissNotice}
- style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#9a958c', fontSize: 11, padding: 0, fontFamily: 'inherit' }}
+ style={{ marginLeft: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#8f8f8f', fontSize: 11, padding: 0, fontFamily: 'inherit' }}
  title="Dismiss"
  >✕</button>
  </div>
@@ -407,9 +406,9 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  // When `null` (e.g. the brownfield `#storyboard` page, not a Lerret
  // project), the dock falls back to the studio-shell page buttons.
  const projectPages = useProjectPages();
- // While editing, the dock IS the edit toolbar: brand + page nav step aside
- // (hidden, not unmounted, so their dialogs/state survive).
- const { enabled: editing } = useEditMode();
+ // Editing is always on and lives beside the brand + page nav, never instead
+ // of them.
+ const editing = false;
  // The loaded ProjectNode — used by the "Export project" button.
  const projectModel = useProjectModel();
  // Cascaded per-folder config — used to honor `excludeFromExport: true` (FR52).
@@ -569,7 +568,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  padding: '6px 10px', borderRadius: 999,
  border: 'none',
  background: brandOpen ? 'rgba(0,0,0,0.06)' : 'transparent',
- color: '#1A1714', cursor: 'pointer',
+ color: '#0A0A0A', cursor: 'pointer',
  fontFamily: 'inherit',
  transition: 'background .12s',
  }}
@@ -668,7 +667,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
   idle-only fallback and the surrounding brand / page-picker children keep
   working. */}
  {!editing && <StudioDockSeparator />}
- <EditModeDock Button={StudioDockButton} Separator={StudioDockSeparator} />
+ <EditModeDock />
  {SHOW_AI_INPUT && <StudioDockSeparator />}
  {SHOW_AI_INPUT && (
  <AiInputCluster

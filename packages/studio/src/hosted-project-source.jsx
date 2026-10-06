@@ -195,7 +195,7 @@ export function HostedProjectSource({ deps = REAL_DEPS } = {}) {
 function HostedSplash() {
   return (
     <div style={splashStyle} data-testid="hosted-splash">
-      <div style={{ fontSize: 14, color: 'var(--lm-text-secondary, #6E6960)' }}>
+      <div style={{ fontSize: 14, color: 'var(--lm-text-secondary, #6B6B6B)' }}>
         Opening your project…
       </div>
     </div>
@@ -226,8 +226,8 @@ function HostedError({ error, onRetry }) {
   return (
     <div style={splashStyle} data-testid="hosted-error">
       <div style={{ maxWidth: 420, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--lm-text-primary, #1A1714)' }}>{title}</h2>
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--lm-text-secondary, #6E6960)' }}>{detail}</p>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--lm-text-primary, #0A0A0A)' }}>{title}</h2>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--lm-text-secondary, #6B6B6B)' }}>{detail}</p>
         <div>
           <button type="button" onClick={onRetry} style={retryBtnStyle} data-testid="hosted-error-retry">
             {retryLabel}
@@ -244,7 +244,7 @@ const splashStyle = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: 'var(--lm-bg-primary, #FAF8F2)',
+  background: 'var(--lm-bg-primary, #FFFFFF)',
   fontFamily: 'var(--lm-font-sans, -apple-system, system-ui, sans-serif)',
   padding: 24,
 };
@@ -253,7 +253,7 @@ const retryBtnStyle = {
   border: 'none',
   borderRadius: 8,
   padding: '8px 16px',
-  background: 'var(--lm-accent, #B85B33)',
+  background: 'var(--lm-accent, #111111)',
   color: '#fff',
   fontSize: 13,
   fontWeight: 600,

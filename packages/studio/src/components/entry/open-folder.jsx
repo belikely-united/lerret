@@ -31,7 +31,7 @@
 //
 // ── Styling ──────────────────────────────────────────────────────────────────
 // All --lm-* design tokens from colors_and_type.css. The warm-linen background
-// (#F2EEE6 = --lm-bg-secondary), sienna primary button, and generous spacing
+// (#F5F5F5 = --lm-bg-secondary), sienna primary button, and generous spacing
 // are the studio's entry aesthetic (UX-DR13, UX-DR16).
 //
 // ── Accessibility ────────────────────────────────────────────────────────────
@@ -75,9 +75,9 @@ const wrapperStyle = {
  display: 'flex',
  alignItems: 'center',
  justifyContent: 'center',
- background: 'var(--lm-bg-secondary, #F2EEE6)',
+ background: 'var(--lm-bg-secondary, #F5F5F5)',
  fontFamily: 'var(--lm-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  padding: 'var(--lm-space-8, 32px)',
  boxSizing: 'border-box',
 };
@@ -99,7 +99,7 @@ const eyebrowStyle = {
  fontWeight: 'var(--lm-weight-semibold, 600)',
  letterSpacing: '0.18em',
  textTransform: 'uppercase',
- color: 'var(--lm-text-tertiary, #6E6960)',
+ color: 'var(--lm-text-tertiary, #6B6B6B)',
  margin: 0,
 };
 
@@ -108,7 +108,7 @@ const headingStyle = {
  fontSize: 'var(--lm-size-h2, 20px)',
  fontWeight: 'var(--lm-weight-semibold, 600)',
  lineHeight: 'var(--lm-lh-tight, 1.2)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
 };
 
@@ -116,7 +116,7 @@ const headingStyle = {
 const bodyStyle = {
  fontSize: 'var(--lm-size-body-lg, 14px)',
  lineHeight: 'var(--lm-lh-relaxed, 1.6)',
- color: 'var(--lm-text-secondary, #3A3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  maxWidth: '40ch',
  margin: 0,
 };
@@ -127,8 +127,8 @@ const primaryButtonStyle = {
  alignItems: 'center',
  gap: 'var(--lm-space-2, 8px)',
  padding: 'var(--lm-space-3, 12px) var(--lm-space-6, 24px)',
- background: 'var(--lm-accent, #B85B33)',
- color: 'var(--lm-bg-primary, #FAF8F2)',
+ background: 'var(--lm-accent, #111111)',
+ color: 'var(--lm-bg-primary, #FFFFFF)',
  border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  fontSize: 'var(--lm-size-body-lg, 14px)',
@@ -145,8 +145,8 @@ const secondaryButtonStyle = {
  alignItems: 'center',
  gap: 'var(--lm-space-2, 8px)',
  padding: 'var(--lm-space-3, 12px) var(--lm-space-6, 24px)',
- background: 'var(--lm-accent-light, rgba(184,91,51,0.10))',
- color: 'var(--lm-accent-text, #92421E)',
+ background: 'var(--lm-accent-light, rgba(17, 17, 17,0.10))',
+ color: 'var(--lm-accent-text, #2B2B2B)',
  border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  fontSize: 'var(--lm-size-body-lg, 14px)',
@@ -158,7 +158,7 @@ const secondaryButtonStyle = {
 
 /** @type {React.CSSProperties} */
 const notLerretBoxStyle = {
- background: 'var(--lm-bg-primary, #FAF8F2)',
+ background: 'var(--lm-bg-primary, #FFFFFF)',
  borderRadius: 'var(--lm-radius-lg, 12px)',
  padding: 'var(--lm-space-6, 24px)',
  maxWidth: '40ch',
@@ -166,14 +166,14 @@ const notLerretBoxStyle = {
  flexDirection: 'column',
  gap: 'var(--lm-space-4, 16px)',
  alignItems: 'center',
- boxShadow: 'var(--lm-shadow-sm, 0 2px 8px rgba(26,23,20,0.08))',
+ boxShadow: 'var(--lm-shadow-sm, 0 2px 8px rgba(0, 0, 0,0.08))',
 };
 
 /** @type {React.CSSProperties} */
 const errorHeadingStyle = {
  fontSize: 'var(--lm-size-h3, 16px)',
  fontWeight: 'var(--lm-weight-semibold, 600)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
 };
 
@@ -181,7 +181,7 @@ const errorHeadingStyle = {
 const errorBodyStyle = {
  fontSize: 'var(--lm-size-body, 13px)',
  lineHeight: 'var(--lm-lh-body, 1.45)',
- color: 'var(--lm-text-secondary, #3A3530)',
+ color: 'var(--lm-text-secondary, #404040)',
  margin: 0,
 };
 
@@ -199,10 +199,10 @@ function FolderIcon() {
  aria-hidden="true"
  style={{ flex: 'none' }}
  >
- <rect x="3" y="10" width="34" height="24" rx="3" fill="var(--lm-accent-light, rgba(184,91,51,0.10))" />
+ <rect x="3" y="10" width="34" height="24" rx="3" fill="var(--lm-accent-light, rgba(17, 17, 17,0.10))" />
  <path
  d="M3 16h34M3 14c0-2.2 1.8-4 4-4h8l3 4"
- stroke="var(--lm-accent, #B85B33)"
+ stroke="var(--lm-accent, #111111)"
  strokeWidth="1.8"
  strokeLinejoin="round"
  fill="none"
@@ -233,8 +233,8 @@ const connectInputStyle = {
  padding: 'var(--lm-space-3, 12px) var(--lm-space-4, 16px)',
  fontSize: 'var(--lm-size-body, 13px)',
  fontFamily: 'var(--lm-font-mono, ui-monospace, SFMono-Regular, monospace)',
- color: 'var(--lm-text-primary, #1A1714)',
- background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
+ background: 'var(--lm-bg-tertiary, #EBEBEB)',
  border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  outline: 'none',
@@ -250,7 +250,7 @@ const recentItemStyle = {
  gap: '2px',
  width: '100%',
  padding: 'var(--lm-space-2, 8px) var(--lm-space-3, 12px)',
- background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ background: 'var(--lm-bg-tertiary, #EBEBEB)',
  border: 'none',
  borderRadius: 'var(--lm-radius-md, 8px)',
  cursor: 'pointer',
@@ -338,7 +338,7 @@ function CliConnectScreen() {
  type="submit"
  style={{
  ...primaryButtonStyle,
- ...(primaryHover && !connecting ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
+ ...(primaryHover && !connecting ? { background: 'var(--lm-accent-hover, #2B2B2B)' } : {}),
  ...(connecting ? { opacity: 0.7, cursor: 'wait' } : {}),
  }}
  disabled={connecting}
@@ -353,7 +353,7 @@ function CliConnectScreen() {
  {connectError && (
  <p
  role="alert"
- style={{ ...errorBodyStyle, color: 'var(--lm-error, #A8412B)', alignSelf: 'flex-start' }}
+ style={{ ...errorBodyStyle, color: 'var(--lm-error, #D92D20)', alignSelf: 'flex-start' }}
  data-testid="cli-connect-error"
  >
  {connectError}
@@ -377,10 +377,10 @@ function CliConnectScreen() {
  disabled={connecting}
  data-testid="cli-recent-project"
  >
- <span style={{ fontWeight: 'var(--lm-weight-semibold, 600)', fontSize: 'var(--lm-size-body, 13px)', color: 'var(--lm-text-primary, #1A1714)' }}>
+ <span style={{ fontWeight: 'var(--lm-weight-semibold, 600)', fontSize: 'var(--lm-size-body, 13px)', color: 'var(--lm-text-primary, #0A0A0A)' }}>
  {r.name}
  </span>
- <span style={{ fontSize: 'var(--lm-size-hint, 10px)', fontFamily: 'var(--lm-font-mono, monospace)', color: 'var(--lm-text-muted, #B8B3A8)' }}>
+ <span style={{ fontSize: 'var(--lm-size-hint, 10px)', fontFamily: 'var(--lm-font-mono, monospace)', color: 'var(--lm-text-muted, #A3A3A3)' }}>
  {r.path}
  </span>
  </button>
@@ -390,7 +390,7 @@ function CliConnectScreen() {
  </div>
  )}
 
- <p style={{ ...errorBodyStyle, fontSize: 'var(--lm-size-body-sm, 12px)', color: 'var(--lm-text-tertiary, #6E6960)' }}>
+ <p style={{ ...errorBodyStyle, fontSize: 'var(--lm-size-body-sm, 12px)', color: 'var(--lm-text-tertiary, #6B6B6B)' }}>
  Tip: you can also launch directly with <code>@lerret/cli dev --folder ./my-project</code>.
  </p>
  </div>
@@ -400,13 +400,13 @@ function CliConnectScreen() {
  [data-testid="cli-connect-button"]:focus-visible,
  [data-testid="cli-recent-project"]:focus-visible {
  outline: none;
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20));
  }
  [data-testid="cli-connect-input"]:focus {
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20));
  }
  [data-testid="cli-recent-project"]:hover {
- background: var(--lm-bg-secondary, #F2EEE6);
+ background: var(--lm-bg-secondary, #F5F5F5);
  }
  `}</style>
  </main>
@@ -601,7 +601,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  <code>--preset producthunt</code>, <code>--preset social-media</code>, …).
  </p>
  {initError && (
- <p style={{ ...errorBodyStyle, color: 'var(--lm-error, #A8412B)', fontWeight: 600 }} data-testid="init-error">
+ <p style={{ ...errorBodyStyle, color: 'var(--lm-error, #D92D20)', fontWeight: 600 }} data-testid="init-error">
  {initError}
  </p>
  )}
@@ -610,7 +610,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  type="button"
  style={{
  ...primaryButtonStyle,
- ...(primaryHover ? { background: 'var(--lm-accent-strong, #9D4A28)' } : {}),
+ ...(primaryHover ? { background: 'var(--lm-accent-hover, #2B2B2B)' } : {}),
  }}
  onClick={handleInitializeBlank}
  onMouseEnter={() => setPrimaryHover(true)}
@@ -623,7 +623,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  type="button"
  style={{
  ...secondaryButtonStyle,
- ...(secondaryHover ? { background: 'var(--lm-accent-light, rgba(184,91,51,0.10))' } : {}),
+ ...(secondaryHover ? { background: 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' } : {}),
  }}
  onClick={handlePickAnother}
  onMouseEnter={() => setSecondaryHover(true)}
@@ -659,12 +659,12 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  </p>
  <pre
  style={{
- background: 'var(--lm-bg-tertiary, #E8E2D4)',
+ background: 'var(--lm-bg-tertiary, #EBEBEB)',
  borderRadius: 'var(--lm-radius-sm, 6px)',
  padding: 'var(--lm-space-3, 12px) var(--lm-space-4, 16px)',
  fontSize: 'var(--lm-size-body-sm, 12px)',
  fontFamily: 'var(--lm-font-mono, monospace)',
- color: 'var(--lm-text-primary, #1A1714)',
+ color: 'var(--lm-text-primary, #0A0A0A)',
  margin: 0,
  whiteSpace: 'pre',
  overflowX: 'auto',
@@ -674,14 +674,14 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  >
  @lerret/cli dev
  </pre>
- <p style={{ ...errorBodyStyle, fontSize: 'var(--lm-size-body-sm, 12px)', color: 'var(--lm-text-tertiary, #6E6960)' }}>
+ <p style={{ ...errorBodyStyle, fontSize: 'var(--lm-size-body-sm, 12px)', color: 'var(--lm-text-tertiary, #6B6B6B)' }}>
  Or pass a path: <code>@lerret/cli dev --folder ./my-project</code>
  </p>
  <button
  type="button"
  style={{
  ...secondaryButtonStyle,
- ...(secondaryHover ? { background: 'var(--lm-accent-light, rgba(184,91,51,0.10))' } : {}),
+ ...(secondaryHover ? { background: 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' } : {}),
  }}
  onClick={() => setState('idle')}
  onMouseEnter={() => setSecondaryHover(true)}
@@ -733,7 +733,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  type="button"
  style={{
  ...primaryButtonStyle,
- ...(primaryHover ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
+ ...(primaryHover ? { background: 'var(--lm-accent-hover, #2B2B2B)' } : {}),
  }}
  onClick={() => openRecent(resumeEntry)}
  onMouseEnter={() => setPrimaryHover(true)}
@@ -750,8 +750,8 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  type="button"
  style={{
  ...(hasResume ? secondaryButtonStyle : primaryButtonStyle),
- ...(!hasResume && primaryHover && !isPicking ? { background: 'var(--lm-accent-hover, #92421E)' } : {}),
- ...(hasResume && secondaryHover ? { background: 'var(--lm-accent-light, rgba(184,91,51,0.10))' } : {}),
+ ...(!hasResume && primaryHover && !isPicking ? { background: 'var(--lm-accent-hover, #2B2B2B)' } : {}),
+ ...(hasResume && secondaryHover ? { background: 'var(--lm-accent-light, rgba(17, 17, 17,0.10))' } : {}),
  ...(isPicking ? { opacity: 0.7, cursor: 'wait' } : {}),
  }}
  onClick={handlePick}
@@ -787,7 +787,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  onClick={() => openRecent(r)}
  data-testid="hosted-recent"
  title={`Open ${r.name}`}
- style={{ flex: 1, textAlign: 'left', padding: '8px 12px', borderRadius: 'var(--lm-radius-sm, 8px)', border: 'none', background: 'var(--lm-bg-secondary, #F2EEE6)', color: 'var(--lm-text-primary, #1A1714)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+ style={{ flex: 1, textAlign: 'left', padding: '8px 12px', borderRadius: 'var(--lm-radius-sm, 8px)', border: 'none', background: 'var(--lm-bg-secondary, #F5F5F5)', color: 'var(--lm-text-primary, #0A0A0A)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
  >
  {r.name}
  </button>
@@ -796,7 +796,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  onClick={() => handleForget(r)}
  aria-label={`Forget ${r.name}`}
  title="Remove from recents"
- style={{ flex: 'none', width: 28, height: 28, borderRadius: 'var(--lm-radius-sm, 8px)', border: 'none', background: 'transparent', color: 'var(--lm-text-tertiary, #6E6960)', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}
+ style={{ flex: 'none', width: 28, height: 28, borderRadius: 'var(--lm-radius-sm, 8px)', border: 'none', background: 'transparent', color: 'var(--lm-text-tertiary, #6B6B6B)', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}
  >
  ×
  </button>
@@ -812,7 +812,7 @@ function HostedOpenFolderImpl({ onFolderPicked, cliMode = false, resumeEntry = n
  [data-testid="pick-another-folder-button"]:focus-visible,
  [data-testid="back-to-entry-button"]:focus-visible {
  outline: none;
- box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(184,91,51,0.20));
+ box-shadow: var(--lm-focus-ring, 0 0 0 2px rgba(17, 17, 17,0.20));
  }
  `}</style>
  </main>

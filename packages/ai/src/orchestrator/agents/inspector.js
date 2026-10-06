@@ -30,7 +30,7 @@
 // agent's (core-purity: no DOM here).
 
 import { thinking, reading, inspectorResponse } from '../events.js';
-import { readScopedFile, elementPinpoint, canonLerretPath } from './scoped-file.js';
+import { readScopedFile, describeScopedFile, elementPinpoint, canonLerretPath } from './scoped-file.js';
 import { runAgentLoop } from '../tools/loop.js';
 import { READ_TOOLS, formatListing, capFileContent } from '../tools/definitions.js';
 import { supportsTools } from '../../providers/tool-support.js';
@@ -190,7 +190,7 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
             if (scoped) emit(reading(scoped.path));
             const selectedBlock = scoped
                 ? `\n\nThe user has SELECTED this asset on the canvas; questions refer to it ` +
-                  `and change requests target it.${elementPinpoint(state?.scope)}\n` +
+                  `and change requests target it.${elementPinpoint(state?.scope)}${describeScopedFile(scoped)}\n` +
                   `--- ${scoped.path} (selected asset) ---\n${scoped.content}\n--- end ---`
                 : '';
             const context = state?.context ? `\n\nProject context:\n${state.context}` : '';
@@ -295,7 +295,7 @@ export function createInspectorNode({ sandbox, providerHandle, emit }) {
         if (scoped) emit(reading(scoped.path));
         const selectedBlock = scoped
             ? `\n\nThe user has SELECTED this asset on the canvas; questions refer to it ` +
-              `and change requests target it.${elementPinpoint(state?.scope)}\n` +
+              `and change requests target it.${elementPinpoint(state?.scope)}${describeScopedFile(scoped)}\n` +
               `--- ${scoped.path} (selected asset) ---\n${scoped.content}\n--- end ---`
             : '';
 

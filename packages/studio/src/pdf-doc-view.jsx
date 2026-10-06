@@ -33,14 +33,14 @@ html,body{background:#fff;margin:0;padding:0;}
 .lm-pdf-doc{
  box-sizing:border-box;
  background:#fff;
- color:var(--lm-text-secondary,#3A3530);
+ color:var(--lm-text-secondary,#404040);
  font-family:var(--lm-font-sans,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
  font-size:var(--lm-size-body,13px);
  line-height:var(--lm-lh-relaxed,1.6);
  padding:8px 4px;
 }
 .lm-pdf-doc .lm-md-card__empty{
- color:var(--lm-text-muted,#B8B3A8);
+ color:var(--lm-text-muted,#A3A3A3);
  font-style:italic;
 }
 `;
