@@ -76,7 +76,7 @@
 }
 .lm-wf-surface:active { cursor: grabbing; }
 .lm-wf-surface--drop { box-shadow: inset 0 0 0 3px #2F5BFF; }
-.lm-wf-world { position: absolute; inset: 0; }
+.lm-wf-world { position: absolute; inset: 0; transform-origin: 0 0; }
 .lm-wf-empty { margin: 40px; color: var(--lm-text-tertiary, #6B6B6B); }
 .lm-wf-edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
 .lm-wf-edge { cursor: pointer; }
@@ -304,3 +304,36 @@ body:has(.lm-wf) [data-tour="zoom-controls"],
 body:has(.lm-wf) [data-testid="dc-minimap"],
 body:has(.lm-wf) [data-testid="lm-design-add"],
 body:has(.lm-wf) [data-testid="walkthrough-offer"] { display: none !important; }
+
+/* Workflow zoom control — same place and shape as the design canvas's. */
+.lm-wf-zoom {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--lm-bg-primary, #FFFFFF);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+  cursor: default;
+}
+.lm-wf-zoom button {
+  width: 32px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--lm-text-primary, #0A0A0A);
+  font: 500 15px/1 var(--lm-font-sans, system-ui);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
+}
+.lm-wf-zoom .lm-wf-zoom__pct { font: 600 10px/1 var(--lm-font-sans, system-ui); color: var(--lm-text-tertiary, #6B6B6B); font-variant-numeric: tabular-nums; }
+@media (hover: hover) and (pointer: fine) { .lm-wf-zoom button:hover { background: var(--lm-bg-secondary, #F5F5F5); } }
+.lm-wf-zoom button:focus-visible { outline: none; box-shadow: var(--lm-focus-ring-inset); }

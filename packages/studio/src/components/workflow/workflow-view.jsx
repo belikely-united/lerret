@@ -46,6 +46,8 @@ import {
 import './workflow.css';
 
 const NODE_W = 300;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 2;
 const baseName = (p) => String(p).split('/').filter(Boolean).pop() || String(p);
 const designKey = (e) => `${e.asset.path}#${e.variantName || 'default'}`;
 
@@ -58,7 +60,13 @@ const designKey = (e) => `${e.asset.path}#${e.variantName || 'default'}`;
  */
 export function WorkflowView({ page, lerretDir, entries }) {
   const [wf, setWf] = React.useState(null); // null until loaded
-  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  // The surface's camera: offset in screen px + zoom. `viewRef` mirrors it
+  // for listeners that outlive a render (wheel, drags).
+  const [view, setView] = React.useState({ x: 0, y: 0, k: 1 });
+  const viewRef = React.useRef(view);
+  React.useLayoutEffect(() => {
+    viewRef.current = view;
+  }, [view]);
   const [wire, setWire] = React.useState(null); // { from, x, y } while connecting
   const [notice, setNotice] = React.useState(null);
   const [dropping, setDropping] = React.useState(false);
@@ -135,9 +143,18 @@ export function WorkflowView({ page, lerretDir, entries }) {
   }, [notice]);
 
   // ── Adding nodes ──────────────────────────────────────────────────────────
-  const freeSpot = (x) => {
+  /** Screen point → surface (world) coordinates under the current camera. */
+  const toWorld = (clientX, clientY) => {
+    const r = surfaceRef.current.getBoundingClientRect();
+    const v = viewRef.current;
+    return { x: (clientX - r.left - v.x) / v.k, y: (clientY - r.top - v.y) / v.k };
+  };
+  /** A spot in the column `screenX` px from the surface's left, below what's there. */
+  const freeSpot = (screenX) => {
+    const v = viewRef.current;
+    const x = (screenX - v.x) / v.k;
     const below = (wf?.nodes || []).filter((n) => Math.abs(n.x - x) < NODE_W).map((n) => n.y + 260);
-    return { x: x - pan.x, y: Math.max(60, ...below) - pan.y };
+    return { x, y: Math.max((60 - v.y) / v.k, ...below) };
   };
   const addNode = (node) => setWf((cur) => ({ ...cur, nodes: [...cur.nodes, node] }));
 
@@ -182,16 +199,21 @@ export function WorkflowView({ page, lerretDir, entries }) {
     setDropping(false);
     const file = Array.from(e.dataTransfer.files || []).find(isSpreadsheetFile) || e.dataTransfer.files?.[0];
     if (!file) return;
-    const r = surfaceRef.current.getBoundingClientRect();
-    addSheet(file, { x: e.clientX - r.left - pan.x - 40, y: e.clientY - r.top - pan.y - 20 });
+    const at = toWorld(e.clientX, e.clientY);
+    addSheet(file, { x: at.x - 40, y: at.y - 20 });
   };
 
-  // ── Panning the surface ───────────────────────────────────────────────────
+  // ── Panning + zooming the surface ─────────────────────────────────────────
+  // Drag any empty spot (left or middle button) to pan. Nodes, connections and
+  // the zoom control keep their own pointer handling.
   const onSurfaceDown = (e) => {
-    if (e.button !== 0 || e.target !== e.currentTarget) return;
-    const x0 = e.clientX - pan.x;
-    const y0 = e.clientY - pan.y;
-    const move = (ev) => setPan({ x: ev.clientX - x0, y: ev.clientY - y0 });
+    if (e.button !== 0 && e.button !== 1) return;
+    if (e.target.closest?.('.lm-wf-node, .lm-wf-edge, .lm-wf-zoom')) return;
+    e.preventDefault();
+    const start = viewRef.current;
+    const cx = e.clientX;
+    const cy = e.clientY;
+    const move = (ev) => setView((v) => ({ ...v, x: start.x + ev.clientX - cx, y: start.y + ev.clientY - cy }));
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -200,12 +222,89 @@ export function WorkflowView({ page, lerretDir, entries }) {
     window.addEventListener('pointerup', up);
   };
 
+  /** Zoom by `factor` keeping the surface point under (sx, sy) still. */
+  const zoomAt = React.useCallback((factor, sx, sy) => {
+    setView((v) => {
+      const k = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.k * factor));
+      if (k === v.k) return v;
+      const r = surfaceRef.current?.getBoundingClientRect();
+      const px = sx ?? (r ? r.width / 2 : 0);
+      const py = sy ?? (r ? r.height / 2 : 0);
+      return { k, x: px - ((px - v.x) * k) / v.k, y: py - ((py - v.y) * k) / v.k };
+    });
+  }, []);
+
+  /** Frame every node in the surface (never zooming past 100%). */
+  const fitAll = React.useCallback(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const nodes = [...surface.querySelectorAll('.lm-wf-node')];
+    if (nodes.length === 0) {
+      setView({ x: 0, y: 0, k: 1 });
+      return;
+    }
+    const v = viewRef.current;
+    const sr = surface.getBoundingClientRect();
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const n of nodes) {
+      const r = n.getBoundingClientRect();
+      const x0 = (r.left - sr.left - v.x) / v.k;
+      const y0 = (r.top - sr.top - v.y) / v.k;
+      minX = Math.min(minX, x0);
+      minY = Math.min(minY, y0);
+      maxX = Math.max(maxX, x0 + r.width / v.k);
+      maxY = Math.max(maxY, y0 + r.height / v.k);
+    }
+    const pad = 60;
+    const k = Math.min(1, Math.max(MIN_ZOOM, Math.min((sr.width - pad * 2) / (maxX - minX), (sr.height - pad * 2 - 80) / (maxY - minY))));
+    setView({ k, x: (sr.width - (maxX - minX) * k) / 2 - minX * k, y: pad - minY * k });
+  }, []);
+
+  // Trackpad / wheel: two-finger scroll pans; pinch or Ctrl/⌘ + scroll zooms at
+  // the pointer. Scrolling inside a node's own list (previews) stays native.
+  const loaded = wf !== null;
+  React.useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return undefined;
+    const onWheel = (e) => {
+      const zooming = e.ctrlKey || e.metaKey;
+      if (!zooming && e.target.closest?.('.lm-wf-grid, .lm-wf-map')) return;
+      e.preventDefault();
+      if (zooming) {
+        const r = surface.getBoundingClientRect();
+        zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top);
+      } else {
+        setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
+      }
+    };
+    surface.addEventListener('wheel', onWheel, { passive: false });
+    return () => surface.removeEventListener('wheel', onWheel);
+  }, [zoomAt, loaded]);
+
+  // ⌘/Ctrl + = / − zoom, ⌘/Ctrl + 0 fits everything.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const t = document.activeElement;
+      if (t && /^(input|textarea|select)$/i.test(t.tagName)) return;
+      if (e.key === '=' || e.key === '+') zoomAt(1.2);
+      else if (e.key === '-') zoomAt(1 / 1.2);
+      else if (e.key === '0') fitAll();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomAt, fitAll]);
+
   // ── Wiring ────────────────────────────────────────────────────────────────
   const startWire = (fromId, e) => {
     e.preventDefault();
     e.stopPropagation();
-    const r = surfaceRef.current.getBoundingClientRect();
-    const at = (ev) => ({ x: ev.clientX - r.left - pan.x, y: ev.clientY - r.top - pan.y });
+    const at = (ev) => toWorld(ev.clientX, ev.clientY);
     setWire({ from: fromId, ...at(e) });
     const move = (ev) => setWire({ from: fromId, ...at(ev) });
     const up = (ev) => {
@@ -232,9 +331,12 @@ export function WorkflowView({ page, lerretDir, entries }) {
     if (e.button !== 0) return;
     e.preventDefault();
     const node = wf.nodes.find((n) => n.id === id);
-    const x0 = e.clientX - node.x;
-    const y0 = e.clientY - node.y;
-    const move = (ev) => setWf((cur) => updateNode(cur, id, { x: ev.clientX - x0, y: ev.clientY - y0 }));
+    const cx = e.clientX;
+    const cy = e.clientY;
+    const move = (ev) => {
+      const k = viewRef.current.k;
+      setWf((cur) => updateNode(cur, id, { x: Math.round(node.x + (ev.clientX - cx) / k), y: Math.round(node.y + (ev.clientY - cy) / k) }));
+    };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -299,12 +401,12 @@ export function WorkflowView({ page, lerretDir, entries }) {
         onDragOver={onDragOver}
         onDragLeave={(e) => { if (e.currentTarget === e.target) setDropping(false); }}
         onDrop={onDrop}
-        style={{ backgroundPosition: `${pan.x}px ${pan.y}px` }}
+        style={{ backgroundPosition: `${view.x}px ${view.y}px`, backgroundSize: `${22 * view.k}px ${22 * view.k}px` }}
       >
         {!wf ? (
           <p className="lm-wf-empty">Loading…</p>
         ) : (
-          <div className="lm-wf-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}>
+          <div className="lm-wf-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
             <svg className="lm-wf-edges" aria-hidden="false">
               {wf.edges.map((e) => {
                 const a = wf.nodes.find((n) => n.id === e.from);
@@ -334,6 +436,16 @@ export function WorkflowView({ page, lerretDir, entries }) {
           </div>
         )}
         {dropping && <div className="lm-wf-dropzone">Drop to add a spreadsheet</div>}
+        <div className="lm-wf-zoom" role="group" aria-label="Zoom" data-testid="lm-wf-zoom">
+          <button type="button" onClick={() => zoomAt(1.2)} aria-label="Zoom in" title="Zoom in (⌘+)">+</button>
+          <button type="button" className="lm-wf-zoom__pct" onClick={() => zoomAt(1 / view.k)} title="Reset to 100%" data-testid="lm-wf-zoom-pct">
+            {Math.round(view.k * 100)}%
+          </button>
+          <button type="button" onClick={() => zoomAt(1 / 1.2)} aria-label="Zoom out" title="Zoom out (⌘−)">−</button>
+          <button type="button" onClick={fitAll} aria-label="Fit everything" title="Fit everything (⌘0)">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        </div>
       </div>
       {notice && <div className="lm-wf-notice" role="status">{notice}</div>}
     </div>,
