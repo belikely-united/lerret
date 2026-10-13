@@ -17,3 +17,9 @@ export function zip(files, opts, callback) {
  callback(err);
  }
 }
+
+// Real unzipping isn't available in the stub — tests that read archives inject
+// their own unzip function (see components/workflow/spreadsheet.test.js).
+export function unzipSync() {
+ throw new Error('fflate stub: unzipSync is not available in tests');
+}

@@ -241,6 +241,8 @@ export function ImageDropLayer({ pagePath, enabled }) {
     };
     const onDragOver = (e) => {
       if (!dragHasFiles(e.dataTransfer)) return;
+      // The Workflow view takes its own drops (spreadsheets).
+      if (e.target?.closest?.('[data-lm-workflow]')) return;
       e.preventDefault(); // never let the browser open the file instead
       const target = enabled ? resolveDropTarget(e.target, pagePath) : null;
       e.dataTransfer.dropEffect = target ? 'copy' : 'none';
@@ -258,6 +260,7 @@ export function ImageDropLayer({ pagePath, enabled }) {
     };
     const onDrop = (e) => {
       if (!dragHasFiles(e.dataTransfer)) return;
+      if (e.target?.closest?.('[data-lm-workflow]')) return;
       e.preventDefault();
       clear();
       const target = enabled ? resolveDropTarget(e.target, pagePath) : null;

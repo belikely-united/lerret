@@ -9,6 +9,7 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ## [Unreleased]
 
 ### Added
+- **Workflow mode** — switch the dock to *Workflow* to fill a design from a spreadsheet in bulk. Drop an Excel (.xlsx) or CSV file to add a Spreadsheet node, connect it to a design, pick which text on the design each column replaces (the name is suggested automatically), then finish with a **Preview** node (all rows as thumbnails) or a **Download** node (PNG or JPG images in a ZIP named from a column, or one combined PDF; standard or 2× quality). Workflows save per page in `.lerret/.workflows/`.
 - **Simple design editor** — Edit mode is rebuilt for people who don't code: a plain-language Design panel (Background, Text, Image, Screenshot, Phone frame, Shape) with fonts, colour swatches and gradients, corners, shadows, position and size, and arrange; an **+ Add** menu (text, image, rectangle, circle, phone frame); resize handles and snap-to-center guides. Dropping an image on a phone screen fills it; on an image replaces it.
 - **Poster templates** — new store assets can start from *Headline + phone*, *Phone + caption* or *Big statement*, generated at the chosen size with their text in the data file.
 - **Export for App Store** — a page/group menu action that exports every App Store-sized design as exact-size JPGs in one ZIP, one folder per device, and lists what isn't an App Store size.
