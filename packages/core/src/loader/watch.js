@@ -292,7 +292,9 @@ export function classifyPath(scanRoot, path, isDirectory) {
   }
   const top = segments[0];
   const name = segments[segments.length - 1];
-  const isUnderscoreRoot = top.startsWith('_');
+  // Reserved root folders: `_fonts/`, `_brand/`… and hidden ones such as
+  // `.workflows/` — the same rule the full scan applies (scan.js).
+  const isUnderscoreRoot = top.startsWith('_') || top.startsWith('.');
 
   // Decide file vs folder. An explicit boolean from the watcher wins;
   // otherwise a recognized file extension marks a file, anything else a
@@ -316,7 +318,7 @@ export function classifyPath(scanRoot, path, isDirectory) {
     }
     return { role: 'irrelevant', segments, name };
   }
-  // Any other path inside a reserved (`_`) root folder is silent for the
+  // Any other path inside a reserved (`_` / `.`) root folder is silent for the
   // model — `_assets/foo.png` is not an asset, it is a resource the user's
   // code imports (FR5).
   if (isUnderscoreRoot) {

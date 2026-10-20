@@ -14,6 +14,7 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 - The AI agent instructions explain the brand library (read `_brand/brand.json`, use it linked, fill it once from a link) and per-platform store image sets.
 
 ### Fixed
+- Hidden folders at the project root (e.g. `.workflows/`, where workflows are saved) no longer appear as pages when they are created while the studio is running — live updates now follow the same rule as the initial scan.
 - Workflow with a large spreadsheet (e.g. 23,000 rows) no longer fails to save with a misleading "can't reach the dev server": big sheets stay in memory for the session and are saved as their columns + a sample (after a reload the step asks to upload the file again); Preview shows the first 60 rows, Download renders them all. The write endpoint now answers an over-size save with a clear "too large to save" error instead of dropping the connection.
 - Brand import from a website: the site's own logo is picked over customer / partner logo strips, the same icon at several sizes appears once, and a site's private fonts become the closest free Google family (e.g. NotionInter → Inter) so text styles render.
 - A new project asks one thing at a time: the quick-tour offer waits until the brand setup popup is closed.
