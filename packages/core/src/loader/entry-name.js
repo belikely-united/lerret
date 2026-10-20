@@ -232,7 +232,8 @@ export function starterAssetContent(name, assetKind, opts = {}) {
  * so it resolves under both the CLI dev server and the hosted service worker.
  *
  * @param {string} name       Validated asset base name.
- * @param {string} imageFile  The image's filename, in the same folder.
+ * @param {string} imageFile  The image's filename in the same folder, or a
+ *   project path such as `../_brand/logo.png` (a linked library logo).
  * @param {{ width: number, height: number }} dimensions  Natural image size (px).
  * @returns {string}
  */
@@ -241,7 +242,7 @@ export function imageAssetContent(name, imageFile, dimensions) {
   const dims = validateAssetDimensions(dimensions).ok ? dimensions : DEFAULT_ASSET_DIMENSIONS;
   return [
     `// ${id} — image asset. Build on it freely; the canvas re-renders on save.`,
-    `const imageSrc = new URL(${JSON.stringify(`./${imageFile}`)}, import.meta.url).href;`,
+    `const imageSrc = new URL(${JSON.stringify(imageFile.startsWith('../') ? imageFile : `./${imageFile}`)}, import.meta.url).href;`,
     '',
     'export const meta = {',
     `  dimensions: { width: ${dims.width}, height: ${dims.height} },`,

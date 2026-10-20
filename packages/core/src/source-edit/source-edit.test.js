@@ -300,7 +300,10 @@ describe('insertImageLayer', () => {
 
   it('refuses a stale offset, a path-like file, and unparsable code', () => {
     expect(insertImageLayer(SRC, rootAt + 1, box)).toEqual({ ok: false, reason: 'changed' });
-    expect(insertImageLayer(SRC, rootAt, { ...box, file: '../x.png' })).toEqual({ ok: false, reason: 'bad-image' });
+    expect(insertImageLayer(SRC, rootAt, { ...box, file: '/x.png' })).toEqual({ ok: false, reason: 'bad-image' });
+    const linked = insertImageLayer(SRC, rootAt, { ...box, file: '../../_brand/mark.svg' });
+    expect(linked.code).toContain('new URL("../../_brand/mark.svg", import.meta.url)');
+    expect(linked.code).toContain('alt="mark"');
     expect(insertImageLayer('<<<', 0, box)).toEqual({ ok: false, reason: 'parse-error' });
   });
 
@@ -353,6 +356,9 @@ describe('fillImageSlot', () => {
     const src = "const aSrc = 'x';\nexport default () => <img src={aSrc} alt=\"a\" />;\n";
     const r = fillImageSlot(src, src.indexOf('<img'), 'b.png');
     expect(r.code).toContain('<img src={bSrc} alt="a" />');
-    expect(fillImageSlot(src, src.indexOf('<img'), '../b.png')).toEqual({ ok: false, reason: 'bad-image' });
+    expect(fillImageSlot(src, src.indexOf('<img'), '/etc/b.png')).toEqual({ ok: false, reason: 'bad-image' });
+    expect(fillImageSlot(src, src.indexOf('<img'), 'a/../b.png')).toEqual({ ok: false, reason: 'bad-image' });
+    const linked = fillImageSlot(src, src.indexOf('<img'), '../_brand/logo.png');
+    expect(linked.code).toContain('const logoSrc = new URL("../_brand/logo.png", import.meta.url).href;');
   });
 });

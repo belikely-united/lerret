@@ -150,6 +150,20 @@ export function fontFacesCss(project, resolveUrl) {
  */
 export const FONT_REGISTRY_STYLE_ID = 'lerret-font-registry';
 
+/** family (lowercase) → { url, format } for the currently registered fonts. */
+const registeredFonts = new Map();
+
+/**
+ * The served URL + format of a registered project font, for export capture
+ * (`captureArtboard`'s default `fontResolver`). Null for a non-project family.
+ *
+ * @param {string} family
+ * @returns {{ url: string, format: string } | null}
+ */
+export function resolveRegisteredFont(family) {
+ return registeredFonts.get(String(family ?? '').replace(/['"]/g, '').trim().toLowerCase()) || null;
+}
+
 /**
  * Register every custom font of a project by injecting an `@font-face`
  * stylesheet into the document (FR12).
@@ -186,6 +200,18 @@ export function registerProjectFonts(project, options = {}) {
  const assetBaseUrl = options.assetBaseUrl;
  const doc =
  options.doc || (typeof document !== 'undefined' ? document : undefined);
+
+ // Remember where each custom family is served so captures (PNG/ZIP/App
+ // Store/workflow exports) can embed it — see resolveRegisteredFont.
+ registeredFonts.clear();
+ for (const font of (project && project.fonts) || []) {
+ if (font && font.family) {
+ registeredFonts.set(String(font.family).toLowerCase(), {
+ url: fontUrl(font, project, assetBaseUrl),
+ format: font.format || 'woff2',
+ });
+ }
+ }
 
  const css = fontFacesCss(project, (font) =>
  fontUrl(font, project, assetBaseUrl),
