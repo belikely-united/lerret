@@ -100,43 +100,45 @@ function Wizard({ initial, customFamilies }) {
       return;
     }
     const found = [];
-    setDraft((d) => {
-      const next = { ...d, app: { ...d.app, url: r.app?.url || url } };
-      if (r.app?.name && !d.app.name) next.app.name = r.app.name;
-      if (r.app?.tagline && !d.app.tagline) next.app.tagline = r.app.tagline;
-      if (r.colors?.length) {
-        const taken = d.colors.map((c) => c.id);
-        const add = nameColors(r.colors).filter((c) => !d.colors.some((x) => x.value.toUpperCase() === c.value));
-        next.colors = [...d.colors, ...add.map((c) => {
-          const id = brandId(c.name, taken);
-          taken.push(id);
-          return { id, ...c };
-        })];
-        found.push(`${r.colors.length} colour${r.colors.length === 1 ? '' : 's'}`);
-      }
-      if (r.fonts?.length) {
-        const [heading, body = heading] = r.fonts;
-        next.textStyles = d.textStyles.map((t) => ({ ...t, family: /display|h1|h2|heading/i.test(`${t.id} ${t.name}`) ? heading : body }));
-        found.push(`fonts (${r.fonts.slice(0, 2).join(', ')})`);
-      }
-      if (r.logos?.length) {
-        next.logos = [
-          ...d.logos,
-          ...r.logos.map((l, i) => ({
-            id: `import-${i}`,
-            name: i === 0 ? next.app.name || 'Logo' : `${next.app.name || 'Logo'} ${i + 1}`,
-            kind: /icon/i.test(l.source) ? 'icon' : 'full',
-            keep: i === 0,
-            pending: { base64: l.base64, mimeType: l.mimeType, source: l.source },
-          })),
-        ];
-        found.push(`${r.logos.length} logo image${r.logos.length === 1 ? '' : 's'}`);
-      }
-      return next;
-    });
+    // Build the next draft from the current one, THEN set it — the summary
+    // below must describe what was actually added.
+    const d = draft;
+    const next = { ...d, app: { ...d.app, url: r.app?.url || url } };
+    if (r.app?.name && !d.app.name) next.app.name = r.app.name;
+    if (r.app?.tagline && !d.app.tagline) next.app.tagline = r.app.tagline;
+    if (r.colors?.length) {
+      const taken = d.colors.map((c) => c.id);
+      const add = nameColors(r.colors).filter((c) => !d.colors.some((x) => x.value.toUpperCase() === c.value));
+      next.colors = [...d.colors, ...add.map((c) => {
+        const id = brandId(c.name, taken);
+        taken.push(id);
+        return { id, ...c };
+      })];
+      if (add.length) found.push(`${add.length} colour${add.length === 1 ? '' : 's'}`);
+    }
+    if (r.fonts?.length) {
+      const [heading, body = heading] = r.fonts;
+      next.textStyles = d.textStyles.map((t) => ({ ...t, family: /display|h1|h2|heading/i.test(`${t.id} ${t.name}`) ? heading : body }));
+      found.push(`fonts (${r.fonts.slice(0, 2).join(', ')})`);
+    }
+    if (r.logos?.length) {
+      next.logos = [
+        ...d.logos.filter((l) => !String(l.id).startsWith('import-')),
+        ...r.logos.map((l, i) => ({
+          id: `import-${i}`,
+          name: i === 0 ? next.app.name || 'Logo' : `${next.app.name || 'Logo'} ${i + 1}`,
+          kind: /icon/i.test(l.source) ? 'icon' : 'full',
+          keep: i === 0,
+          pending: { base64: l.base64, mimeType: l.mimeType, source: l.source },
+        })),
+      ];
+      found.push(`${r.logos.length} logo image${r.logos.length === 1 ? '' : 's'}`);
+    }
+    setDraft(next);
     r.fonts?.forEach(ensureGoogleFont);
     setFonts(r.fonts || []);
-    setImportMsg({ text: found.length ? `Found ${found.join(', ')}. Review them in the next steps.` : 'Read the page, but found nothing usable — set it up by hand.' });
+    const named = r.app?.name ? `${r.app.name}: ` : '';
+    setImportMsg({ text: found.length ? `${named}found ${found.join(', ')}. Review them in the next steps.` : `${named}read the page, but found no colours, fonts or logos — add them by hand.` });
   };
 
   const save = async () => {

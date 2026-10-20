@@ -341,7 +341,8 @@ export async function importBrand(url, { fetchImpl = fetch } = {}) {
   }
 
   let css = sig.inlineCss;
-  for (const href of sig.stylesheets.slice(0, 4)) {
+  for (const href of sig.stylesheets.slice(0, 8)) {
+    if (css.length > 1.5 * 1024 * 1024) break;
     try {
       css += `\n${text((await safeFetch(href, { maxBytes: MAX_CSS, accept: 'text/css', fetchImpl })).bytes)}`;
     } catch {
