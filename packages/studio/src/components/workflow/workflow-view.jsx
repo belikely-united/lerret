@@ -6,7 +6,7 @@
 //   upload a data file, one of the page's designs, or — once there is
 //   something to finish — a Preview / Download. A new step connects to the
 //   step before it when the types fit.
-// • Drop an Excel (.xlsx) or CSV file anywhere to add a Spreadsheet node.
+// • Drop an Excel (.xlsx) or CSV file anywhere to add a Spreadsheet node too.
 // • Drag from a node's right dot to another node's left dot to connect.
 // • The Design node maps text shown on the design to a column; Preview renders
 //   every row; Download saves them as PNG/JPG files (ZIP) or one PDF.
@@ -48,6 +48,10 @@ import {
 import './workflow.css';
 
 const NODE_W = 300;
+const UPLOAD_INPUT_ID = 'lm-wf-upload-input';
+// Offer every spreadsheet file so none is greyed out in the picker; ones we
+// can't read get a clear "save it as…" message instead.
+const SPREADSHEET_ACCEPT = '.xlsx,.xls,.csv,.tsv,.numbers,.ods,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
 const baseName = (p) => String(p).split('/').filter(Boolean).pop() || String(p);
@@ -394,11 +398,14 @@ export function WorkflowView({ page, lerretDir, entries }) {
 
   return ReactDOM.createPortal(
     <div className="lm-wf" data-lm-workflow data-testid="lm-workflow" role="region" aria-label="Workflow">
+      {/* Visually hidden, not display:none — the menu's label opens it natively. */}
       <input
         ref={fileRef}
+        id={UPLOAD_INPUT_ID}
         type="file"
-        accept=".xlsx,.csv,.tsv"
-        hidden
+        accept={SPREADSHEET_ACCEPT}
+        className="lm-wf-file"
+        tabIndex={-1}
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
@@ -452,10 +459,12 @@ export function WorkflowView({ page, lerretDir, entries }) {
             menu={menu}
             designs={designs}
             canFinish={wf.nodes.length > 0}
-            onUpload={() => choose((at) => {
-              uploadAt.current = at;
-              fileRef.current?.click();
-            })}
+            onUpload={() => {
+              // The label opens the picker itself; close the menu after this
+              // click so the label is still there when the browser acts on it.
+              uploadAt.current = menu.at;
+              setTimeout(() => setMenu(null), 0);
+            }}
             onDesign={(d) => choose((at) => addDesign(d, at))}
             onFinish={(type) => choose((at) => addOutput(type, at))}
           />
@@ -499,7 +508,7 @@ function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
       top: flipY ? Math.max(12, menu.y - h) : menu.y,
       origin: `${flipX ? '100%' : '0'} ${flipY ? '100%' : '0'}`,
     });
-    el.querySelector('button')?.focus();
+    el.querySelector('[role="menuitem"]')?.focus();
   }, [menu]);
   return (
     <div
@@ -510,13 +519,25 @@ function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
       style={{ left: pos.left, top: pos.top, transformOrigin: pos.origin }}
       data-testid="lm-wf-menu"
     >
-      <button type="button" role="menuitem" className="lm-wf-add" onClick={onUpload} data-testid="lm-wf-upload">
+      <label
+        htmlFor={UPLOAD_INPUT_ID}
+        role="menuitem"
+        tabIndex={0}
+        className="lm-wf-add"
+        onClick={onUpload}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          e.currentTarget.click();
+        }}
+        data-testid="lm-wf-upload"
+      >
         <span className="lm-wf-dot lm-wf-dot--data" />
         <span className="lm-wf-add__text">
           Upload data file…
           <em>Excel or CSV</em>
         </span>
-      </button>
+      </label>
       <p className="lm-wf-menu__label">Designs on this page</p>
       {designs.length === 0 ? (
         <p className="lm-wf-hint lm-wf-menu__hint">No designs on this page yet.</p>

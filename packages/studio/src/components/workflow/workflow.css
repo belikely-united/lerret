@@ -254,6 +254,8 @@
   color: var(--lm-text-tertiary, #6B6B6B);
 }
 .lm-wf-menu__hint { padding: 0 10px 6px; }
+.lm-wf-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
+label.lm-wf-add { cursor: pointer; }
 .lm-wf-add__text { display: flex; flex-direction: column; gap: 2px; }
 .lm-wf-add__text em { font-style: normal; font-size: 11px; color: var(--lm-text-tertiary, #6B6B6B); }
 .lm-wf-start {

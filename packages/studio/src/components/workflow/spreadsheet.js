@@ -162,8 +162,10 @@ export function isSpreadsheetFile(file) {
  */
 export async function readSpreadsheet(file) {
   const name = String(file?.name ?? 'data');
-  if (/\.xls$/i.test(name)) throw new Error('Old .xls files aren’t supported — save it as .xlsx or CSV and drop it again.');
+  if (/\.xls$/i.test(name)) throw new Error('Old .xls files aren’t supported — save it as .xlsx or CSV and try again.');
+  if (/\.numbers$/i.test(name)) throw new Error('Numbers files aren’t supported — in Numbers choose File → Export To → Excel or CSV, then upload that.');
+  if (/\.ods$/i.test(name)) throw new Error('OpenDocument sheets aren’t supported — save it as .xlsx or CSV and try again.');
   if (/\.xlsx$/i.test(name)) return toTable(name, parseXlsx(new Uint8Array(await file.arrayBuffer())));
   if (/\.(csv|tsv)$/i.test(name)) return toTable(name, parseCsv(await file.text()));
-  throw new Error('Drop an Excel (.xlsx) or CSV file.');
+  throw new Error('Choose an Excel (.xlsx) or CSV file.');
 }
