@@ -161,6 +161,21 @@ export function cleanAppName(title) {
     .trim();
 }
 
+/** `https://www.notion.com/x` → `notion`. */
+function domainStem(url) {
+  try {
+    const parts = new URL(url).hostname.replace(/^www\./, '').split('.');
+    return squashName(parts.length > 1 ? parts[parts.length - 2] : parts[0]);
+  } catch {
+    return '';
+  }
+}
+
+/** Lower-case letters and digits only, for loose name matching. */
+function squashName(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 /**
  * Everything a page's HTML says about its brand.
  *
@@ -192,11 +207,18 @@ export function extractHtmlSignals(html, baseUrl) {
   }
   const og = meta('og:image', 'twitter:image');
   if (og) icons.push({ url: absolute(og, baseUrl), source: 'Preview image', score: 120 });
+  // A "logo" image is the site's OWN logo only when it names the app or the
+  // domain — home pages are full of customer / partner logo strips.
+  const own = [squashName(name), domainStem(baseUrl)].filter((x) => x && x.length >= 3);
   for (const img of tags(html, 'img')) {
     const hint = `${img.src || ''} ${img.alt || ''} ${img.class || ''} ${img.id || ''}`;
-    if (img.src && /logo|brand|wordmark/i.test(hint) && !/data:/.test(img.src)) {
-      icons.push({ url: absolute(img.src, baseUrl), source: 'Logo on the page', score: /\.svg/i.test(img.src) ? 400 : 250 });
-    }
+    if (!img.src || /data:/.test(img.src) || !/logo|brand|wordmark/i.test(hint)) continue;
+    const isOwn = own.some((o) => squashName(hint).includes(o));
+    icons.push({
+      url: absolute(img.src, baseUrl),
+      source: 'Logo on the page',
+      score: isOwn ? (/\.svg/i.test(img.src) ? 400 : 250) : 1,
+    });
   }
   const manifest = links.find((l) => /manifest/i.test(l.rel || ''))?.href;
   const stylesheets = links.filter((l) => /stylesheet/i.test(l.rel || '') && l.href).map((l) => absolute(l.href, baseUrl)).filter(Boolean);
@@ -308,6 +330,30 @@ const sniffImage = (bytes, contentType) => {
   return null;
 };
 
+// Free Google families a site's font name may contain ("NotionInter" → Inter).
+const FREE_FAMILIES = [
+  'Plus Jakarta Sans', 'IBM Plex Sans', 'IBM Plex Serif', 'Source Sans 3', 'Source Serif 4', 'Space Grotesk',
+  'DM Serif Display', 'Playfair Display', 'Libre Baskerville', 'EB Garamond', 'Open Sans', 'Work Sans', 'DM Sans',
+  'Noto Sans', 'Noto Serif', 'Montserrat', 'Merriweather', 'Bebas Neue', 'Inter', 'Roboto', 'Poppins', 'Lato',
+  'Nunito', 'Manrope', 'Rubik', 'Outfit', 'Geist', 'Lora', 'Fraunces', 'Raleway', 'Oswald',
+];
+
+/**
+ * The closest free (Google Fonts) family for a font a site serves itself:
+ * a free family named inside it, else a serif or a sans by its name.
+ *
+ * @param {string} family
+ * @returns {string}
+ */
+export function closestFreeFont(family) {
+  const name = squashName(family);
+  const named = FREE_FAMILIES.find((f) => name.includes(squashName(f)));
+  if (named) return named;
+  if (/sans|grotesk|grotesque|helvetica|arial|neue|circular|graphik|system|ui/i.test(family)) return 'Inter';
+  if (/serif|lyon|tiempos|georgia|garamond|times|caslon|baskerville|canela|freight|publico|text|book/i.test(family)) return 'Source Serif 4';
+  return 'Inter';
+}
+
 /**
  * Import a brand from a link.
  *
@@ -351,13 +397,20 @@ export async function importBrand(url, { fetchImpl = fetch } = {}) {
   }
   const cssSig = extractCssSignals(css);
   const colors = rankColors(cssSig.colors, declared.filter(Boolean));
+  // Google Fonts links are free to use as-is; a site's own font files are
+  // usually private, so those become the closest free (Google) family.
   const fonts = dedupeBy(
-    [...sig.googleFonts, ...[...cssSig.fonts.entries()].sort((a, b) => b[1] - a[1]).map(([f]) => f)],
+    [...sig.googleFonts, ...[...cssSig.fonts.entries()].sort((a, b) => b[1] - a[1]).map(([f]) => closestFreeFont(f))],
     (f) => f.toLowerCase(),
   ).slice(0, 4);
 
   const logos = [];
-  for (const icon of icons.slice(0, 8)) {
+  // Other companies' logos (score 1) only when nothing of the site's own exists.
+  // One copy of each icon: `icon_512.png`, `icon_maskable_192.png`… are the
+  // same picture at other sizes (icons are sorted best-first, so the first wins).
+  const sameIcon = (u) => String(u).split('?')[0].replace(/maskable|\d+x?\d*/gi, '').replace(/[-_.]+/g, '-');
+  const ownIcons = dedupeBy(icons.filter((i) => i.score > 1), (i) => sameIcon(i.url));
+  for (const icon of (ownIcons.length ? ownIcons : icons).slice(0, 8)) {
     if (logos.length >= 4) break;
     try {
       const img = await safeFetch(icon.url, { maxBytes: MAX_IMAGE, accept: 'image/*', fetchImpl });
