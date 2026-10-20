@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { isPublicAddress, extractHtmlSignals, extractCssSignals, rankColors, cleanAppName, importBrand } from './brand-import.js';
+import { isPublicAddress, closestFreeFont, extractHtmlSignals, extractCssSignals, rankColors, cleanAppName, importBrand } from './brand-import.js';
 
 const HTML = `<!doctype html><html><head>
 <title>Acme — Plan your week | Acme Inc</title>
@@ -66,5 +66,25 @@ describe('isPublicAddress', () => {
   it('refuses to import from a local address', async () => {
     await expect(importBrand('http://127.0.0.1:5190/')).rejects.toThrow(/public internet/);
     await expect(importBrand('ftp://example.com')).rejects.toThrow();
+  });
+});
+
+describe('closestFreeFont', () => {
+  it('maps a site’s private font to a free Google family', () => {
+    expect(closestFreeFont('NotionInter')).toBe('Inter');
+    expect(closestFreeFont('Lyon Text')).toBe('Source Serif 4');
+    expect(closestFreeFont('Circular Std')).toBe('Inter');
+    expect(closestFreeFont('Inter Variable')).toBe('Inter');
+    expect(closestFreeFont('GT Super Display Serif')).toBe('Source Serif 4');
+  });
+});
+
+describe('logo candidates', () => {
+  it('prefers the site’s own logo over customer logo strips', () => {
+    const html = `<title>Notion</title><meta property="og:site_name" content="Notion">
+      <img src="/customers/openai-logo.svg" alt="OpenAI logo"><img src="/front/notion-logo.svg" alt="Notion">`;
+    const { icons } = extractHtmlSignals(html, 'https://www.notion.com/');
+    expect(icons[0].url).toBe('https://www.notion.com/front/notion-logo.svg');
+    expect(icons.find((i) => /openai/.test(i.url)).score).toBe(1);
   });
 });

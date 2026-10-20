@@ -48,6 +48,26 @@ import {
 import './workflow.css';
 
 const NODE_W = 300;
+// Saved workflows keep a spreadsheet's rows only up to this size (the project
+// write limit is 5 MB). A bigger sheet stays in memory for the session and is
+// saved as its columns + first rows; after a reload it asks to be uploaded again.
+const MAX_SAVED_TABLE_CHARS = 1_500_000;
+const SAVED_SAMPLE_ROWS = 20;
+// Preview renders this many rows at most; Download always renders them all.
+const MAX_PREVIEW_ROWS = 60;
+
+/** The workflow as saved: big spreadsheets trimmed to a sample. */
+function persistable(wf) {
+  return {
+    ...wf,
+    nodes: wf.nodes.map((n) => {
+      if (n.type !== 'data' || !n.table || n.table.partial) return n;
+      if (JSON.stringify(n.table.rows).length <= MAX_SAVED_TABLE_CHARS) return n;
+      const { rows, ...rest } = n.table;
+      return { ...n, table: { ...rest, rows: rows.slice(0, SAVED_SAMPLE_ROWS), rowCount: rows.length, partial: true } };
+    }),
+  };
+}
 const UPLOAD_INPUT_ID = 'lm-wf-upload-input';
 // Offer every spreadsheet file so none is greyed out in the picker; ones we
 // can't read get a clear "save it as…" message instead.
@@ -125,7 +145,7 @@ export function WorkflowView({ page, lerretDir, entries }) {
       return undefined;
     }
     const t = setTimeout(() => {
-      writeProjectFile(savePath, `${JSON.stringify(wf, null, 2)}\n`).then((r) => {
+      writeProjectFile(savePath, `${JSON.stringify(persistable(wf), null, 2)}\n`).then((r) => {
         if (!r.ok) setNotice(`Couldn’t save the workflow: ${r.error}`);
       });
     }, 500);
@@ -503,9 +523,11 @@ function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
     const h = el.offsetHeight;
     const flipX = menu.x + w > parent.clientWidth - 12;
     const flipY = menu.y + h > parent.clientHeight - 96;
+    // Flip up near the bottom, but never past the top or under the dock.
+    const top = flipY ? menu.y - h : menu.y;
     setPos({
       left: flipX ? Math.max(12, menu.x - w) : menu.x,
-      top: flipY ? Math.max(12, menu.y - h) : menu.y,
+      top: Math.max(12, Math.min(top, parent.clientHeight - 96 - h)),
       origin: `${flipX ? '100%' : '0'} ${flipY ? '100%' : '0'}`,
     });
     el.querySelector('[role="menuitem"]')?.focus();
@@ -542,12 +564,15 @@ function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
       {designs.length === 0 ? (
         <p className="lm-wf-hint lm-wf-menu__hint">No designs on this page yet.</p>
       ) : (
-        designs.map((e) => (
-          <button key={designKey(e)} type="button" role="menuitem" className="lm-wf-add" onClick={() => onDesign(e)} data-testid="lm-wf-add-design">
-            <span className="lm-wf-dot lm-wf-dot--design" />
-            {e.label || baseName(e.asset.path)}
-          </button>
-        ))
+        // Only the designs scroll — Upload and Finish stay in view.
+        <div className="lm-wf-menu__designs" data-testid="lm-wf-menu-designs">
+          {designs.map((e) => (
+            <button key={designKey(e)} type="button" role="menuitem" className="lm-wf-add" onClick={() => onDesign(e)} data-testid="lm-wf-add-design">
+              <span className="lm-wf-dot lm-wf-dot--design" />
+              {e.label || baseName(e.asset.path)}
+            </button>
+          ))}
+        </div>
       )}
       {canFinish && (
         <>
@@ -587,7 +612,7 @@ function Node({ node, ctx }) {
         />
       )}
       <div className="lm-wf-node__body">
-        {node.type === 'data' && <DataBody node={node} />}
+        {node.type === 'data' && <DataBody node={node} ctx={ctx} />}
         {node.type === 'design' && <DesignBody node={node} ctx={ctx} />}
         {node.type === 'preview' && <PreviewBody node={node} ctx={ctx} />}
         {node.type === 'download' && <DownloadBody node={node} ctx={ctx} />}
@@ -596,12 +621,41 @@ function Node({ node, ctx }) {
   );
 }
 
-function DataBody({ node }) {
+function DataBody({ node, ctx }) {
   const { table } = node;
+  const fileRef = React.useRef(null);
   if (!table) return <p className="lm-wf-hint">No data.</p>;
+  // Re-read a big sheet that was saved as a sample only.
+  const reupload = async (file) => {
+    try {
+      const next = await readSpreadsheet(file);
+      ctx.setWf((cur) => updateNode(cur, node.id, { table: next }));
+      ctx.setNotice(`Loaded ${next.name} · ${next.rows.length} rows`);
+    } catch (err) {
+      ctx.setNotice(err.message || String(err));
+    }
+  };
   return (
     <>
-      <p className="lm-wf-meta"><b>{table.name}</b> · {table.rows.length} rows</p>
+      <p className="lm-wf-meta"><b>{table.name}</b> · {(table.partial ? table.rowCount : table.rows.length).toLocaleString()} rows</p>
+      {table.partial && (
+        <div className="lm-wf-partial" data-testid="lm-wf-partial">
+          <p className="lm-wf-hint">Large files aren’t kept after a reload — upload it again to use all its rows.</p>
+          <button type="button" className="lm-wf-run" onClick={() => fileRef.current?.click()}>Upload again…</button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={SPREADSHEET_ACCEPT}
+            className="lm-wf-file"
+            tabIndex={-1}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) reupload(f);
+            }}
+          />
+        </div>
+      )}
       <div className="lm-wf-table" role="table" aria-label={table.name}>
         <div role="row" className="lm-wf-table__row lm-wf-table__row--head">
           {table.headers.slice(0, 3).map((h) => <span role="columnheader" key={h}>{h}</span>)}
@@ -721,12 +775,13 @@ function sourceOf(ctx, node) {
   if (!entry) return { error: 'The connected design is no longer on the page.' };
   const sheet = inputOf(ctx.wf, design.id);
   if (!sheet || sheet.type !== 'data' || !sheet.table) return { error: 'Connect a spreadsheet to the design.' };
+  if (sheet.table.partial) return { error: `Upload ${sheet.table.name} again in the spreadsheet step — large files aren’t kept after a reload.` };
   if (!Object.keys(design.mapping || {}).length) return { error: 'In the design node, pick which text each column replaces.' };
   return { design, entry, table: sheet.table };
 }
 
-/** Render every row of a source; `onRow(i, blob)` after each. */
-async function renderAll(ctx, src, { format, pixelRatio }, onRow) {
+/** Render every row of a source (or the first `limit`); `onRow(i, blob)` after each. */
+async function renderAll(ctx, src, { format, pixelRatio, limit = Infinity }, onRow) {
   const { value } = await readAssetData(src.entry.asset.path);
   const folder = src.entry.asset.path.slice(0, src.entry.asset.path.lastIndexOf('/'));
   const design = {
@@ -734,7 +789,7 @@ async function renderAll(ctx, src, { format, pixelRatio }, onRow) {
     props: baseProps(src.entry, value),
     varsStyle: buildVarsStyle(ctx.getConfigFor(folder)?.vars, folder),
   };
-  for (const [i, row] of src.table.rows.entries()) {
+  for (const [i, row] of src.table.rows.slice(0, limit).entries()) {
     const blob = await renderRow(design, replacementsFor(src.design.mapping, src.table.headers, row), { format, pixelRatio });
     await onRow(i, blob);
   }
@@ -761,12 +816,13 @@ function PreviewBody({ node, ctx }) {
     setItems([]);
     const names = fileNamesFor(src.table.rows, src.table.headers, Object.values(src.design.mapping)[0], src.entry.label || 'Design');
     const { width } = designSize(src.entry);
-    setBusy({ done: 0, total: src.table.rows.length });
+    const total = Math.min(src.table.rows.length, MAX_PREVIEW_ROWS);
+    setBusy({ done: 0, total });
     try {
-      await renderAll(ctx, src, { format: 'png', pixelRatio: Math.min(1, 640 / width) }, (i, blob) => {
+      await renderAll(ctx, src, { format: 'png', pixelRatio: Math.min(1, 640 / width), limit: MAX_PREVIEW_ROWS }, (i, blob) => {
         const url = URL.createObjectURL(blob);
         setItems((cur) => [...cur, { name: names[i], url }]);
-        setBusy({ done: i + 1, total: src.table.rows.length });
+        setBusy({ done: i + 1, total });
       });
     } catch (err) {
       ctx.setNotice(`Couldn’t render: ${err.message}`);
@@ -778,8 +834,11 @@ function PreviewBody({ node, ctx }) {
   return (
     <>
       <button type="button" className="lm-wf-run" onClick={run} disabled={!!busy} data-testid="lm-wf-run-preview">
-        {busy ? 'Rendering…' : items.length ? `Refresh ${src.table.rows.length} previews` : `Preview ${src.table.rows.length} designs`}
+        {busy ? 'Rendering…' : items.length ? `Refresh ${items.length} previews` : `Preview ${Math.min(src.table.rows.length, MAX_PREVIEW_ROWS)} designs`}
       </button>
+      {src.table.rows.length > MAX_PREVIEW_ROWS && (
+        <p className="lm-wf-hint">Previews the first {MAX_PREVIEW_ROWS} of {src.table.rows.length.toLocaleString()} rows — Download makes them all.</p>
+      )}
       {busy && <Progress {...busy} />}
       {items.length > 0 && (
         <div className="lm-wf-grid" data-testid="lm-wf-previews">
@@ -871,7 +930,7 @@ function DownloadBody({ node, ctx }) {
         <p className="lm-wf-hint">{src.error}</p>
       ) : (
         <button type="button" className="lm-wf-run lm-wf-run--primary" onClick={run} disabled={!!busy} data-testid="lm-wf-run-download">
-          {busy ? 'Exporting…' : `Download ${src.table.rows.length} ${format === 'pdf' ? 'as one PDF' : 'files'}`}
+          {busy ? 'Exporting…' : `Download ${src.table.rows.length.toLocaleString()} ${format === 'pdf' ? 'as one PDF' : 'files'}`}
         </button>
       )}
       {busy && <Progress {...busy} />}

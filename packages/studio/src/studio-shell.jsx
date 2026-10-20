@@ -40,6 +40,7 @@ import { runBulkExport, triggerBulkDownload } from './export/bulk.js';
 import { inCliMode, switchProject } from './runtime/write-client.js';
 import { getHostedController } from './runtime/hosted-controller.js';
 import { ConnectProjectDialog } from './components/entry/connect-project-dialog.jsx';
+import { useBrand } from './components/brand/brand-store.js';
 // Import the extracted walkthrough overlay and offer.
 // The overlay and its step sequence now live in components/walkthrough/.
 import {
@@ -696,6 +697,10 @@ export function StudioShell({ pages, defaultPage }) {
  // First-ever-visit offer state.
  // The offer is shown once after the first render, dismissed on Yes/No.
  const [offerVisible, setOfferVisible] = React.useState(false);
+ // In the CLI the brand setup popup may open first (a new project); until the
+ // brand has loaded we can't know, so the tour offer waits for it.
+ const brand = useBrand();
+ const brandSetupOpen = inCliMode() && (!brand.loaded || brand.setupOpen);
  // Unknown route → snap to the default. Don't render an empty page.
  const valid = pages[route] ? route : fallback;
  const page = pages[valid];
@@ -723,8 +728,9 @@ export function StudioShell({ pages, defaultPage }) {
  <StudioDock pages={pages} current={valid} onNavigate={navigate} onHelp={() => setTourOpen(true)} />
  {page.comingSoon ? <StudioComingSoon label={page.label} /> : page.node}
  <EditModeLayer />
- {/* First-ever-visit offer (calm notice above dock). */}
- {offerVisible && !tourOpen && (
+ {/* First-ever-visit offer (calm notice above dock) — held back while the
+ brand setup popup is up, so a new project asks one thing at a time. */}
+ {offerVisible && !tourOpen && !brandSetupOpen && (
  <WalkthroughOffer
  onAccept={handleOfferAccept}
  onDecline={handleOfferDecline}

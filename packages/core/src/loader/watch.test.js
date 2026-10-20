@@ -159,6 +159,11 @@ describe('classifyPath', () => {
     expect(classifyPath(ROOT, `${ROOT}/_fonts`, true).role).toBe('reserved-folder');
   });
 
+  it('treats a hidden root folder (.workflows/) as reserved, never a page', () => {
+    expect(classifyPath(ROOT, `${ROOT}/.workflows`, true).role).toBe('reserved-folder');
+    expect(classifyPath(ROOT, `${ROOT}/.workflows/home.json`, false).role).toBe('irrelevant');
+  });
+
   it('treats anything else under a reserved folder as irrelevant', () => {
     expect(classifyPath(ROOT, `${ROOT}/_assets/mark.png`, false).role).toBe('irrelevant');
     // An asset extension inside `_fonts/` (a `.jsx` there) is still irrelevant.

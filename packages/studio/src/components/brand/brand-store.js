@@ -327,6 +327,6 @@ export async function uploadFontFile(file) {
 
 /** Test hook. */
 export function __resetBrandStore() {
-  state = { lerretDir: null, assetBaseUrl: null, brand: emptyBrand(), loaded: false, open: false, setupOpen: false, exists: false, version: 0, error: null };
+  state = { lerretDir: null, assetBaseUrl: null, brand: emptyBrand(), loaded: false, setupOpen: false, exists: false, version: 0, error: null };
   queue = Promise.resolve();
 }

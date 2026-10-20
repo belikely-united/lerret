@@ -1024,7 +1024,8 @@ const MAX_WRITE_BYTES = 5 * 1024 * 1024;
 
 /**
  * Read the body of a Connect request as a UTF-8 string, bounded by
- * `MAX_WRITE_BYTES`. Rejects with a string error on overflow / unreadable input.
+ * `MAX_WRITE_BYTES`. Rejects with a readable error on overflow (after draining
+ * the body, so a response can still be sent) or unreadable input.
  *
  * @param {import('node:http').IncomingMessage} req
  * @returns {Promise<string>}
@@ -1036,14 +1037,15 @@ function readRequestBody(req) {
     let total = 0;
     req.on('data', (chunk) => {
       total += chunk.length;
-      if (total > MAX_WRITE_BYTES) {
-        reject(new Error(`payload exceeds ${MAX_WRITE_BYTES} bytes`));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
+      // Over the cap: stop keeping it but read to the end, so the caller can
+      // still answer — destroying the socket would look like a dead server.
+      if (total <= MAX_WRITE_BYTES) chunks.push(chunk);
     });
     req.on('end', () => {
+      if (total > MAX_WRITE_BYTES) {
+        reject(new Error(`too large to save (${Math.round(total / 1048576)} MB; the limit is ${MAX_WRITE_BYTES / 1048576} MB)`));
+        return;
+      }
       try {
         resolve(Buffer.concat(chunks).toString('utf-8'));
       } catch (err) {

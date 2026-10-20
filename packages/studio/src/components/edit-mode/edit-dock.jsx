@@ -326,6 +326,8 @@ const ACTION_ICONS = {
   front: 'M4 7h10v8H4zM7 3h8v8',
   close: 'M4.5 4.5l9 9M13.5 4.5l-9 9',
   back: 'M7 3h8v8H7zM4 7h10v8H4z',
+  forward: 'M9 14V4M5 8l4-4 4 4',
+  backward: 'M9 4v10M5 10l4 4 4-4',
 };
 
 /**
@@ -481,9 +483,9 @@ function TextSection({ ins, selection }) {
           </div>
         </>
       )}
+      <AlignControl value={style?.textAlign} fallback={computed?.textAlign} onInput={(v) => ins.onStyle('textAlign', v)} />
       <Field label="Colour"><ColorRow ins={ins} k="color" /></Field>
       <ColorChoices value={style?.color?.kind === 'literal' ? String(style.color.value) : ''} onPick={(v) => ins.onStyle('color', v)} />
-      <AlignControl value={style?.textAlign} fallback={computed?.textAlign} onInput={(v) => ins.onStyle('textAlign', v)} />
       {!linkedStyle && (
         <div className="lm-edit-grid">
           <NumberField ins={ins} k="lineHeight" label="Line" unitless step={0.05} />
@@ -757,14 +759,19 @@ function PositionSection({ ins }) {
 }
 
 function ArrangeSection({ ins, selection }) {
-  const toFront = () => saveStyles(selection.path, selection.offset, [{ key: 'zIndex', value: 10 }], selection.tag);
-  const toBack = async () => {
-    // The element first (its offset is current), then the root: z-index -1
-    // stays above the design's background because the root isolates stacking.
-    // The root edit sits before the element — the session rebases the selection.
-    const res = await saveStyles(selection.path, selection.offset, [{ key: 'zIndex', value: -1 }], selection.tag);
+  // The layer's stacking number now: its own literal z-index, else what it renders with.
+  const z = () => {
+    const v = ins.style?.zIndex;
+    const n = Number(v?.kind === 'literal' ? v.value : ins.computed?.zIndex);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const setZ = async (value) => {
+    const res = await saveStyles(selection.path, selection.offset, [{ key: 'zIndex', value }], selection.tag);
+    // Below zero: the root isolates stacking, so the layer stays above the
+    // design's background. Element first (its offset is current), then the
+    // root — the session rebases the selection.
     const board = artboardOf(selection);
-    if (res.ok && board) {
+    if (value < 0 && res.ok && board) {
       const m = /^(.*):(\d+)$/.exec(board.root.getAttribute(SRC_ATTR));
       if (m) await saveStyles(m[1], Number(m[2]), [{ key: 'isolation', value: 'isolate' }], board.root.tagName.toLowerCase());
     }
@@ -772,8 +779,10 @@ function ArrangeSection({ ins, selection }) {
   return (
     <Section title="Arrange">
       <div className="lm-edit-grid">
-        <button type="button" className="lm-design-btn" onClick={toFront}><Icon name="front" /> Bring to front</button>
-        <button type="button" className="lm-design-btn" onClick={toBack}><Icon name="back" /> Send to back</button>
+        <button type="button" className="lm-design-btn" onClick={() => setZ(z() + 1)} title="One layer up" data-testid="lm-design-forward"><Icon name="forward" /> Bring forward</button>
+        <button type="button" className="lm-design-btn" onClick={() => setZ(z() - 1)} title="One layer down" data-testid="lm-design-backward"><Icon name="backward" /> Send backward</button>
+        <button type="button" className="lm-design-btn" onClick={() => setZ(10)} title="Above everything"><Icon name="front" /> Bring to front</button>
+        <button type="button" className="lm-design-btn" onClick={() => setZ(-1)} title="Below everything"><Icon name="back" /> Send to back</button>
       </div>
     </Section>
   );
@@ -1136,7 +1145,7 @@ function AlignControl({ value, fallback, onInput }) {
   const current = value ? value.value : '';
   const active = current || (fallback === 'start' ? 'left' : fallback);
   return (
-    <div className="lm-edit-seg" role="radiogroup" aria-label="Text align">
+    <div className="lm-edit-seg lm-edit-seg--fill" role="radiogroup" aria-label="Text align">
       {['left', 'center', 'right'].map((v) => (
         <button
           key={v}

@@ -61,6 +61,8 @@ textarea.lm-edit-input { display: block; width: 100%; height: auto; resize: vert
   background: transparent; color: var(--lm-text-tertiary); cursor: pointer; }
 .lm-edit-seg button[aria-checked="true"] { background: var(--lm-bg-primary); color: var(--lm-text-primary); box-shadow: var(--lm-shadow-xs); }
 .lm-edit-seg button[data-set] { color: var(--lm-accent); }
+/* A segmented control that spans its row: buttons share the width (no empty tail). */
+.lm-edit-seg--fill button { flex: 1; width: auto; }
 .lm-edit-seg button:focus-visible { box-shadow: var(--lm-focus-ring); outline: none; }
 .lm-edit-code { flex: 1; font-size: var(--lm-size-body-sm, 12px); color: var(--lm-text-tertiary); font-style: italic; cursor: help; white-space: nowrap; }
 .lm-edit-code--block { display: block; padding: 6px 8px; background: var(--lm-bg-secondary); border-radius: var(--lm-radius-sm); }
@@ -208,9 +210,10 @@ textarea.lm-edit-input { display: block; width: 100%; height: auto; resize: vert
   justify-content: center;
   gap: 6px;
   min-height: 34px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: none;
   border-radius: 999px;
+  white-space: nowrap;
   background: var(--lm-bg-secondary, #F5F5F5);
   color: var(--lm-text-primary, #0A0A0A);
   font: 500 12px/1 var(--lm-font-sans, system-ui);
