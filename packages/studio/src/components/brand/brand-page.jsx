@@ -10,6 +10,7 @@
 // switch, --lm-duration-base); reduced motion keeps only the fade.
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { LOGO_KINDS, normalizeTextStyle } from '@lerret/core';
 
 import { dcToast } from '../../design-canvas.jsx';
@@ -73,144 +74,193 @@ export function BrandPage({ customFamilies = [] }) {
   );
 }
 
+// ── Edit popover ────────────────────────────────────────────────────────────
+
+/**
+ * A popover anchored to the item being edited (found by its
+ * `data-brand-item` key, so it survives re-renders). Below the item, or above
+ * when there's no room; grows from the item. Esc / outside click closes it.
+ */
+function EditPopover({ itemKey, label, onClose, children }) {
+  const ref = React.useRef(null);
+  const [pos, setPos] = React.useState(null);
+  const anchor = () => document.querySelector(`[data-brand-item="${itemKey}"]`);
+  const place = React.useCallback(() => {
+    const a = document.querySelector(`[data-brand-item="${itemKey}"]`);
+    const el = ref.current;
+    if (!a || !el) return;
+    const r = a.getBoundingClientRect();
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const below = r.bottom + 8 + h <= window.innerHeight - 12;
+    const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), window.innerWidth - w - 12);
+    const top = below ? r.bottom + 8 : Math.max(12, r.top - 8 - h);
+    setPos({ left, top, origin: `${Math.round(r.left + r.width / 2 - left)}px ${below ? '0' : '100%'}` });
+  }, [itemKey]);
+  React.useLayoutEffect(() => {
+    place();
+    ref.current?.querySelector('input, select, button')?.focus();
+  }, [place]);
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    const onDown = (e) => {
+      if (ref.current?.contains(e.target) || anchor()?.contains(e.target)) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, place]);
+  return createPortal(
+    <div
+      ref={ref}
+      className="lm-brand-pop"
+      role="dialog"
+      aria-label={label}
+      style={pos ? { left: pos.left, top: pos.top, transformOrigin: pos.origin } : { visibility: 'hidden' }}
+      onKeyDown={(e) => e.stopPropagation()}
+      data-testid="lm-brand-pop"
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * Edits apply as you make them (debounced, so dragging the colour picker
+ * doesn't write on every frame); whatever is pending is saved on close.
+ */
+function useLiveSave(value, save, delay = 250) {
+  const pending = React.useRef(null);
+  const latest = React.useRef(save);
+  React.useLayoutEffect(() => {
+    latest.current = save;
+  });
+  React.useEffect(() => {
+    if (value === null) return undefined;
+    pending.current = value;
+    const t = setTimeout(() => {
+      latest.current(pending.current);
+      pending.current = null;
+    }, delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  // Flush on unmount (closing the popover).
+  React.useEffect(() => () => {
+    if (pending.current !== null) latest.current(pending.current);
+  }, []);
+}
+
+const HEX = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i;
+
+function ColorPopover({ color, onClose }) {
+  const [name, setName] = React.useState(color.name);
+  const [value, setValue] = React.useState(color.value);
+  const [dirty, setDirty] = React.useState(null);
+  const edit = (patch) => {
+    if (patch.name !== undefined) setName(patch.name);
+    if (patch.value !== undefined) setValue(patch.value);
+    setDirty({ name: patch.name ?? name, value: patch.value ?? value });
+  };
+  useLiveSave(dirty, (d) => {
+    const v = d.value.trim();
+    if (!HEX.test(v)) return;
+    updateColor(color.id, { name: d.name.trim() || 'Colour', value: v.toUpperCase() });
+  });
+  const valid = HEX.test(value.trim());
+  return (
+    <EditPopover itemKey={`color-${color.id}`} label={`Edit ${color.name}`} onClose={onClose}>
+      <label className="lm-brand-pop__swatch" style={{ background: valid ? value : '#FFFFFF' }} title="Pick a colour">
+        <input type="color" value={valid && value.length === 7 ? value : '#000000'} onChange={(e) => edit({ value: e.target.value.toUpperCase() })} aria-label="Pick a colour" />
+        <span>Click to pick a colour</span>
+      </label>
+      <div className="lm-brand-pop__row">
+        <label className="lm-brand__mini"><span>Hex</span>
+          <input className="lm-brand__input lm-brand-pop__hex" value={value} onChange={(e) => edit({ value: e.target.value })} aria-label="Hex value" spellCheck={false} aria-invalid={!valid} />
+        </label>
+        <label className="lm-brand__mini" style={{ flex: 1 }}><span>Name</span>
+          <input className="lm-brand__input" value={name} onChange={(e) => edit({ name: e.target.value })} aria-label="Colour name" placeholder="e.g. Primary" />
+        </label>
+      </div>
+      <p className="lm-brand__hint">Changes apply to every design that uses this colour.</p>
+      <div className="lm-brand-pop__foot">
+        <button type="button" className="lm-brand__link lm-brand__link--danger" onClick={() => removeColor(color.id).then(onClose)} data-testid="lm-brand-pop-delete">Delete colour</button>
+        <button type="button" className="lm-brand__btn lm-brand__btn--primary" onClick={onClose}>Done</button>
+      </div>
+    </EditPopover>
+  );
+}
+
 // ── Colours ─────────────────────────────────────────────────────────────────
 
 function Colors({ colors }) {
-  const [editing, setEditing] = React.useState(null); // id | 'new' | null
+  const [editing, setEditing] = React.useState(null); // colour id
+  const add = () => addColor({ name: 'New colour', value: '#2F5BFF' }).then((c) => setEditing(c.id));
+  const current = colors.find((c) => c.id === editing);
   return (
     <section className="lm-brand__section" aria-label="Colours">
       <div className="lm-brand__section-head">
         <h3>Colours</h3>
-        <button type="button" className="lm-brand__add" onClick={() => setEditing('new')} data-testid="lm-brand-add-color">+ Add</button>
+        <button type="button" className="lm-brand__add" onClick={add} data-testid="lm-brand-add-color">+ Add</button>
       </div>
-      {colors.length === 0 && editing !== 'new' && <p className="lm-brand__hint">Add your brand colours — they show up first in every colour picker.</p>}
+      {colors.length === 0 && <p className="lm-brand__hint">Add your brand colours — they show up first in every colour picker.</p>}
       <div className="lm-brand__colors">
-        {colors.map((c) =>
-          editing === c.id ? (
-            <ColorForm
-              key={c.id}
-              initial={c}
-              onCancel={() => setEditing(null)}
-              onSave={(v) => updateColor(c.id, v).then(() => setEditing(null))}
-              onRemove={() => removeColor(c.id).then(() => setEditing(null))}
-            />
-          ) : (
-            <button
-              key={c.id}
-              type="button"
-              className="lm-brand__color"
-              onClick={() => setEditing(c.id)}
-              title={`Edit ${c.name}`}
-              data-testid={`lm-brand-color-${c.id}`}
-            >
-              <span className="lm-brand__swatch" style={{ background: c.value }} />
-              <span className="lm-brand__color-text">
-                <b>{c.name}</b>
-                <em>{c.value.toUpperCase()}</em>
-              </span>
-            </button>
-          ),
-        )}
-        {editing === 'new' && (
-          <ColorForm
-            initial={{ name: '', value: '#2F5BFF' }}
-            onCancel={() => setEditing(null)}
-            onSave={(v) => addColor(v).then(() => setEditing(null))}
-          />
-        )}
+        {colors.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className="lm-brand__color"
+            aria-expanded={editing === c.id}
+            onClick={() => setEditing(editing === c.id ? null : c.id)}
+            title={`Edit ${c.name}`}
+            data-brand-item={`color-${c.id}`}
+            data-testid={`lm-brand-color-${c.id}`}
+          >
+            <span className="lm-brand__swatch" style={{ background: c.value }} />
+            <span className="lm-brand__color-text">
+              <b>{c.name}</b>
+              <em>{c.value.toUpperCase()}</em>
+            </span>
+          </button>
+        ))}
       </div>
+      {current && <ColorPopover key={current.id} color={current} onClose={() => setEditing(null)} />}
     </section>
-  );
-}
-
-export function ColorForm({ initial, onSave, onCancel, onRemove }) {
-  const [name, setName] = React.useState(initial.name);
-  const [value, setValue] = React.useState(initial.value);
-  const valid = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(value.trim());
-  const submit = (e) => {
-    e.preventDefault();
-    if (valid) onSave({ name: name.trim() || 'Colour', value: value.trim() });
-  };
-  return (
-    <form className="lm-brand__form" onSubmit={submit} onKeyDown={(e) => e.stopPropagation()}>
-      <div className="lm-brand__row">
-        <label className="lm-brand__swatch lm-brand__swatch--pick" style={{ background: valid ? value : '#fff' }} title="Pick a colour">
-          <input type="color" value={valid && value.length === 7 ? value : '#000000'} onChange={(e) => setValue(e.target.value.toUpperCase())} aria-label="Colour" />
-        </label>
-        <input className="lm-brand__input" value={value} onChange={(e) => setValue(e.target.value)} aria-label="Hex value" spellCheck={false} style={{ width: 92, fontFamily: 'var(--lm-font-mono, monospace)' }} />
-      </div>
-      <input className="lm-brand__input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Primary" aria-label="Colour name" autoFocus />
-      <FormButtons onCancel={onCancel} onRemove={onRemove} disabled={!valid} />
-    </form>
-  );
-}
-
-export function FormButtons({ onCancel, onRemove, disabled }) {
-  return (
-    <div className="lm-brand__form-actions">
-      {onRemove && <button type="button" className="lm-brand__link lm-brand__link--danger" onClick={onRemove}>Remove</button>}
-      <span style={{ flex: 1 }} />
-      <button type="button" className="lm-brand__btn" onClick={onCancel}>Cancel</button>
-      <button type="submit" className="lm-brand__btn lm-brand__btn--primary" disabled={disabled}>Save</button>
-    </div>
   );
 }
 
 // ── Text styles ─────────────────────────────────────────────────────────────
 
-function TextStyles({ styles, customFamilies }) {
-  const [editing, setEditing] = React.useState(null);
-  return (
-    <section className="lm-brand__section" aria-label="Text styles">
-      <div className="lm-brand__section-head">
-        <h3>Text styles</h3>
-        <button type="button" className="lm-brand__add" onClick={() => setEditing('new')} data-testid="lm-brand-add-style">+ Add</button>
-      </div>
-      {styles.length === 0 && editing !== 'new' && <p className="lm-brand__hint">Define headings, body and captions once; use them everywhere.</p>}
-      {styles.map((st) =>
-        editing === st.id ? (
-          <TextStyleForm
-            key={st.id}
-            initial={st}
-            customFamilies={customFamilies}
-            onCancel={() => setEditing(null)}
-            onSave={(v) => updateTextStyle(st.id, v).then(() => setEditing(null))}
-            onRemove={() => removeTextStyle(st.id).then(() => setEditing(null))}
-          />
-        ) : (
-          <button key={st.id} type="button" className="lm-brand__font" onClick={() => setEditing(st.id)} title={`Edit ${st.name}`} data-testid={`lm-brand-style-${st.id}`}>
-            <span className="lm-brand__font-meta">
-              <b>{st.name}</b>
-              <em>{st.family} · {st.size}px · {weightLabel(st.weight)} · {st.lineHeight}</em>
-            </span>
-            <span
-              className="lm-brand__specimen"
-              style={{ fontFamily: `'${st.family}'`, fontWeight: st.weight, fontSize: Math.max(14, Math.min(56, st.size / 2)), letterSpacing: st.letterSpacing, lineHeight: st.lineHeight }}
-            >
-              The quick brown fox
-            </span>
-          </button>
-        ),
-      )}
-      {editing === 'new' && (
-        <TextStyleForm
-          initial={{ name: '', family: 'Inter', size: 48, weight: 600, lineHeight: 1.2, letterSpacing: '0em' }}
-          customFamilies={customFamilies}
-          onCancel={() => setEditing(null)}
-          onSave={(v) => addTextStyle(v).then(() => setEditing(null))}
-        />
-      )}
-    </section>
-  );
-}
-
-export function TextStyleForm({ initial, customFamilies, onSave, onCancel, onRemove }) {
-  const [v, setV] = React.useState(() => normalizeTextStyle({ id: 'x', ...initial }));
-  const [name, setName] = React.useState(initial.name || '');
+function TextStylePopover({ style, customFamilies, onClose }) {
+  const [v, setV] = React.useState(() => normalizeTextStyle(style));
+  const [dirty, setDirty] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
   const fileRef = React.useRef(null);
   const families = [...new Set([...curatedFamilies(), ...customFamilies, v.family])];
-  const upd = (patch) => setV((cur) => ({ ...cur, ...patch }));
+  const upd = (patch) => {
+    const next = { ...v, ...patch };
+    setV(next);
+    setDirty(next);
+  };
+  useLiveSave(dirty, (d) => {
+    const { id: _id, ...rest } = d;
+    // A half-typed size (empty, 0) keeps the last good one.
+    updateTextStyle(style.id, { ...rest, size: d.size >= 6 ? d.size : style.size, name: d.name.trim() || 'Style' });
+  });
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -221,19 +271,18 @@ export function TextStyleForm({ initial, customFamilies, onSave, onCancel, onRem
     if (fam) upd({ family: fam });
   };
   return (
-    <form
-      className="lm-brand__form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const { id: _id, ...rest } = v;
-        onSave({ ...rest, name: name.trim() || 'Style' });
-      }}
-      onKeyDown={(e) => e.stopPropagation()}
-    >
-      <input className="lm-brand__input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Heading 1" aria-label="Style name" autoFocus />
-      <select className="lm-brand__input" value={v.family} onChange={(e) => upd({ family: e.target.value })} aria-label="Font" style={{ fontFamily: `'${v.family}'` }}>
-        {families.map((f) => <option key={f} value={f} style={{ fontFamily: `'${f}'` }}>{f}</option>)}
-      </select>
+    <EditPopover itemKey={`style-${style.id}`} label={`Edit ${style.name}`} onClose={onClose}>
+      <p className="lm-brand-pop__preview" style={{ fontFamily: `'${v.family}'`, fontWeight: v.weight, letterSpacing: v.letterSpacing, lineHeight: v.lineHeight }}>
+        The quick brown fox
+      </p>
+      <label className="lm-brand__mini"><span>Name</span>
+        <input className="lm-brand__input" value={v.name} onChange={(e) => upd({ name: e.target.value })} aria-label="Style name" placeholder="e.g. Heading 1" />
+      </label>
+      <label className="lm-brand__mini"><span>Font</span>
+        <select className="lm-brand__input" value={v.family} onChange={(e) => upd({ family: e.target.value })} aria-label="Font" style={{ fontFamily: `'${v.family}'` }}>
+          {families.map((f) => <option key={f} value={f} style={{ fontFamily: `'${f}'` }}>{f}</option>)}
+        </select>
+      </label>
       <div className="lm-brand__grid2">
         <label className="lm-brand__mini"><span>Size</span><input className="lm-brand__input" type="number" min="6" max="600" value={v.size} onChange={(e) => upd({ size: Number(e.target.value) })} aria-label="Size" /></label>
         <label className="lm-brand__mini"><span>Weight</span>
@@ -241,16 +290,58 @@ export function TextStyleForm({ initial, customFamilies, onSave, onCancel, onRem
             {WEIGHTS.map(([w, l]) => <option key={w} value={w}>{l}</option>)}
           </select>
         </label>
-        <label className="lm-brand__mini"><span>Line</span><input className="lm-brand__input" type="number" step="0.05" min="0.5" max="3" value={v.lineHeight} onChange={(e) => upd({ lineHeight: Number(e.target.value) })} aria-label="Line height" /></label>
+        <label className="lm-brand__mini"><span>Line height</span><input className="lm-brand__input" type="number" step="0.05" min="0.5" max="3" value={v.lineHeight} onChange={(e) => upd({ lineHeight: Number(e.target.value) })} aria-label="Line height" /></label>
         <label className="lm-brand__mini"><span>Spacing</span><input className="lm-brand__input" value={v.letterSpacing} onChange={(e) => upd({ letterSpacing: e.target.value })} aria-label="Letter spacing" placeholder="0em" /></label>
       </div>
-      <p className="lm-brand__preview" style={{ fontFamily: `'${v.family}'`, fontWeight: v.weight, letterSpacing: v.letterSpacing, lineHeight: v.lineHeight }}>The quick brown fox</p>
       <button type="button" className="lm-brand__link" onClick={() => fileRef.current?.click()} disabled={uploading}>
         {uploading ? 'Uploading…' : 'Upload a font file (.woff2, .ttf, .otf)…'}
       </button>
       <input ref={fileRef} type="file" accept=".woff2,.woff,.ttf,.otf" hidden onChange={onFile} />
-      <FormButtons onCancel={onCancel} onRemove={onRemove} />
-    </form>
+      <div className="lm-brand-pop__foot">
+        <button type="button" className="lm-brand__link lm-brand__link--danger" onClick={() => removeTextStyle(style.id).then(onClose)} data-testid="lm-brand-pop-delete">Delete style</button>
+        <button type="button" className="lm-brand__btn lm-brand__btn--primary" onClick={onClose}>Done</button>
+      </div>
+    </EditPopover>
+  );
+}
+
+function TextStyles({ styles, customFamilies }) {
+  const [editing, setEditing] = React.useState(null); // style id
+  const add = () =>
+    addTextStyle({ name: 'New style', family: 'Inter', size: 48, weight: 600, lineHeight: 1.2, letterSpacing: '0em' }).then((t) => setEditing(t.id));
+  const current = styles.find((t) => t.id === editing);
+  return (
+    <section className="lm-brand__section" aria-label="Text styles">
+      <div className="lm-brand__section-head">
+        <h3>Text styles</h3>
+        <button type="button" className="lm-brand__add" onClick={add} data-testid="lm-brand-add-style">+ Add</button>
+      </div>
+      {styles.length === 0 && <p className="lm-brand__hint">Define headings, body and captions once; use them everywhere.</p>}
+      {styles.map((st) => (
+        <button
+          key={st.id}
+          type="button"
+          className="lm-brand__font"
+          aria-expanded={editing === st.id}
+          onClick={() => setEditing(editing === st.id ? null : st.id)}
+          title={`Edit ${st.name}`}
+          data-brand-item={`style-${st.id}`}
+          data-testid={`lm-brand-style-${st.id}`}
+        >
+          <span className="lm-brand__font-meta">
+            <b>{st.name}</b>
+            <em>{st.family} · {st.size}px · {weightLabel(st.weight)} · {st.lineHeight}</em>
+          </span>
+          <span
+            className="lm-brand__specimen"
+            style={{ fontFamily: `'${st.family}'`, fontWeight: st.weight, fontSize: Math.max(14, Math.min(56, st.size / 2)), letterSpacing: st.letterSpacing, lineHeight: st.lineHeight }}
+          >
+            The quick brown fox
+          </span>
+        </button>
+      ))}
+      {current && <TextStylePopover key={current.id} style={current} customFamilies={customFamilies} onClose={() => setEditing(null)} />}
+    </section>
   );
 }
 
