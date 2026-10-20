@@ -19,7 +19,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-import { elementJsx, ELEMENTS, colorRef, fontRef, colorVarKey, fontVarKey, linkedVarKey } from '@lerret/core';
+import { elementJsx, ELEMENTS, colorRef, colorVarKey, linkedVarKey, linkedTextStyleId, textStyleRefs } from '@lerret/core';
 
 import '../forms/form-controls.css';
 import './edit-mode.css';
@@ -391,8 +391,14 @@ function TextSection({ ins, selection }) {
     : info.text.kind === 'literal' ? String(info.text.value) : '';
   const { brand } = useBrand();
   const fontValue = style?.fontFamily?.kind === 'literal' ? style.fontFamily.value : computed?.fontFamily;
-  const linkedFont = brand.fonts.find((f) => fontVarKey(f) === linkedVarKey(fontValue));
-  const fontMatch = linkedFont ? fontRef(linkedFont) : matchCuratedFont(fontValue);
+  // A brand text style links the font (and size, weight…) to the library.
+  const styleId = linkedTextStyleId(fontValue);
+  const linkedStyle = brand.textStyles.find((t) => t.id === styleId) || null;
+  const fontMatch = linkedStyle ? '' : matchCuratedFont(fontValue);
+  const applyStyle = (id) => {
+    const st = brand.textStyles.find((t) => t.id === id);
+    if (st) saveStyles(selection.path, selection.offset, Object.entries(textStyleRefs(st)).map(([key, value]) => ({ key, value })), selection.tag);
+  };
   const weight = style?.fontWeight?.kind === 'literal' ? String(style.fontWeight.value) : String(computed?.fontWeight ?? '400');
   return (
     <Section title="Text">
@@ -401,17 +407,18 @@ function TextSection({ ins, selection }) {
       ) : (
         <p className="lm-edit-hint">This text is filled in automatically — ask the AI to change how.</p>
       )}
+      {brand.textStyles.length > 0 && (
+        <Field label="Style">
+          <select className="lm-input lm-select lm-edit-input" value={linkedStyle?.id || ''} onChange={(e) => applyStyle(e.target.value)} aria-label="Text style" data-testid="lm-design-text-style">
+            <option value="">{linkedStyle ? '' : 'None'}</option>
+            {brand.textStyles.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Font">
         <select className="lm-input lm-select lm-edit-input" value={fontMatch || ''} onChange={(e) => ins.onStyle('fontFamily', e.target.value)} aria-label="Font">
-          {!fontMatch && <option value="">Custom</option>}
-          {brand.fonts.length > 0 && (
-            <optgroup label="Brand fonts">
-              {brand.fonts.map((f) => <option key={f.id} value={fontRef(f)}>{f.name} · {f.family}</option>)}
-            </optgroup>
-          )}
-          <optgroup label="All fonts">
-            {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
-          </optgroup>
+          {!fontMatch && <option value="">{linkedStyle ? `From “${linkedStyle.name}”` : 'Custom'}</option>}
+          {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
         </select>
       </Field>
       <div className="lm-edit-grid">

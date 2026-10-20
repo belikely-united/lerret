@@ -3,7 +3,7 @@
 // Everything is applied LINKED: colours/fonts as `var(--brand-…, fallback)`,
 // logos by their path in `_brand/` — so library edits flow to every design.
 
-import { colorRef, fontRef, logoPathFrom } from '@lerret/core';
+import { colorRef, textStyleRefs, logoPathFrom, logoVariantFor, luminance } from '@lerret/core';
 
 import { getEditState, saveStyles, placeImage, insertImagesIntoAsset } from '../edit-mode/edit-session.js';
 import { selectedNodes, inspect } from '../edit-mode/edit-mode-layer.jsx';
@@ -35,27 +35,46 @@ export async function applyBrandColor(color) {
   return saveStyles(c.sel.path, c.sel.offset, [{ key, value: colorRef(color) }], c.sel.tag);
 }
 
-export async function applyBrandFont(font) {
+/** Apply a text style — font, size, weight, line height, spacing — linked. */
+export async function applyTextStyle(style) {
   const c = await current();
   if (!c) return NOTHING;
-  if (c.kind !== 'text') return { ok: false, error: 'Select some text to change its font.' };
-  return saveStyles(c.sel.path, c.sel.offset, [{ key: 'fontFamily', value: fontRef(font) }], c.sel.tag);
+  if (c.kind !== 'text') return { ok: false, error: 'Select some text to give it a text style.' };
+  const refs = textStyleRefs(style);
+  return saveStyles(c.sel.path, c.sel.offset, Object.entries(refs).map(([key, value]) => ({ key, value })), c.sel.tag);
+}
+
+/** Whether the selected design's background reads as dark (for picking a logo variant). */
+function darkBackgroundAt(node) {
+  for (let el = node; el; el = el.parentElement) {
+    const bg = getComputedStyle(el).backgroundColor;
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(bg || '');
+    if (m && (m[4] === undefined || Number(m[4]) > 0.5)) {
+      const hex = `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`;
+      return (luminance(hex) ?? 1) < 0.35;
+    }
+    if (el.classList?.contains('dc-card')) break;
+  }
+  return false;
 }
 
 /**
  * Put a logo on the selection: an image or phone screen takes it in place;
- * otherwise it's added to the centre of the selected design.
+ * otherwise it's added to the centre of the selected design. Without an
+ * explicit `variant`, the version that suits the background is used.
  *
- * @param {{ file: string, name: string }} logo
+ * @param {{ name: string, variants: Array<{ id: string, label: string, file: string }> }} logo
  * @param {{ width: number, height: number }} natural  The logo's pixel size.
+ * @param {{ id: string, file: string } | null} [variant]
  */
-export async function placeBrandLogo(logo, natural) {
+export async function placeBrandLogo(logo, natural, variant = null) {
   const sel = getEditState().selection;
   if (!sel) return NOTHING;
   const { lerretDir } = getBrandState();
   const node = selectedNodes(sel)[0];
+  const pick = variant || logoVariantFor(logo, node ? darkBackgroundAt(node) : false);
   if (node && (node.tagName === 'IMG' || node.hasAttribute('data-image-slot'))) {
-    return placeImage(sel.path, sel.offset, { file: logoPathFrom(folderOf(sel.path), lerretDir, logo.file) });
+    return placeImage(sel.path, sel.offset, { file: logoPathFrom(folderOf(sel.path), lerretDir, pick.file) });
   }
   const board = artboardOf(sel);
   if (!board) return NOTHING;
@@ -64,7 +83,7 @@ export async function placeBrandLogo(logo, natural) {
     offset: board.offset,
     images: [
       {
-        file: logoPathFrom(folderOf(board.path), lerretDir, logo.file),
+        file: logoPathFrom(folderOf(board.path), lerretDir, pick.file),
         alt: logo.name,
         ...insertBoxFor(natural, board, { x: board.width / 2, y: board.height / 2 }),
       },

@@ -28,24 +28,38 @@ beforeEach(() => {
 });
 
 describe('brand store', () => {
-  it('starts empty for a project without a library', async () => {
+  it('starts empty for a project without a library, and offers the setup wizard', async () => {
     await store.loadBrand(ROOT, '/@lerret-project');
-    expect(store.getBrandState()).toMatchObject({ loaded: true, brand: { colors: [], fonts: [], logos: [] } });
+    expect(store.getBrandState()).toMatchObject({ loaded: true, setupOpen: true, exists: false, brand: { colors: [], textStyles: [], logos: [] } });
+  });
+
+  it('does not offer setup again once it was finished or skipped', async () => {
+    files.set(`${ROOT}/_brand/brand.json`, JSON.stringify({ version: 2, setup: 'skipped', colors: [] }));
+    await store.loadBrand(ROOT);
+    expect(store.getBrandState().setupOpen).toBe(false);
   });
 
   it('saves brand.json and mirrors colours/fonts into root vars, keeping other vars', async () => {
     files.set(`${ROOT}/config.json`, JSON.stringify({ presentation: { background: '#fff' }, vars: { accent: '#f00', 'brand-stale': '#000' } }));
     await store.loadBrand(ROOT);
     await store.addColor({ name: 'Primary', value: '#2F5BFF' });
-    await store.addFont({ name: 'Heading', family: 'Poppins' });
+    await store.addTextStyle({ name: 'Heading', family: 'Poppins', size: 64, weight: 700 });
 
     expect(JSON.parse(files.get(`${ROOT}/_brand/brand.json`))).toMatchObject({
       colors: [{ id: 'primary', name: 'Primary', value: '#2F5BFF' }],
-      fonts: [{ id: 'heading', name: 'Heading', family: 'Poppins' }],
+      textStyles: [{ id: 'heading', name: 'Heading', family: 'Poppins', size: 64, weight: 700, lineHeight: 1.3, letterSpacing: '0em' }],
     });
     expect(cfg()).toEqual({
       presentation: { background: '#fff' },
-      vars: { accent: '#f00', 'brand-primary': '#2F5BFF', 'brand-font-heading': 'Poppins, sans-serif' },
+      vars: {
+        accent: '#f00',
+        'brand-primary': '#2F5BFF',
+        'brand-text-heading-font': 'Poppins, sans-serif',
+        'brand-text-heading-size': 64,
+        'brand-text-heading-weight': 700,
+        'brand-text-heading-line': 1.3,
+        'brand-text-heading-tracking': '0em',
+      },
     });
   });
 

@@ -55,6 +55,7 @@ export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
+export const BRAND_IMPORT_ENDPOINT = '/__lerret/brand-import';
 export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
 export const EXPORT_PDF_ENDPOINT = '/__lerret/export-pdf';
 export const SWITCH_FOLDER_ENDPOINT = '/__lerret/switch-folder';
@@ -740,3 +741,17 @@ export function inCliMode() {
 /**
  * @typedef {import('@lerret/core').LerretPath} LerretPath
  */
+
+/**
+ * Ask the CLI dev server to read a website / store listing and suggest a
+ * brand (name, tagline, colours, fonts, logo images as base64).
+ *
+ * @param {string} url
+ * @param {{ fetch?: typeof fetch }} [opts]
+ * @returns {Promise<{ ok: boolean, error?: string, app?: object, colors?: string[], fonts?: string[],
+ *   logos?: Array<{ source: string, url: string, mimeType: string, base64: string }> }>}
+ */
+export async function importBrandFromUrl(url, opts = {}) {
+  if (typeof url !== 'string' || !url.trim()) return { ok: false, error: 'Paste a link to import from.' };
+  return callLifecycleEndpoint(BRAND_IMPORT_ENDPOINT, { url: url.trim() }, opts);
+}

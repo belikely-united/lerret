@@ -47,6 +47,7 @@ import { registerProjectFonts } from './runtime/font-registry.js';
 import { AiContextProvider } from './ai/ai-context.jsx';
 import { SelectionScopeProvider } from './ai/selection-scope-context.jsx';
 import { BrandPanel } from './components/brand/brand-panel.jsx';
+import { BrandSetup } from './components/brand/brand-setup.jsx';
 import { loadBrand } from './components/brand/brand-store.js';
 import { inCliMode } from './runtime/write-client.js';
 
@@ -145,6 +146,7 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  <SelectionScopeProvider>
  <StudioShell pages={shellPages} defaultPage={PROJECT_ROUTE} />
  {inCliMode() && <BrandPanel customFamilies={customFamilies} />}
+ {inCliMode() && <BrandSetup customFamilies={customFamilies} />}
  </SelectionScopeProvider>
  </AiContextProvider>
  </ProjectPagesContext.Provider>

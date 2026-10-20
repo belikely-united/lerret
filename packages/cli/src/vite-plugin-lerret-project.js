@@ -88,6 +88,7 @@ import {
   readRecentProjects,
   recordRecentProject,
 } from './fs/node-backend.js';
+import { importBrand } from './brand-import.js';
 import { startWatcher } from './watcher.js';
 import { resolveProject } from './resolve-project.js';
 import { renderAssetPdf } from './pdf-render.js';
@@ -217,6 +218,8 @@ export const DELETE_ENDPOINT = '/__lerret/delete';
 export const REVEAL_ENDPOINT = '/__lerret/reveal';
 export const MOVE_ENDPOINT = '/__lerret/move';
 export const CREATE_ENDPOINT = '/__lerret/create';
+/** `POST { url }` → brand suggestions from a website or store listing (see brand-import.js). */
+export const BRAND_IMPORT_ENDPOINT = '/__lerret/brand-import';
 export const READ_CONFIG_ENDPOINT = '/__lerret/read-config';
 export const EXPORT_PDF_ENDPOINT = '/__lerret/export-pdf';
 
@@ -927,6 +930,7 @@ export function lerretProjectPlugin({ projectRoot, lerretDir, dataOverride, conf
       server.middlewares.use(DUPLICATE_ENDPOINT, createDuplicateMiddleware({ getLerretDir }));
       server.middlewares.use(MOVE_ENDPOINT, createMoveMiddleware({ getLerretDir }));
       server.middlewares.use(CREATE_ENDPOINT, createCreateMiddleware({ getLerretDir }));
+      server.middlewares.use(BRAND_IMPORT_ENDPOINT, createBrandImportMiddleware());
       server.middlewares.use(DELETE_ENDPOINT, createDeleteMiddleware({ getLerretDir }));
       server.middlewares.use(REVEAL_ENDPOINT, createRevealMiddleware({ getLerretDir }));
       server.middlewares.use(READ_CONFIG_ENDPOINT, createReadConfigMiddleware({ getLerretDir }));
@@ -1794,6 +1798,31 @@ export function createRevealMiddleware(opts) {
       sendJson(res, 200, { ok: true });
     } else {
       sendJson(res, 500, { ok: false, error: result.error || 'reveal failed' });
+    }
+  });
+}
+
+/**
+ * `POST /__lerret/brand-import` — body `{ url }`. Reads a public web page (a
+ * product site or a store listing) and answers with brand suggestions for the
+ * studio's brand setup: `{ ok: true, app, colors, fonts, logos }`. Only public
+ * http(s) addresses are fetched (see brand-import.js); 400 with a readable
+ * `error` otherwise.
+ *
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, next: () => void) => void}
+ */
+export function createBrandImportMiddleware() {
+  return withJsonBody(async (_req, res, body) => {
+    const url = typeof body?.url === 'string' ? body.url.trim() : '';
+    if (!url) {
+      sendJson(res, 400, { ok: false, error: 'Paste a link to import from.' });
+      return;
+    }
+    try {
+      const result = await importBrand(url);
+      sendJson(res, 200, { ok: true, ...result });
+    } catch (err) {
+      sendJson(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   });
 }

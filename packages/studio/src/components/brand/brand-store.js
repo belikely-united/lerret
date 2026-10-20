@@ -13,11 +13,13 @@ import {
   emptyBrand,
   brandId,
   parseBrand,
+  normalizeTextStyle,
   mergeBrandVars,
   serializeJson,
 } from '@lerret/core';
 
 import { readProjectFile, writeProjectFile, listProjectDir } from '../../runtime/write-client.js';
+import { ensureGoogleFont } from '../../fonts/curated-fonts.js';
 
 let state = {
   lerretDir: null,
@@ -25,12 +27,16 @@ let state = {
   brand: emptyBrand(),
   loaded: false,
   open: false,
+  setupOpen: false, // the first-run / "Set up brand" wizard
+  exists: false, // brand.json is on disk
   version: 0, // bumps on every logo change, for thumbnail cache-busting
   error: null,
 };
 const listeners = new Set();
 const set = (patch) => {
   state = { ...state, ...patch };
+  // Make sure every text style's family can render (Google Fonts on demand).
+  if (patch.brand) for (const t of patch.brand.textStyles || []) ensureGoogleFont(t.family);
   for (const l of listeners) l();
 };
 
@@ -49,6 +55,7 @@ export function useBrand() {
 export const getBrandState = () => state;
 export const setBrandOpen = (open) => set({ open: !!open });
 export const toggleBrandOpen = () => set({ open: !state.open });
+export const setBrandSetupOpen = (open) => set({ setupOpen: !!open });
 
 const dir = () => `${state.lerretDir}/${BRAND_DIR}`;
 
@@ -62,11 +69,14 @@ export async function loadBrand(lerretDir, assetBaseUrl) {
   set({ lerretDir, assetBaseUrl: assetBaseUrl ?? null, brand: emptyBrand(), loaded: false });
   const listing = await listProjectDir(dir());
   let brand = emptyBrand();
-  if ((listing.entries || []).some((e) => e.name === BRAND_FILE)) {
+  const exists = (listing.entries || []).some((e) => e.name === BRAND_FILE);
+  if (exists) {
     const r = await readProjectFile(`${dir()}/${BRAND_FILE}`);
     if (r.ok) brand = parseBrand(r.content);
   }
-  if (state.lerretDir === lerretDir) set({ brand, loaded: true });
+  if (state.lerretDir !== lerretDir) return;
+  // First time this project is opened without a brand: offer the setup wizard.
+  set({ brand, loaded: true, exists, setupOpen: !exists || !brand.setup });
 }
 
 /** The served URL of a logo file (for thumbnails), cache-busted per change. */
@@ -81,7 +91,7 @@ let queue = Promise.resolve();
 
 /** Write brand.json and mirror its colours/fonts into the root config vars. */
 function save(next) {
-  set({ brand: next, error: null });
+  set({ brand: next, error: null, exists: true });
   const run = async () => {
     const w = await writeProjectFile(`${dir()}/${BRAND_FILE}`, serializeJson(next));
     if (!w.ok) return set({ error: w.error || 'Couldn’t save the brand library.' });
@@ -125,18 +135,34 @@ export function removeColor(id) {
   return save({ ...b, colors: b.colors.filter((c) => c.id !== id) });
 }
 
-export function addFont({ name, family }) {
+export function addTextStyle(style) {
   const b = state.brand;
-  const font = { id: brandId(name || family, ids(b.fonts)), name: name || family, family };
-  return save({ ...b, fonts: [...b.fonts, font] }).then(() => font);
+  const text = normalizeTextStyle({ ...style, id: brandId(style.name || 'Style', ids(b.textStyles)), name: style.name || 'Style' });
+  return save({ ...b, textStyles: [...b.textStyles, text] }).then(() => text);
 }
-export function updateFont(id, patch) {
+export function updateTextStyle(id, patch) {
   const b = state.brand;
-  return save({ ...b, fonts: b.fonts.map((f) => (f.id === id ? { ...f, ...patch, id } : f)) });
+  return save({ ...b, textStyles: b.textStyles.map((t) => (t.id === id ? normalizeTextStyle({ ...t, ...patch, id }) : t)) });
 }
-export function removeFont(id) {
+export function removeTextStyle(id) {
   const b = state.brand;
-  return save({ ...b, fonts: b.fonts.filter((f) => f.id !== id) });
+  return save({ ...b, textStyles: b.textStyles.filter((t) => t.id !== id) });
+}
+
+/** Replace the whole library at once (the setup wizard's "Save"). */
+export function saveWholeBrand(next) {
+  return save({ ...next, version: 2 });
+}
+
+/** Mark the first-run wizard finished or skipped so it doesn't reappear. */
+export function markSetup(value) {
+  set({ setupOpen: false });
+  return save({ ...state.brand, setup: value });
+}
+
+export function updateApp(patch) {
+  const b = state.brand;
+  return save({ ...b, app: { ...b.app, ...patch } });
 }
 
 const toBase64 = (file) =>
@@ -159,32 +185,58 @@ async function freeName(folder, fileName) {
   return name;
 }
 
-export async function addLogo(file) {
-  const name = await freeName(dir(), file.name);
+/** Write an image file into `_brand/` under a free name; returns the name. */
+export async function writeBrandFile(file, preferredName = file.name) {
+  const name = await freeName(dir(), preferredName);
   const w = await writeProjectFile(`${dir()}/${name}`, await toBase64(file), { encoding: 'base64' });
   if (!w.ok) {
     set({ error: w.error || `Couldn’t save ${name}.` });
     return null;
   }
-  const b = state.brand;
-  const label = name.replace(/\.[^.]+$/, '');
-  const logo = { id: brandId(label, ids(b.logos)), name: label, file: name };
   set({ version: state.version + 1 });
+  return name;
+}
+
+/** Add a logo set whose first variant is `file`. */
+export async function addLogo(file, { name, kind = 'full', variantLabel = 'Colour' } = {}) {
+  const saved = await writeBrandFile(file);
+  if (!saved) return null;
+  const b = state.brand;
+  const label = name || saved.replace(/\.[^.]+$/, '');
+  const logo = {
+    id: brandId(label, ids(b.logos)),
+    name: label,
+    kind,
+    variants: [{ id: brandId(variantLabel), label: variantLabel, file: saved }],
+  };
   await save({ ...b, logos: [...b.logos, logo] });
   return logo;
 }
 
+/** Add another colour version (e.g. "Light") to a logo set. */
+export async function addLogoVariant(logoId, file, label) {
+  const logo = state.brand.logos.find((l) => l.id === logoId);
+  if (!logo) return null;
+  const saved = await writeBrandFile(file, `${logo.name}-${label}.${(file.name.split('.').pop() || 'png').toLowerCase()}`);
+  if (!saved) return null;
+  const b = state.brand;
+  const variant = { id: brandId(label, logo.variants.map((v) => v.id)), label, file: saved };
+  await save({ ...b, logos: b.logos.map((l) => (l.id === logoId ? { ...l, variants: [...l.variants, variant] } : l)) });
+  return variant;
+}
+
 /**
- * Swap a logo's image. Same file type → the file is overwritten in place, so
+ * Swap one logo version's image. Same file type → overwritten in place, so
  * every design using it updates. A different type gets a new file name (the
- * old one stays, so existing designs keep showing the old logo).
+ * old file stays, so existing designs keep showing it).
  */
-export async function replaceLogo(id, file) {
-  const logo = state.brand.logos.find((l) => l.id === id);
-  if (!logo) return;
+export async function replaceLogoVariant(logoId, variantId, file) {
+  const logo = state.brand.logos.find((l) => l.id === logoId);
+  const variant = logo?.variants.find((v) => v.id === variantId);
+  if (!variant) return;
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const sameType = logo.file.toLowerCase().endsWith(`.${ext}`);
-  const name = sameType ? logo.file : await freeName(dir(), `${logo.name}.${ext}`);
+  const sameType = variant.file.toLowerCase().endsWith(`.${ext}`);
+  const name = sameType ? variant.file : await freeName(dir(), `${logo.name}-${variant.label}.${ext}`);
   const w = await writeProjectFile(`${dir()}/${name}`, await toBase64(file), { encoding: 'base64' });
   if (!w.ok) {
     set({ error: w.error || `Couldn’t save ${name}.` });
@@ -192,10 +244,28 @@ export async function replaceLogo(id, file) {
   }
   set({ version: state.version + 1 });
   if (sameType) await refreshLogoInDocument(name);
-  if (!sameType) {
+  else {
     const b = state.brand;
-    await save({ ...b, logos: b.logos.map((l) => (l.id === id ? { ...l, file: name } : l)) });
+    await save({
+      ...b,
+      logos: b.logos.map((l) => (l.id === logoId ? { ...l, variants: l.variants.map((v) => (v.id === variantId ? { ...v, file: name } : v)) } : l)),
+    });
   }
+}
+
+export function updateLogo(id, patch) {
+  const b = state.brand;
+  return save({ ...b, logos: b.logos.map((l) => (l.id === id ? { ...l, ...patch, id } : l)) });
+}
+
+export function removeLogoVariant(logoId, variantId) {
+  const b = state.brand;
+  return save({
+    ...b,
+    logos: b.logos
+      .map((l) => (l.id === logoId ? { ...l, variants: l.variants.filter((v) => v.id !== variantId) } : l))
+      .filter((l) => l.variants.length > 0),
+  });
 }
 
 /**
@@ -225,12 +295,7 @@ async function refreshLogoInDocument(file) {
   }
 }
 
-export function renameLogo(id, name) {
-  const b = state.brand;
-  return save({ ...b, logos: b.logos.map((l) => (l.id === id ? { ...l, name } : l)) });
-}
-
-/** Remove from the library. The file stays, so designs already using it keep working. */
+/** Remove from the library. The files stay, so designs already using them keep working. */
 export function removeLogo(id) {
   const b = state.brand;
   return save({ ...b, logos: b.logos.filter((l) => l.id !== id) });
@@ -250,6 +315,6 @@ export async function uploadFontFile(file) {
 
 /** Test hook. */
 export function __resetBrandStore() {
-  state = { lerretDir: null, assetBaseUrl: null, brand: emptyBrand(), loaded: false, open: false, version: 0, error: null };
+  state = { lerretDir: null, assetBaseUrl: null, brand: emptyBrand(), loaded: false, open: false, setupOpen: false, exists: false, version: 0, error: null };
   queue = Promise.resolve();
 }
