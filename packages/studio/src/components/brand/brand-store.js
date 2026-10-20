@@ -11,6 +11,8 @@ import {
   BRAND_DIR,
   BRAND_FILE,
   emptyBrand,
+  hasBrand,
+  logoPathFrom,
   brandId,
   parseBrand,
   normalizeTextStyle,
@@ -53,6 +55,19 @@ export function useBrand() {
 }
 
 export const getBrandState = () => state;
+
+/**
+ * The brand, packaged for designing a new file in `folder` (templates and
+ * + Add): the library plus where `_brand/` sits relative to that folder.
+ * Undefined when the project has no brand yet.
+ *
+ * @param {string} folder  The new file's folder (a LerretPath).
+ * @returns {{ brand: object, brandDir: string } | undefined}
+ */
+export function brandKitFor(folder) {
+  if (!state.lerretDir || !hasBrand(state.brand)) return undefined;
+  return { brand: state.brand, brandDir: logoPathFrom(folder, state.lerretDir, '') };
+}
 export const setBrandOpen = (open) => set({ open: !!open });
 export const toggleBrandOpen = () => set({ open: !state.open });
 export const setBrandSetupOpen = (open) => set({ setupOpen: !!open });

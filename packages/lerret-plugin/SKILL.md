@@ -211,6 +211,31 @@ In an asset under that folder you can write `style={{ color: 'var(--accentColor)
 
 A folder-level config overrides the parent on a per-top-level-key basis. Setting `vars` in a child **replaces** the parent's `vars` entirely (no deep merge). If you want to extend rather than replace, repeat the parent keys you care about.
 
+## Brand library — `.lerret/_brand/`
+
+A project's brand lives in `.lerret/_brand/brand.json` plus the logo files next to it. **Read it before designing anything** — it is the single source of truth for colours, text styles and logos, and the studio keeps every design that uses it in sync.
+
+```json
+{
+  "version": 2,
+  "setup": "done",
+  "app": { "name": "Acme", "tagline": "Plan and ship faster", "url": "https://acme.com" },
+  "colors": [ { "id": "ink", "name": "Ink", "value": "#08090A" }, { "id": "primary", "name": "Primary", "value": "#5E6AD2" } ],
+  "textStyles": [ { "id": "h1", "name": "Heading 1", "family": "Inter", "size": 96, "weight": 700, "lineHeight": 1.1, "letterSpacing": "-0.02em" } ],
+  "logos": [ { "id": "acme", "name": "Acme", "kind": "full", "variants": [ { "id": "default", "label": "Colour", "file": "acme.png" }, { "id": "light", "label": "Light", "file": "acme-light.png" } ] } ]
+}
+```
+
+The studio mirrors the library into the root `config.json` `vars` as `brand-*` keys, so every design has them as CSS custom properties. **Use them LINKED, never as copied literals** — a linked value updates when the user edits the library:
+
+- Colour: `color: 'var(--brand-ink, #08090A)'` (`--brand-<colour id>`, with the current value as the fallback).
+- Text style `<id>`: `fontFamily: 'var(--brand-text-h1-font, Inter, sans-serif)'`, `fontSize: 'calc(var(--brand-text-h1-size, 96) * 1.5px)'` (sizes are for a 1080px-wide design — scale by artboard width / 1080), `fontWeight: 'var(--brand-text-h1-weight, 700)'`, `lineHeight: 'var(--brand-text-h1-line, 1.1)'`, `letterSpacing: 'var(--brand-text-h1-tracking, -0.02em)'`.
+- Logo: reference the file in `_brand/` by a module-relative URL — `const logoSrc = new URL('../_brand/acme.png', import.meta.url).href;` (one `../` per folder level below `.lerret/`) — and pick the variant that suits the background (a "Light"/"White" one on dark grounds).
+
+**Filling the library from a link.** When the user gives a website or store link and `_brand/brand.json` is missing or empty, fetch the page yourself and save what you find **once** — the app name and tagline, 3–6 brand colours (the dominant accent, a near-black ink, a near-white paper), the fonts the site uses as text styles (a heading and a body style at least), and the logo/app icon downloaded into `_brand/` — then write `brand.json` (`"setup": "done"`) and the matching `brand-*` vars in `config.json`. Later requests reuse it; don't refetch. In the browser studio the same thing is one click: **Brand → Set up → Import**.
+
+**Store image sets.** For "make the Microsoft Store / App Store / Google Play images", make one group per platform (a folder named after it) holding one asset per image at the platform's real size — e.g. Microsoft Store: five 1920×1080 `desktop-screenshot-1…5`, one 1920×1080 `hero-art`, one 1440×2160 `poster-art`; App Store: five 1320×2868 iPhone 6.9″ screenshots; Google Play: five 1080×1920 phone screenshots, a 1024×500 `feature-graphic` and a 512×512 `app-icon`. In the studio: **New asset → the platform → tick the formats and counts**. Every image uses the brand library, linked.
+
 ## Fonts — drop a file, use it
 
 Put any `.woff2`, `.woff`, `.ttf`, or `.otf` in `.lerret/_fonts/`. Lerret generates an `@font-face` rule using the file's basename as the `font-family` — zero imports, zero `@font-face` boilerplate.

@@ -1854,7 +1854,7 @@ export function createBrandImportMiddleware() {
 export function createCreateMiddleware(opts) {
   return withJsonBody(async (_req, res, body) => {
     const lerretDir = resolveLerretDir(opts);
-    const { parentPath, name, kind, assetKind, dimensions, template } = body;
+    const { parentPath, name, kind, assetKind, dimensions, template, brand, brandDir } = body;
     if (typeof parentPath !== 'string') {
       sendJson(res, 400, { ok: false, error: 'parentPath must be a string' });
       return;
@@ -1912,6 +1912,10 @@ export function createCreateMiddleware(opts) {
         assetKind,
         dimensions,
         template,
+        // Untrusted, but only ever rendered as linked style values / a
+        // `_brand/` URL — posterTemplateContent re-parses and validates both.
+        brand: brand && typeof brand === 'object' ? brand : undefined,
+        brandDir: typeof brandDir === 'string' ? brandDir : undefined,
       });
       sendJson(res, 200, { ok: true, path: result.path });
     } catch (err) {

@@ -61,7 +61,7 @@ import {
 import { CURATED_FONTS, matchCuratedFont, loadCuratedFonts } from '../../fonts/curated-fonts.js';
 import { readImageFile, splitImageName, insertBoxFor, isImageFile } from '../canvas/image-drop.js';
 import { listProjectDir } from '../../runtime/write-client.js';
-import { useBrand } from '../brand/brand-store.js';
+import { useBrand, brandKitFor } from '../brand/brand-store.js';
 
 loadCuratedFonts();
 
@@ -174,7 +174,7 @@ function AddMenu({ selection }) {
       return;
     }
     const before = [...board.root.children].filter((n) => n.hasAttribute(SRC_ATTR)).length;
-    const res = await addElement(board.path, board.offset, elementJsx(kind, board));
+    const res = await addElement(board.path, board.offset, elementJsx(kind, board, brandKitFor(board.path.slice(0, board.path.lastIndexOf('/')))));
     if (res.ok) selectNewestChild(board, before);
   };
 

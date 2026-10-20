@@ -612,6 +612,8 @@ export async function moveProjectFile(fromPath, toFolderPath, opts = {}) {
  * @param {'component'|'markdown'} [opts.assetKind]
  * @param {{ width: number, height: number }} [opts.dimensions]
  * @param {string} [opts.template]  A poster template id to start from.
+ * @param {object} [opts.brand]      The brand library a template applies.
+ * @param {string} [opts.brandDir]   `_brand/` relative to `parentPath`.
  * @param {typeof fetch} [opts.fetch]
  * @returns {Promise<{ ok: boolean, path?: string, error?: string }>}
  *   On success, `path` is the created entry's LerretPath.
@@ -635,6 +637,11 @@ export async function createProjectEntry(parentPath, name, kind, opts = {}) {
     }
     if (reqBody.assetKind === 'component' && typeof opts.template === 'string' && opts.template) {
       reqBody.template = opts.template;
+      // The brand library the template applies (linked), and where `_brand/` is.
+      if (opts.brand && typeof opts.brandDir === 'string') {
+        reqBody.brand = opts.brand;
+        reqBody.brandDir = opts.brandDir;
+      }
     }
   }
   const result = await callLifecycleEndpoint(CREATE_ENDPOINT, reqBody, opts);
