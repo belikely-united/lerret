@@ -28,7 +28,6 @@ let state = {
   assetBaseUrl: null,
   brand: emptyBrand(),
   loaded: false,
-  open: false,
   setupOpen: false, // the first-run / "Set up brand" wizard
   exists: false, // brand.json is on disk
   version: 0, // bumps on every logo change, for thumbnail cache-busting
@@ -68,8 +67,6 @@ export function brandKitFor(folder) {
   if (!state.lerretDir || !hasBrand(state.brand)) return undefined;
   return { brand: state.brand, brandDir: logoPathFrom(folder, state.lerretDir, '') };
 }
-export const setBrandOpen = (open) => set({ open: !!open });
-export const toggleBrandOpen = () => set({ open: !state.open });
 export const setBrandSetupOpen = (open) => set({ setupOpen: !!open });
 
 const dir = () => `${state.lerretDir}/${BRAND_DIR}`;

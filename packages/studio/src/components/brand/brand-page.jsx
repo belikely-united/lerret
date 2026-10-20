@@ -1,24 +1,21 @@
-// brand-panel.jsx — the Brand library, docked on the left of the canvas.
+// brand-page.jsx — the built-in Brand page, pinned first in the page list.
 //
-// Colours, text styles and logo sets shared by every page. Click an item to
-// use it on the selected element (linked — editing the item later updates
-// every design that uses it); drag a logo version onto a design or empty
-// canvas. "Set up" reopens the brand setup wizard.
+// The project's brand library — colours, text styles and logo sets — laid out
+// as a page you configure at any time. Everything is saved to
+// `.lerret/_brand/brand.json` and used LINKED by every design (the Design
+// panel's pickers, templates, the + Add menu), so a change here updates every
+// page. "Set up" reopens the setup wizard (import from a website).
 //
-// Motion: the panel slides in from the left edge it lives on (spatial
-// consistency, --lm-duration-base, translate + opacity); reduced motion keeps
-// only the fade. Hover/press feedback is gated to fine pointers.
+// Motion: sections fade up once on mount (spatial consistency for a page
+// switch, --lm-duration-base); reduced motion keeps only the fade.
 
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { LOGO_KINDS, normalizeTextStyle } from '@lerret/core';
 
 import { dcToast } from '../../design-canvas.jsx';
-import { useWorkflowMode } from '../workflow/workflow-mode.js';
 import { CURATED_FONTS } from '../../fonts/curated-fonts.js';
 import {
   useBrand,
-  setBrandOpen,
   setBrandSetupOpen,
   addColor,
   updateColor,
@@ -35,13 +32,10 @@ import {
   logoUrl,
   uploadFontFile,
 } from './brand-store.js';
-import { applyBrandColor, applyTextStyle, placeBrandLogo, LOGO_DRAG_TYPE } from './brand-apply.js';
 import './brand.css';
 
-const report = (res, done) => {
-  if (res && res.ok === false) dcToast(res.error || 'Couldn’t apply that.');
-  else if (done) dcToast(done);
-};
+/** The hash route of the Brand page (not a folder — the page is built in). */
+export const BRAND_ROUTE = 'brand-library';
 
 const WEIGHTS = [[300, 'Light'], [400, 'Regular'], [500, 'Medium'], [600, 'Semibold'], [700, 'Bold'], [800, 'Extra bold'], [900, 'Black']];
 export const weightLabel = (w) => WEIGHTS.find(([v]) => v === Number(w))?.[1] || String(w);
@@ -52,21 +46,18 @@ export const curatedFamilies = () => CURATED_FONTS.slice(1).map(([, css]) => fam
  * @param {{ customFamilies?: string[] }} props
  *   Families from the project's `_fonts/` (offered alongside the curated list).
  */
-export function BrandPanel({ customFamilies = [] }) {
-  const { brand, loaded, open, error } = useBrand();
-  const workflow = useWorkflowMode();
-  if (!open || workflow || typeof document === 'undefined') return null;
-  return createPortal(
-    <aside className="lm-brand" data-edit-ui aria-label="Brand library" data-testid="lm-brand-panel">
-      <header className="lm-brand__head">
+export function BrandPage({ customFamilies = [] }) {
+  const { brand, loaded, error } = useBrand();
+  return (
+    <main className="lm-brand-page" aria-label="Brand" data-testid="lm-brand-page">
+      <header className="lm-brand-page__head">
         <div>
-          <h2>{brand.app?.name ? `${brand.app.name} brand` : 'Brand'}</h2>
-          <p>Shared by every page</p>
+          <h1>{brand.app?.name ? `${brand.app.name} brand` : 'Brand'}</h1>
+          <p>Colours, text styles and logos for every page. Change anything here and every design that uses it updates.</p>
         </div>
-        <span style={{ display: 'flex', gap: 2 }}>
-          <button type="button" className="lm-brand__add" onClick={() => setBrandSetupOpen(true)} title="Run brand setup (import from a website, edit everything at once)">Set up</button>
-          <button type="button" className="lm-brand__icon" aria-label="Close brand library" onClick={() => setBrandOpen(false)}>×</button>
-        </span>
+        <button type="button" className="lm-brand__btn" onClick={() => setBrandSetupOpen(true)} title="Import from a website, or edit everything step by step" data-testid="lm-brand-setup">
+          Set up / import…
+        </button>
       </header>
       {error && <p className="lm-brand__error" role="alert">{error}</p>}
       {!loaded ? (
@@ -76,13 +67,9 @@ export function BrandPanel({ customFamilies = [] }) {
           <Colors colors={brand.colors} />
           <TextStyles styles={brand.textStyles} customFamilies={customFamilies} />
           <Logos logos={brand.logos} />
-          <p className="lm-brand__hint lm-brand__foot">
-            Click an item to use it on what’s selected. Changing it here updates every design that uses it.
-          </p>
         </>
       )}
-    </aside>,
-    document.body,
+    </main>
   );
 }
 
@@ -96,7 +83,7 @@ function Colors({ colors }) {
         <h3>Colours</h3>
         <button type="button" className="lm-brand__add" onClick={() => setEditing('new')} data-testid="lm-brand-add-color">+ Add</button>
       </div>
-      {colors.length === 0 && editing !== 'new' && <p className="lm-brand__hint">Add your brand colours to use them on any page.</p>}
+      {colors.length === 0 && editing !== 'new' && <p className="lm-brand__hint">Add your brand colours — they show up first in every colour picker.</p>}
       <div className="lm-brand__colors">
         {colors.map((c) =>
           editing === c.id ? (
@@ -108,22 +95,20 @@ function Colors({ colors }) {
               onRemove={() => removeColor(c.id).then(() => setEditing(null))}
             />
           ) : (
-            <div key={c.id} className="lm-brand__color">
-              <button
-                type="button"
-                className="lm-brand__color-main"
-                onClick={() => applyBrandColor(c).then((r) => report(r))}
-                title={`Use ${c.name} on the selection`}
-                data-testid={`lm-brand-color-${c.id}`}
-              >
-                <span className="lm-brand__swatch" style={{ background: c.value }} />
-                <span className="lm-brand__color-text">
-                  <b>{c.name}</b>
-                  <em>{c.value.toUpperCase()}</em>
-                </span>
-              </button>
-              <button type="button" className="lm-brand__icon lm-brand__edit" aria-label={`Edit ${c.name}`} onClick={() => setEditing(c.id)}>✎</button>
-            </div>
+            <button
+              key={c.id}
+              type="button"
+              className="lm-brand__color"
+              onClick={() => setEditing(c.id)}
+              title={`Edit ${c.name}`}
+              data-testid={`lm-brand-color-${c.id}`}
+            >
+              <span className="lm-brand__swatch" style={{ background: c.value }} />
+              <span className="lm-brand__color-text">
+                <b>{c.name}</b>
+                <em>{c.value.toUpperCase()}</em>
+              </span>
+            </button>
           ),
         )}
         {editing === 'new' && (
@@ -193,15 +178,18 @@ function TextStyles({ styles, customFamilies }) {
             onRemove={() => removeTextStyle(st.id).then(() => setEditing(null))}
           />
         ) : (
-          <div key={st.id} className="lm-brand__font">
-            <button type="button" className="lm-brand__font-main" onClick={() => applyTextStyle(st).then((r) => report(r))} title={`Use ${st.name} on the selected text`} data-testid={`lm-brand-style-${st.id}`}>
-              <span className="lm-brand__color-text">
-                <b style={{ fontFamily: `'${st.family}'`, fontWeight: st.weight, fontSize: Math.max(12, Math.min(22, st.size / 4.5)), letterSpacing: st.letterSpacing, lineHeight: 1.2 }}>{st.name}</b>
-                <em>{st.family} · {st.size} · {weightLabel(st.weight)}</em>
-              </span>
-            </button>
-            <button type="button" className="lm-brand__icon lm-brand__edit" aria-label={`Edit ${st.name}`} onClick={() => setEditing(st.id)}>✎</button>
-          </div>
+          <button key={st.id} type="button" className="lm-brand__font" onClick={() => setEditing(st.id)} title={`Edit ${st.name}`} data-testid={`lm-brand-style-${st.id}`}>
+            <span className="lm-brand__font-meta">
+              <b>{st.name}</b>
+              <em>{st.family} · {st.size}px · {weightLabel(st.weight)} · {st.lineHeight}</em>
+            </span>
+            <span
+              className="lm-brand__specimen"
+              style={{ fontFamily: `'${st.family}'`, fontWeight: st.weight, fontSize: Math.max(14, Math.min(56, st.size / 2)), letterSpacing: st.letterSpacing, lineHeight: st.lineHeight }}
+            >
+              The quick brown fox
+            </span>
+          </button>
         ),
       )}
       {editing === 'new' && (
@@ -304,9 +292,9 @@ function Logos({ logos }) {
         <input ref={addRef} type="file" accept="image/*" multiple hidden onChange={(e) => { const f = [...(e.target.files || [])]; e.target.value = ''; addFiles(f); }} />
       </div>
       {logos.length === 0 ? (
-        <p className="lm-brand__hint">Drop your logo files here, or use + Add. Add light/dark versions to each.</p>
+        <p className="lm-brand__hint">Drop your logo files here, or use + Add. Add light/dark versions to each — designs pick the one that suits their background.</p>
       ) : (
-        logos.map((l) => <LogoSet key={l.id} logo={l} />)
+        <div className="lm-brand__logos">{logos.map((l) => <LogoSet key={l.id} logo={l} />)}</div>
       )}
     </section>
   );
@@ -315,11 +303,9 @@ function Logos({ logos }) {
 function LogoSet({ logo }) {
   const [active, setActive] = React.useState(logo.variants[0].id);
   const variant = logo.variants.find((v) => v.id === active) || logo.variants[0];
-  const imgRef = React.useRef(null);
   const replaceRef = React.useRef(null);
   const addRef = React.useRef(null);
   const [addLabel, setAddLabel] = React.useState(null);
-  const natural = () => ({ width: imgRef.current?.naturalWidth || 512, height: imgRef.current?.naturalHeight || 512 });
   const dark = /light|white/i.test(variant.label);
   return (
     <div className="lm-brand__logo-set">
@@ -335,21 +321,9 @@ function LogoSet({ logo }) {
           {LOGO_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
         </select>
       </div>
-      <button
-        type="button"
-        className={`lm-brand__logo-main${dark ? ' lm-brand__logo-main--dark' : ''}`}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = 'copy';
-          e.dataTransfer.setData(LOGO_DRAG_TYPE, JSON.stringify({ id: logo.id, name: logo.name, file: variant.file, ...natural() }));
-          if (imgRef.current) e.dataTransfer.setDragImage(imgRef.current, 24, 24);
-        }}
-        onClick={() => placeBrandLogo(logo, natural(), variant).then((r) => report(r))}
-        title={`${logo.name} · ${variant.label} — click to place on the selected design, or drag onto a design`}
-        data-testid={`lm-brand-logo-${logo.id}`}
-      >
-        <img ref={imgRef} src={logoUrl(variant.file)} alt={`${logo.name} ${variant.label}`} draggable={false} />
-      </button>
+      <div className={`lm-brand__logo-main${dark ? ' lm-brand__logo-main--dark' : ''}`} data-testid={`lm-brand-logo-${logo.id}`}>
+        <img src={logoUrl(variant.file)} alt={`${logo.name} ${variant.label}`} draggable={false} />
+      </div>
       <div className="lm-brand__variants" role="radiogroup" aria-label="Versions">
         {logo.variants.map((v) => (
           <button key={v.id} type="button" role="radio" aria-checked={v.id === variant.id} className="lm-brand__chip" onClick={() => setActive(v.id)}>{v.label}</button>
@@ -392,4 +366,4 @@ function LogoSet({ logo }) {
   );
 }
 
-export default BrandPanel;
+export default BrandPage;

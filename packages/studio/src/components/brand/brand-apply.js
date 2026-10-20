@@ -66,14 +66,16 @@ function darkBackgroundAt(node) {
  * @param {{ name: string, variants: Array<{ id: string, label: string, file: string }> }} logo
  * @param {{ width: number, height: number }} natural  The logo's pixel size.
  * @param {{ id: string, file: string } | null} [variant]
+ * @param {{ add?: boolean }} [opts]  `add`: always add a new layer, even when
+ *   an image is selected (the + Add menu), instead of filling that image.
  */
-export async function placeBrandLogo(logo, natural, variant = null) {
+export async function placeBrandLogo(logo, natural, variant = null, opts = {}) {
   const sel = getEditState().selection;
   if (!sel) return NOTHING;
   const { lerretDir } = getBrandState();
   const node = selectedNodes(sel)[0];
   const pick = variant || logoVariantFor(logo, node ? darkBackgroundAt(node) : false);
-  if (node && (node.tagName === 'IMG' || node.hasAttribute('data-image-slot'))) {
+  if (!opts.add && node && (node.tagName === 'IMG' || node.hasAttribute('data-image-slot'))) {
     return placeImage(sel.path, sel.offset, { file: logoPathFrom(folderOf(sel.path), lerretDir, pick.file) });
   }
   const board = artboardOf(sel);
@@ -91,5 +93,5 @@ export async function placeBrandLogo(logo, natural, variant = null) {
   });
 }
 
-/** The drag payload type for a logo dragged from the Brand panel. */
+/** The drag payload type for a brand logo dragged from the + Add menu. */
 export const LOGO_DRAG_TYPE = 'application/x-lerret-brand-logo';

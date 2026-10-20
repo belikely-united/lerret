@@ -21,7 +21,7 @@ import { starterBrand, brandId, normalizeTextStyle, LOGO_KINDS, luminance } from
 import { importBrandFromUrl } from '../../runtime/write-client.js';
 import { ensureGoogleFont } from '../../fonts/curated-fonts.js';
 import { useBrand, saveWholeBrand, markSetup, writeBrandFile, logoUrl } from './brand-store.js';
-import { curatedFamilies, weightLabel } from './brand-panel.jsx';
+import { curatedFamilies, weightLabel } from './brand-page.jsx';
 import './brand.css';
 
 const STEPS = ['Your app', 'Colours', 'Text styles', 'Logos'];

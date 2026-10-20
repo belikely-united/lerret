@@ -1,30 +1,42 @@
-/* Brand library — docked left, mirroring the Design panel on the right. */
-.lm-brand {
-  position: fixed;
-  z-index: 45;
-  top: 16px;
-  left: 16px;
-  bottom: 132px;
-  width: 272px;
+/* Brand page — the built-in page that holds the brand library. */
+.lm-brand-page {
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 16px;
+  padding: 48px max(24px, calc((100vw - 960px) / 2)) 160px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  background: var(--lm-bg-primary, #FFFFFF);
+  gap: 28px;
+  background: var(--lm-bg-canvas, #F2F2F2);
   color: var(--lm-text-primary, #0A0A0A);
-  border-radius: 16px;
-  box-shadow: var(--lm-shadow-popup, 0 16px 48px rgba(0, 0, 0, 0.16));
   font: 400 13px/1.4 var(--lm-font-sans, system-ui);
+}
+.lm-brand-page__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.lm-brand-page__head h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.lm-brand-page__head p { margin: 6px 0 0; max-width: 520px; font-size: 13px; color: var(--lm-text-secondary, #404040); }
+.lm-brand-page .lm-brand__section {
+  padding: 20px;
+  gap: 14px;
+  border: none;
+  border-radius: 16px;
+  background: var(--lm-bg-primary, #FFFFFF);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition:
     opacity var(--lm-duration-base, 220ms) var(--lm-ease, ease),
     translate var(--lm-duration-base, 220ms) var(--lm-ease, ease);
 }
-@starting-style { .lm-brand { opacity: 0; translate: -16px 0; } }
-.lm-brand__head { display: flex; align-items: flex-start; justify-content: space-between; }
-.lm-brand__head h2 { margin: 0; font-size: 15px; font-weight: 600; }
-.lm-brand__head p { margin: 2px 0 0; font-size: 12px; color: var(--lm-text-tertiary, #6B6B6B); }
+@starting-style { .lm-brand-page .lm-brand__section { opacity: 0; translate: 0 8px; } }
+.lm-brand-page .lm-brand__section:nth-of-type(2) { transition-delay: 40ms; }
+.lm-brand-page .lm-brand__section:nth-of-type(3) { transition-delay: 80ms; }
+.lm-brand-page .lm-brand__colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.lm-brand-page .lm-brand__color { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
+.lm-brand-page .lm-brand__color .lm-brand__swatch { width: 100%; height: 88px; border-radius: 10px; }
+.lm-brand-page .lm-brand__logos { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.lm-brand-page .lm-brand__logo-main { height: 140px; }
+@media (prefers-reduced-motion: reduce) {
+  .lm-brand-page .lm-brand__section { transition-property: opacity; }
+}
+
 .lm-brand__section { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--lm-bg-secondary, #F5F5F5); border-radius: 4px; }
 .lm-brand__section--drop { box-shadow: 0 0 0 2px #2F5BFF; background: rgba(47, 91, 255, 0.04); }
 .lm-brand__section-head { display: flex; align-items: center; justify-content: space-between; }
@@ -59,12 +71,12 @@
 @media (hover: hover) and (pointer: fine) {
   .lm-brand__add:hover, .lm-brand__link:hover, .lm-brand__icon:hover { background: var(--lm-bg-secondary, #F5F5F5); }
 }
-.lm-brand :is(button, input, select):focus-visible { outline: none; box-shadow: var(--lm-focus-ring); }
+:is(.lm-brand-page, .lm-setup) :is(button, input, select):focus-visible { outline: none; box-shadow: var(--lm-focus-ring); }
 
 /* Colour + font rows */
 .lm-brand__colors { display: flex; flex-direction: column; gap: 2px; }
 .lm-brand__color, .lm-brand__font { display: flex; align-items: center; gap: 2px; border-radius: 10px; }
-.lm-brand__color-main, .lm-brand__font-main {
+button.lm-brand__color, button.lm-brand__font {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -80,11 +92,9 @@
   transition: background var(--lm-duration-fast, 120ms) var(--lm-ease, ease), scale var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
 }
 @media (hover: hover) and (pointer: fine) {
-  .lm-brand__color-main:hover, .lm-brand__font-main:hover { background: var(--lm-bg-secondary, #F5F5F5); }
-  .lm-brand__edit { opacity: 0; }
-  .lm-brand__color:hover .lm-brand__edit, .lm-brand__font:hover .lm-brand__edit, .lm-brand__edit:focus-visible { opacity: 1; }
+  button.lm-brand__color:hover, button.lm-brand__font:hover { background: var(--lm-bg-secondary, #F5F5F5); }
 }
-.lm-brand__color-main:active, .lm-brand__font-main:active { scale: 0.98; }
+button.lm-brand__color:active, button.lm-brand__font:active { scale: 0.98; }
 .lm-brand__swatch {
   position: relative;
   width: 28px;
@@ -150,28 +160,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: grab;
   background:
     conic-gradient(#F0F0F0 25%, #FFFFFF 0 50%, #F0F0F0 0 75%, #FFFFFF 0) 0 0 / 12px 12px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
   transition: box-shadow var(--lm-duration-fast, 120ms) var(--lm-ease, ease), scale var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
 }
-.lm-brand__logo-main:active { cursor: grabbing; scale: 0.98; }
-@media (hover: hover) and (pointer: fine) { .lm-brand__logo-main:hover { box-shadow: inset 0 0 0 2px var(--lm-accent, #111111); } }
+
 .lm-brand__logo-main img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .lm-brand__logo-name { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lm-brand__logo-actions { display: flex; gap: 6px; }
 
-/* Dock button */
-.lm-brand-toggle[data-on] { background: var(--lm-accent, #111111) !important; color: #fff !important; }
-
 @media (prefers-reduced-motion: reduce) {
-  .lm-brand { transition-property: opacity; }
-  .lm-brand__color-main:active, .lm-brand__font-main:active, .lm-brand__logo-main:active { scale: none; }
+  button.lm-brand__color:active, button.lm-brand__font:active { scale: none; }
 }
 
-/* The canvas minimap shares the bottom-left corner — step aside while open. */
-body:has(.lm-brand) [data-testid="dc-minimap"] { display: none !important; }
 
 /* v2: text-style editor, logo sets with versions */
 .lm-brand__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -302,3 +304,10 @@ body:has(.lm-brand) [data-testid="dc-minimap"] { display: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .lm-setup-step { transition-property: opacity; }
 }
+
+/* Text style rows on the Brand page: name + specs, then a live specimen. */
+.lm-brand__font { justify-content: space-between; gap: 16px !important; padding: 12px !important; }
+.lm-brand__font-meta { display: flex; flex-direction: column; gap: 2px; min-width: 160px; }
+.lm-brand__font-meta b { font-weight: 600; }
+.lm-brand__font-meta em { font-style: normal; font-size: 12px; color: var(--lm-text-tertiary, #6B6B6B); }
+.lm-brand__specimen { flex: 1; min-width: 0; text-align: right; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

@@ -289,5 +289,100 @@ textarea.lm-edit-input { display: block; width: 100%; height: auto; resize: vert
   .lm-design-swatch, .lm-design-gradient { transition: none; }
 }
 
-.lm-design-brand-row { display: flex; align-items: center; gap: 8px; }
-.lm-design-brand-row .lm-edit-field__k { width: 40px; flex-shrink: 0; }
+/* Colour choices: brand colours first, then suggested. */
+.lm-design-choices { display: flex; flex-direction: column; gap: 10px; }
+.lm-design-brand-row { display: flex; flex-direction: column; gap: 6px; }
+.lm-design-choices__k {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font: 500 11px/1 var(--lm-font-sans, system-ui);
+  color: var(--lm-text-tertiary, #6B6B6B);
+}
+.lm-design-choices__edit,
+.lm-tstyle__manage {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--lm-text-secondary, #404040);
+  font: 500 11px/1 var(--lm-font-sans, system-ui);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lm-design-choices__edit:hover, .lm-tstyle__manage:hover { background: var(--lm-bg-secondary, #F5F5F5); }
+}
+
+/* Text styles — Figma-style: a linked chip with Detach, or a style list. */
+.lm-tstyle { display: flex; flex-direction: column; gap: 4px; }
+.lm-tstyle__row { display: flex; gap: 4px; }
+.lm-tstyle__current,
+.lm-tstyle__item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: var(--lm-bg-secondary, #F5F5F5);
+  color: var(--lm-text-primary, #0A0A0A);
+  font: 500 12px/1.2 var(--lm-font-sans, system-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
+}
+.lm-tstyle__item { background: transparent; }
+.lm-tstyle__current--on { box-shadow: inset 0 0 0 1px var(--lm-bg-tertiary, #E0E0E0); background: var(--lm-bg-primary, #fff); }
+.lm-tstyle__item[aria-selected="true"] { background: var(--lm-accent-light, rgba(17, 17, 17, 0.08)); }
+@media (hover: hover) and (pointer: fine) {
+  .lm-tstyle__current:hover, .lm-tstyle__item:hover, .lm-tstyle__detach:hover { background: var(--lm-bg-tertiary, #EBEBEB); }
+}
+.lm-tstyle__aa { width: 22px; font-size: 14px; text-align: center; flex-shrink: 0; }
+.lm-tstyle__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lm-tstyle__spec { color: var(--lm-text-tertiary, #6B6B6B); font-size: 11px; font-variant-numeric: tabular-nums; }
+.lm-tstyle__detach {
+  width: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: var(--lm-bg-secondary, #F5F5F5);
+  color: var(--lm-text-secondary, #404040);
+  cursor: pointer;
+}
+.lm-tstyle__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--lm-bg-tertiary, #EBEBEB);
+  transition:
+    opacity var(--lm-duration-fast, 120ms) var(--lm-ease, ease),
+    translate var(--lm-duration-fast, 120ms) var(--lm-ease, ease);
+}
+@starting-style { .lm-tstyle__list { opacity: 0; translate: 0 -4px; } }
+.lm-tstyle__manage { align-self: flex-start; margin: 4px 4px 2px; }
+.lm-tstyle :is(button):focus-visible,
+.lm-design-choices__edit:focus-visible { outline: none; box-shadow: var(--lm-focus-ring); }
+@media (prefers-reduced-motion: reduce) {
+  .lm-tstyle__list { transition-property: opacity; }
+}
+
+.lm-design-menu__label {
+  margin: 6px 10px 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lm-bg-secondary, #F5F5F5);
+  font: 600 10px/1 var(--lm-font-sans, system-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lm-text-tertiary, #6B6B6B);
+}
+.lm-design-menu__logo { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
+.lm-edit-color--linked { display: flex; align-items: center; gap: 8px; }
+.lm-edit-color__name { flex: 1; min-width: 0; font: 500 12px/1 var(--lm-font-sans, system-ui); }
+.lm-edit-color--linked .lm-tstyle__detach { height: 26px; }
