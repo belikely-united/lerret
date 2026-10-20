@@ -496,9 +496,23 @@ export function applyEdit(code, offset, change, relPath = '') {
 // Image layers (drag-and-drop an image onto an artboard)
 // ---------------------------------------------------------------------------
 
+/**
+ * An image reference a design may point at: a file next to it (`logo.png`),
+ * or a path into the project (`../_brand/logo.png`) — leading `../` only,
+ * no absolute paths, no `.`/`..` segments elsewhere, no backslashes.
+ */
+function isImageRef(file) {
+  return typeof file === 'string' && /^(?:\.\.\/)*[^/\\.][^/\\]*(?:\/[^/\\.][^/\\]*)*$/.test(file);
+}
+
+/** The module-relative URL for an image reference. */
+function imageUrlPath(file) {
+  return file.startsWith('../') ? file : `./${file}`;
+}
+
 /** A JS identifier for an image file's URL constant (`hero-shot.png` → `heroShotSrc`). */
 function imageVarName(code, file) {
-  const base = String(file).replace(/\.[^.]+$/, '');
+  const base = String(file).split('/').pop().replace(/\.[^.]+$/, '');
   const words = base.split(/[^A-Za-z0-9]+/).filter(Boolean);
   let stem = words.map((w, i) => (i === 0 ? w.charAt(0).toLowerCase() : w.charAt(0).toUpperCase()) + w.slice(1)).join('');
   if (!stem || /^[0-9]/.test(stem)) stem = `image${stem}`;
@@ -531,7 +545,7 @@ function imageVarName(code, file) {
  */
 export function insertImageLayers(code, offset, images, relPath = '') {
   const list = Array.isArray(images) ? images : [];
-  if (list.length === 0 || list.some((im) => !im || typeof im.file !== 'string' || !/^[^/\\]+$/.test(im.file))) {
+  if (list.length === 0 || list.some((im) => !im || !isImageRef(im.file))) {
     return { ok: false, reason: 'bad-image' };
   }
   let ast;
@@ -551,7 +565,7 @@ export function insertImageLayers(code, offset, images, relPath = '') {
     const varName = imageVarName(taken, image.file);
     varNames.push(varName);
     taken += ` ${varName}`; // reserve the name for the next image
-    const alt = JSON.stringify(String(image.alt ?? image.file.replace(/\.[^.]+$/, '')));
+    const alt = JSON.stringify(String(image.alt ?? image.file.split('/').pop().replace(/\.[^.]+$/, '')));
     return (
       `<img src={${varName}} alt=${alt} style={{ position: 'absolute', left: ${px(image.left)}, ` +
       `top: ${px(image.top)}, width: ${px(image.width)}, height: ${px(image.height)}, objectFit: 'contain' }} />`
@@ -588,7 +602,7 @@ export function insertImageLayers(code, offset, images, relPath = '') {
   const body = ast.program.body;
   const imports = body.filter((n) => n.type === 'ImportDeclaration');
   const decls = list
-    .map((image, i) => `const ${varNames[i]} = new URL(${JSON.stringify(`./${image.file}`)}, import.meta.url).href;\n`)
+    .map((image, i) => `const ${varNames[i]} = new URL(${JSON.stringify(imageUrlPath(image.file))}, import.meta.url).href;\n`)
     .join('');
   if (imports.length) {
     const at = imports[imports.length - 1].end;
@@ -667,7 +681,7 @@ export function insertElement(code, offset, jsx, relPath = '') {
  * @returns {{ ok: true, code: string, varName: string } | { ok: false, reason: string }}
  */
 export function fillImageSlot(code, offset, file, relPath = '') {
-  if (typeof file !== 'string' || !/^[^/\\]+$/.test(file)) return { ok: false, reason: 'bad-image' };
+  if (!isImageRef(file)) return { ok: false, reason: 'bad-image' };
   let ast;
   try {
     ast = parseSource(code, relPath);
@@ -697,7 +711,7 @@ export function fillImageSlot(code, offset, file, relPath = '') {
   }
   const body = ast.program.body;
   const imports = body.filter((n) => n.type === 'ImportDeclaration');
-  const decl = `const ${varName} = new URL(${JSON.stringify(`./${file}`)}, import.meta.url).href;`;
+  const decl = `const ${varName} = new URL(${JSON.stringify(imageUrlPath(file))}, import.meta.url).href;`;
   if (imports.length) {
     const at = imports[imports.length - 1].end;
     out = splice(out, at, at, `\n${decl}`).code;

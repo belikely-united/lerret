@@ -46,6 +46,10 @@ import { registerProjectFonts } from './runtime/font-registry.js';
 // the studio AI-agnostic when the package is absent.
 import { AiContextProvider } from './ai/ai-context.jsx';
 import { SelectionScopeProvider } from './ai/selection-scope-context.jsx';
+import { BrandPage, BRAND_ROUTE } from './components/brand/brand-page.jsx';
+import { BrandSetup } from './components/brand/brand-setup.jsx';
+import { loadBrand } from './components/brand/brand-store.js';
+import { inCliMode } from './runtime/write-client.js';
 
 // The studio-shell route that shows the loaded project's canvas. Any hash that
 // is not a studio-shell route (i.e. a project-page path) falls through to this
@@ -83,6 +87,17 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  return () => registration.dispose();
  }, [project, assetBaseUrl]);
 
+ // The brand library (colours, fonts, logos) — loaded once per project and
+ // shared by every page. Editing it needs a writable folder.
+ const projectPath = project ? project.path : null;
+ React.useEffect(() => {
+ if (projectPath && inCliMode()) loadBrand(projectPath, assetBaseUrl);
+ }, [projectPath, assetBaseUrl]);
+ const customFamilies = React.useMemo(
+ () => ((project && project.fonts) || []).map((f) => f.family).filter(Boolean),
+ [project],
+ );
+
  // One hash route, shared with `StudioShell`. The default is the project
  // route; when the hash holds a project-page path instead, that is the
  // current project page (and `StudioShell` falls through to the project
@@ -92,6 +107,9 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  // Resolve the current project page from the hash. `resolvePage` falls back
  // to the first page when the hash is the bare project route or a stale
  // path — so the canvas always has a page to show (given >0 pages).
+ // The built-in Brand page has its own route; it is pinned first in the list.
+ const brandPage = inCliMode();
+ const onBrand = brandPage && route === BRAND_ROUTE;
  const currentPage = resolvePage(project, route);
  const currentPageId = currentPage ? currentPage.path : null;
 
@@ -101,19 +119,24 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  // pages.
  const projectPagesNav = React.useMemo(() => {
  if (pages.length === 0) return null;
+ const list = pages.map((p) => ({ id: p.path, label: p.name }));
  return {
- pages: pages.map((p) => ({ id: p.path, label: p.name })),
- current: currentPageId,
+ pages: brandPage ? [{ id: BRAND_ROUTE, label: 'Brand', pinned: true }, ...list] : list,
+ current: onBrand ? BRAND_ROUTE : currentPageId,
  onNavigate: (id) => navigate(id),
  };
- }, [pages, currentPageId, navigate]);
+ }, [pages, currentPageId, navigate, brandPage, onBrand]);
 
  // The studio-shell page registry — just the project canvas now (the
  // brownfield launch-assets storyboard dev page has been removed).
  const shellPages = {
  [PROJECT_ROUTE]: {
  label: project ? project.name : 'Project',
- node: <ProjectCanvas project={project} runtime={runtime} pageId={currentPageId} />,
+ node: onBrand ? (
+ <BrandPage customFamilies={customFamilies} />
+ ) : (
+ <ProjectCanvas project={project} runtime={runtime} pageId={currentPageId} />
+ ),
  },
  };
 
@@ -130,6 +153,7 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  <AiContextProvider folderId={folderId}>
  <SelectionScopeProvider>
  <StudioShell pages={shellPages} defaultPage={PROJECT_ROUTE} />
+ {inCliMode() && <BrandSetup customFamilies={customFamilies} />}
  </SelectionScopeProvider>
  </AiContextProvider>
  </ProjectPagesContext.Provider>

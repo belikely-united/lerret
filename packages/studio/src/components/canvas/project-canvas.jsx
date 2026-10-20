@@ -73,7 +73,7 @@ import { useLiveRefresh } from './live-refresh-manager.js';
 import { SectionKebab } from './section-kebab.jsx';
 // in-canvas creation — the empty-page CTAs and empty-group placeholders open
 // the shared CreateEntryDialog; `create` performs the write.
-import { CreateEntryDialog, create, inCliMode } from '../menu/index.js';
+import { CreateEntryDialog, createFromDialog, inCliMode } from '../menu/index.js';
 import { ImageDropLayer } from './image-drop-layer.jsx';
 import { WorkflowView } from '../workflow/workflow-view.jsx';
 import { useWorkflowMode } from '../workflow/workflow-mode.js';
@@ -546,10 +546,10 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // Create-dialog confirm + element, shared by the empty-state CTAs and the
  // empty-group placeholders. Defined after all hooks, before the first early
  // return, so every branch can include the dialog.
- const onConfirmCreate = async ({ name, assetKind, dimensions, template }) => {
+ const onConfirmCreate = async (payload) => {
  if (!createState) return;
  const endpointKind = createState.kind === 'asset' ? 'asset' : 'folder';
- const result = await create(createState.parentPath, name, endpointKind, { assetKind, dimensions, template });
+ const result = await createFromDialog(createState.parentPath, endpointKind, payload);
  if (!result?.ok) throw new Error(result?.error || 'Create failed');
  };
  const createDialog = createState ? (

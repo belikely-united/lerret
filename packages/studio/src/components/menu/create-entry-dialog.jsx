@@ -10,6 +10,9 @@
 // platform grid — Instagram, App Store, … — plus Custom size and a Markdown
 // note), then that platform's formats (Story, Post, …) or a free W×H, beside
 // the name field. The picked size becomes the starter's `meta.dimensions`.
+// Formats are multi-select with a count each, pre-set to what a real listing
+// needs (5 store screenshots, 1 hero). One pick creates one asset; more create
+// a group named after the platform holding them all (`set` in the payload).
 // Pages, groups, variants and renames stay a single name step.
 //
 // Presentational + validation only — it does NOT call the create endpoint. The
@@ -37,6 +40,10 @@ import {
   CUSTOM_PLATFORM_ID,
   findPlatform,
   formatRatio,
+  defaultFormatCounts,
+  expandFormatSet,
+  uniqueName,
+  MAX_FORMAT_COUNT,
 } from './asset-platforms.js';
 
 const overlayStyle = {
@@ -401,7 +408,7 @@ export function CreateEntryDialog({
   const pickSize = isAsset && !isRename;
   const baseCopy = KIND_COPY[kind] || KIND_COPY.page;
 
-  const [name, setName] = React.useState(initialName);
+  const [typedName, setName] = React.useState(initialName);
   const [assetKind, setAssetKind] = React.useState(
     defaultAssetKind === 'markdown' ? 'markdown' : 'component',
   );
@@ -412,7 +419,10 @@ export function CreateEntryDialog({
   // Which way the last step change went — drives the slide direction.
   const [stepDir, setStepDir] = React.useState('fwd');
   const [platformId, setPlatformId] = React.useState(null);
-  const [formatId, setFormatId] = React.useState(null);
+  // formatId → how many to create; pre-filled from the platform's defaults.
+  const [counts, setCounts] = React.useState({});
+  // Until the user types, a multi-asset set auto-names its group.
+  const [nameTouched, setNameTouched] = React.useState(isRename);
   const [customSize, setCustomSize] = React.useState(DEFAULT_CUSTOM_SIZE);
   // 'blank' or a POSTER_TEMPLATES id — what a new component asset starts from.
   const [template, setTemplate] = React.useState('blank');
@@ -454,7 +464,7 @@ export function CreateEntryDialog({
     setPlatformId(id);
     setAssetKind('component');
     const p = findPlatform(id);
-    setFormatId(p ? p.formats[0].id : null);
+    setCounts(p ? defaultFormatCounts(p) : {});
     setTemplate(TEMPLATE_DEFAULT_PLATFORMS.has(id) ? 'headline-phone' : 'blank');
     setStepDir('fwd');
     setStep('details');
@@ -471,37 +481,53 @@ export function CreateEntryDialog({
     setStep('platform');
   };
 
+  // Every asset the picked formats expand to; more than one makes a set.
+  const setItems = React.useMemo(
+    () => (pickSize && isComponent && platform ? expandFormatSet(platform, counts) : []),
+    [pickSize, isComponent, platform, counts],
+  );
+  const isSet = setItems.length > 1;
+  const autoGroupName = platform ? uniqueName(platform.label, existingNames) : '';
+  // Shown and submitted: what the user typed, or the set's auto group name.
+  const name = !nameTouched && isSet ? autoGroupName : typedName;
+  const setCount = (id, n) =>
+    setCounts((cur) => ({ ...cur, [id]: Math.max(0, Math.min(MAX_FORMAT_COUNT, n)) }));
+
   // The artboard size the create will write — undefined for Markdown and for
-  // non-asset kinds; `sizeCheck` gates Create on a bad custom W×H.
+  // non-asset kinds; `sizeCheck` gates Create on a bad custom W×H. For a set
+  // it is the first asset's size (what the template thumbnails preview).
   const { dimensions, sizeCheck } = React.useMemo(() => {
     if (!pickSize || !isComponent) return { dimensions: undefined, sizeCheck: { ok: true } };
     if (isCustom) {
       const { dims, check } = parseCustomSize(customSize);
       return { dimensions: check.ok ? dims : undefined, sizeCheck: check };
     }
-    const f = platform?.formats.find((x) => x.id === formatId);
-    return f
-      ? { dimensions: { width: f.width, height: f.height }, sizeCheck: { ok: true } }
-      : { dimensions: undefined, sizeCheck: { ok: true } };
-  }, [pickSize, isComponent, isCustom, customSize, platform, formatId]);
+    if (!platform) return { dimensions: undefined, sizeCheck: { ok: true } };
+    return setItems.length
+      ? { dimensions: setItems[0].dimensions, sizeCheck: { ok: true } }
+      : { dimensions: undefined, sizeCheck: { ok: false, error: 'Pick at least one format.' } };
+  }, [pickSize, isComponent, isCustom, customSize, platform, setItems]);
 
   let copy = isRename ? { ...baseCopy, title: `Rename ${kind}`, cta: 'Rename' } : baseCopy;
   if (pickSize && step === 'details') {
     if (!isComponent) copy = { ...copy, title: 'New Markdown note', placeholder: 'e.g. notes' };
     else if (isCustom) copy = { ...copy, title: 'New custom-size asset' };
+    else if (platform && isSet) copy = { ...copy, title: `New ${platform.label} set`, cta: `Create ${setItems.length} assets`, placeholder: platform.label };
     else if (platform) copy = { ...copy, title: `New ${platform.label} asset` };
   }
+  // A set's name is its new group's folder name, so validate it as one.
+  const nameKind = isSet ? 'group' : kind;
 
   const trimmed = name.trim();
-  const validation = React.useMemo(() => validateName(name, kind), [name, kind]);
+  const validation = React.useMemo(() => validateName(name, nameKind), [name, nameKind]);
 
   // Instant case-insensitive collision check against known siblings.
   const collision = React.useMemo(() => {
     if (!validation.ok || !Array.isArray(existingNames)) return false;
-    const finalName = isAsset ? assetFileName(validation.name, assetKind) : validation.name;
+    const finalName = isAsset && !isSet ? assetFileName(validation.name, assetKind) : validation.name;
     const lower = finalName.toLowerCase();
     return existingNames.some((n) => String(n).toLowerCase() === lower);
-  }, [validation, existingNames, isAsset, assetKind]);
+  }, [validation, existingNames, isAsset, isSet, assetKind]);
 
   // In rename mode the unchanged name is a no-op — keep confirm disabled.
   const unchanged = isRename && validation.ok && validation.name === initialName;
@@ -520,14 +546,14 @@ export function CreateEntryDialog({
     if (!validation.ok) {
       inlineError = validation.error;
     } else if (collision) {
-      const finalName = isAsset ? assetFileName(validation.name, assetKind) : validation.name;
+      const finalName = isAsset && !isSet ? assetFileName(validation.name, assetKind) : validation.name;
       inlineError = `"${finalName}" already exists here.`;
     }
   }
 
   const submit = React.useCallback(async () => {
     // Re-derive guard inside the callback so a stale closure can't submit.
-    const v = validateName(name, kind);
+    const v = validateName(name, nameKind);
     if (!v.ok || pending || !sizeCheck.ok) return;
     setServerError(null);
     setPending(true);
@@ -535,6 +561,7 @@ export function CreateEntryDialog({
       const payload = { name: v.name, assetKind: isAsset ? assetKind : undefined };
       if (dimensions) payload.dimensions = dimensions;
       if (dimensions && template !== 'blank') payload.template = template;
+      if (isSet) payload.set = setItems.map(({ name: n, dimensions: d }) => ({ name: n, dimensions: d }));
       await onConfirm(payload);
       onClose();
     } catch (err) {
@@ -542,7 +569,7 @@ export function CreateEntryDialog({
     } finally {
       setPending(false);
     }
-  }, [name, kind, pending, sizeCheck, onConfirm, isAsset, assetKind, dimensions, template, onClose]);
+  }, [name, nameKind, pending, sizeCheck, onConfirm, isAsset, assetKind, dimensions, template, isSet, setItems, onClose]);
 
   const onInputKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -650,51 +677,95 @@ export function CreateEntryDialog({
   if (pickSize && isComponent && platform) {
     sizePicker = (
       <div>
-        <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Format</p>
+        <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Formats</p>
         <div
-          role="radiogroup"
-          aria-label={`${platform.label} format`}
+          role="group"
+          aria-label={`${platform.label} formats`}
           data-testid="lm-create-formats"
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
-            maxHeight: 200,
+            maxHeight: 232,
             overflowY: 'auto',
             margin: -3,
             padding: 3,
           }}
         >
           {platform.formats.map((f) => {
-            const active = f.id === formatId;
+            const count = counts[f.id] || 0;
+            const active = count > 0;
             return (
-              <button
+              <div
                 key={f.id}
-                type="button"
-                role="radio"
-                aria-checked={active}
                 className={'lm-seg lm-create-choice' + (active ? ' lm-seg--on' : '')}
-                style={{
-                  ...choiceStyle(active),
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '6px 10px',
-                  color: active ? 'var(--lm-accent-text, #111111)' : 'var(--lm-text-primary, #0A0A0A)',
-                }}
-                onClick={() => setFormatId(f.id)}
+                style={{ ...choiceStyle(active), display: 'flex', alignItems: 'center', gap: 6, padding: '0 6px 0 0', cursor: 'default' }}
                 data-testid={`lm-create-format-${f.id}`}
+                data-count={count}
               >
-                <RatioShape width={f.width} height={f.height} />
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{f.label}</span>
-                <span style={monoStyle}>{formatSize(f.width, f.height)}</span>
-                <span style={{ ...monoStyle, width: 50, textAlign: 'right' }}>
-                  {formatRatio(f.width, f.height)}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={active}
+                  className="lm-focusable"
+                  onClick={() => setCount(f.id, active ? 0 : f.defaultCount || 1)}
+                  data-testid={`lm-create-format-toggle-${f.id}`}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '6px 4px 6px 10px',
+                    border: 'none',
+                    borderRadius: 10,
+                    background: 'transparent',
+                    color: active ? 'var(--lm-accent-text, #111111)' : 'var(--lm-text-primary, #0A0A0A)',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <RatioShape width={f.width} height={f.height} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{f.label}</span>
+                  <span style={monoStyle}>{formatSize(f.width, f.height)}</span>
+                  {active ? null : (
+                    <span style={{ ...monoStyle, width: 40, textAlign: 'right' }}>{formatRatio(f.width, f.height)}</span>
+                  )}
+                </button>
+                {active ? (
+                  <span className="lm-create-stepper" role="group" aria-label={`How many ${f.label}`}>
+                    <button
+                      type="button"
+                      className="lm-focusable"
+                      onClick={() => setCount(f.id, count - 1)}
+                      aria-label={`One fewer ${f.label}`}
+                      data-testid={`lm-create-format-dec-${f.id}`}
+                    >
+                      −
+                    </button>
+                    <span aria-live="polite" data-testid={`lm-create-format-count-${f.id}`}>{count}</span>
+                    <button
+                      type="button"
+                      className="lm-focusable"
+                      onClick={() => setCount(f.id, count + 1)}
+                      disabled={count >= MAX_FORMAT_COUNT}
+                      aria-label={`One more ${f.label}`}
+                      data-testid={`lm-create-format-inc-${f.id}`}
+                    >
+                      +
+                    </button>
+                  </span>
+                ) : null}
+              </div>
             );
           })}
         </div>
+        {!sizeCheck.ok ? (
+          <div style={errorRowStyle} data-testid="lm-create-size-error">
+            {sizeCheck.error}
+          </div>
+        ) : null}
       </div>
     );
   } else if (pickSize && isComponent && isCustom) {
@@ -784,12 +855,15 @@ export function CreateEntryDialog({
       {templatePicker}
 
       <div>
-        {sizePicker ? <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>Name</p> : null}
+        {sizePicker ? <p style={{ ...sectionLabelStyle, marginBottom: 8 }}>{isSet ? 'Group name' : 'Name'}</p> : null}
         <input
           ref={inputRef}
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setNameTouched(true);
+            setName(e.target.value);
+          }}
           onKeyDown={onInputKeyDown}
           onFocus={(e) => {
             e.currentTarget.style.boxShadow = inlineError
@@ -815,6 +889,10 @@ export function CreateEntryDialog({
           </div>
         ) : copy.hint ? (
           <div style={hintRowStyle}>{copy.hint}</div>
+        ) : isSet ? (
+          <div style={hintRowStyle} data-testid="lm-create-set-summary">
+            Makes a new group with {setItems.length} assets, each at its format&rsquo;s size.
+          </div>
         ) : dimensions ? (
           <div style={hintRowStyle}>
             Starts at {formatSize(dimensions.width, dimensions.height)} — change it any time from

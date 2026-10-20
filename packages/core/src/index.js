@@ -102,6 +102,35 @@ export {
   MAX_ENTRY_NAME_LENGTH,
 } from './loader/entry-name.js';
 
+// Brand library — colours, text styles and logos every page links to.
+export {
+  BRAND_DIR,
+  BRAND_FILE,
+  BRAND_VAR_PREFIX,
+  TEXT_STYLE_REFERENCE_WIDTH,
+  LOGO_KINDS,
+  DEFAULT_TEXT_STYLES,
+  emptyBrand,
+  starterBrand,
+  brandId,
+  normalizeTextStyle,
+  parseBrand,
+  hasBrand,
+  fontStack,
+  colorVarKey,
+  textVarKey,
+  colorRef,
+  textStyleRefs,
+  linkedVarKey,
+  linkedTextStyleId,
+  brandVars,
+  mergeBrandVars,
+  logoPathFrom,
+  luminance,
+  brandRoles,
+  logoVariantFor,
+} from './brand/brand-library.js';
+
 // Poster templates + Add-menu elements for designing without code.
 export {
   POSTER_TEMPLATES,

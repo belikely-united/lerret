@@ -144,9 +144,27 @@ export function rebaseSelection(path, before, after) {
     before[before.length - 1 - sfx] === after[after.length - 1 - sfx]
   ) sfx += 1;
   const oldChangeEnd = before.length - sfx;
-  if (oldChangeEnd > sel.offset) return; // the change overlaps the element itself
-  const offset = sel.offset + (after.length - before.length);
-  set({ selection: { ...sel, offset, stamp: `${sel.path}:${offset}` } });
+  if (oldChangeEnd <= sel.offset) {
+    // One change, entirely before the element: shift by its size.
+    const offset = sel.offset + (after.length - before.length);
+    set({ selection: { ...sel, offset, stamp: `${sel.path}:${offset}` } });
+    return;
+  }
+  // Several changes around it (e.g. an image's URL line added at the top AND a
+  // layer added at the end): find the element again by its own opening tag,
+  // taking the occurrence closest to where it was.
+  const tagEnd = before.indexOf('>', sel.offset);
+  const opening = tagEnd > sel.offset ? before.slice(sel.offset, tagEnd + 1) : '';
+  let best = -1;
+  for (let i = opening ? after.indexOf(opening) : -1; i !== -1; i = after.indexOf(opening, i + 1)) {
+    if (best === -1 || Math.abs(i - sel.offset) < Math.abs(best - sel.offset)) best = i;
+  }
+  if (best === -1) {
+    // The element itself changed shape — clear rather than show a broken panel.
+    set({ selection: null });
+    return;
+  }
+  if (best !== sel.offset) set({ selection: { ...sel, offset: best, stamp: `${sel.path}:${best}` } });
 }
 
 // ── Saves (queued) ──────────────────────────────────────────────────────────
@@ -264,7 +282,8 @@ export function addElement(path, offset, jsx) {
  *
  * @param {string} path
  * @param {number} offset
- * @param {{ file: string, base64: string }} image
+ * @param {{ file: string, base64?: string }} image
+ *   Without `base64`, `file` is an existing project path (a linked library logo).
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 export function placeImage(path, offset, image) {
@@ -273,8 +292,10 @@ export function placeImage(path, offset, image) {
     if (!read.ok) return { ok: false, error: read.error || 'Couldn’t read the file.' };
     const res = fillImageSlot(read.source, offset, image.file, path);
     if (!res.ok) return { ok: false, error: EDIT_REASONS[res.reason] || res.reason };
-    const wi = await writeProjectFile(`${path.slice(0, path.lastIndexOf('/'))}/${image.file}`, image.base64, { encoding: 'base64' });
-    if (!wi.ok) return { ok: false, error: wi.error || `Couldn’t save ${image.file}.` };
+    if (image.base64) {
+      const wi = await writeProjectFile(`${path.slice(0, path.lastIndexOf('/'))}/${image.file}`, image.base64, { encoding: 'base64' });
+      if (!wi.ok) return { ok: false, error: wi.error || `Couldn’t save ${image.file}.` };
+    }
     const w = await write(path, res.code);
     if (!w.ok) return { ok: false, error: w.error || 'Couldn’t save.' };
     undoStack.push({ path, before: read.source, after: res.code });
@@ -370,6 +391,7 @@ export function insertImagesIntoAsset({ path, offset, images }) {
     );
     if (!res.ok) return { ok: false, error: EDIT_REASONS[res.reason] || res.reason };
     for (const im of images) {
+      if (!im.base64) continue; // a linked library logo — the file already exists
       const w = await writeProjectFile(`${folderOf(path)}/${im.file}`, im.base64, { encoding: 'base64' });
       if (!w.ok) return { ok: false, error: w.error || `Couldn’t save ${im.file}.` };
     }
@@ -396,8 +418,10 @@ export function createImageAssets({ folder, images }) {
   return enqueue(() => saving(async () => {
     const group = `images:${Date.now()}`;
     for (const im of images) {
-      const wi = await writeProjectFile(`${folder}/${im.file}`, im.base64, { encoding: 'base64' });
-      if (!wi.ok) return { ok: false, error: wi.error || `Couldn’t save ${im.file}.` };
+      if (im.base64) {
+        const wi = await writeProjectFile(`${folder}/${im.file}`, im.base64, { encoding: 'base64' });
+        if (!wi.ok) return { ok: false, error: wi.error || `Couldn’t save ${im.file}.` };
+      }
       const assetPath = `${folder}/${im.name}.jsx`;
       const content = imageAssetContent(im.name, im.file, { width: im.width, height: im.height });
       const wa = await write(assetPath, content);

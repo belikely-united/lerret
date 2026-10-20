@@ -215,7 +215,7 @@ export function createHostedWriter(backend) {
         }
         const fromTemplate =
           assetKind === 'component' && opts.template
-            ? posterTemplateContent(opts.template, v.name, opts.dimensions)
+            ? posterTemplateContent(opts.template, v.name, opts.dimensions, { brand: opts.brand, brandDir: opts.brandDir })
             : null;
         await backend.writeFile(
           path,

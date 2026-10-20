@@ -2,9 +2,11 @@
 //
 //   [Spreadsheet] ──▶ [Design] ──▶ [Preview] / [Download]
 //
-// • The page's designs are listed on the left — click one to add its node.
-// • Drop an Excel (.xlsx) or CSV file anywhere (or use "Upload spreadsheet…")
-//   to add a Spreadsheet node.
+// • Click anywhere on the canvas (the cursor shows a ⊕) to add a step there:
+//   upload a data file, one of the page's designs, or — once there is
+//   something to finish — a Preview / Download. A new step connects to the
+//   step before it when the types fit.
+// • Drop an Excel (.xlsx) or CSV file anywhere to add a Spreadsheet node too.
 // • Drag from a node's right dot to another node's left dot to connect.
 // • The Design node maps text shown on the design to a column; Preview renders
 //   every row; Download saves them as PNG/JPG files (ZIP) or one PDF.
@@ -12,8 +14,9 @@
 // The graph saves per page to `.lerret/.workflows/<page>.json`.
 //
 // Motion: nodes and the view fade + scale in on mount (@starting-style,
-// --lm-duration-base); dragging and wiring track the pointer 1:1 (no easing on
-// direct manipulation). Reduced motion keeps only the fades.
+// --lm-duration-base); the add menu grows from the click point (fast, ease
+// out); dragging and wiring track the pointer 1:1 (no easing on direct
+// manipulation). Reduced motion keeps only the fades.
 
 import React from 'react';
 import * as ReactDOM from 'react-dom';
@@ -24,7 +27,6 @@ import { readAssetData } from '../edit-mode/edit-session.js';
 import { buildVarsStyle } from '../canvas/vars-injector.jsx';
 import { useCascadedConfig } from '../canvas/cascade-context.jsx';
 import { downloadBlob } from '../../export/app-store.js';
-import { setWorkflowMode } from './workflow-mode.js';
 import { readSpreadsheet, isSpreadsheetFile } from './spreadsheet.js';
 import { buildJpegPdf } from './pdf.js';
 import { baseProps, designSize, renderRow, withRenderedDesign, visibleTexts } from './batch-render.jsx';
@@ -46,6 +48,10 @@ import {
 import './workflow.css';
 
 const NODE_W = 300;
+const UPLOAD_INPUT_ID = 'lm-wf-upload-input';
+// Offer every spreadsheet file so none is greyed out in the picker; ones we
+// can't read get a clear "save it as…" message instead.
+const SPREADSHEET_ACCEPT = '.xlsx,.xls,.csv,.tsv,.numbers,.ods,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
 const baseName = (p) => String(p).split('/').filter(Boolean).pop() || String(p);
@@ -70,8 +76,11 @@ export function WorkflowView({ page, lerretDir, entries }) {
   const [wire, setWire] = React.useState(null); // { from, x, y } while connecting
   const [notice, setNotice] = React.useState(null);
   const [dropping, setDropping] = React.useState(false);
+  // The add menu: where it opened (px inside the surface) and the world point.
+  const [menu, setMenu] = React.useState(null);
   const surfaceRef = React.useRef(null);
   const fileRef = React.useRef(null);
+  const uploadAt = React.useRef(null);
   const savePath = workflowPathFor(lerretDir, page.path);
   const getConfigFor = useCascadedConfig();
 
@@ -101,24 +110,11 @@ export function WorkflowView({ page, lerretDir, entries }) {
         const r = await readProjectFile(savePath);
         if (r.ok) next = parseWorkflow(r.content);
       }
-      if (next.nodes.length === 0) {
-        // First visit: the page's designs are already here as nodes.
-        next.nodes = designs.slice(0, 3).map((e, i) => ({
-          id: newId('design'),
-          type: 'design',
-          x: 380,
-          y: 60 + i * 300,
-          assetPath: e.asset.path,
-          variant: e.variantName || 'default',
-          mapping: {},
-        }));
-      }
       if (!cancelled) setWf(next);
     })();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savePath]);
 
   const firstSave = React.useRef(true);
@@ -142,6 +138,15 @@ export function WorkflowView({ page, lerretDir, entries }) {
     return () => clearTimeout(t);
   }, [notice]);
 
+  React.useEffect(() => {
+    if (!menu) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenu(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
+
   // ── Adding nodes ──────────────────────────────────────────────────────────
   /** Screen point → surface (world) coordinates under the current camera. */
   const toWorld = (clientX, clientY) => {
@@ -149,41 +154,64 @@ export function WorkflowView({ page, lerretDir, entries }) {
     const v = viewRef.current;
     return { x: (clientX - r.left - v.x) / v.k, y: (clientY - r.top - v.y) / v.k };
   };
-  /** A spot in the column `screenX` px from the surface's left, below what's there. */
-  const freeSpot = (screenX) => {
-    const v = viewRef.current;
-    const x = (screenX - v.x) / v.k;
-    const below = (wf?.nodes || []).filter((n) => Math.abs(n.x - x) < NODE_W).map((n) => n.y + 260);
-    return { x, y: Math.max((60 - v.y) / v.k, ...below) };
-  };
-  const addNode = (node) => setWf((cur) => ({ ...cur, nodes: [...cur.nodes, node] }));
+  /**
+   * Add a node at a world point, connected to the step before it when the
+   * types fit: a sheet feeds the newest design without an input; a design is
+   * fed by the newest sheet; a finish step is fed by the newest design.
+   */
+  const addAt = (node) =>
+    setWf((cur) => {
+      let next = { ...cur, nodes: [...cur.nodes, node] };
+      const newest = (type, ok = () => true) => [...cur.nodes].reverse().find((n) => n.type === type && ok(n));
+      // Connected steps read left → right: a step dropped on top of the one it
+      // connects to is nudged to that step's left (input) or right (output).
+      const overlaps = (a) => node.x < a.x + NODE_W + 40 && node.x + NODE_W + 40 > a.x && Math.abs(node.y - a.y) < 240;
+      const besides = (a, side) => (overlaps(a) ? { x: side === 'left' ? a.x - NODE_W - 80 : a.x + NODE_W + 80, y: a.y } : null);
+      let moved = null;
+      if (node.type === 'data') {
+        const d = newest('design', (n) => !inputOf(cur, n.id));
+        if (d) {
+          next = connect(next, node.id, d.id);
+          moved = besides(d, 'left');
+        }
+      } else if (node.type === 'design') {
+        const sheet = newest('data');
+        if (sheet) {
+          next = connect(next, sheet.id, node.id);
+          moved = besides(sheet, 'right');
+        }
+      } else {
+        const d = newest('design');
+        if (d) {
+          next = connect(next, d.id, node.id);
+          moved = besides(d, 'right');
+        }
+      }
+      return moved ? updateNode(next, node.id, moved) : next;
+    });
+  /** Where a node added from the menu goes: its corner just above-left of the click. */
+  const spot = (at) => ({ x: Math.round(at.x - 24), y: Math.round(at.y - 20) });
 
-  const addDesign = (e) => addNode({ id: newId('design'), type: 'design', ...freeSpot(380), assetPath: e.asset.path, variant: e.variantName || 'default', mapping: {} });
-  const addOutput = (type) =>
-    addNode({ id: newId(type), type, ...freeSpot(740), ...(type === 'download' ? { format: 'png' } : {}) });
+  const addDesign = (e, at) =>
+    addAt({ id: newId('design'), type: 'design', ...spot(at), assetPath: e.asset.path, variant: e.variantName || 'default', mapping: {} });
+  const addOutput = (type, at) =>
+    addAt({ id: newId(type), type, ...spot(at), ...(type === 'download' ? { format: 'png' } : {}) });
 
   const addSheet = async (file, at) => {
     try {
       const table = await readSpreadsheet(file);
-      const pos = at || freeSpot(40);
-      setWf((cur) => {
-        const node = { id: newId('data'), type: 'data', x: pos.x, y: pos.y, table };
-        let next = { ...cur, nodes: [...cur.nodes, node] };
-        // One design on the page and nothing feeding it? Connect straight away.
-        const lone = next.nodes.filter((n) => n.type === 'design');
-        if (lone.length === 1 && !inputOf(next, lone[0].id)) {
-          next = connect(next, node.id, lone[0].id);
-          // Sit it to the design's left so the connection reads left → right.
-          if (node.x + NODE_W > lone[0].x - 60) {
-            next = updateNode(next, node.id, { x: lone[0].x - NODE_W - 80, y: lone[0].y });
-          }
-        }
-        return next;
-      });
+      addAt({ id: newId('data'), type: 'data', ...spot(at || toWorld(window.innerWidth / 2, window.innerHeight / 3)), table });
       setNotice(`Added ${table.name} · ${table.rows.length} rows`);
     } catch (err) {
       setNotice(err.message || String(err));
     }
+  };
+
+  /** Run a menu choice, then close the menu. */
+  const choose = (fn) => {
+    const at = menu.at;
+    setMenu(null);
+    fn(at);
   };
 
   // ── Drop a spreadsheet ────────────────────────────────────────────────────
@@ -199,24 +227,36 @@ export function WorkflowView({ page, lerretDir, entries }) {
     setDropping(false);
     const file = Array.from(e.dataTransfer.files || []).find(isSpreadsheetFile) || e.dataTransfer.files?.[0];
     if (!file) return;
-    const at = toWorld(e.clientX, e.clientY);
-    addSheet(file, { x: at.x - 40, y: at.y - 20 });
+    addSheet(file, toWorld(e.clientX, e.clientY));
   };
 
   // ── Panning + zooming the surface ─────────────────────────────────────────
-  // Drag any empty spot (left or middle button) to pan. Nodes, connections and
-  // the zoom control keep their own pointer handling.
+  // Drag any empty spot (left or middle button) to pan; a left CLICK (no
+  // drag) opens the add menu there, or closes it if it's open. Nodes,
+  // connections, the menu and the zoom control keep their own handling.
   const onSurfaceDown = (e) => {
     if (e.button !== 0 && e.button !== 1) return;
-    if (e.target.closest?.('.lm-wf-node, .lm-wf-edge, .lm-wf-zoom')) return;
+    if (e.target.closest?.('.lm-wf-node, .lm-wf-edge, .lm-wf-zoom, .lm-wf-menu')) return;
     e.preventDefault();
     const start = viewRef.current;
     const cx = e.clientX;
     const cy = e.clientY;
-    const move = (ev) => setView((v) => ({ ...v, x: start.x + ev.clientX - cx, y: start.y + ev.clientY - cy }));
+    let dragged = false;
+    const move = (ev) => {
+      if (!dragged && Math.hypot(ev.clientX - cx, ev.clientY - cy) < 4) return;
+      dragged = true;
+      setView((v) => ({ ...v, x: start.x + ev.clientX - cx, y: start.y + ev.clientY - cy }));
+    };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      if (dragged || e.button !== 0) return;
+      if (menu) {
+        setMenu(null);
+        return;
+      }
+      const r = surfaceRef.current.getBoundingClientRect();
+      setMenu({ x: cx - r.left, y: cy - r.top, at: toWorld(cx, cy) });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -358,42 +398,21 @@ export function WorkflowView({ page, lerretDir, entries }) {
 
   return ReactDOM.createPortal(
     <div className="lm-wf" data-lm-workflow data-testid="lm-workflow" role="region" aria-label="Workflow">
-      <aside className="lm-wf-palette" aria-label="Add to workflow">
-        <div className="lm-wf-palette__head">
-          <h2>Workflow</h2>
-          <p>{page.name}</p>
-        </div>
-        <section>
-          <h3>Data</h3>
-          <button type="button" className="lm-wf-add" onClick={() => fileRef.current?.click()} data-testid="lm-wf-upload">
-            <span className="lm-wf-dot lm-wf-dot--data" /> Upload spreadsheet…
-          </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.csv,.tsv" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) addSheet(f); }} />
-          <p className="lm-wf-hint">Or drop an Excel (.xlsx) or CSV file anywhere.</p>
-        </section>
-        <section>
-          <h3>Designs on this page</h3>
-          {designs.length === 0 ? (
-            <p className="lm-wf-hint">No designs on this page yet.</p>
-          ) : designs.map((e) => (
-            <button key={designKey(e)} type="button" className="lm-wf-add" onClick={() => addDesign(e)} title="Add to the workflow">
-              <span className="lm-wf-dot lm-wf-dot--design" />
-              {e.label || baseName(e.asset.path)}
-            </button>
-          ))}
-        </section>
-        <section>
-          <h3>Finish with</h3>
-          <button type="button" className="lm-wf-add" onClick={() => addOutput('preview')} data-testid="lm-wf-add-preview">
-            <span className="lm-wf-dot lm-wf-dot--out" /> Preview
-          </button>
-          <button type="button" className="lm-wf-add" onClick={() => addOutput('download')} data-testid="lm-wf-add-download">
-            <span className="lm-wf-dot lm-wf-dot--out" /> Download
-          </button>
-        </section>
-        <button type="button" className="lm-wf-back" onClick={() => setWorkflowMode(false)}>← Back to designs</button>
-      </aside>
-
+      {/* Visually hidden, not display:none — the menu's label opens it natively. */}
+      <input
+        ref={fileRef}
+        id={UPLOAD_INPUT_ID}
+        type="file"
+        accept={SPREADSHEET_ACCEPT}
+        className="lm-wf-file"
+        tabIndex={-1}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) addSheet(f, uploadAt.current);
+        }}
+        data-testid="lm-wf-upload-input"
+      />
       <div
         ref={surfaceRef}
         className={`lm-wf-surface${dropping ? ' lm-wf-surface--drop' : ''}`}
@@ -427,13 +446,28 @@ export function WorkflowView({ page, lerretDir, entries }) {
               })()}
             </svg>
             {wf.nodes.map((n) => <Node key={n.id} node={n} ctx={ctx} />)}
-            {wf.nodes.length > 0 && !wf.nodes.some((n) => n.type === 'data') && (
-              <div className="lm-wf-callout" style={{ left: 40, top: 60 }}>
-                <b>Drop your spreadsheet here</b>
-                <span>An Excel or CSV file — one row per certificate, card or post.</span>
-              </div>
-            )}
           </div>
+        )}
+        {wf && wf.nodes.length === 0 && !menu && (
+          <div className="lm-wf-start" data-testid="lm-wf-start">
+            <b>Click anywhere to add your first step</b>
+            <span>Start with a data file (Excel or CSV) or one of this page’s designs.</span>
+          </div>
+        )}
+        {menu && (
+          <AddMenu
+            menu={menu}
+            designs={designs}
+            canFinish={wf.nodes.length > 0}
+            onUpload={() => {
+              // The label opens the picker itself; close the menu after this
+              // click so the label is still there when the browser acts on it.
+              uploadAt.current = menu.at;
+              setTimeout(() => setMenu(null), 0);
+            }}
+            onDesign={(d) => choose((at) => addDesign(d, at))}
+            onFinish={(type) => choose((at) => addOutput(type, at))}
+          />
         )}
         {dropping && <div className="lm-wf-dropzone">Drop to add a spreadsheet</div>}
         <div className="lm-wf-zoom" role="group" aria-label="Zoom" data-testid="lm-wf-zoom">
@@ -450,6 +484,83 @@ export function WorkflowView({ page, lerretDir, entries }) {
       {notice && <div className="lm-wf-notice" role="status">{notice}</div>}
     </div>,
     document.body,
+  );
+}
+
+/**
+ * The add menu, opened where the canvas was clicked. Finish steps appear once
+ * the workflow has something to finish.
+ */
+function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
+  const ref = React.useRef(null);
+  // Keep it on screen: flip left / up when the click is near an edge.
+  const [pos, setPos] = React.useState({ left: menu.x, top: menu.y, origin: '0 0' });
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (!el || !parent) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const flipX = menu.x + w > parent.clientWidth - 12;
+    const flipY = menu.y + h > parent.clientHeight - 96;
+    setPos({
+      left: flipX ? Math.max(12, menu.x - w) : menu.x,
+      top: flipY ? Math.max(12, menu.y - h) : menu.y,
+      origin: `${flipX ? '100%' : '0'} ${flipY ? '100%' : '0'}`,
+    });
+    el.querySelector('[role="menuitem"]')?.focus();
+  }, [menu]);
+  return (
+    <div
+      ref={ref}
+      className="lm-wf-menu"
+      role="menu"
+      aria-label="Add a step"
+      style={{ left: pos.left, top: pos.top, transformOrigin: pos.origin }}
+      data-testid="lm-wf-menu"
+    >
+      <label
+        htmlFor={UPLOAD_INPUT_ID}
+        role="menuitem"
+        tabIndex={0}
+        className="lm-wf-add"
+        onClick={onUpload}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          e.currentTarget.click();
+        }}
+        data-testid="lm-wf-upload"
+      >
+        <span className="lm-wf-dot lm-wf-dot--data" />
+        <span className="lm-wf-add__text">
+          Upload data file…
+          <em>Excel or CSV</em>
+        </span>
+      </label>
+      <p className="lm-wf-menu__label">Designs on this page</p>
+      {designs.length === 0 ? (
+        <p className="lm-wf-hint lm-wf-menu__hint">No designs on this page yet.</p>
+      ) : (
+        designs.map((e) => (
+          <button key={designKey(e)} type="button" role="menuitem" className="lm-wf-add" onClick={() => onDesign(e)} data-testid="lm-wf-add-design">
+            <span className="lm-wf-dot lm-wf-dot--design" />
+            {e.label || baseName(e.asset.path)}
+          </button>
+        ))
+      )}
+      {canFinish && (
+        <>
+          <p className="lm-wf-menu__label">Finish with</p>
+          <button type="button" role="menuitem" className="lm-wf-add" onClick={() => onFinish('preview')} data-testid="lm-wf-add-preview">
+            <span className="lm-wf-dot lm-wf-dot--out" /> Preview
+          </button>
+          <button type="button" role="menuitem" className="lm-wf-add" onClick={() => onFinish('download')} data-testid="lm-wf-add-download">
+            <span className="lm-wf-dot lm-wf-dot--out" /> Download
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 

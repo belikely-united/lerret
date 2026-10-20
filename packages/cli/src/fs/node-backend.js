@@ -1192,7 +1192,7 @@ async function createEntry(parentPath, name, kind, opts = {}) {
   // temp-file-then-rename write lands cleanly).
   const fromTemplate =
     assetKind === 'component' && opts.template
-      ? posterTemplateContent(opts.template, name, opts.dimensions)
+      ? posterTemplateContent(opts.template, name, opts.dimensions, { brand: opts.brand, brandDir: opts.brandDir })
       : null;
   const content = fromTemplate ? fromTemplate.source : starterAssetContent(name, assetKind, { dimensions: opts.dimensions });
   await writeFile(toLerretPath(targetNative), content, { encoding: 'utf-8' });

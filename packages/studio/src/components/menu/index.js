@@ -13,6 +13,7 @@ export {
  buildMarkdownItems,
  buildSectionItems,
  create,
+ createFromDialog,
  duplicate,
  destroy,
  move,

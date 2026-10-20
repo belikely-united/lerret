@@ -504,6 +504,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                 <li
                   key={page.id}
                   id={optionId(idx)}
+                  data-pinned={page.pinned ? '' : undefined}
                   role="option"
                   aria-selected={isCurrent}
                   data-page-active={isActive}
@@ -536,7 +537,12 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {page.label}
                   </span>
-                  {manage && (
+                  {page.pinned && (
+                    <span style={{ fontSize: 11, color: 'var(--lm-text-tertiary, #6b6b6b)' }} title="Built in — colours, text styles and logos for every page">
+                      Library
+                    </span>
+                  )}
+                  {manage && !page.pinned && (
                     <button
                       type="button"
                       className="lm-focusable-inset"
@@ -561,7 +567,7 @@ function PagePickerDropdown({ pages, current, onNavigate, projectModel, manage }
                       <PencilGlyph />
                     </button>
                   )}
-                  {manage && (
+                  {manage && !page.pinned && (
                     <button
                       type="button"
                       className="lm-focusable-inset"

@@ -575,7 +575,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  }}
  onMouseEnter={(e) => { if (!brandOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
  onMouseLeave={(e) => { if (!brandOpen) e.currentTarget.style.background = 'transparent'; }}
- title="Brand"
+ title="Lerret menu"
  aria-expanded={brandOpen}
  >
  <img

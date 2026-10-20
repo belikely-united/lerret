@@ -24,6 +24,7 @@
 
 import * as htmlToImage from 'html-to-image';
 import { resolveFormat } from './formats.js';
+import { resolveRegisteredFont } from '../runtime/font-registry.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal helpers
@@ -260,7 +261,9 @@ export async function captureArtboard(artboardElement, options = {}) {
  quality = 0.92,
  pixelRatio = 2,
  backgroundColor,
- fontResolver = null,
+ // Default: the project's registered custom fonts (`.lerret/_fonts/`), so
+ // every export path embeds them without wiring a resolver.
+ fontResolver = resolveRegisteredFont,
  } = options;
 
  // Delegate format validation and normalization to the shared format registry

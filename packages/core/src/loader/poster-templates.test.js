@@ -47,3 +47,59 @@ describe('elementJsx', () => {
     expect(elementJsx('nope', { width: 10, height: 10 })).toBeNull();
   });
 });
+
+describe('brand-aware templates', () => {
+  const brand = {
+    version: 2,
+    colors: [
+      { id: 'ink', name: 'Ink', value: '#08090A' },
+      { id: 'paper', name: 'Paper', value: '#FFFFFF' },
+      { id: 'primary', name: 'Primary', value: '#5E6AD2' },
+    ],
+    textStyles: [
+      { id: 'h1', name: 'Heading 1', family: 'Inter', size: 96, weight: 700, lineHeight: 1.1, letterSpacing: '-0.02em' },
+      { id: 'body', name: 'Body', family: 'Inter', size: 36, weight: 400, lineHeight: 1.4, letterSpacing: '0em' },
+    ],
+    logos: [
+      {
+        id: 'mark',
+        name: 'Acme',
+        kind: 'full',
+        variants: [
+          { id: 'default', label: 'Colour', file: 'acme.png' },
+          { id: 'light', label: 'Light', file: 'acme-light.png' },
+        ],
+      },
+    ],
+  };
+  const parses = (src) => parse(src, { sourceType: 'module', plugins: ['jsx'] });
+
+  it('links colours, text styles and the logo', () => {
+    const { source } = posterTemplateContent('headline-phone', 'hero', { width: 1920, height: 1080 }, { brand, brandDir: '../_brand/' });
+    expect(() => parses(source)).not.toThrow();
+    expect(source).toContain('background: "var(--brand-paper, #FFFFFF)"');
+    expect(source).toContain('color: "var(--brand-ink, #08090A)"');
+    expect(source).toContain('var(--brand-text-h1-font');
+    expect(source).toContain('calc(var(--brand-text-body-size, 36)');
+    expect(source).toContain('new URL("../_brand/acme.png", import.meta.url)');
+  });
+
+  it('uses the light logo variant and bold primary on the dark layout', () => {
+    const { source } = posterTemplateContent('big-headline', 'x', { width: 1080, height: 1080 }, { brand, brandDir: './_brand/' });
+    expect(source).toContain('background: "var(--brand-primary, #5E6AD2)"');
+    expect(source).toContain('./_brand/acme-light.png');
+  });
+
+  it('ignores an untrusted brandDir and works with no brand', () => {
+    const evil = posterTemplateContent('headline-phone', 'x', { width: 1080, height: 1920 }, { brand, brandDir: 'https://evil/' });
+    expect(evil.source).not.toContain('logoSrc');
+    expect(evil.source).toContain('var(--brand-ink');
+    const plain = posterTemplateContent('headline-phone', 'x', { width: 1080, height: 1920 });
+    expect(plain.source).not.toContain('--brand-');
+  });
+
+  it('starts Add-menu text and shapes on brand', () => {
+    expect(elementJsx('text', { width: 1080, height: 1080 }, { brand })).toContain('var(--brand-text-h1-font');
+    expect(elementJsx('rectangle', { width: 1080, height: 1080 }, { brand })).toContain('var(--brand-primary, #5E6AD2)');
+  });
+});

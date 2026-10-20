@@ -19,7 +19,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-import { elementJsx, ELEMENTS } from '@lerret/core';
+import { elementJsx, ELEMENTS, colorRef, colorVarKey, linkedVarKey, linkedTextStyleId, textStyleRefs, fontStack } from '@lerret/core';
 
 import '../forms/form-controls.css';
 import './edit-mode.css';
@@ -61,6 +61,10 @@ import {
 import { CURATED_FONTS, matchCuratedFont, loadCuratedFonts } from '../../fonts/curated-fonts.js';
 import { readImageFile, splitImageName, insertBoxFor, isImageFile } from '../canvas/image-drop.js';
 import { listProjectDir } from '../../runtime/write-client.js';
+import { useBrand, brandKitFor, logoUrl } from '../brand/brand-store.js';
+import { placeBrandLogo, LOGO_DRAG_TYPE } from '../brand/brand-apply.js';
+import { dcToast } from '../../design-canvas.jsx';
+import { BRAND_ROUTE } from '../brand/brand-page.jsx';
 
 loadCuratedFonts();
 
@@ -164,6 +168,7 @@ function AddMenu({ selection }) {
   const btnRef = React.useRef(null);
   const fileRef = React.useRef(null);
   const board = artboardOf(selection);
+  const { brand } = useBrand();
 
   const add = async (kind) => {
     setOpen(false);
@@ -173,7 +178,7 @@ function AddMenu({ selection }) {
       return;
     }
     const before = [...board.root.children].filter((n) => n.hasAttribute(SRC_ATTR)).length;
-    const res = await addElement(board.path, board.offset, elementJsx(kind, board));
+    const res = await addElement(board.path, board.offset, elementJsx(kind, board, brandKitFor(board.path.slice(0, board.path.lastIndexOf('/')))));
     if (res.ok) selectNewestChild(board, before);
   };
 
@@ -229,10 +234,47 @@ function AddMenu({ selection }) {
                 {item.label}
               </button>
             ))}
+            {brand.logos.length > 0 && <div className="lm-design-menu__label" role="presentation">Brand logos</div>}
+            {brand.logos.map((logo) => (
+              <BrandLogoItem key={logo.id} logo={logo} onPlaced={() => setOpen(false)} />
+            ))}
           </div>
         </Popover>
       )}
     </React.Fragment>
+  );
+}
+
+/**
+ * A brand logo in the Add menu: click adds it to the design (linked, in the
+ * version that suits the background); drag drops it anywhere on the canvas.
+ */
+function BrandLogoItem({ logo, onPlaced }) {
+  const imgRef = React.useRef(null);
+  const variant = logo.variants[0];
+  const natural = () => ({ width: imgRef.current?.naturalWidth || 512, height: imgRef.current?.naturalHeight || 512 });
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="lm-design-menu__item"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData(LOGO_DRAG_TYPE, JSON.stringify({ id: logo.id, name: logo.name, file: variant.file, ...natural() }));
+        if (imgRef.current) e.dataTransfer.setDragImage(imgRef.current, 16, 16);
+      }}
+      onClick={async () => {
+        onPlaced();
+        const res = await placeBrandLogo(logo, natural(), null, { add: true });
+        if (res && res.ok === false && res.error) dcToast(res.error);
+      }}
+      title={`Add ${logo.name} — or drag it onto a design`}
+      data-testid={`lm-design-add-logo-${logo.id}`}
+    >
+      <img ref={imgRef} className="lm-design-menu__logo" src={logoUrl(variant.file)} alt="" draggable={false} />
+      {logo.name}
+    </button>
   );
 }
 
@@ -388,8 +430,28 @@ function TextSection({ ins, selection }) {
   const textValue = target?.kind === 'prop'
     ? String(dataValueFor(data, selection.variant, target.name) ?? ins.first?.textContent ?? '')
     : info.text.kind === 'literal' ? String(info.text.value) : '';
+  const { brand } = useBrand();
   const fontValue = style?.fontFamily?.kind === 'literal' ? style.fontFamily.value : computed?.fontFamily;
-  const fontMatch = matchCuratedFont(fontValue);
+  // A brand text style links the font (and size, weight…) to the library.
+  const styleId = linkedTextStyleId(fontValue);
+  const linkedStyle = brand.textStyles.find((t) => t.id === styleId) || null;
+  const fontMatch = linkedStyle ? '' : matchCuratedFont(fontValue);
+  const save = (entries) =>
+    saveStyles(selection.path, selection.offset, Object.entries(entries).map(([key, value]) => ({ key, value })), selection.tag);
+  const applyStyle = (st) => save(textStyleRefs(st));
+  // Detach: keep exactly how it looks now, as plain values the brand no longer drives.
+  const detach = () => {
+    const st = linkedStyle;
+    const m = /\*\s*([\d.]+)px/.exec(String(style?.fontSize?.kind === 'literal' ? style.fontSize.value : ''));
+    const factor = m ? Number(m[1]) : 1;
+    save({
+      fontFamily: fontStack(st.family),
+      fontSize: Math.round(st.size * factor),
+      fontWeight: st.weight,
+      lineHeight: st.lineHeight,
+      letterSpacing: st.letterSpacing,
+    });
+  };
   const weight = style?.fontWeight?.kind === 'literal' ? String(style.fontWeight.value) : String(computed?.fontWeight ?? '400');
   return (
     <Section title="Text">
@@ -398,29 +460,104 @@ function TextSection({ ins, selection }) {
       ) : (
         <p className="lm-edit-hint">This text is filled in automatically — ask the AI to change how.</p>
       )}
-      <Field label="Font">
-        <select className="lm-input lm-select lm-edit-input" value={fontMatch || ''} onChange={(e) => ins.onStyle('fontFamily', e.target.value)} aria-label="Font">
-          {!fontMatch && <option value="">Custom</option>}
-          {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
-        </select>
-      </Field>
-      <div className="lm-edit-grid">
-        <NumberField ins={ins} k="fontSize" label="Size" />
-        <Field label="Weight">
-          <select className="lm-input lm-select lm-edit-input" value={WEIGHT_OPTIONS.some(([v]) => v === weight) ? weight : '400'} onChange={(e) => ins.onStyle('fontWeight', e.target.value)} aria-label="Weight">
-            {WEIGHT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </Field>
-      </div>
+      <TextStylePicker styles={brand.textStyles} linked={linkedStyle} onApply={applyStyle} onDetach={detach} />
+      {linkedStyle ? (
+        <p className="lm-edit-hint">Font, size and spacing come from “{linkedStyle.name}”. Detach to change them just here.</p>
+      ) : (
+        <>
+          <Field label="Font">
+            <select className="lm-input lm-select lm-edit-input" value={fontMatch || ''} onChange={(e) => ins.onStyle('fontFamily', e.target.value)} aria-label="Font">
+              {!fontMatch && <option value="">Custom</option>}
+              {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
+            </select>
+          </Field>
+          <div className="lm-edit-grid">
+            <NumberField ins={ins} k="fontSize" label="Size" />
+            <Field label="Weight">
+              <select className="lm-input lm-select lm-edit-input" value={WEIGHT_OPTIONS.some(([v]) => v === weight) ? weight : '400'} onChange={(e) => ins.onStyle('fontWeight', e.target.value)} aria-label="Weight">
+                {WEIGHT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
+          </div>
+        </>
+      )}
       <Field label="Colour"><ColorRow ins={ins} k="color" /></Field>
+      <ColorChoices value={style?.color?.kind === 'literal' ? String(style.color.value) : ''} onPick={(v) => ins.onStyle('color', v)} />
       <AlignControl value={style?.textAlign} fallback={computed?.textAlign} onInput={(v) => ins.onStyle('textAlign', v)} />
-      <div className="lm-edit-grid">
-        <NumberField ins={ins} k="lineHeight" label="Line" unitless step={0.05} />
-        <NumberField ins={ins} k="letterSpacing" label="Letter" />
-      </div>
+      {!linkedStyle && (
+        <div className="lm-edit-grid">
+          <NumberField ins={ins} k="lineHeight" label="Line" unitless step={0.05} />
+          <NumberField ins={ins} k="letterSpacing" label="Letter" />
+        </div>
+      )}
     </Section>
   );
 }
+
+const goToBrand = () => {
+  location.hash = `#${BRAND_ROUTE}`;
+};
+
+/**
+ * Figma-style text styles: the linked style as a chip (with Detach), or a
+ * "Choose a style" button; either opens the library's styles, each previewed
+ * in its own font.
+ */
+function TextStylePicker({ styles, linked, onApply, onDetach }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="lm-tstyle" data-testid="lm-design-text-style">
+      <div className="lm-tstyle__row">
+        <button
+          type="button"
+          className={`lm-tstyle__current${linked ? ' lm-tstyle__current--on' : ''}`}
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+          data-testid="lm-design-text-style-current"
+        >
+          <span className="lm-tstyle__aa" aria-hidden="true" style={linked ? { fontFamily: `'${linked.family}'`, fontWeight: linked.weight } : undefined}>Aa</span>
+          <span className="lm-tstyle__name">{linked ? linked.name : 'Text styles'}</span>
+          {linked && <span className="lm-tstyle__spec">{linked.size} · {weightName(linked.weight)}</span>}
+        </button>
+        {linked && (
+          <button type="button" className="lm-tstyle__detach" onClick={onDetach} title="Detach style — keep the look, stop following the brand" aria-label="Detach style" data-testid="lm-design-text-style-detach">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
+              <path d="M5.5 8.5l-1.6 1.6a1.8 1.8 0 01-2.5-2.5L3 6M8.5 5.5l1.6-1.6a1.8 1.8 0 012.5 2.5L11 8M2 2l10 10" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="lm-tstyle__list" role="listbox" aria-label="Text styles">
+          {styles.length === 0 && <p className="lm-edit-hint">No text styles yet.</p>}
+          {styles.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="option"
+              aria-selected={linked?.id === t.id}
+              className="lm-tstyle__item"
+              onClick={() => {
+                onApply(t);
+                setOpen(false);
+              }}
+              data-testid={`lm-design-text-style-${t.id}`}
+            >
+              <span className="lm-tstyle__aa" aria-hidden="true" style={{ fontFamily: `'${t.family}'`, fontWeight: t.weight }}>Aa</span>
+              <span className="lm-tstyle__name">{t.name}</span>
+              <span className="lm-tstyle__spec">{t.size} · {weightName(t.weight)}</span>
+            </button>
+          ))}
+          <button type="button" className="lm-tstyle__manage" onClick={goToBrand}>
+            {styles.length ? 'Edit styles on the Brand page' : 'Add text styles on the Brand page'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const weightName = (w) => WEIGHT_OPTIONS.find(([v]) => v === String(w))?.[1] || String(w);
 
 /** Pick an image file, then hand its bytes + a free name to `place`. */
 function useImagePicker(selection, place) {
@@ -494,21 +631,69 @@ function FillControl({ ins, allowNone }) {
   };
   return (
     <div className="lm-design-fill">
-      <div className="lm-design-swatches" role="radiogroup" aria-label="Colour">
-        {allowNone && (
-          <button type="button" role="radio" aria-checked={!current} className="lm-design-swatch lm-design-swatch--none" title="None" aria-label="None" onClick={() => ins.onStyle(key, '')} />
-        )}
-        {SWATCHES.map((c) => (
-          <button key={c} type="button" role="radio" aria-checked={current.toUpperCase() === c} className="lm-design-swatch" style={{ background: c }} title={c} aria-label={c} onClick={() => set(c)} />
-        ))}
-        <label className="lm-design-swatch lm-design-swatch--custom" title="Pick any colour">
-          <input type="color" aria-label="Pick any colour" value={toHex(/gradient/.test(current) ? '' : current || ins.computed?.backgroundColor)} onChange={(e) => set(e.target.value)} />
-        </label>
-      </div>
+      <ColorChoices
+        value={current}
+        onPick={set}
+        onNone={allowNone ? () => ins.onStyle(key, '') : undefined}
+        custom={toHex(/gradient/.test(current) ? '' : current || ins.computed?.backgroundColor)}
+      />
       <div className="lm-design-gradients" role="radiogroup" aria-label="Gradient">
         {GRADIENTS.map(([name, g]) => (
           <button key={name} type="button" role="radio" aria-checked={current === g} className="lm-design-gradient" style={{ background: g }} title={name} aria-label={`${name} gradient`} onClick={() => set(g)} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The colour choices under a colour field: the brand library's colours first
+ * (linked — `var(--brand-…)`, the linked one marked), then suggested colours
+ * and any-colour. Shown for fills and text alike.
+ */
+function ColorChoices({ value, onPick, onNone, custom }) {
+  const { brand } = useBrand();
+  const linked = linkedVarKey(value);
+  return (
+    <div className="lm-design-choices">
+      <div className="lm-design-brand-row" data-testid="lm-design-brand-colors">
+        <span className="lm-design-choices__k">
+          Brand colours
+          <button type="button" className="lm-design-choices__edit" onClick={goToBrand}>{brand.colors.length ? 'Edit' : 'Add'}</button>
+        </span>
+        {brand.colors.length > 0 ? (
+          <div className="lm-design-swatches" role="radiogroup" aria-label="Brand colours">
+            {brand.colors.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="radio"
+                aria-checked={linked === colorVarKey(c)}
+                className="lm-design-swatch"
+                style={{ background: c.value }}
+                title={`${c.name} · ${c.value} (linked to the brand library)`}
+                aria-label={c.name}
+                onClick={() => onPick(colorRef(c))}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="lm-edit-hint">Your brand colours show up here.</p>
+        )}
+      </div>
+      <div className="lm-design-brand-row">
+        <span className="lm-design-choices__k">Suggested</span>
+        <div className="lm-design-swatches" role="radiogroup" aria-label="Suggested colours">
+          {onNone && (
+            <button type="button" role="radio" aria-checked={!value} className="lm-design-swatch lm-design-swatch--none" title="None" aria-label="None" onClick={onNone} />
+          )}
+          {SWATCHES.map((c) => (
+            <button key={c} type="button" role="radio" aria-checked={String(value).toUpperCase() === c} className="lm-design-swatch" style={{ background: c }} title={c} aria-label={c} onClick={() => onPick(c)} />
+          ))}
+          <label className="lm-design-swatch lm-design-swatch--custom" title="Pick any colour">
+            <input type="color" aria-label="Pick any colour" value={custom || toHex(linked ? '' : value)} onChange={(e) => onPick(e.target.value)} />
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -634,8 +819,26 @@ function OpacitySlider({ ins }) {
 }
 
 function ColorRow({ ins, k }) {
+  const { brand } = useBrand();
   const v = ins.style?.[k];
   const value = v?.kind === 'literal' ? String(v.value) : '';
+  // Linked to a brand colour: show it by name, with Detach (keeps the colour).
+  const key = linkedVarKey(value);
+  const linked = key ? brand.colors.find((c) => colorVarKey(c) === key) : null;
+  if (key) {
+    const hex = linked?.value || /,\s*([^)]+)\)/.exec(value)?.[1] || '';
+    return (
+      <span className="lm-edit-color lm-edit-color--linked" data-testid="lm-design-color-linked">
+        <span className="lm-edit-swatch" style={{ background: hex }} />
+        <span className="lm-edit-color__name">{linked?.name || 'Brand colour'}</span>
+        <button type="button" className="lm-tstyle__detach" onClick={() => ins.onStyle(k, hex)} title="Detach colour — keep it, stop following the brand" aria-label="Detach colour">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
+            <path d="M5.5 8.5l-1.6 1.6a1.8 1.8 0 01-2.5-2.5L3 6M8.5 5.5l1.6-1.6a1.8 1.8 0 012.5 2.5L11 8M2 2l10 10" />
+          </svg>
+        </button>
+      </span>
+    );
+  }
   return <ColorInput value={value} fallback={ins.computed?.[k]} label="Colour" onInput={(c) => ins.onStyle(k, c)} />;
 }
 

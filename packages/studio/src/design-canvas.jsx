@@ -82,19 +82,20 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // bottom corners, shared outline, overlapping the frame's top stroke by 1
  // screen px so the line doesn't run under the tab. A PAGE keeps the floating
  // pill (a page is the canvas itself, not a box).
- '.dc-section-tag[data-dc-kind=group]{margin-bottom:calc(-1px * var(--dc-inv, 1));border-radius:9px 9px 0 0;box-shadow:0 0 0 1px var(--dc-group-stroke);clip-path:inset(-3px -3px -6px -3px)}',
+ // Its shadow is clipped at the bottom so none falls across the frame below.
+ '.dc-section-tag[data-dc-kind=group]{margin-bottom:calc(-1px * var(--dc-inv, 1));border-radius:9px 9px 0 0;box-shadow:var(--dc-group-shadow-tab);clip-path:inset(-40px -40px -4px -40px);transition:box-shadow .12s}',
  // Paint the tab's fill a few px down over the frame's top outline so no seam
- // shows under the tab at any zoom / sub-pixel offset (hover stroke is 1.5px).
+ // shows under the tab at any zoom / sub-pixel offset.
  '.dc-section-tag[data-dc-kind=group]::after{content:"";position:absolute;left:0;right:0;bottom:-4px;height:6px;background:inherit;pointer-events:none}',
- // Group frame outline — box-shadow (no layout), 1 screen px at any zoom.
+ // Group frame — a soft drop shadow (no outline), the same on screen at any zoom.
  // At least as wide as its tab (tab is counter-scaled, so ×--dc-inv), so the
  // tab's right edge always lands on the frame's top edge.
  '.dc-group-frame{min-width:max(400px, calc((var(--dc-tag-w, 0px) + 40px) * var(--dc-inv, 1)))}',
- '.dc-group-frame{box-shadow:0 0 0 calc(1px * var(--dc-inv, 1)) var(--dc-group-stroke);transition:box-shadow .12s}',
- '[data-dc-section]{--dc-group-stroke:rgba(0, 0, 0,.14)}',
- // Hover shows exactly where a group starts and ends — innermost group only.
- '[data-dc-section]:hover:not(:has([data-dc-section]:hover)){--dc-group-stroke:var(--lm-accent,#111111)}',
- '[data-dc-section]:hover:not(:has([data-dc-section]:hover))>.dc-group-frame{box-shadow:0 0 0 calc(1.5px * var(--dc-inv, 1)) var(--dc-group-stroke)}',
+ '.dc-group-frame{box-shadow:0 calc(1px * var(--dc-inv, 1)) calc(3px * var(--dc-inv, 1)) rgba(0, 0, 0,.06),0 calc(6px * var(--dc-inv, 1)) calc(24px * var(--dc-inv, 1)) rgba(0, 0, 0,.07);transition:box-shadow .12s}',
+ '[data-dc-section]{--dc-group-shadow-tab:0 -1px 3px rgba(0, 0, 0,.05),0 -4px 14px rgba(0, 0, 0,.05)}',
+ // Hover lifts the innermost group a little — a deeper shadow, no border.
+ '[data-dc-section]:hover:not(:has([data-dc-section]:hover)){--dc-group-shadow-tab:0 -1px 4px rgba(0, 0, 0,.08),0 -6px 20px rgba(0, 0, 0,.08)}',
+ '[data-dc-section]:hover:not(:has([data-dc-section]:hover))>.dc-group-frame{box-shadow:0 calc(2px * var(--dc-inv, 1)) calc(6px * var(--dc-inv, 1)) rgba(0, 0, 0,.08),0 calc(12px * var(--dc-inv, 1)) calc(40px * var(--dc-inv, 1)) rgba(0, 0, 0,.12)}',
  '.dc-section-tag .dc-section-grip{margin:0 -2px 0 0}',
  // The PAGE's tag is a heading, not a pill: larger, set higher above its
  // content — the title of the whole canvas. Groups keep the folder tab.
@@ -1604,10 +1605,10 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  {/* Group frame — rounded rectangle around title + artboards + any nested
  sub-groups. Subtle so it reads as scaffolding, not chrome. Padding-top
  on the artboard row fits the absolutely-positioned artboard labels
- (~36px) so they stay inside the border. A nested sub-group gets a
+ (~36px) so they stay inside the frame. A nested sub-group gets a
  lighter dashed frame so the containment hierarchy is legible. */}
  <div className="dc-group-frame" style={{
- // Outline comes from .dc-group-frame (constant 1px on screen at any zoom).
+ // Shadow comes from .dc-group-frame (the same on screen at any zoom).
  // Square top-left corner: the folder tab's straight left edge continues
  // straight down the frame (a rounded corner leaves a notch at the join).
  borderRadius: '0 16px 16px 16px',
