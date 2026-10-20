@@ -19,7 +19,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 
-import { elementJsx, ELEMENTS } from '@lerret/core';
+import { elementJsx, ELEMENTS, colorRef, fontRef, colorVarKey, fontVarKey, linkedVarKey } from '@lerret/core';
 
 import '../forms/form-controls.css';
 import './edit-mode.css';
@@ -61,6 +61,7 @@ import {
 import { CURATED_FONTS, matchCuratedFont, loadCuratedFonts } from '../../fonts/curated-fonts.js';
 import { readImageFile, splitImageName, insertBoxFor, isImageFile } from '../canvas/image-drop.js';
 import { listProjectDir } from '../../runtime/write-client.js';
+import { useBrand } from '../brand/brand-store.js';
 
 loadCuratedFonts();
 
@@ -388,8 +389,10 @@ function TextSection({ ins, selection }) {
   const textValue = target?.kind === 'prop'
     ? String(dataValueFor(data, selection.variant, target.name) ?? ins.first?.textContent ?? '')
     : info.text.kind === 'literal' ? String(info.text.value) : '';
+  const { brand } = useBrand();
   const fontValue = style?.fontFamily?.kind === 'literal' ? style.fontFamily.value : computed?.fontFamily;
-  const fontMatch = matchCuratedFont(fontValue);
+  const linkedFont = brand.fonts.find((f) => fontVarKey(f) === linkedVarKey(fontValue));
+  const fontMatch = linkedFont ? fontRef(linkedFont) : matchCuratedFont(fontValue);
   const weight = style?.fontWeight?.kind === 'literal' ? String(style.fontWeight.value) : String(computed?.fontWeight ?? '400');
   return (
     <Section title="Text">
@@ -401,7 +404,14 @@ function TextSection({ ins, selection }) {
       <Field label="Font">
         <select className="lm-input lm-select lm-edit-input" value={fontMatch || ''} onChange={(e) => ins.onStyle('fontFamily', e.target.value)} aria-label="Font">
           {!fontMatch && <option value="">Custom</option>}
-          {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
+          {brand.fonts.length > 0 && (
+            <optgroup label="Brand fonts">
+              {brand.fonts.map((f) => <option key={f.id} value={fontRef(f)}>{f.name} · {f.family}</option>)}
+            </optgroup>
+          )}
+          <optgroup label="All fonts">
+            {CURATED_FONTS.map(([label, css]) => <option key={label} value={css} style={{ fontFamily: css }}>{label}</option>)}
+          </optgroup>
         </select>
       </Field>
       <div className="lm-edit-grid">
@@ -413,6 +423,7 @@ function TextSection({ ins, selection }) {
         </Field>
       </div>
       <Field label="Colour"><ColorRow ins={ins} k="color" /></Field>
+      <BrandSwatches value={style?.color?.kind === 'literal' ? style.color.value : ''} onPick={(v) => ins.onStyle('color', v)} />
       <AlignControl value={style?.textAlign} fallback={computed?.textAlign} onInput={(v) => ins.onStyle('textAlign', v)} />
       <div className="lm-edit-grid">
         <NumberField ins={ins} k="lineHeight" label="Line" unitless step={0.05} />
@@ -494,6 +505,7 @@ function FillControl({ ins, allowNone }) {
   };
   return (
     <div className="lm-design-fill">
+      <BrandSwatches value={current} onPick={set} />
       <div className="lm-design-swatches" role="radiogroup" aria-label="Colour">
         {allowNone && (
           <button type="button" role="radio" aria-checked={!current} className="lm-design-swatch lm-design-swatch--none" title="None" aria-label="None" onClick={() => ins.onStyle(key, '')} />
@@ -508,6 +520,36 @@ function FillControl({ ins, allowNone }) {
       <div className="lm-design-gradients" role="radiogroup" aria-label="Gradient">
         {GRADIENTS.map(([name, g]) => (
           <button key={name} type="button" role="radio" aria-checked={current === g} className="lm-design-gradient" style={{ background: g }} title={name} aria-label={`${name} gradient`} onClick={() => set(g)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The brand library's colours as linked swatches (`var(--brand-…)`); the one
+ * this property links to is marked. Nothing when the library has no colours.
+ */
+function BrandSwatches({ value, onPick }) {
+  const { brand } = useBrand();
+  if (brand.colors.length === 0) return null;
+  const linked = linkedVarKey(value);
+  return (
+    <div className="lm-design-brand-row">
+      <span className="lm-edit-field__k">Brand</span>
+      <div className="lm-design-swatches" role="radiogroup" aria-label="Brand colours">
+        {brand.colors.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={linked === colorVarKey(c)}
+            className="lm-design-swatch"
+            style={{ background: c.value }}
+            title={`${c.name} · ${c.value} (linked to the brand library)`}
+            aria-label={c.name}
+            onClick={() => onPick(colorRef(c))}
+          />
         ))}
       </div>
     </div>

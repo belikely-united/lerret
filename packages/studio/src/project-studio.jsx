@@ -46,6 +46,9 @@ import { registerProjectFonts } from './runtime/font-registry.js';
 // the studio AI-agnostic when the package is absent.
 import { AiContextProvider } from './ai/ai-context.jsx';
 import { SelectionScopeProvider } from './ai/selection-scope-context.jsx';
+import { BrandPanel } from './components/brand/brand-panel.jsx';
+import { loadBrand } from './components/brand/brand-store.js';
+import { inCliMode } from './runtime/write-client.js';
 
 // The studio-shell route that shows the loaded project's canvas. Any hash that
 // is not a studio-shell route (i.e. a project-page path) falls through to this
@@ -82,6 +85,17 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  const registration = registerProjectFonts(project, { assetBaseUrl });
  return () => registration.dispose();
  }, [project, assetBaseUrl]);
+
+ // The brand library (colours, fonts, logos) — loaded once per project and
+ // shared by every page. Editing it needs a writable folder.
+ const projectPath = project ? project.path : null;
+ React.useEffect(() => {
+ if (projectPath && inCliMode()) loadBrand(projectPath, assetBaseUrl);
+ }, [projectPath, assetBaseUrl]);
+ const customFamilies = React.useMemo(
+ () => ((project && project.fonts) || []).map((f) => f.family).filter(Boolean),
+ [project],
+ );
 
  // One hash route, shared with `StudioShell`. The default is the project
  // route; when the hash holds a project-page path instead, that is the
@@ -130,6 +144,7 @@ export function ProjectStudio({ project, runtime, assetBaseUrl }) {
  <AiContextProvider folderId={folderId}>
  <SelectionScopeProvider>
  <StudioShell pages={shellPages} defaultPage={PROJECT_ROUTE} />
+ {inCliMode() && <BrandPanel customFamilies={customFamilies} />}
  </SelectionScopeProvider>
  </AiContextProvider>
  </ProjectPagesContext.Provider>

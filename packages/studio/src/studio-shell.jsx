@@ -24,6 +24,7 @@ import * as ReactDOM from 'react-dom';
 
 import { PagePicker } from './components/dock/page-picker.jsx';
 import { EditModeLayer } from './components/edit-mode/edit-mode-layer.jsx';
+import { BrandToggle } from './components/brand/brand-toggle.jsx';
 import { WorkflowSwitch } from './components/workflow/workflow-switch.jsx';
 import { EditModeDock } from './components/edit-mode/edit-dock.jsx';
 import { useProjectPages } from './components/dock/project-pages-context.jsx';
@@ -575,7 +576,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  }}
  onMouseEnter={(e) => { if (!brandOpen) e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
  onMouseLeave={(e) => { if (!brandOpen) e.currentTarget.style.background = 'transparent'; }}
- title="Brand"
+ title="Lerret menu"
  aria-expanded={brandOpen}
  >
  <img
@@ -668,6 +669,7 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
   idle-only fallback and the surrounding brand / page-picker children keep
   working. */}
  {!editing && <StudioDockSeparator />}
+ <BrandToggle Button={StudioDockButton} />
  <WorkflowSwitch />
  <EditModeDock />
  {SHOW_AI_INPUT && <StudioDockSeparator />}

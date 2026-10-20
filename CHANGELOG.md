@@ -9,6 +9,10 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 ## [Unreleased]
 
 ### Added
+- **Brand library** — a *Brand* panel (dock → Brand, docked left) holds the project's colours, fonts and logos, shared by every page. Click an item to use it on the selection, drag a logo onto a design or empty canvas, or click a logo to place it / replace a selected image. Everything is **linked**: colours and fonts are mirrored into the root `config.json` vars (`--brand-*`) and designs reference them, logos are referenced from `.lerret/_brand/` — so editing or replacing an item updates every design that uses it. The Design panel lists brand colours and fonts first. Stored in `.lerret/_brand/brand.json`.
+
+### Fixed
+- Exports (PNG/JPG/ZIP, App Store, workflow) now embed the project's custom fonts from `.lerret/_fonts/`.
 - **Workflow mode** — switch the dock to *Workflow* to fill a design from a spreadsheet in bulk. Drop an Excel (.xlsx) or CSV file to add a Spreadsheet node, connect it to a design, pick which text on the design each column replaces (the name is suggested automatically), then finish with a **Preview** node (all rows as thumbnails) or a **Download** node (PNG or JPG images in a ZIP named from a column, or one combined PDF; standard or 2× quality). Workflows save per page in `.lerret/.workflows/`.
 - **Simple design editor** — Edit mode is rebuilt for people who don't code: a plain-language Design panel (Background, Text, Image, Screenshot, Phone frame, Shape) with fonts, colour swatches and gradients, corners, shadows, position and size, and arrange; an **+ Add** menu (text, image, rectangle, circle, phone frame); resize handles and snap-to-center guides. Dropping an image on a phone screen fills it; on an image replaces it.
 - **Poster templates** — new store assets can start from *Headline + phone*, *Phone + caption* or *Big statement*, generated at the chosen size with their text in the data file.

@@ -288,3 +288,6 @@ textarea.lm-edit-input { display: block; width: 100%; height: auto; resize: vert
   .lm-design-btn:active { scale: none; }
   .lm-design-swatch, .lm-design-gradient { transition: none; }
 }
+
+.lm-design-brand-row { display: flex; align-items: center; gap: 8px; }
+.lm-design-brand-row .lm-edit-field__k { width: 40px; flex-shrink: 0; }

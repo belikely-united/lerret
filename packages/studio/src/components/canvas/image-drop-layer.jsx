@@ -20,6 +20,9 @@ import * as ReactDOM from 'react-dom';
 import { listProjectDir } from '../../runtime/write-client.js';
 import { createImageAssets, insertImagesIntoAsset, placeImage } from '../edit-mode/edit-session.js';
 import { dcToast } from '../../design-canvas.jsx';
+import { logoPathFrom } from '@lerret/core';
+import { LOGO_DRAG_TYPE } from '../brand/brand-apply.js';
+import { getBrandState } from '../brand/brand-store.js';
 import {
   dragHasFiles,
   isImageFile,
@@ -197,6 +200,64 @@ async function dropIntoSlot(target, files) {
   else dcToast(res.ok ? `Placed ${name}.${ext}` : `Couldn’t place the image: ${res.error}`);
 }
 
+/** Whether a drag carries a logo from the Brand panel. */
+const isLogoDrag = (dt) => !!dt && Array.from(dt.types || []).includes(LOGO_DRAG_TYPE);
+
+/**
+ * Drop a Brand-library logo. Same three targets as a file drop, but the logo
+ * stays LINKED (referenced in `_brand/`, nothing is copied) — replacing it in
+ * the library updates every design that uses it.
+ *
+ * @param {object} target  From resolveDropTarget.
+ * @param {{ id: string, name: string, file: string, width?: number, height?: number }} logo
+ * @param {{ x: number, y: number }} client
+ */
+async function dropLogo(target, logo, client) {
+  const { lerretDir } = getBrandState();
+  if (!lerretDir) return;
+  const natural = { width: logo.width || 512, height: logo.height || 512 };
+  const folderOf = (p) => p.slice(0, p.lastIndexOf('/'));
+  if (target.kind === 'fill') {
+    const m = /^(.*):(\d+)$/.exec(target.stamp || '');
+    if (!m) return;
+    const res = await placeImage(m[1], Number(m[2]), { file: logoPathFrom(folderOf(m[1]), lerretDir, logo.file) });
+    dcToast(res.ok ? `Placed ${logo.name}` : `Couldn’t place the logo: ${res.error}`);
+    return;
+  }
+  if (target.kind === 'insert') {
+    const card = target.slot.querySelector('.dc-card');
+    const root = card?.querySelector(`[${SRC_ATTR}]`);
+    const m = /^(.*):(\d+)$/.exec(root?.getAttribute(SRC_ATTR) || '');
+    if (!card || !m || lerretRel(m[1]) !== lerretRel(target.assetPath)) {
+      dcToast('Couldn’t find where to put the logo in this design.');
+      return;
+    }
+    const artboard = {
+      width: Number(target.slot.getAttribute('data-dc-w')) || card.offsetWidth,
+      height: Number(target.slot.getAttribute('data-dc-h')) || card.offsetHeight,
+    };
+    const rect = card.getBoundingClientRect();
+    const scale = rect.width / artboard.width || 1;
+    const point = { x: (client.x - rect.left) / scale, y: (client.y - rect.top) / scale };
+    const res = await insertImagesIntoAsset({
+      path: m[1],
+      offset: Number(m[2]),
+      images: [{ file: logoPathFrom(folderOf(m[1]), lerretDir, logo.file), alt: logo.name, ...insertBoxFor(natural, artboard, point) }],
+    });
+    dcToast(res.ok ? `Added ${logo.name} to ${baseName(target.assetPath)}` : `Couldn’t add the logo: ${res.error}`);
+    return;
+  }
+  // Empty canvas: a new design sized to the logo, showing it (linked).
+  const exists = await existsIn(target.folder);
+  const { base } = splitImageName(logo.file);
+  const name = await uniqueBase(base, (c) => [`${target.folder}/${c}.jsx`], exists);
+  const res = await createImageAssets({
+    folder: target.folder,
+    images: [{ name, file: logoPathFrom(target.folder, lerretDir, logo.file), ...artboardSizeFor(natural.width, natural.height) }],
+  });
+  dcToast(res.ok ? `Added ${name} to ${baseName(target.folder)}` : `Couldn’t add the logo: ${res.error}`);
+}
+
 /**
  * Drop images onto the background: one new image asset per file.
  *
@@ -240,7 +301,7 @@ export function ImageDropLayer({ pagePath, enabled }) {
       setHint(null);
     };
     const onDragOver = (e) => {
-      if (!dragHasFiles(e.dataTransfer)) return;
+      if (!dragHasFiles(e.dataTransfer) && !isLogoDrag(e.dataTransfer)) return;
       // The Workflow view takes its own drops (spreadsheets).
       if (e.target?.closest?.('[data-lm-workflow]')) return;
       e.preventDefault(); // never let the browser open the file instead
@@ -256,15 +317,26 @@ export function ImageDropLayer({ pagePath, enabled }) {
     };
     const onDragLeave = (e) => {
       // Leaving the window: relatedTarget is null.
-      if (dragHasFiles(e.dataTransfer) && !e.relatedTarget) clear();
+      if ((dragHasFiles(e.dataTransfer) || isLogoDrag(e.dataTransfer)) && !e.relatedTarget) clear();
     };
     const onDrop = (e) => {
-      if (!dragHasFiles(e.dataTransfer)) return;
+      const logoDrag = isLogoDrag(e.dataTransfer);
+      if (!dragHasFiles(e.dataTransfer) && !logoDrag) return;
       if (e.target?.closest?.('[data-lm-workflow]')) return;
       e.preventDefault();
       clear();
       const target = enabled ? resolveDropTarget(e.target, pagePath) : null;
       if (!target) return;
+      if (logoDrag) {
+        let logo = null;
+        try {
+          logo = JSON.parse(e.dataTransfer.getData(LOGO_DRAG_TYPE));
+        } catch {
+          return;
+        }
+        dropLogo(target, logo, { x: e.clientX, y: e.clientY }).catch((err) => dcToast(`Couldn’t add the logo: ${err?.message ?? err}`));
+        return;
+      }
       const all = Array.from(e.dataTransfer.files || []);
       const files = all.filter(isImageFile);
       if (files.length === 0) {

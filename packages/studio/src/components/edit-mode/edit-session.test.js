@@ -174,11 +174,26 @@ describe('rebaseSelection', () => {
     expect(getEditState().selection).toMatchObject({ offset: 23, stamp: '/p/a.jsx:23' });
   });
 
-  it('leaves it alone for a change at/after it, in another file, or overlapping it', () => {
+  it('leaves it alone for a change after it, or in another file', () => {
     selectElement({ ...sel });
     rebaseSelection('/p/a.jsx', 'x'.repeat(30), 'x'.repeat(25) + 'YY' + 'x'.repeat(5));
     rebaseSelection('/p/b.jsx', 'aaa', 'aaaaaa');
-    rebaseSelection('/p/a.jsx', 'x'.repeat(15) + 'abcdefghij' + 'x'.repeat(5), 'x'.repeat(15) + 'Z' + 'x'.repeat(5));
     expect(getEditState().selection).toMatchObject({ offset: 20 });
+  });
+
+  it('re-finds the element by its tag when changes land both before and after it', () => {
+    const before = 'const a = 1;\n<div id="root">\n  <p id="name">John</p>\n</div>';
+    const at = before.indexOf('<p');
+    selectElement({ path: '/p/a.jsx', offset: at, stamp: `/p/a.jsx:${at}`, tag: 'p' });
+    const after = 'const logo = 2;\nconst a = 1;\n<div id="root" style={{}}>\n  <p id="name">John</p>\n  <img />\n</div>';
+    rebaseSelection('/p/a.jsx', before, after);
+    expect(getEditState().selection.offset).toBe(after.indexOf('<p'));
+  });
+
+  it('clears the selection when the element itself can no longer be found', () => {
+    const before = 'xx<p id="a">t</p>yy';
+    selectElement({ path: '/p/a.jsx', offset: 2, stamp: '/p/a.jsx:2', tag: 'p' });
+    rebaseSelection('/p/a.jsx', before, 'zz<span>t</span>ww');
+    expect(getEditState().selection).toBeNull();
   });
 });
