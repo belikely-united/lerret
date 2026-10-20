@@ -230,8 +230,7 @@
   position: absolute;
   z-index: 5;
   width: 240px;
-  max-height: min(420px, calc(100% - 120px));
-  overflow-y: auto;
+  max-height: calc(100% - 120px);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -254,6 +253,21 @@
   color: var(--lm-text-tertiary, #6B6B6B);
 }
 .lm-wf-menu__hint { padding: 0 10px 6px; }
+/* The designs list scrolls on its own (a soft fade at its foot hints at
+   more), so Upload and Finish always stay visible. */
+.lm-wf-menu__designs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 0 1 auto;
+  min-height: 72px;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+}
+.lm-wf-menu > :not(.lm-wf-menu__designs) { flex-shrink: 0; }
 .lm-wf-partial { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .lm-wf-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden; }
 label.lm-wf-add { cursor: pointer; }

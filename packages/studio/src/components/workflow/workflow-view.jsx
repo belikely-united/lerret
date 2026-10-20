@@ -523,9 +523,11 @@ function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
     const h = el.offsetHeight;
     const flipX = menu.x + w > parent.clientWidth - 12;
     const flipY = menu.y + h > parent.clientHeight - 96;
+    // Flip up near the bottom, but never past the top or under the dock.
+    const top = flipY ? menu.y - h : menu.y;
     setPos({
       left: flipX ? Math.max(12, menu.x - w) : menu.x,
-      top: flipY ? Math.max(12, menu.y - h) : menu.y,
+      top: Math.max(12, Math.min(top, parent.clientHeight - 96 - h)),
       origin: `${flipX ? '100%' : '0'} ${flipY ? '100%' : '0'}`,
     });
     el.querySelector('[role="menuitem"]')?.focus();
@@ -562,12 +564,15 @@ function AddMenu({ menu, designs, canFinish, onUpload, onDesign, onFinish }) {
       {designs.length === 0 ? (
         <p className="lm-wf-hint lm-wf-menu__hint">No designs on this page yet.</p>
       ) : (
-        designs.map((e) => (
-          <button key={designKey(e)} type="button" role="menuitem" className="lm-wf-add" onClick={() => onDesign(e)} data-testid="lm-wf-add-design">
-            <span className="lm-wf-dot lm-wf-dot--design" />
-            {e.label || baseName(e.asset.path)}
-          </button>
-        ))
+        // Only the designs scroll — Upload and Finish stay in view.
+        <div className="lm-wf-menu__designs" data-testid="lm-wf-menu-designs">
+          {designs.map((e) => (
+            <button key={designKey(e)} type="button" role="menuitem" className="lm-wf-add" onClick={() => onDesign(e)} data-testid="lm-wf-add-design">
+              <span className="lm-wf-dot lm-wf-dot--design" />
+              {e.label || baseName(e.asset.path)}
+            </button>
+          ))}
+        </div>
       )}
       {canFinish && (
         <>
