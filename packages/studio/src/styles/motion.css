@@ -132,6 +132,38 @@ button.lm-focusable:not(:disabled):active { scale: 0.97; }
   .lm-create-choice:not(.lm-seg--on):hover { background: var(--lm-bg-tertiary, #EBEBEB) !important; }
 }
 .lm-create-choice:active { scale: 0.97; }
+/* Format rows hold their own buttons — the row itself shouldn't dip. */
+div.lm-create-choice:active { scale: none; }
+
+/* A format's count stepper fades in as the format is picked. */
+.lm-create-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--lm-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--lm-accent-text, #111111);
+  transition:
+    opacity var(--lm-duration-fast) var(--lm-ease),
+    scale var(--lm-duration-fast) var(--lm-ease);
+}
+@starting-style {
+  .lm-create-stepper { opacity: 0; scale: 0.95; }
+}
+.lm-create-stepper > span { min-width: 18px; text-align: center; font-weight: 600; }
+.lm-create-stepper > button {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: var(--lm-bg-primary, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lm-create-stepper > button:disabled { opacity: 0.4; cursor: default; }
 
 /* ---------- Reduced motion: keep the fades, drop movement ---------- */
 @media (prefers-reduced-motion: reduce) {
@@ -146,7 +178,8 @@ button.lm-focusable:not(:disabled):active { scale: 0.97; }
   .lm-ollama-guide,
   [data-testid="walkthrough-overlay"] [role="dialog"],
   [data-testid="walkthrough-offer"],
-  .lm-create-step {
+  .lm-create-step,
+  .lm-create-stepper {
     transition-property: opacity;
   }
   button.lm-focusable:not(:disabled):active,

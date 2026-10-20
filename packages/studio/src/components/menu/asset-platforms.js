@@ -15,13 +15,16 @@
  * @property {string} label   Short human name ("Story", "Feed post").
  * @property {number} width   Pixels.
  * @property {number} height  Pixels.
+ * @property {number} [defaultCount]  How many of this format a typical
+ *   listing needs (5 store screenshots, 1 hero) — pre-selected in the New
+ *   asset dialog. Absent = not pre-selected.
  */
 
 /**
  * @typedef {object} AssetPlatform
  * @property {string} id
  * @property {string} label
- * @property {ReadonlyArray<AssetFormat>} formats  First entry is the default pick.
+ * @property {ReadonlyArray<AssetFormat>} formats  First entry is the fallback pick.
  */
 
 /** @type {ReadonlyArray<AssetPlatform>} */
@@ -30,7 +33,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'instagram',
     label: 'Instagram',
     formats: [
-      { id: 'post-portrait', label: 'Post · portrait', width: 1080, height: 1350 },
+      { id: 'post-portrait', label: 'Post · portrait', width: 1080, height: 1350, defaultCount: 1 },
       { id: 'post-square', label: 'Post · square', width: 1080, height: 1080 },
       { id: 'post-grid', label: 'Post · 3:4 grid', width: 1080, height: 1440 },
       { id: 'story', label: 'Story', width: 1080, height: 1920 },
@@ -43,7 +46,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'facebook',
     label: 'Facebook',
     formats: [
-      { id: 'post-square', label: 'Feed post · square', width: 1080, height: 1080 },
+      { id: 'post-square', label: 'Feed post · square', width: 1080, height: 1080, defaultCount: 1 },
       { id: 'post-portrait', label: 'Feed post · portrait', width: 1080, height: 1350 },
       { id: 'link', label: 'Link share', width: 1200, height: 630 },
       { id: 'story', label: 'Story', width: 1080, height: 1920 },
@@ -55,7 +58,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'linkedin',
     label: 'LinkedIn',
     formats: [
-      { id: 'post-square', label: 'Post · square', width: 1200, height: 1200 },
+      { id: 'post-square', label: 'Post · square', width: 1200, height: 1200, defaultCount: 1 },
       { id: 'post-portrait', label: 'Post · portrait', width: 1080, height: 1350 },
       { id: 'post-landscape', label: 'Post · landscape', width: 1200, height: 627 },
       { id: 'article', label: 'Article cover', width: 1920, height: 1080 },
@@ -67,7 +70,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'x',
     label: 'X (Twitter)',
     formats: [
-      { id: 'post-landscape', label: 'Post · landscape', width: 1600, height: 900 },
+      { id: 'post-landscape', label: 'Post · landscape', width: 1600, height: 900, defaultCount: 1 },
       { id: 'post-square', label: 'Post · square', width: 1080, height: 1080 },
       { id: 'card', label: 'Link card', width: 1200, height: 628 },
       { id: 'header', label: 'Header', width: 1500, height: 500 },
@@ -77,8 +80,8 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'producthunt',
     label: 'Product Hunt',
     formats: [
-      { id: 'gallery', label: 'Gallery image', width: 1270, height: 760 },
-      { id: 'thumbnail', label: 'Thumbnail', width: 240, height: 240 },
+      { id: 'gallery', label: 'Gallery image', width: 1270, height: 760, defaultCount: 5 },
+      { id: 'thumbnail', label: 'Thumbnail', width: 240, height: 240, defaultCount: 1 },
       { id: 'social', label: 'Launch social card', width: 1200, height: 630 },
     ],
   },
@@ -86,7 +89,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'appstore',
     label: 'App Store',
     formats: [
-      { id: 'iphone-69', label: 'iPhone 6.9″ screenshot', width: 1320, height: 2868 },
+      { id: 'iphone-69', label: 'iPhone 6.9″ screenshot', width: 1320, height: 2868, defaultCount: 5 },
       { id: 'iphone-65', label: 'iPhone 6.5″ screenshot', width: 1284, height: 2778 },
       { id: 'ipad-13', label: 'iPad 13″ screenshot', width: 2064, height: 2752 },
       { id: 'mac', label: 'Mac screenshot', width: 2880, height: 1800 },
@@ -97,10 +100,10 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'playstore',
     label: 'Google Play',
     formats: [
-      { id: 'phone', label: 'Phone screenshot', width: 1080, height: 1920 },
+      { id: 'phone', label: 'Phone screenshot', width: 1080, height: 1920, defaultCount: 5 },
       { id: 'tablet', label: 'Tablet screenshot', width: 1600, height: 2560 },
-      { id: 'feature', label: 'Feature graphic', width: 1024, height: 500 },
-      { id: 'icon', label: 'App icon', width: 512, height: 512 },
+      { id: 'feature', label: 'Feature graphic', width: 1024, height: 500, defaultCount: 1 },
+      { id: 'icon', label: 'App icon', width: 512, height: 512, defaultCount: 1 },
     ],
   },
   {
@@ -108,10 +111,10 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'microsoftstore',
     label: 'Microsoft Store',
     formats: [
-      { id: 'screenshot', label: 'Desktop screenshot', width: 1920, height: 1080 },
+      { id: 'screenshot', label: 'Desktop screenshot', width: 1920, height: 1080, defaultCount: 5 },
       { id: 'screenshot-4k', label: 'Desktop screenshot · 4K', width: 3840, height: 2160 },
-      { id: 'hero', label: 'Hero art', width: 1920, height: 1080 },
-      { id: 'poster', label: 'Poster art', width: 1440, height: 2160 },
+      { id: 'hero', label: 'Hero art', width: 1920, height: 1080, defaultCount: 1 },
+      { id: 'poster', label: 'Poster art', width: 1440, height: 2160, defaultCount: 1 },
       { id: 'box', label: 'Box art', width: 2160, height: 2160 },
       { id: 'logo', label: 'Store logo', width: 300, height: 300 },
     ],
@@ -120,7 +123,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'youtube',
     label: 'YouTube',
     formats: [
-      { id: 'thumbnail', label: 'Video thumbnail', width: 1280, height: 720 },
+      { id: 'thumbnail', label: 'Video thumbnail', width: 1280, height: 720, defaultCount: 1 },
       { id: 'shorts', label: 'Shorts cover', width: 1080, height: 1920 },
       { id: 'banner', label: 'Channel banner', width: 2560, height: 1440 },
       { id: 'post', label: 'Community post', width: 1080, height: 1080 },
@@ -130,7 +133,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'pinterest',
     label: 'Pinterest',
     formats: [
-      { id: 'pin', label: 'Standard pin', width: 1000, height: 1500 },
+      { id: 'pin', label: 'Standard pin', width: 1000, height: 1500, defaultCount: 1 },
       { id: 'square', label: 'Square pin', width: 1000, height: 1000 },
       { id: 'long', label: 'Long pin', width: 1000, height: 2100 },
     ],
@@ -139,7 +142,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'tiktok',
     label: 'TikTok',
     formats: [
-      { id: 'cover', label: 'Video cover', width: 1080, height: 1920 },
+      { id: 'cover', label: 'Video cover', width: 1080, height: 1920, defaultCount: 1 },
       { id: 'profile', label: 'Profile photo', width: 200, height: 200 },
     ],
   },
@@ -147,7 +150,7 @@ export const ASSET_PLATFORMS = Object.freeze([
     id: 'web',
     label: 'Web & email',
     formats: [
-      { id: 'og', label: 'Open Graph image', width: 1200, height: 630 },
+      { id: 'og', label: 'Open Graph image', width: 1200, height: 630, defaultCount: 1 },
       { id: 'hero', label: 'Hero banner', width: 1920, height: 1080 },
       { id: 'slide', label: 'Slide · 16:9', width: 1920, height: 1080 },
       { id: 'email', label: 'Email header', width: 600, height: 200 },
@@ -189,4 +192,62 @@ export function formatRatio(width, height) {
   if (w <= 21 && h <= 21) return `${w}:${h}`;
   const r = width / height;
   return r >= 1 ? `${trimDecimals(r)}:1` : `1:${trimDecimals(1 / r)}`;
+}
+
+/** The most of one format a single "New asset" set can make. */
+export const MAX_FORMAT_COUNT = 10;
+
+/**
+ * The pre-selected count per format for a platform — each format's
+ * `defaultCount`, or just one of the first format when none declares one.
+ *
+ * @param {AssetPlatform} platform
+ * @returns {Record<string, number>}
+ */
+export function defaultFormatCounts(platform) {
+  const counts = {};
+  for (const f of platform.formats) if (f.defaultCount) counts[f.id] = f.defaultCount;
+  if (Object.keys(counts).length === 0 && platform.formats[0]) counts[platform.formats[0].id] = 1;
+  return counts;
+}
+
+/** `Desktop screenshot · 4K` → `desktop-screenshot-4k`. */
+function slugLabel(label) {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'asset';
+}
+
+/**
+ * Expand per-format counts into the assets to create, in the platform's format
+ * order: one `hero-art`, or `desktop-screenshot-1` … `-5` when a format repeats.
+ *
+ * @param {AssetPlatform} platform
+ * @param {Record<string, number>} counts
+ * @returns {Array<{ name: string, formatId: string, dimensions: { width: number, height: number } }>}
+ */
+export function expandFormatSet(platform, counts) {
+  const items = [];
+  for (const f of platform.formats) {
+    const n = Math.max(0, Math.min(MAX_FORMAT_COUNT, Math.floor(counts[f.id] || 0)));
+    const base = slugLabel(f.label);
+    for (let i = 1; i <= n; i++) {
+      items.push({ name: n === 1 ? base : `${base}-${i}`, formatId: f.id, dimensions: { width: f.width, height: f.height } });
+    }
+  }
+  return items;
+}
+
+/**
+ * `base`, or `base 2`, `base 3`, … — the first not in `taken` (case-insensitive).
+ *
+ * @param {string} base
+ * @param {ReadonlyArray<string>} [taken]
+ * @returns {string}
+ */
+export function uniqueName(base, taken = []) {
+  const lower = new Set(taken.map((n) => String(n).toLowerCase()));
+  if (!lower.has(base.toLowerCase())) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base} ${i}`;
+    if (!lower.has(candidate.toLowerCase())) return candidate;
+  }
 }

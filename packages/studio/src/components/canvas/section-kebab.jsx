@@ -29,7 +29,7 @@ import {
  ConfirmDialog,
  SectionEditorHost,
  buildSectionItems,
- create,
+ createFromDialog,
  destroy,
  inCliMode,
  move,
@@ -298,11 +298,12 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  const onAddGroup = React.useCallback(() => setCreateKind('group'), []);
  const onAddAsset = React.useCallback(() => setCreateKind('asset'), []);
  const onConfirmCreate = React.useCallback(
- async ({ name, assetKind, dimensions, template }) => {
+ async (payload) => {
  if (!sectionId || !createKind) return;
- // 'group' creates a folder inside this section; 'asset' a starter file.
+ // 'group' creates a folder inside this section; 'asset' a starter file
+ // (or, for a multi-format set, a group of them).
  const endpointKind = createKind === 'asset' ? 'asset' : 'folder';
- const result = await create(sectionId, name, endpointKind, { assetKind, dimensions, template });
+ const result = await createFromDialog(sectionId, endpointKind, payload);
  if (!result?.ok) throw new Error(result?.error || 'Create failed');
  },
  [sectionId, createKind],

@@ -90,16 +90,19 @@ describe('CreateEntryDialog', () => {
     expect(q('[data-testid="lm-create-confirm"]')).toBeFalsy();
   });
 
-  it('picking a platform lists its formats, defaults to the first, and passes its size', async () => {
+  it('picking a platform pre-selects its usual format; one pick makes one asset', async () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={onConfirm} />);
     act(() => {
       q('[data-testid="lm-create-platform-instagram"]').click();
     });
     expect(q('[data-testid="lm-create-dialog"]').getAttribute('aria-label')).toBe('New Instagram asset');
-    expect(q('[data-testid="lm-create-format-post-portrait"]').getAttribute('aria-checked')).toBe('true');
+    expect(q('[data-testid="lm-create-format-toggle-post-portrait"]').getAttribute('aria-checked')).toBe('true');
     act(() => {
-      q('[data-testid="lm-create-format-story"]').click();
+      q('[data-testid="lm-create-format-toggle-post-portrait"]').click();
+    });
+    act(() => {
+      q('[data-testid="lm-create-format-toggle-story"]').click();
     });
     typeInput('launch-story');
     await act(async () => {
@@ -110,6 +113,49 @@ describe('CreateEntryDialog', () => {
       assetKind: 'component',
       dimensions: { width: 1080, height: 1920 },
     });
+  });
+
+  it('several formats make a set: counts, an auto group name, one item per asset', async () => {
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    renderToDom(
+      <CreateEntryDialog kind="asset" existingNames={['Microsoft Store']} onClose={vi.fn()} onConfirm={onConfirm} />,
+    );
+    act(() => {
+      q('[data-testid="lm-create-platform-microsoftstore"]').click();
+    });
+    expect(q('[data-testid="lm-create-format-count-screenshot"]').textContent).toBe('5');
+    expect(q('[data-testid="lm-create-format-count-hero"]').textContent).toBe('1');
+    expect(q('[data-testid="lm-create-name-input"]').value).toBe('Microsoft Store 2');
+    act(() => {
+      q('[data-testid="lm-create-format-dec-screenshot"]').click();
+    });
+    act(() => {
+      q('[data-testid="lm-create-format-toggle-poster"]').click();
+    });
+    expect(q('[data-testid="lm-create-confirm"]').textContent).toBe('Create 5 assets');
+    await act(async () => {
+      q('[data-testid="lm-create-confirm"]').click();
+    });
+    const payload = onConfirm.mock.calls[0][0];
+    expect(payload.name).toBe('Microsoft Store 2');
+    expect(payload.template).toBe('headline-phone');
+    expect(payload.set.map((i) => i.name)).toEqual([
+      'desktop-screenshot-1', 'desktop-screenshot-2', 'desktop-screenshot-3', 'desktop-screenshot-4', 'hero-art',
+    ]);
+    expect(payload.set[4].dimensions).toEqual({ width: 1920, height: 1080 });
+  });
+
+  it('turning every format off blocks Create', () => {
+    renderToDom(<CreateEntryDialog kind="asset" onClose={vi.fn()} onConfirm={vi.fn()} />);
+    act(() => {
+      q('[data-testid="lm-create-platform-instagram"]').click();
+    });
+    typeInput('x');
+    act(() => {
+      q('[data-testid="lm-create-format-toggle-post-portrait"]').click();
+    });
+    expect(q('[data-testid="lm-create-confirm"]').disabled).toBe(true);
+    expect(q('[data-testid="lm-create-size-error"]').textContent).toMatch(/at least one/);
   });
 
   it('Back returns to the platform grid', () => {

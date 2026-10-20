@@ -345,6 +345,33 @@ export async function create(parentPath, name, kind, opts = {}) {
 }
 
 /**
+ * Perform a CreateEntryDialog confirm. A plain payload creates one entry; a
+ * payload with `set` (several formats picked for one platform) creates a group
+ * named `name` and then each set item inside it, in order.
+ *
+ * @param {string} parentPath
+ * @param {'folder'|'asset'} kind
+ * @param {{ name: string, assetKind?: string, dimensions?: object, template?: string,
+ *   set?: Array<{ name: string, dimensions: { width: number, height: number } }> }} payload
+ * @returns {Promise<{ ok: boolean, path?: string, error?: string }>}
+ */
+export async function createFromDialog(parentPath, kind, payload) {
+ const { name, assetKind, dimensions, template, set } = payload;
+ if (kind !== 'asset' || !Array.isArray(set) || set.length === 0) {
+ return create(parentPath, name, kind, { assetKind, dimensions, template });
+ }
+ const group = await create(parentPath, name, 'folder');
+ if (!group.ok) return group;
+ const groupPath = group.path || `${parentPath.replace(/\/$/, '')}/${name}`;
+ for (const item of set) {
+ // Sequential, so the watcher sees the assets arrive in their listed order.
+ const r = await create(groupPath, item.name, 'asset', { assetKind: 'component', dimensions: item.dimensions, template });
+ if (!r.ok) return { ok: false, error: `Created “${name}”, but “${item.name}” failed: ${r.error || 'unknown error'}` };
+ }
+ return { ok: true, path: groupPath };
+}
+
+/**
  * Delete a path. Surfaces any failure through `console.warn`. The watcher
  * fires `remove` on success; the canvas reflects it.
  *
