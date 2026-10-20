@@ -14,6 +14,7 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 - The AI agent instructions explain the brand library (read `_brand/brand.json`, use it linked, fill it once from a link) and per-platform store image sets.
 
 ### Fixed
+- Design panel (text): the align buttons fill their row (no empty grey tail) and sit above Colour; Arrange adds **Bring forward** / **Send backward** (one layer at a time) next to Bring to front / Send to back.
 - Brand page editing: clicking a colour or text style opens an edit popover next to it (pick the colour, hex, name; or font, size, weight, line height, spacing, upload a font) — changes apply as you make them, with Delete inside; replaces the cramped inline forms. *+ Add* creates the item and opens its popover.
 - Workflow add menu on a page with many designs: only the designs list scrolls (with a fade hinting at more), so *Upload data file* and *Finish with* are always visible, and the menu always fits above the dock.
 - Hidden folders at the project root (e.g. `.workflows/`, where workflows are saved) no longer appear as pages when they are created while the studio is running — live updates now follow the same rule as the initial scan.
