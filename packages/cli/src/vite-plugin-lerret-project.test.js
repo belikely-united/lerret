@@ -484,6 +484,19 @@ describe('createWriteMiddleware — server-side write endpoint', () => {
     expect(written).toBe(payload);
   });
 
+  it('answers an over-size write with a readable error instead of dropping the connection', async () => {
+    const lerretDir = asLerretPath(lerretAbs);
+    const middleware = createWriteMiddleware({ lerretDir });
+
+    const result = await callMiddleware(middleware, {
+      body: JSON.stringify({ path: `${lerretDir}/big.json`, content: 'x'.repeat(6 * 1024 * 1024) }),
+    });
+
+    expect(result.status).toBe(400);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toMatch(/too large to save/);
+  });
+
   it('rejects POST with an outside-tree path with a calm JSON 400', async () => {
     const lerretDir = asLerretPath(lerretAbs);
     const middleware = createWriteMiddleware({ lerretDir });
