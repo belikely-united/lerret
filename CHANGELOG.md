@@ -8,6 +8,12 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.2.1 — 2026-10-28
+
+### Fixed
+
+- **`lerret dev` served a 404 from the npm package.** The release workflow packs with `pnpm pack`, which runs `prepack` but not `prepublishOnly`, so the pre-built studio (`dist-studio/`) was never built into the tarball. The studio build now runs on `prepack`.
+
 ## @lerret/cli 0.2.0 · @lerret/core 0.1.4 · create-lerret 0.1.5 — 2026-10-28
 
 ### Added
