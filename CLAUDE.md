@@ -60,7 +60,9 @@ release without a new commit, or publishing one package deliberately.
   After changing anything under `packages/studio/src`, run
   `pnpm --filter @lerret/cli build` before browser-verifying, or you are
   testing stale code.
-- `dist-studio/` is gitignored and rebuilt by `prepublishOnly`.
+- `dist-studio/` is gitignored and rebuilt by `prepack` (not `prepublishOnly`:
+  the release uses `pnpm pack`, which skips `prepublishOnly`, and 0.2.0 shipped
+  without the studio because of it).
 - Bugs that only appear when `dist-studio/` is served from inside
   `node_modules/` (i.e. the published CLI) are invisible in this repo, where it
   is not. `packages/cli/src/dist-studio-node-modules.smoke.test.js` stages the
