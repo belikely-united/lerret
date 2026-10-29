@@ -251,6 +251,42 @@ Studio exports use the **exact same** `captureArtboard` as `@lerret/cli export`
 (the CLI runs it in a headless Chromium), so output is pixel-faithful between the
 two — use either interchangeably.
 
+## Workflow mode
+
+Workflow mode fills **one design from a spreadsheet, in bulk** — one image per
+row. An HR team turns a single "Best Performer" certificate into thirty, one per
+employee; a shop turns one product card into a card for every item in the
+catalog export.
+
+Switch the dock from **Design** to **Workflow**. The page becomes a node graph:
+
+```
+[Spreadsheet] ──▶ [Design] ──▶ [Preview]
+                           └─▶ [Download]
+```
+
+Click anywhere on the empty canvas (the cursor shows ⊕) to add a step at that
+spot. The menu offers **Upload data file**, the page's designs, and — once there
+is a step — **Finish with** Preview or Download. Each new step connects to the
+one before it.
+
+| Node | What it does |
+|---|---|
+| **Spreadsheet** | Upload or drop an Excel (`.xlsx`) or CSV file; the first worksheet is read. On a page with a single design, the sheet connects to it automatically. Legacy `.xls` files need saving as `.xlsx` or CSV first. |
+| **Design** | Shows a thumbnail and every piece of text on the design. Pick which column replaces each one — the person's name is suggested for you. Works whether the text was typed in the editor or comes from the asset's data file. |
+| **Preview** | Every row as a thumbnail, with a lightbox to check each one. |
+| **Download** | PNG or JPG images in a ZIP (files named from a column you choose), or one combined PDF. Standard (1×) or High (2×) quality. |
+
+Each row renders with the design's own data, folder `vars` and fonts, and the
+text is checked before capture, so a placeholder is never exported by mistake.
+Custom fonts from `.lerret/_fonts/` are embedded in the output.
+
+Workflows are saved per page in `.lerret/.workflows/<page>.json`, so they live
+in git with the rest of the project. **Large spreadsheets** (thousands of rows)
+stay in memory for the session and are saved as their columns plus a sample —
+after a reload, the Spreadsheet step asks you to upload the file again. Preview
+shows the first 60 rows; Download renders them all.
+
 ## Live reload
 
 A file change on disk re-renders the affected artboard in well under a second.
