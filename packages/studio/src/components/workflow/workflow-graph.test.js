@@ -8,6 +8,7 @@ import {
   removeNode,
   inputOf,
   autoMap,
+  labelColumn,
   looksLikePersonName,
   replacementsFor,
   fileNamesFor,
@@ -69,6 +70,26 @@ describe('autoMap + replacementsFor', () => {
     const fields = [{ text: 'Certificate of Excellence' }, { text: 'Priya Sharma' }];
     expect(autoMap(fields, ['Employee Name', 'Dept'])).toEqual({ 'Priya Sharma': 'Employee Name' });
     expect(autoMap([{ text: 'Q3 2026' }], ['Score'])).toEqual({});
+  });
+
+  it('still suggests the name when another field matched its column', () => {
+    const fields = [
+      { text: 'Best Performer' },
+      { text: 'Jane Doe', prop: 'recipient' },
+      { text: 'Customer Success', prop: 'team' },
+      { text: 'Priya Raman', prop: 'signer' },
+    ];
+    expect(autoMap(fields, ['Name', 'Team', 'Quarter'])).toEqual({ 'Customer Success': 'Team', 'Jane Doe': 'Name' });
+  });
+
+  it('never gives the name column to a text that is already mapped', () => {
+    expect(autoMap([{ text: 'Ada Lovelace', prop: 'team' }], ['Team', 'Name'])).toEqual({ 'Ada Lovelace': 'Team' });
+  });
+
+  it('labels rows by the mapped name column, not whichever was mapped first', () => {
+    expect(labelColumn({ 'Customer Success': 'Team', 'Jane Doe': 'Name' }, ['Name', 'Team'])).toBe('Name');
+    expect(labelColumn({ 'Customer Success': 'Team' }, ['Name', 'Team'])).toBe('Team');
+    expect(labelColumn({}, ['Name', 'Team'])).toBe('Name');
   });
 
   it('builds a row\'s replacements', () => {
