@@ -1,6 +1,6 @@
 ---
 title: The Studio
-description: The Lerret studio — canvas, in-place editors, right-click menus, project switching, validation, and export.
+description: The Lerret studio — canvas, in-place editors, right-click menus, project switching, validation, export, and Workflow mode.
 ---
 
 # The Studio
@@ -253,39 +253,133 @@ two — use either interchangeably.
 
 ## Workflow mode
 
-Workflow mode fills **one design from a spreadsheet, in bulk** — one image per
-row. An HR team turns a single "Best Performer" certificate into thirty, one per
-employee; a shop turns one product card into a card for every item in the
-catalog export.
+Workflow mode turns **one design into many** — one image per row of a
+spreadsheet. You design the template once, point it at an Excel or CSV file, and
+Lerret fills in the text for every row and hands you the finished files.
 
-Switch the dock from **Design** to **Workflow**. The page becomes a node graph:
+![Workflow mode: a Spreadsheet of employees feeds a Best Performer certificate design, which connects to a Preview of eight filled-in certificates and a Download step](/studio/workflow-overview.png)
 
-```
-[Spreadsheet] ──▶ [Design] ──▶ [Preview]
-                           └─▶ [Download]
-```
+The screenshot above is a complete workflow: an `employees.csv` with eight
+people feeds a **Best Performer** certificate, and the result is previewed and
+downloaded as eight certificates — one per person, each with their own name,
+team and quarter.
 
-Click anywhere on the empty canvas (the cursor shows ⊕) to add a step at that
-spot. The menu offers **Upload data file**, the page's designs, and — once there
-is a step — **Finish with** Preview or Download. Each new step connects to the
-one before it.
+### What it's for
 
-| Node | What it does |
+Use Workflow mode whenever the **layout stays the same and only the text
+changes**:
+
+| You have… | You get… |
 |---|---|
-| **Spreadsheet** | Upload or drop an Excel (`.xlsx`) or CSV file; the first worksheet is read. On a page with a single design, the sheet connects to it automatically. Legacy `.xls` files need saving as `.xlsx` or CSV first. |
-| **Design** | Shows a thumbnail and every piece of text on the design. Pick which column replaces each one — the person's name is suggested for you. Works whether the text was typed in the editor or comes from the asset's data file. |
-| **Preview** | Every row as a thumbnail, with a lightbox to check each one. |
-| **Download** | PNG or JPG images in a ZIP (files named from a column you choose), or one combined PDF. Standard (1×) or High (2×) quality. |
+| A list of employees, winners or attendees | A certificate, award or badge for each person |
+| A product catalog export | A product card or listing image for every item |
+| A speaker or session list | A title card for every talk |
+| A list of team members | Matching profile or welcome cards |
+| A sheet of translated headlines | The same social card in every language |
+| Event or course rosters | Name tags, tickets or completion certificates |
 
-Each row renders with the design's own data, folder `vars` and fonts, and the
-text is checked before capture, so a placeholder is never exported by mistake.
-Custom fonts from `.lerret/_fonts/` are embedded in the output.
+No code and no scripting — if you can make one design and keep a spreadsheet,
+you can make a hundred.
 
-Workflows are saved per page in `.lerret/.workflows/<page>.json`, so they live
-in git with the rest of the project. **Large spreadsheets** (thousands of rows)
-stay in memory for the session and are saved as their columns plus a sample —
-after a reload, the Spreadsheet step asks you to upload the file again. Preview
-shows the first 60 rows; Download renders them all.
+### Step by step
+
+1. **Make the design.** Build it on a page as usual, with placeholder text
+   where the real values will go — `Jane Doe` for a name, `Customer Success`
+   for a team. Any design on the page can be used.
+2. **Switch to Workflow.** In the dock, switch **Design** to **Workflow**. The
+   page turns into an empty canvas for the steps of your workflow.
+3. **Add your spreadsheet.** Click anywhere on the canvas — the cursor shows ⊕
+   — and choose **Upload data file…**, or drop the file straight onto the
+   canvas.
+4. **Add the design.** Click to the right of the spreadsheet and pick the design
+   under **Designs on this page**. It connects to the spreadsheet
+   automatically.
+5. **Match text to columns.** In the Design step, choose which column replaces
+   each piece of text.
+6. **Finish.** Click again and choose **Preview** to check the results, and
+   **Download** to save the files.
+
+Each new step is placed where you click and connects to the step before it.
+
+<img src="/studio/workflow-add-menu.png" width={380} alt="The add menu that opens when you click the workflow canvas: Upload data file (Excel or CSV), Designs on this page, and Finish with Preview or Download" />
+
+The menu only offers what makes sense next: the **Finish with** options appear
+once there's a step to finish.
+
+### The steps
+
+#### Spreadsheet
+
+<img src="/studio/workflow-spreadsheet.png" width={315} alt="A Spreadsheet step showing employees.csv with 8 rows and its Name, Team and Quarter columns" />
+
+Holds your data. Upload or drop an **Excel (`.xlsx`)** or **CSV** file; Lerret
+reads the first worksheet and uses the first row as column names. The step shows
+the file name, the row count and a peek at the first rows so you can check it
+read correctly.
+
+- The first row must be the column headings (`Name`, `Team`, …).
+- Older `.xls` files aren't supported — save as `.xlsx` or CSV first.
+- On a page with a single design, the spreadsheet connects to it for you.
+
+#### Design
+
+<img src="/studio/workflow-design.png" width={315} alt="A Design step for the Best Performer certificate: a thumbnail, then every piece of text with a dropdown — Jane Doe mapped to Name, Customer Success to Team, Q3 2026 to Quarter, the rest Keep as is" />
+
+Shows a thumbnail of the design and lists **every piece of text on it**. Next
+to each one, pick a column to replace it with, or leave it on **Keep as is**.
+
+In the example, `Jane Doe` becomes the **Name** column, `Customer Success`
+becomes **Team** and `Q3 2026` becomes **Quarter**; the heading, the signature
+and the labels stay the same on every certificate.
+
+- Lerret suggests matches where it can. Text that comes from a field in the
+  asset's data file is matched to the column with the same name — a `team`
+  field to a `Team` column. If nothing matched that way and the sheet has a
+  name column (`Name`, `Employee`, `Recipient`, …), it's offered to the text
+  that looks like a person's name, placeholder names like `Jane Doe` first.
+  Headings and ALL-CAPS text are never picked as a name. You can change any
+  suggestion.
+- It works whether the text was typed in the design editor or comes from the
+  asset's data file.
+- Fonts, colours, brand values and images all stay exactly as designed — only
+  the text you map changes.
+
+#### Preview
+
+<img src="/studio/workflow-preview.png" width={315} alt="A Preview step showing a grid of filled-in certificates labelled Aisha Khan, Marco Bellini, Sofia Nguyen, Daniel Okafor, Hannah Weiss and Ravi Menon" />
+
+Click **Preview** to render every row as a thumbnail, labelled with that row's
+name, so you can spot a long name that overflows or a missing value before you
+download anything. After changing the design or the mapping, click **Refresh
+previews**. For very large sheets, Preview shows the first 60 rows.
+
+#### Download
+
+<img src="/studio/workflow-download.png" width={315} alt="A Download step with Save as PNG images (ZIP), Quality Standard 1600px wide, Name files by Name, and a Download 8 files button" />
+
+Renders **every row** and saves the result:
+
+| Setting | Options |
+|---|---|
+| **Save as** | **PNG images (ZIP)**, **JPG images (ZIP)**, or **One PDF** with one page per row |
+| **Quality** | **Standard** — the design's own size — or **High · 2×** for print |
+| **Name files by** | Any column — e.g. `Aisha Khan.png`, `Marco Bellini.png`, … |
+
+Before each image is captured, Lerret checks the text was actually replaced, so
+a placeholder like `Jane Doe` is never exported by mistake. Custom fonts from
+`.lerret/_fonts/` are embedded in the output.
+
+### Saving and large spreadsheets
+
+Workflows are saved per page in `.lerret/.workflows/<page>.json` — the steps,
+how they're connected and your column choices — so they live in git with the
+rest of the project and are still there next time you open it. To remove a
+step, click its **×**.
+
+**Large spreadsheets** (thousands of rows) are kept in memory while you work and
+saved as just their columns plus a small sample. After a reload, the Spreadsheet
+step asks you to upload the file again; your column choices are kept. Download
+always renders every row.
 
 ## Live reload
 
