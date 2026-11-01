@@ -8,6 +8,12 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workflow Preview:** clicking a thumbnail opened a broken image for every row except the last. Each new thumbnail revoked the earlier thumbnails' image URLs. The URLs now stay valid until the next preview run or until the step is closed.
+- **Workflow name suggestion:** the person's name (e.g. `Jane Doe` → *Name*) is now suggested even when another text already matched its column through the design's data (e.g. a `team` field → *Team*). Previously any such match skipped the name.
+- **Workflow labels:** preview captions and the default *Name files by* column now use the mapped name column, not whichever column was mapped first.
+
 ## @lerret/cli 0.2.1 — 2026-10-28
 
 ### Fixed

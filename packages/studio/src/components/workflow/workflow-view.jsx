@@ -40,6 +40,7 @@ import {
   updateNode,
   inputOf,
   autoMap,
+  labelColumn,
   replacementsFor,
   fileNamesFor,
   parseWorkflow,
@@ -809,18 +810,27 @@ function PreviewBody({ node, ctx }) {
   const [items, setItems] = React.useState([]); // [{ name, url }]
   const [busy, setBusy] = React.useState(null);
   const [open, setOpen] = React.useState(null);
-  React.useEffect(() => () => items.forEach((it) => URL.revokeObjectURL(it.url)), [items]);
+  // Object URLs live until the next run or unmount. Revoking them whenever
+  // `items` changed broke every image but the last as soon as it was opened.
+  const urls = React.useRef([]);
+  const revokeAll = () => {
+    urls.current.forEach((url) => URL.revokeObjectURL(url));
+    urls.current = [];
+  };
+  React.useEffect(() => revokeAll, []);
   const run = async () => {
     if (src.error) return;
-    items.forEach((it) => URL.revokeObjectURL(it.url));
+    revokeAll();
+    setOpen(null);
     setItems([]);
-    const names = fileNamesFor(src.table.rows, src.table.headers, Object.values(src.design.mapping)[0], src.entry.label || 'Design');
+    const names = fileNamesFor(src.table.rows, src.table.headers, labelColumn(src.design.mapping, src.table.headers), src.entry.label || 'Design');
     const { width } = designSize(src.entry);
     const total = Math.min(src.table.rows.length, MAX_PREVIEW_ROWS);
     setBusy({ done: 0, total });
     try {
       await renderAll(ctx, src, { format: 'png', pixelRatio: Math.min(1, 640 / width), limit: MAX_PREVIEW_ROWS }, (i, blob) => {
         const url = URL.createObjectURL(blob);
+        urls.current.push(url);
         setItems((cur) => [...cur, { name: names[i], url }]);
         setBusy({ done: i + 1, total });
       });
@@ -869,7 +879,7 @@ function DownloadBody({ node, ctx }) {
   const headers = src.table?.headers || [];
   const nameColumn = node.nameColumn && headers.includes(node.nameColumn)
     ? node.nameColumn
-    : Object.values(src.design?.mapping || {})[0] || headers[0];
+    : labelColumn(src.design?.mapping, headers);
   const set = (patch) => ctx.setWf((cur) => updateNode(cur, node.id, patch));
 
   const run = async () => {

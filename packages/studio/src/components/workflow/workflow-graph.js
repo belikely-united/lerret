@@ -127,13 +127,29 @@ export function autoMap(fields, headers) {
       used.add(h);
     }
   }
+  // Offered even when other fields matched their columns (a `team` field to
+  // `Team`) — only a text that isn't mapped yet can take the name.
   const nameHeader = headers.find((h) => !used.has(h) && NAME_HEADERS.includes(norm(h)));
-  if (nameHeader && !Object.keys(mapping).length) {
+  if (nameHeader) {
+    const free = fields.filter((f) => !(f.text in mapping));
     const person =
-      fields.find((f) => PLACEHOLDER_NAMES.has(norm(f.text))) || fields.find((f) => looksLikePersonName(f.text));
+      free.find((f) => PLACEHOLDER_NAMES.has(norm(f.text))) || free.find((f) => looksLikePersonName(f.text));
     if (person) mapping[person.text] = nameHeader;
   }
   return mapping;
+}
+
+/**
+ * The column that labels each row (preview captions, default file names): a
+ * mapped name-like column, else the first mapped one, else the first column.
+ *
+ * @param {Record<string, string>} mapping
+ * @param {string[]} headers
+ * @returns {string | undefined}
+ */
+export function labelColumn(mapping, headers) {
+  const mapped = Object.values(mapping || {});
+  return mapped.find((h) => NAME_HEADERS.includes(norm(h))) || mapped[0] || headers[0];
 }
 
 /** Stand-in names designers type where a real name will go. */
