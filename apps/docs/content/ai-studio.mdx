@@ -5,6 +5,8 @@ description: Lerret's built-in AI agent — a brand-aware asset factory. Prompt 
 
 # AI in the Studio
 
+> **Switched off in the current release.** The agent's chat input is hidden from the dock in the current studio release; **AI settings** and **Revert AI history** are still in the brand menu. The rest of this page describes how the agent works. To design and edit with AI today, use the [Claude Code plugin](/ai-editing/#the-claude-code-plugin) (`/lerret`) or any AI coding tool on the project folder — see [Editing with AI Tools](/ai-editing/).
+
 Lerret has an AI agent built into the studio. You prompt it from the dock — *"re-theme the twitter banner to our brand"*, *"make a launch kit from this component"* — and it reads, writes, and restructures the files in your `.lerret/` folder for you. Because every asset is plain React and Markdown, the agent edits the exact same files you would.
 
 Think of it as a **brand-aware asset factory**: tell Lerret about your brand once, then ask for platform-specific assets and it generates them — anchored to your colors, type, and context.
@@ -47,7 +49,7 @@ Type what you want and press <kbd>Enter</kbd>.
 
 **Watch it work.** There's no diff to approve. As the agent runs, the dock narrates each real step — *Looking through .lerret/*, *Editing kit/banner.jsx — updating the headline colour* — with a running token count like `~12.4k tokens`. Edits land on the canvas the instant they're written, exactly the way a manual file save re-renders. A **Hide activity** toggle quiets the narration; a **Stop** button (or <kbd>Esc</kbd>) aborts the turn.
 
-**Undo cleanly.** Every turn is snapshotted *before* it touches a file. A **Revert** action undoes the whole turn, and the thread keeps a history you can step back through. Snapshots live in a gitignored `.lerret/.state/` sidecar, so they never pollute your commits.
+**Undo cleanly.** Every turn is snapshotted *before* it touches a file. A **Revert** action undoes the whole turn, and the thread keeps a history you can step back through. Snapshots live in the `.lerret/.state/` sidecar, a reserved folder that never shows up as a page. Lerret doesn't write a `.gitignore` for it — add `.lerret/.state/` to yours if you don't want snapshots committed.
 
 ## Agentic, by design
 
@@ -74,7 +76,7 @@ This is what makes it an asset *factory* rather than a generic chat box. Tell Le
 | `_design-system.md` | Colors, type, spacing, tokens — *"our orange"* resolves from here |
 | `_context.md` | What you're building, audience, voice |
 | `_memory.md` | Durable notes the agent should remember |
-| `_brand/` | A folder for logos, swatches, reference images |
+| `_brand/` | The [brand library](/studio/#brand-library) — `brand.json` (colours, text styles, logos) plus the logo files, edited on the studio's Brand page |
 
 Because these are real files — git-tracked, editable in your own editor — they're never opaque AI state. From there the agent generates **platform-specific assets** using Lerret's themed presets and data-file expansion: one component plus a `.data.json` becomes many artboards at once — a launch kit, a set of social variants — all on-brand, all in a single turn. (See [variants and data files](/concepts/) for the underlying mechanic.)
 
@@ -106,7 +108,7 @@ v0.1 is deliberately bounded:
 
 **Already shipped, outside the studio:** the [Claude Code plugin](/ai-editing/#the-claude-code-plugin) — `/lerret` (v0.2.3) from the Belikely United marketplace. It's a different shape from the in-studio agent: the plugin uses your own Claude Code session as the brain, so there's no API key and no subscription to Lerret, while the in-studio agent runs in the browser with your own provider key or a local Ollama. It's Claude Code-only and complements the studio agent rather than replacing it. See [Editing with AI Tools](/ai-editing/).
 
-Still deferred to a later release: animated / GIF export, and any background or server-side agent. There is no managed-subscription Lerret AI on the roadmap either — Lerret has no backend, by design.
+Still deferred to a later release: any background or server-side agent. (Animated export has shipped separately: the studio exports auto-refreshing artboards as WebP, GIF, APNG or MP4 — see [Export from the studio](/studio/#export-from-the-studio).) There is no managed-subscription Lerret AI on the roadmap either — Lerret has no backend, by design.
 
 ## What's next
 

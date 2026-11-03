@@ -91,22 +91,23 @@ export const meta = {
 };
 ```
 
-Descriptors observed in the shipped sample assets:
+Descriptor fields:
 
 | Field | Purpose |
 |---|---|
-| `type` | One of `'string'`, `'boolean'`, `'select'` (and others — the validator decides). Determines the input control in the in-studio data editor. |
+| `type` | One of `'string'`, `'number'`, `'boolean'`, or `'select'`. Determines the input control in the in-studio data editor and what the validator checks. |
 | `default` | The fallback value used by [four-tier prop resolution](/concepts/#four-tier-prop-resolution) at tier 3. |
 | `description` | Helper text rendered next to the field in the in-studio editor. |
 | `required` | When `true`, the props validator flags the artboard if the resolved prop is missing or empty. |
 | `options` | For `type: 'select'`, the list of permitted values. |
+| `min` / `max` | For `type: 'number'`, the allowed range. The validator flags values outside it. |
 
 The schema flows into two places:
 
 1. **The studio's in-place data editor** — generates a typed form from the schema so the user can edit props without touching code. Edits write back to `<Name>.data.json`.
 2. **The props validator** — runs on every artboard render. If a resolved prop fails its schema, the artboard shows a non-blocking validation badge.
 
-Only the `default` key inside each descriptor is read by the prop resolver — the rest (`type`, `required`, `options`) feed the editor and the validator.
+Only the `default` key inside each descriptor is read by the prop resolver — the rest (`type`, `required`, `options`, `min`, `max`) feed the editor and the validator.
 
 ### Tip: align the component's defaults with the schema
 
@@ -262,7 +263,8 @@ Rules:
 - Files in `_fonts/` with any other extension are ignored.
 - Subfolders inside `_fonts/` are ignored — fonts must sit at the top level of `_fonts/`.
 - The font is available to **every** asset in the project, regardless of where it lives in the page tree.
-- On `@lerret/cli export`, custom fonts are **fully embedded** into each PNG/JPG capture so the output matches the studio's render.
+- Custom fonts are **fully embedded** in every export — `@lerret/cli export`, the studio's PNG/JPG/ZIP exports, Export for App Store, and Workflow mode downloads — so the output matches the studio's render.
+- A font file uploaded from a text style on the studio's [Brand page](/studio/#brand-library) is saved into `_fonts/` too.
 
 ## Resources (images, JSON, CSS)
 
@@ -285,6 +287,7 @@ export default function Card() {
 A few caveats:
 
 - Imports are **relative to the component file** — not to `.lerret/` or to the project root.
+- For an image you reference by URL rather than `import`, build the URL from the module: `const heroSrc = new URL('./hero.png', import.meta.url).href;`. A plain string such as `src="./hero.png"` resolves against the studio page, not the component file, and 404s. Images added through the studio's Design panel use this `new URL(…)` form.
 - In hosted mode, the in-browser transformer handles `.jsx` / `.tsx` directly. For TypeScript-specific syntax (interfaces, type-only imports) you may want `.tsx` rather than `.jsx`.
 - Components stay portable — these imports are standard ES modules. Move the file out of `.lerret/` and into a regular React app and the imports still work.
 
@@ -316,6 +319,28 @@ Put values in `config.json` `vars`, reference with `var(--name)`:
 ```
 
 Edit `config.json`, every artboard inheriting it re-renders with the new values.
+
+### Using the brand library from code
+
+The studio's [brand library](/studio/#brand-library) is available to hand-written components as `brand-*` vars (see [Brand variables](/concepts/#brand-variables)) and logo files in `.lerret/_brand/`:
+
+```jsx
+// .lerret/social/launch-card.jsx — one folder below .lerret/, so one ../
+const logoSrc = new URL('../_brand/logo.png', import.meta.url).href;
+
+export default function LaunchCard() {
+  return (
+    <div style={{
+      background: 'var(--brand-primary, #2F5BFF)',
+      fontFamily: 'var(--brand-text-h1-font, Inter, sans-serif)',
+    }}>
+      <img src={logoSrc} alt="" />
+    </div>
+  );
+}
+```
+
+Use one `../` per folder level below `.lerret/`. Keep a fallback in each `var()` so the asset still renders if the brand value is missing.
 
 ### Variant explosion for theme matrices
 

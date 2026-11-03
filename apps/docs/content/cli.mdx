@@ -1,6 +1,6 @@
 ---
 title: CLI Reference
-description: dev and export — complete flag reference, exit codes, and examples.
+description: dev, export, and clear — complete flag reference, exit codes, and examples.
 ---
 
 # CLI Reference
@@ -193,6 +193,8 @@ Remove sample assets or whole subtrees from a project — the quickest way to wi
 
 Protected paths are never removed: `.lerret/config.json` and `.lerret/_fonts/`. Like every Lerret command, `clear` refuses to touch anything outside `.lerret/`.
 
+> **`--all` removes more than sample pages.** Only `config.json` and `_fonts/` are protected, so `--all` also deletes `_brand/` (the brand library and its logos), `.workflows/` (saved workflows), and `.state/` (AI snapshots). Run with `--dry-run` first, or pass the page folders you want to remove instead of `--all`. The `brand-*` vars stay in `config.json`.
+
 ## `create-lerret`
 
 Scaffolder for new Lerret projects — `create-*` is the npm convention for scaffolders.
@@ -214,6 +216,8 @@ npx create-lerret@latest <project-name> --preset producthunt # themed starter ki
 | `--no-samples` | Scaffold only `.lerret/config.json` (with `{ "vars": {} }`). No `_fonts/`, no sample pages, no sample artboards. The studio opens with a calm empty-but-correct canvas. |
 | `--preset <name>` | Scaffold a themed starter kit instead of the teaching preset. Valid: `acme`, `appstore`, `producthunt`, `social-media`, `talks`, `personal`, `live`. Unknown names error with the valid list. |
 | `--demo` | Scaffold the default teaching preset and immediately start the dev server with the first-run walkthrough. Mutually exclusive with `--preset` and `--no-samples`. |
+| `--no-ai-rules` | Skip every AI-tool integration file (`.claude/`, `.cursor/`, `.github/copilot-instructions.md`, `AGENTS.md`). See [Editing with AI Tools](/ai-editing/). |
+| `--ai-tools=<list>` | Write only the listed AI-tool integrations — a comma-separated list of `claude`, `cursor`, `copilot`, `agents` (default: all four). Mutually exclusive with `--no-ai-rules`. |
 
 ### Default output
 
@@ -248,4 +252,4 @@ The default scaffold is the five-page teaching preset — each page demonstrates
 
 `create-lerret` itself has **zero runtime dependencies** — the package contains the template and a single Node script. The npm runner (`npx` / `pnpm dlx` / etc.) needs to fetch the package the first time; once cached, scaffolding is offline-capable.
 
-The follow-up `npx @lerret/cli@latest dev` does need network to fetch Vite, React, and `@lerret/cli` the first time, but **never** makes outbound requests at runtime. After the first run, dev startup is offline-capable.
+The follow-up `npx @lerret/cli@latest dev` does need network to fetch Vite, React, and `@lerret/cli` the first time. After the first run, dev startup is offline-capable. At runtime the CLI makes one kind of outbound request: **brand import**, which fetches the website or store link you paste into the studio's brand setup (public addresses only). Separately, the studio page in your browser loads its UI fonts and the Design panel's font list from Google Fonts; without a connection those fall back to system fonts.

@@ -8,9 +8,9 @@ description: The Lerret studio — canvas, brand library, creating and editing d
 The Lerret studio is a **desktop-first React app**. It connects to a `.lerret/`
 folder, scans the project model, renders every asset as an artboard on a
 pan-and-zoom canvas, and watches the folder for changes. The same UI runs in all
-three [deploy modes](/deploy/); a few features that write outside a single file
-(the brand library, creating assets, reveal actions) need **CLI mode**
-(`@lerret/cli dev`).
+three [deploy modes](/deploy/); a few features — the brand library, dropping
+image files, reveal actions and recent projects — need **CLI mode**
+(`@lerret/cli dev`). See [CLI-only features](/deploy/#cli-only-features).
 
 ![The Lerret studio canvas — the ui-components page with a row of artboards, a nested buttons group, the dock along the bottom, and the zoom controls](/studio/canvas-overview.png)
 
@@ -153,8 +153,8 @@ A new project opens a **Set up your brand** popup with four steps: **Your app**,
 
 <img src="/studio/brand-setup.png" width={680} alt="The Set up your brand popup after importing lerret.io: it found 5 colours, the Geist font and 3 logo images, and filled in the name and tagline" />
 
-- **Import from a link** — paste your website, or an App Store or Microsoft
-  Store link, and click **Import**. Lerret reads the page and suggests your
+- **Import from a link** — paste your website, or an App Store, Google Play or
+  Microsoft Store link, and click **Import**. Lerret reads the page and suggests your
   name, tagline, colours, fonts and logos (or app icon). Nothing is saved until
   you've reviewed each step and clicked **Save brand**.
 - **Fill it in by hand** — or click **Skip for now** and come back later with
@@ -257,7 +257,8 @@ group**, and you can drag an artboard into it:
 
 <img src="/studio/create-empty-group.png" width={346} alt="An empty group named drafts on the canvas with + New asset and + New group buttons" />
 
-Creating writes to disk, so it runs in **CLI mode** (`@lerret/cli dev`).
+Creating writes to disk, so it needs a writable project: CLI mode
+(`@lerret/cli dev`), or a hosted folder you've given write access.
 
 ## Editing a design
 
@@ -296,7 +297,7 @@ of your **brand logos**:
 
 <img src="/studio/add-menu.png" width={220} alt="The + Add menu: Text, Image, Rectangle, Circle, Phone frame, and a Brand logos section with the Lerret logo" />
 
-**Dropping images** from your desktop:
+**Dropping images** from your desktop (CLI mode):
 
 - On the empty canvas — becomes a new asset sized to the image.
 - On an artboard — inserted as a new layer where you drop it.
@@ -308,8 +309,8 @@ Every change is written straight back to the asset's `.jsx` (or to its
 Untouched code is left byte-for-byte as it was. Images you add are copied into
 the asset's folder and referenced with `new URL('./image.png', import.meta.url)`.
 
-Saving edits needs the CLI. A studio that can't write files shows **Preview
-only** in the dock.
+Saving edits needs a writable project — CLI mode, or a hosted folder with write
+access. Without one, the dock shows **Preview only**.
 
 > Clicks inside an artboard always select, so components with their own
 > interactive controls (buttons, inputs) can't be operated in the studio.
@@ -568,7 +569,7 @@ a placeholder like `Jane Doe` is never exported by mistake. Custom fonts from
 
 Workflows are saved per page in `.lerret/.workflows/<page>.json` — the steps,
 how they're connected and your column choices — so they live in git with the
-rest of the project and are still there next time you open it. To remove a
+rest of the project and, in CLI mode, are still there next time you open it. To remove a
 step, click its **×**.
 
 **Large spreadsheets** (thousands of rows) are kept in memory while you work and

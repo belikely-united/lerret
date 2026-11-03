@@ -60,7 +60,8 @@ The `.lerret/` folder is the only thing Lerret cares about. Everything else in t
 |---|---|
 | `.lerret/config.json` | Project-root config. The `vars` block flows down the cascade as CSS-like variables. |
 | `.lerret/_fonts/` | Reserved folder. Any `.woff2` / `.woff` / `.ttf` / `.otf` here is auto-registered as a CSS `@font-face` rule. Available to every asset by its file name. |
-| `.lerret/social/` | A **page** — top-level non-underscore folders become pages on the canvas. |
+| `.lerret/_brand/` | Reserved folder for the [brand library](/studio/#brand-library) — `brand.json` plus logo files. Created by the studio the first time you set up (or skip) your brand; not in the scaffold. |
+| `.lerret/social/` | A **page** — top-level folders become pages on the canvas, except reserved ones whose names start with `_` or `.`. |
 | `*.jsx` | Each component file becomes an artboard. The default export is the primary variant; named exports become extra variants. |
 | `*.data.json` | Co-located data file for an asset (here, `og-card.data.json`). Overrides component props at runtime. |
 | `*.config.json` (next to an asset) | Co-located per-asset config — e.g. `clock.config.json` sets an `autoRefresh` interval. |
@@ -84,7 +85,13 @@ Valid names: `acme` (brand starter kit), `appstore` (App Store screenshots), `pr
 <PM cmd={`cd my-canvas
 npx @lerret/cli@latest dev`} />
 
-The Vite dev server boots and your default browser opens to the studio. You should see the five teaching pages on the canvas — a welcome note, a landing hero, social cards (an OG card plus an X banner in three variants), a business card, and two live auto-refreshing demos — each artboard rendered at its real pixel dimensions.
+The Vite dev server boots and your default browser opens to the studio. The page picker in the dock lists the five teaching pages — a welcome note, a landing hero, social cards (an OG card plus an X banner in three variants), a business card, and two live auto-refreshing demos — each artboard rendered at its real pixel dimensions.
+
+### First launch
+
+The first time a project opens in CLI mode, the studio shows **Set up your brand**. Paste your website or an App Store, Google Play or Microsoft Store link and click **Import** to fill in your name, colours, fonts and logos, or fill them in by hand, or click **Skip for now**. Skipping still writes `.lerret/_brand/brand.json` (marked as skipped) so the popup doesn't come back; reopen it any time with **Set up / import…** on the Brand page. After that the studio offers **Take the tour?**, a short guided walkthrough.
+
+The page list always starts with a pinned, built-in **Brand** page — the [brand library](/studio/#brand-library), stored in `.lerret/_brand/`. It is separate from the teaching kit's own `brand/` page, which is an ordinary folder of sample assets that demonstrates props schemas.
 
 ### Common flags
 
@@ -250,7 +257,7 @@ See [CLI Reference](/cli/#lerretcli-export) for the full flag list, including th
 - **[Concepts](/concepts/)** — the mental model: pages, groups, variants, the four-tier prop cascade.
 - **[Authoring Assets](/authoring/)** — the full guide to writing components, schemas, data files, and fonts.
 - **[Examples](/examples/)** — sixteen runnable patterns to copy and adapt: OG cards, YouTube thumbnails, repo cards, release graphics, more.
-- **[CLI Reference](/cli/)** — every flag and exit code for `dev` and `export`.
+- **[CLI Reference](/cli/)** — every flag and exit code for `dev`, `export`, and `clear`.
 - **[Deployment](/deploy/)** — local CLI, hosted browser, or self-hosted static studio.
 
 Welcome to Lerret.
