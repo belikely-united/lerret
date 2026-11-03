@@ -1,6 +1,6 @@
 ---
 title: The Studio
-description: The Lerret studio — canvas, in-place editors, right-click menus, project switching, validation, export, and Workflow mode.
+description: The Lerret studio — canvas, brand library, creating and editing designs, right-click menus, in-place editors, export, App Store export, and Workflow mode.
 ---
 
 # The Studio
@@ -8,14 +8,27 @@ description: The Lerret studio — canvas, in-place editors, right-click menus, 
 The Lerret studio is a **desktop-first React app**. It connects to a `.lerret/`
 folder, scans the project model, renders every asset as an artboard on a
 pan-and-zoom canvas, and watches the folder for changes. The same UI runs in all
-three [deploy modes](/deploy/).
+three [deploy modes](/deploy/); a few features — the brand library, dropping
+image files, reveal actions and recent projects — need **CLI mode**
+(`@lerret/cli dev`). See [CLI-only features](/deploy/#cli-only-features).
 
-![The Lerret studio canvas — a page of artboards with the dock, mini-map, and zoom controls](/studio/canvas-overview.png)
+![The Lerret studio canvas — the ui-components page with a row of artboards, a nested buttons group, the dock along the bottom, and the zoom controls](/studio/canvas-overview.png)
 
 The screenshot above is the whole studio at a glance: the **`ui-components`**
 page holding a row of artboards — badge variants, a vars-driven brand card, a
-live clock, a font specimen, a hero banner, a pricing tile — with the **dock**
-along the bottom and the **mini-map** and **zoom** controls in the corners.
+live clock, a font specimen, a hero banner, a pricing tile, a Markdown note —
+and a nested **`buttons`** group below it. Along the bottom is the **dock**:
+
+| Dock control | What it does |
+|---|---|
+| **Lerret** (brand menu) | Switch or close the project, AI settings, whole-project export, download the logo, take the tour. |
+| **Page picker** | Jump between pages, the built-in **Brand** page, or create a new page. |
+| **Design / Workflow** | Switch between editing designs on the canvas and [Workflow mode](#workflow-mode). |
+| **+ Add** | Add text, an image, a shape, a phone frame or a brand logo to the selected design. |
+| **↶ / ↷** | Undo and redo design edits. |
+
+The **zoom** controls sit in the bottom-right corner, and a **mini-map** appears
+in the bottom-left whenever the page is bigger than the window.
 
 ## Connecting a project
 
@@ -23,7 +36,7 @@ What you see first depends on the mode:
 
 | Mode | First screen |
 |---|---|
-| **CLI** (`@lerret/cli dev <path>`) | The canvas, with the resolved project loaded. |
+| **CLI** (`@lerret/cli dev --folder <path>`) | The canvas, with the resolved project loaded. |
 | **CLI** (launched with no project) | The **connect screen** — paste a folder path or pick a recent project. |
 | **Hosted** (browser) | The **open-folder** screen — one button that calls `showDirectoryPicker()`. |
 
@@ -31,7 +44,7 @@ In CLI mode the studio is a long-lived server you **point at folders**. With no
 project connected, the connect screen lets you open one without touching the
 terminal:
 
-![The connect-a-project screen with a folder path field and a Recent Projects list](/studio/connect-screen.png)
+<img src="/studio/connect-screen.png" width={518} alt="The Connect a project screen with a folder path field, a Connect button, and a Recent projects list" />
 
 - Type or paste an absolute folder path and press **Connect** (the local CLI
   walks up to find the `.lerret/`).
@@ -43,7 +56,11 @@ inline "no project found" message, never a blank screen. In hosted mode the
 first open of a folder shows a one-time **trust acknowledgement** before any of
 your code runs (persisted in the browser, never written into your folder).
 
-> Already inside a project and want a different one? Use **Switch project…** in
+The first time a project opens in CLI mode, the studio asks you to
+[set up your brand](#brand-library) and then offers a short guided tour. Both
+can be skipped, and both are available again later.
+
+> Already inside a project and want a different one? Use **Switch project** in
 > the brand menu — see [Switching projects](#switching-projects).
 
 ## The canvas
@@ -58,29 +75,40 @@ Each artboard:
 - Has its own **error boundary** — one broken artboard fails alone with an
   error card; the rest of the canvas keeps rendering.
 - Updates **in place** when its file changes (see [Live reload](#live-reload)).
+- Shows its controls when you hover its label row: **JPG** / **PNG** download,
+  **focus view** (⤢), the **size chip** (e.g. `640×280`) and **Data**.
 
 **Getting around:**
 
 - **Pan** — drag the empty canvas, or middle-drag anywhere.
-- **Zoom** — scroll/pinch, or the bottom-right controls: `−` / `+`, the **%**
+- **Zoom** — scroll/pinch, or the bottom-right controls: `+` / `−`, the **%**
   readout (click to reset to 100%, or <kbd>Shift</kbd>+<kbd>0</kbd>), and
   **Fit** (frame everything, or <kbd>Shift</kbd>+<kbd>1</kbd>).
 - **Mini-map** — the overview in the bottom-left; click or drag it to jump
-  anywhere, so you're never lost in a large project.
+  anywhere. It hides itself when the whole page already fits on screen.
 
 ## Pages, groups & artboards
 
 The folder tree *is* the structure. A top-level folder under `.lerret/` is a
-**page**; folders nested inside are **groups**; sub-groups nest visually inside
-their parent's frame. Switch between pages from the **page picker** in the dock:
+**page**; folders nested inside are **groups**. A page is drawn as a heading
+with its artboards directly on the canvas; a group is a soft frame with a folder
+tab showing its name and contents (`Group · 2 assets · 1 group`), and sub-groups
+nest inside their parent's frame. Switch between pages from the **page picker**
+in the dock:
 
-![The page picker dropdown listing the project's pages plus New page](/studio/page-picker.png)
+<img src="/studio/page-picker.png" width={252} alt="The page picker listing the pinned Brand library page, the project's pages with rename and delete buttons, and New page" />
+
+The built-in **Brand** page is always pinned first — see
+[Brand library](#brand-library). Each page row has rename (✎) and delete
+buttons; renaming a page or group renames its real folder on disk.
+
+Root folders whose names start with `_` or `.` (such as `_fonts/`, `_brand/`
+and `.workflows/`) are reserved and never appear as pages.
 
 A group can set a `presentation.background` (and `presentation.color`) in its
-`config.json` to tint its section, and expose custom `vars` — like the
-`--brandColor` the Brand Card above reads. Pages, groups, and assets sort
-**alphabetically**; prefix names like `01-intro`, `02-pricing` to control order,
-or drag to reorder (below).
+`config.json` to tint its frame, and expose custom `vars` — like the
+`--brandColor` the Brand Card above reads. A page's background paints the whole
+canvas.
 
 ### Variants — one file, many artboards
 
@@ -96,119 +124,273 @@ Here `BadgeVariants.jsx` exports `default` (Default) plus `Ghost`, `Outline`, an
 variants differ in *structure*, and **data-file variants** (same component,
 different `.data.json` slice) when they differ only in *content*.
 
-### Reordering
+To add a variant without writing code, choose **New variant…** from an
+artboard's menu: it adds another export of the same component with its own slot
+in the data file, so you can change its content independently.
 
-- **Artboards** — grab the grip on an artboard's label row and drag, or focus it
-  and use <kbd>←</kbd> / <kbd>→</kbd>.
-- **Top-level groups** — grab a group's grip to drag it into a new order on the
-  page. Custom order is saved per page.
+### Ordering
+
+- **Artboards** — grab the grip (⠿) on an artboard's label row and drag, or
+  focus it and use <kbd>←</kbd> / <kbd>→</kbd>.
+- **Groups** — grab a group's grip to drag it into a new order on the page.
+- **Into another group** — drag an artboard onto a different group to move the
+  file there.
+
+Without a custom order, pages, groups and assets sort **alphabetically**. Once
+you drag, the order is **saved in the project**: it's written to the folder's
+`config.json` as `"order"` (it is not inherited by sub-folders), so everyone who
+opens the project sees the same arrangement.
+
+## Brand library
+
+The brand library holds the colours, text styles and logos that every design in
+the project shares. Set it once, and every design that uses it stays in sync.
+
+### Set up your brand
+
+A new project opens a **Set up your brand** popup with four steps: **Your app**,
+**Colours**, **Text styles** and **Logos**.
+
+<img src="/studio/brand-setup.png" width={680} alt="The Set up your brand popup after importing lerret.io: it found 5 colours, the Geist font and 3 logo images, and filled in the name and tagline" />
+
+- **Import from a link** — paste your website, or an App Store, Google Play or
+  Microsoft Store link, and click **Import**. Lerret reads the page and suggests your
+  name, tagline, colours, fonts and logos (or app icon). Nothing is saved until
+  you've reviewed each step and clicked **Save brand**.
+- **Fill it in by hand** — or click **Skip for now** and come back later with
+  **Set up / import…** on the Brand page.
+
+Import runs through the local CLI, which fetches the page for you (public
+addresses only). A site's private fonts are swapped for the closest free Google
+font so text styles render.
+
+### The Brand page
+
+The **Brand** page, pinned first in the page picker, is where you edit the
+library afterwards:
+
+![The Brand page: five colours (Paper, Primary, Secondary, Accent, Ink) and text styles from Display to Caption, each previewed in the Geist font](/studio/brand-page.png)
+
+- **Colours** — any number, each with a name and hex value. Click a swatch to
+  edit it in a popover; **+ Add** creates a new one.
+- **Text styles** — Display, Heading 1, Heading 2, Body, Caption and any you add, each with
+  a font family, size, weight, line height and letter spacing. You can upload a
+  font file from the style's popover; it's saved to `.lerret/_fonts/`.
+- **Logos** — several logos, each with versions such as Colour, Light and Dark.
+  Drop logo files on the page or use **+ Add**. Designs pick the version that
+  suits their background.
+
+### How designs use it
+
+Brand values are **linked**, not copied:
+
+- In the [Design panel](#editing-a-design), brand colours appear first in every
+  colour picker, and text can use a **text style**. A linked colour or style
+  shows by name; **Detach** keeps the look as plain values and stops following
+  the brand.
+- Brand logos are in the **+ Add** menu — click one, or drag it onto a design.
+- Templates and new elements start on brand.
+
+Change a colour or style on the Brand page and every design that uses it
+updates. The library is saved in `.lerret/_brand/brand.json` (logos sit next to
+it in `_brand/`), and colours and text styles are mirrored into the root
+`config.json` `vars` as `--brand-*` variables, so hand-written components can
+use them too — see [Concepts](/concepts/).
+
+The Brand page and setup popup are available in **CLI mode**.
 
 ## Creating pages, groups & assets
 
 You can grow a project from inside the studio — never drop to the filesystem to
-add a folder or a first file. The create affordances live wherever your eye
-already is:
+add a folder or a first file:
 
-- **New page** — the page picker's **+ New page** (also offered on the empty
-  connect/no-pages state).
-- **In a page or group** — its **⋮** / right-click menu leads with **Add
-  asset…** and **Add group…**; a page also shows **+ Add asset** / **+ New
-  group** on the canvas.
-- **On the empty canvas** — right-click and choose **New group** or **New page**
-  (see [Right-click menus](#right-click-context-menus)).
+- **New page** — the page picker's **+ New page**, or right-click the empty
+  canvas.
+- **In a page or group** — its **⋮** / right-click menu has **New asset…** and
+  **New group…**; a page also shows **+ New group** / **+ New asset** buttons
+  on the canvas.
+- **On the empty canvas** — right-click and choose **New asset…**, **New
+  group…** or **New page…** (see [Right-click menus](#right-click-menus)).
 
-Every path opens the same dialog — a name field with live validation and, for
-assets, a **Component (.jsx)** / **Markdown (.md)** toggle. <kbd>Enter</kbd>
-creates, <kbd>Esc</kbd> cancels.
+### New asset: pick where it will be published
 
-![The create dialog with a name field and a Component / Markdown toggle](/studio/create-dialog.png)
+**New asset** first asks where the design will be published, so it starts at
+the right size:
+
+<img src="/studio/new-asset-platform.png" width={460} alt="The New asset dialog asking Where will it be published?, with tiles for Instagram, Facebook, LinkedIn, X, Product Hunt, App Store, Google Play, Microsoft Store, YouTube, Pinterest, TikTok, Web & email, and Custom size" />
+
+Pick a platform — Instagram, Facebook, LinkedIn, X, Product Hunt, App Store,
+Google Play, Microsoft Store, YouTube, Pinterest, TikTok or Web & email — or
+**Custom size** for any width × height (16–10,000 px). **Write a Markdown note
+instead** skips sizing and creates a `.md` card.
+
+Next, pick the formats:
+
+<img src="/studio/new-asset-formats.png" width={460} alt="New App Store set: iPhone 6.9-inch screenshot ×5 selected, other formats listed with their sizes, Start with Headline + phone, and a group name of App Store" />
+
+- Each format shows a to-scale outline, its pixel size and aspect ratio.
+- **Store image sets** — tick several formats and set a count for each. Store
+  platforms start with what a real listing needs: **App Store** — 5 iPhone 6.9″
+  screenshots; **Google Play** — 5 phone screenshots, a feature graphic and an
+  icon; **Microsoft Store** — 5 desktop screenshots, hero art and poster art.
+  More than one asset creates a group named after the platform.
+- **Start with** — **Blank**, or a poster template: **Headline + phone**,
+  **Phone + caption** or **Big statement**. Templates are generated at the
+  chosen size, start on your brand, and keep their text in the data file.
+
+The chosen size becomes the asset's `meta.dimensions`. You can change it later
+from the **size chip** on the artboard's label row.
+
+### New group and new page
+
+Groups and pages take just a name:
+
+<img src="/studio/create-dialog.png" width={380} alt="The New group dialog with the name drafts and a Create group button" />
 
 - **Names validate as you type** — empties, illegal characters, leading dots/
   underscores, and OS-reserved names are refused with a calm hint.
 - **Collisions are caught instantly** and case-insensitively (`Landing` won't
   shadow `landing`).
-- **New components render immediately** — a new `.jsx` is seeded with a minimal
-  valid component, so you get an artboard, not an error card.
 
-A freshly-created **empty group** renders as a soft placeholder with a one-click
-**+ Add asset**, so it's visible and fillable rather than invisible:
+A new **empty group** is drawn as a placeholder with **+ New asset** and **+ New
+group**, and you can drag an artboard into it:
 
-![An empty group rendered as a soft placeholder on the canvas](/studio/create-empty-group.png)
+<img src="/studio/create-empty-group.png" width={346} alt="An empty group named drafts on the canvas with + New asset and + New group buttons" />
 
-Creating writes to disk, so it runs in **CLI mode** (`@lerret/cli dev`).
+Creating writes to disk, so it needs a writable project: CLI mode
+(`@lerret/cli dev`), or a hosted folder you've given write access.
 
-## Right-click context menus
+## Editing a design
 
-Right-click anywhere on the canvas for a menu at your cursor. It's a **faster
-path to the same actions** the `⋮` kebab offers — nothing new to learn. Three
-contexts, and the innermost target wins:
+Click any element on an artboard — a piece of text, an image, a shape — and the
+**Design panel** opens on the right. There's no edit mode to switch into, and no
+code, CSS or prop names to deal with.
 
-**An artboard** → its component or markdown actions:
+![The Design panel for a selected headline: the text, Text styles, font, size, weight, alignment, colour with brand colours and suggested colours, line and letter spacing, then position, size and opacity](/studio/design-panel.png)
 
-![Right-click menu on an artboard: Edit data, Edit meta, Duplicate, Rename, Move, Delete, Export, Reveal](/studio/context-menu-artboard.png)
+The panel shows only the controls for what you selected:
 
-**A group or page** (its header / padding) → the section actions:
+| Selected | Controls |
+|---|---|
+| **Text** | The text itself, **Text styles**, font (a curated set of Google Fonts plus your own), size, weight, alignment, colour, line and letter spacing. |
+| **Background** / **Shape** | Fill — brand colours, suggested swatches, any colour, or a gradient — plus corners and shadow. |
+| **Image** / **Screenshot** | **Replace image…** and Fit or fill. Drop a screenshot on a **phone frame**'s screen to fill it. |
+| **Everything** | Position and size, opacity, and **Arrange** — bring forward, send backward, bring to front, send to back. |
 
-![Right-click menu on a section: Add asset, Add group, Edit config, Rename, Move, Delete, Export, Reveal](/studio/context-menu-section.png)
+The panel header can also select what the element sits inside, duplicate it, or
+delete it.
+
+**Moving and sizing:**
+
+- Drag a selected element to move it, or nudge it with the arrow keys
+  (<kbd>Shift</kbd> moves 10 px). Snap-to-centre guides appear while you drag;
+  hold <kbd>Alt</kbd> to place freely.
+- Drag the handles to resize. Images and phones keep their proportions
+  (<kbd>Shift</kbd> frees them); text resizes its width.
+- <kbd>Esc</kbd>, **×**, or a click on the empty canvas closes the panel.
+- Undo and redo with the dock's **↶ / ↷** (or <kbd>⌘Z</kbd> /
+  <kbd>⇧⌘Z</kbd>). A multi-step style change counts as one undo step.
+
+**Adding elements** — with a design selected, the dock's **+ Add** menu inserts
+**Text**, an **Image…**, a **Rectangle**, a **Circle**, a **Phone frame**, or one
+of your **brand logos**:
+
+<img src="/studio/add-menu.png" width={220} alt="The + Add menu: Text, Image, Rectangle, Circle, Phone frame, and a Brand logos section with the Lerret logo" />
+
+**Dropping images** from your desktop (CLI mode):
+
+- On the empty canvas — becomes a new asset sized to the image.
+- On an artboard — inserted as a new layer where you drop it.
+- On a phone screen — fills the screen.
+- On an existing image — replaces it.
+
+Every change is written straight back to the asset's `.jsx` (or to its
+`.data.json` when the value comes from a prop), and the artboard live-reloads.
+Untouched code is left byte-for-byte as it was. Images you add are copied into
+the asset's folder and referenced with `new URL('./image.png', import.meta.url)`.
+
+Saving edits needs a writable project — CLI mode, or a hosted folder with write
+access. Without one, the dock shows **Preview only**.
+
+> Clicks inside an artboard always select, so components with their own
+> interactive controls (buttons, inputs) can't be operated in the studio.
+
+## Right-click menus
+
+Right-click anywhere on the canvas for a menu at your cursor. It's a faster path
+to the same actions the `⋮` kebab offers. Every menu starts with a header naming
+what you clicked, groups related actions, and ends with a red **Delete…** that
+asks for confirmation. The innermost target wins:
+
+**An artboard** → its component actions:
+
+<img src="/studio/context-menu-artboard.png" width={224} alt="Right-click menu on the PricingTile artboard: Edit data, Edit details, Auto-refresh, Duplicate, New variant, Rename, Move to, Export, Open in code editor, Reveal in Finder, Delete" />
+
+**A group or page** (its name tag or frame) → the section actions:
+
+<img src="/studio/context-menu-section.png" width={224} alt="Right-click menu on the buttons group: New asset, New group, Rename, Move to, Settings, Export, Export for App Store, Open in code editor, Reveal in Finder, Delete" />
 
 **The empty canvas** → create + navigation:
 
-![Right-click menu on the empty canvas: New group, New page, Fit to screen, Reset zoom](/studio/context-menu-canvas.png)
+<img src="/studio/context-menu-canvas.png" width={224} alt="Right-click menu on the empty canvas: New asset, New group, New page, Fit to screen, Reset zoom to 100%" />
 
 The menu is fully keyboard-operable (arrows, <kbd>Enter</kbd>, <kbd>Esc</kbd>),
-dismisses on click-away or scroll, and clamps to stay on-screen near edges.
-Destructive actions ask for confirmation inline.
+closes on click-away, scroll, or when another menu opens, and stays on-screen
+near edges.
 
 ## Per-entity actions
 
 Whether you open it from the **⋮** kebab or by right-clicking, each entity
 exposes the same set:
 
-- **Component artboard** — Edit data · Edit meta · Duplicate · Rename · Move to… ·
-  Delete · Export (PNG/JPG, and animated when auto-refresh is configured) ·
-  Reveal in editor / file manager.
-- **Markdown card** — Edit · Duplicate · Rename · Move to… · Delete · Export
-  (PNG/JPG/PDF) · Reveal…
-- **Group / page** — Add asset… · Add group… · Edit config · Rename · Move to… ·
-  Delete · Export · Reveal…
+- **Component artboard** — Edit data… · Edit details… · Auto-refresh… ·
+  Duplicate · New variant… · Rename · Move to… · Export (plus **Export
+  animated…** when auto-refresh is on) · Open in code editor · Reveal in Finder
+  · Delete…
+- **Markdown note** — Edit · Duplicate · Rename · Move to… · Export
+  (PNG/JPG/PDF) · Open in code editor · Reveal in Finder · Delete…
+- **Group / page** — New asset… · New group… · Rename · Move to… · Settings… ·
+  Export… · Export for App Store… · Open in code editor · Reveal in Finder ·
+  Delete…
 
-**Reveal** actions are CLI-only — they shell out to your OS, which the hosted
-File-System-Access sandbox can't do, so they show disabled-with-reason there.
+**Open in code editor** and **Reveal in Finder** (Explorer / file manager on
+other systems) are CLI-only — they shell out to your OS, which the hosted
+File-System-Access sandbox can't do, so they're disabled with a reason there.
 
 ## In-place editors
 
-The studio includes typed editors for the on-disk artifacts behind an asset.
-Edits write back to the file — this is a true read-write tool.
+The studio includes typed editors for the on-disk files behind an asset. Edits
+write back to the file — this is a true read-write tool.
 
-| Editor | Edits | File written |
-|---|---|---|
-| **Data editor** | An asset's props | `<Name>.data.json` |
-| **Config editor** | A folder's settings | The folder's `config.json` |
-| **Meta editor** | An asset's `meta` (label, tags, dimensions) | The asset source file |
-| **Markdown editor** | A `.md` asset's raw text | The `.md` file |
+| Editor | Opened from | Edits | File written |
+|---|---|---|---|
+| **Data editor** | **Edit data…** or the **Data** button | An asset's props | `<Name>.data.json` |
+| **Details editor** | **Edit details…** | An asset's `meta` (width, height, label, tags) | The asset source file |
+| **Config editor** | **Settings…** on a page or group | A folder's settings | The folder's `config.json` |
+| **Markdown editor** | **Edit** on a note | A `.md` asset's raw text | The `.md` file |
 
 The **data editor** is schema-driven: when an asset declares `meta.propsSchema`,
-it generates a typed form (text, boolean, select, …); without a schema it falls
-back to free-form key/value editing.
+it generates a typed form (text, number, boolean, select); without a schema it
+falls back to free-form key/value editing.
 
-Dimensions are also one click away without opening the meta editor: the **size
-chip** on an artboard's label row opens a preset picker — 1:1 (1080×1080),
-4:5 (1080×1350), 9:16 (1080×1920), 16:9 (1920×1080), OG (1200×630), or a custom
-width × height.
+![The schema-driven data editor for the Launch hero banner: Headline, Subhead, Tone, and a Show badge toggle](/studio/data-editor.png)
 
-![The schema-driven data editor for the hero banner](/studio/data-editor.png)
+Dimensions are also one click away: the **size chip** on an artboard's label
+row opens a preset picker — 1:1 (1080×1080), 4:5 (1080×1350), 9:16 (1080×1920),
+16:9 (1920×1080), OG (1200×630), or a custom width × height.
 
 The **config editor** edits a folder's presentation (background / foreground
-color) and custom `vars`, with a **+** to add your own properties:
+color) and custom `vars`, with **+ Add** for your own properties and **Show raw
+JSON** for everything else:
 
-![The config editor for a group's config.json](/studio/config-editor.png)
+![The config editor for the buttons group's config.json](/studio/config-editor.png)
 
-The **markdown editor** shows **Source and Preview side by side** — author the
-raw text on the left and watch it render live on the right (the same renderer
-the card uses). Writes are debounced as you type, so dismissing the sheet never
-loses work:
+**Markdown notes are edited in place.** Choose **Edit** and the note on the
+canvas turns into its raw source, with a live **Preview** docked on the right
+(the same renderer the card uses). Writes are debounced as you type; click
+**Done** when you're finished:
 
-![The markdown editor with side-by-side Source and Preview panes](/studio/markdown-editor.png)
+![A Markdown note being edited in place on the canvas, with the rendered preview in a panel on the right](/studio/markdown-editor.png)
 
 Edits flow through the same four-tier prop resolution that drives rendering, so
 the editor and the canvas always agree.
@@ -218,38 +400,52 @@ the editor and the canvas always agree.
 When an asset declares `meta.propsSchema` with `required` fields or constrained
 types, the studio validates **every artboard render**. Failures surface as a
 small **⚠️ badge** on the artboard's label row — non-blocking; the artboard
-still renders. Click the badge to jump straight into the data editor with the
-offending field focused
-("click to fix"). Validation is **lenient by design** — Lerret always tries to
-render; the badge is a hint, not a gate.
+still renders. Click the badge to jump straight into the data editor, where the
+offending field is marked ("click to fix"). Validation is **lenient by
+design** — Lerret always tries to render; the badge is a hint, not a gate.
 
 ## Moving things
 
 **Move to…** opens a picker of every folder in the project; choose a destination
-and the studio reparents the file (and its companions — data file, config file,
-prefixed images) atomically, so its auto-refresh setting travels with it.
+and the studio moves the file (and its companions — data file, config file,
+prefixed images) together, so its auto-refresh setting travels with it. You can
+also drag an artboard onto another group.
 
-![The Move-to picker listing destination folders](/studio/move-picker.png)
+<img src="/studio/move-picker.png" width={454} alt="The Move PricingTile.jsx to… picker listing destination folders, with the current folder greyed out" />
 
 ## Export from the studio
 
-Three scopes:
-
 | Scope | What it captures |
 |---|---|
-| **Single artboard** | One artboard → one image (the artboard's **↓ PNG / ↓ JPG**, or its menu's Export). Markdown cards additionally offer **↓ PDF**. |
-| **Page or group** | Every artboard in that branch (the section's Export, with a PNG/JPG × structured/flat picker). |
+| **Single artboard** | One artboard → one image (the label row's **PNG** / **JPG**, or its menu's **Export**). Markdown notes also offer **PDF**. |
+| **Animated** | An auto-refreshing artboard → **WebP**, **GIF**, **APNG** or **MP4** (**Export animated…**). |
+| **Page or group** | Every artboard in that branch (**Export…**, with a PNG/JPG × structured/flat picker). |
 | **Whole project** | Every artboard → one structured ZIP (the brand menu's **Export ZIP**). |
+| **App Store** | Every App Store–sized design in a page or group (**Export for App Store…**). |
 
 The whole-project panel lives in the **brand menu** (the `Lerret` lockup at the
-left end of the dock), where you choose scope (whole project / this page),
-format (PNG/JPG), and run the export:
+left end of the dock), where you choose scope (whole project / this page) and
+format (PNG/JPG):
 
-![The brand menu: Download logo, Project switch/close, and the Export ZIP panel](/studio/brand-menu.png)
+<img src="/studio/brand-menu.png" width={296} alt="The brand menu: Switch project, Close project, AI settings, Revert AI history, the Whole project / This page and PNG / JPG export panel with Export ZIP, Download logo, and Take a tour" />
+
+### Export for App Store
+
+**Export for App Store…** on a page or group collects every design that's an
+exact App Store screenshot size and downloads them as **exact-size JPGs on
+white, one folder per device, in one ZIP**. Designs that aren't an App Store
+size are listed with their size so you can fix them, and a missing iPhone 6.9″
+set is flagged:
+
+<img src="/studio/app-store-export.png" width={420} alt="The Export for App Store dialog listing designs that are not an App Store size, with Cancel and Download ZIP buttons" />
+
+To make App Store–sized designs, use **New asset → App Store**, or change a
+design's size from its size chip.
 
 Studio exports use the **exact same** `captureArtboard` as `@lerret/cli export`
 (the CLI runs it in a headless Chromium), so output is pixel-faithful between the
-two — use either interchangeably.
+two — use either interchangeably. Every export embeds your custom fonts from
+`.lerret/_fonts/`.
 
 ## Workflow mode
 
@@ -373,7 +569,7 @@ a placeholder like `Jane Doe` is never exported by mistake. Custom fonts from
 
 Workflows are saved per page in `.lerret/.workflows/<page>.json` — the steps,
 how they're connected and your column choices — so they live in git with the
-rest of the project and are still there next time you open it. To remove a
+rest of the project and, in CLI mode, are still there next time you open it. To remove a
 step, click its **×**.
 
 **Large spreadsheets** (thousands of rows) are kept in memory while you work and
@@ -402,20 +598,20 @@ when nothing on disk changed. Auto-refresh is a per-asset interval that
 re-renders just that one artboard on a clock.
 
 Set it on the artboard: open a component's kebab (or right-click it) and choose
-**Auto-refresh**.
+**Auto-refresh…**. Once it's on, the menu shows the current rate:
 
-![The artboard kebab menu with an "Auto-refresh · 1s" entry](/studio/auto-refresh-menu.png)
+<img src="/studio/auto-refresh-menu.png" width={224} alt="The Clock artboard's menu with an Auto-refresh · 1s entry and Export animated…" />
 
 Pick a preset — `Off · 0.5s · 1s · 2s · 5s` — or **Custom…** for any value down
 to a single frame. There's no asset name to type and no milliseconds to reason
 about.
 
-![The auto-refresh rate picker, preset chips with the 1s interval selected](/studio/auto-refresh-picker.png)
+<img src="/studio/auto-refresh-picker.png" width={300} alt="The auto-refresh rate picker with preset chips and 1s selected" />
 
 While it's on, a small **● 1s** badge sits in the artboard's label row — your cue
 that the asset is live, and a one-click shortcut back to the picker. Only
-component assets can auto-refresh, and that same badge is what unlocks the
-**animated export** button.
+component assets can auto-refresh, and auto-refresh is what unlocks **Export
+animated…**.
 
 Under the hood it's a `<Name>.config.json` file sitting next to the asset, holding
 `{ "autoRefresh": <ms> }`. The picker writes it for you — one file per asset, so
@@ -425,9 +621,9 @@ reference: [Auto-refresh in Concepts](/concepts#auto-refresh).
 ## Switching projects
 
 In CLI mode you can re-point the studio at a **different folder without
-restarting the CLI**. Open the brand menu and choose **Switch project…**:
+restarting the CLI**. Open the brand menu and choose **Switch project**:
 
-![The Switch project dialog: a folder path field and recent projects](/studio/switch-project-dialog.png)
+<img src="/studio/switch-project-dialog.png" width={460} alt="The Switch project dialog: a folder path field, a Connect button, and recent projects" />
 
 Paste a path or pick a recent — the canvas swaps to the new project with **no
 page reload** (your work auto-saves continuously, so there's nothing to lose).
@@ -435,24 +631,25 @@ page reload** (your work auto-saves continuously, so there's nothing to lose).
 
 ## Focus mode
 
-Focus mode shows a single artboard fullscreen with the rest of the canvas
-dimmed — for precision work, a clean screenshot, or reviewing at exact pixel
-dimensions. Open it from an artboard's expand control; <kbd>←</kbd> / <kbd>→</kbd>
-move between artboards and <kbd>Esc</kbd> exits.
+Focus mode shows a single artboard large, with the rest of the canvas dimmed —
+for precision work, a clean screenshot, or reviewing at exact pixel dimensions.
+Open it with the **⤢** button on an artboard's label row. <kbd>←</kbd> /
+<kbd>→</kbd> move between artboards in the same page or group, <kbd>↑</kbd> /
+<kbd>↓</kbd> move between pages and groups, and <kbd>Esc</kbd> (or a click on the
+backdrop) exits.
 
-![An artboard open in fullscreen focus mode](/studio/focus-mode.png)
+![The Launch hero banner open in focus mode, with previous and next arrows and its position, 8 of 12](/studio/focus-mode.png)
 
-## Design and edit with AI
+## AI in the studio
 
-The dock also holds Lerret's **built-in AI agent**. Between the page picker and
-export is a single input — *Ask Lerret to design or edit…* — that prompts a
-brand-aware agent to read, write, and restructure the files in your `.lerret/`
-folder for you. It runs against your own provider key (OpenAI, Anthropic,
-OpenRouter) or a fully-local Ollama, calls the provider **browser-direct** with
-no Lerret backend in the path, and snapshots every turn so any edit is one click
-to revert.
+The studio has a **built-in AI agent** that reads and writes the files in your
+`.lerret/` folder. Its chat input is **switched off in the current studio
+release**, so the dock doesn't show it; **AI settings** and **Revert AI history**
+are still in the brand menu. See [AI in the Studio](/ai-studio/) for how it works.
 
-Full guide: **[AI in the Studio](/ai-studio/)**.
+To design and edit with AI today, use the [Claude Code plugin](/ai-editing/)
+(`/lerret`) or any editor's AI on the project folder — every asset is a plain
+React file.
 
 ## Keyboard & mouse
 
@@ -464,6 +661,10 @@ The studio is a **desktop application** — mouse + keyboard. Handy shortcuts:
 | Reset zoom to 100% | <kbd>Shift</kbd>+<kbd>0</kbd> |
 | Open any entity's menu | **Right-click** the artboard / group / canvas |
 | Move a focused artboard | <kbd>←</kbd> / <kbd>→</kbd> |
+| Nudge a selected element | Arrow keys (<kbd>Shift</kbd> for 10 px) |
+| Delete a selected element | <kbd>⌫</kbd> |
+| Undo / redo a design edit | <kbd>⌘Z</kbd> / <kbd>⇧⌘Z</kbd> |
+| Close the Design panel, a menu, or focus mode | <kbd>Esc</kbd> |
 | Confirm / cancel a dialog | <kbd>Enter</kbd> / <kbd>Esc</kbd> |
 
 Mobile, touch, and responsive layouts are out of scope; the hard platform
@@ -472,7 +673,7 @@ hosted/self-host).
 
 ## What's next
 
-- **[AI in the Studio](/ai-studio/)** — the built-in brand-aware agent in the dock.
+- **[Concepts](/concepts/)** — pages, groups, variants, the prop cascade, and brand variables.
 - **[Authoring Assets](/authoring/)** — components, schemas, data files, fonts.
-- **[CLI Reference](/cli/)** — `@lerret/cli dev` and `@lerret/cli export`.
+- **[CLI Reference](/cli/)** — `@lerret/cli dev`, `export`, and `clear`.
 - **[Deployment](/deploy/)** — the three deploy modes in detail.

@@ -9,9 +9,9 @@ description: An open-source design canvas where a folder of plain React componen
 
 Two architectural choices make Lerret different:
 
-**The folder is the project.** No save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
+**The folder is the project.** No save button, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components. Even edits made by clicking in the studio's Design panel are written back into those same component files.
 
-**The format is React.** Because every asset is real React, every LLM already knows how to edit it — just files an AI was trained on millions of times over. Lerret's own AI comes two ways: the in-studio dock (your own key, or local Ollama) and `/lerret`, installed as a Claude Code plugin (keyless, Claude Code only).
+**The format is React.** Because every asset is real React, every LLM already knows how to edit it — just files an AI was trained on millions of times over. For AI editing today, use `/lerret`, installed as a Claude Code plugin (keyless, Claude Code only), or any editor's AI on the folder. The studio also has a built-in agent (your own key, or local Ollama), but its chat input is switched off in the current release.
 
 Everything else — git-native versioning, AI-fluent editing, no vendor lock-in — falls out for free. Pan-and-zoom artboards, sub-second hot reload, headless PNG/JPG export.
 
@@ -26,10 +26,13 @@ The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the 
 ## What's in the box
 
 - **Studio** — pan-and-zoom canvas, per-artboard error boundaries, in-place editors for component data + config.
+- **Design panel** — click any text, image or shape on an artboard to edit it without code; changes are written back to the asset's `.jsx` or `.data.json`.
+- **Brand library** — a built-in Brand page for colours, text styles and logos, importable from a website or store link; designs link to it.
+- **New asset presets** — pick a platform (Instagram, X, App Store, Google Play, Microsoft Store, …) to start at the right size, tick a store image set, or start from a poster template. **Export for App Store** downloads exact-size screenshots in one ZIP.
 - **Workflow mode** — fill one design from an Excel or CSV sheet in bulk: one image per row, downloaded as a PNG/JPG ZIP or a single PDF.
-- **Built-in AI** — a brand-aware agent in the dock that designs and edits your assets, using your own provider key (OpenAI, Anthropic, OpenRouter) or a fully-local Ollama. Browser-direct, no Lerret backend.
+- **Built-in AI** — a brand-aware agent that designs and edits your assets, using your own provider key (OpenAI, Anthropic, OpenRouter) or a fully-local Ollama. Browser-direct, no Lerret backend. Its chat input is switched off in the current studio release; use the Claude Code plugin for AI editing today.
 - **Claude Code plugin** — `/plugin install lerret@belikely-united`, then one `/lerret` command authors, previews, and exports assets with your own Claude as the brain. No API keys.
-- **CLI** — `npx @lerret/cli@latest dev` opens a folder as a live canvas; `npx @lerret/cli@latest export` headlessly renders to image files (PNG, JPG, structured ZIP).
+- **CLI** — `npx @lerret/cli@latest dev` opens a folder as a live canvas; `npx @lerret/cli@latest export` headlessly renders to PNG or JPG files in folders that mirror the project; `npx @lerret/cli@latest clear` removes sample assets.
 - **No backend** — files read and written locally; no upload, no sync, no account.
 - **Three deploy modes** — local CLI, hosted (browser File System Access API), or self-hosted static studio.
 
@@ -38,10 +41,10 @@ The studio opens in your browser. Save any `.jsx` file under `.lerret/` and the 
 - [Getting Started](/getting-started/) — install and render your first canvas.
 - [Concepts](/concepts/) — the folder-canvas model, page groups, variants, the four-tier prop cascade.
 - [Authoring Assets](/authoring/) — JSX components, props schemas, data files, fonts, Markdown.
-- [AI in the Studio](/ai-studio/) — the built-in brand-aware agent: prompt the dock to design and edit your assets.
+- [AI in the Studio](/ai-studio/) — how the built-in brand-aware agent works (its chat input is switched off in the current release).
 - [Editing with AI Tools](/ai-editing/) — the Claude Code plugin, plus per-project integrations for Cursor, Copilot, and AGENTS.md agents.
 - [Examples](/examples/) — sixteen complete, runnable assets — OG cards, YouTube thumbnails, component showcases, more.
-- [CLI Reference](/cli/) — `dev` and `export` commands.
+- [CLI Reference](/cli/) — `dev`, `export`, and `clear` commands.
 
 ## Community & support
 

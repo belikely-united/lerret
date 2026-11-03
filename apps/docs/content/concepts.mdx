@@ -19,10 +19,10 @@ group   ── groups[]  (nestable) + assets[]
 
 The rules are deliberately tiny:
 
-- **A page** is a non-underscore folder directly under `.lerret/`. Pages are the top-level navigation unit; the studio's page picker switches between them.
+- **A page** is a folder directly under `.lerret/` whose name doesn't start with `_` or `.`. Pages are the top-level navigation unit; the studio's page picker switches between them.
 - **A group** is any folder nested inside a page or another group. Groups can nest arbitrarily deep.
 - **An asset** is a recognized file inside a page or group. Today three extensions are recognized: `.jsx`, `.tsx`, and `.md`.
-- **Folders starting with `_` are reserved** — `_fonts/` is the one Lerret uses today; any others are skipped.
+- **Root folders starting with `_` or `.` are reserved** and never become pages — e.g. `_fonts/` (custom fonts), `_brand/` (the brand library), `.workflows/` (saved workflows) and `.state/` (Lerret-managed state). The rule applies only directly under `.lerret/`; deeper folders with those names are ordinary groups.
 
 The filesystem is the source of truth. Move a file → the artboard moves. Add a folder → a new group or page appears. Delete a file → the artboard goes away. The model is a derived cache of your folder; the watcher keeps it in sync.
 
@@ -33,7 +33,10 @@ The filesystem is the source of truth. Move a file → the artboard moves. Add a
 ├── config.json          ← project-root config (the cascade starts here)
 ├── _fonts/              ← reserved: custom font files auto-registered
 │   └── MyBrand.woff2
-├── social/              ← page (top-level non-underscore folder)
+├── _brand/              ← reserved: the brand library (brand.json + logo files)
+├── .workflows/          ← reserved: saved Workflow mode setups, one per page
+├── .state/              ← reserved: Lerret-managed state (AI snapshots, first-run marker)
+├── social/              ← page (top-level folder not starting with _ or .)
 │   ├── config.json      ← page-level config (optional)
 │   ├── twitter.jsx      ← asset
 │   ├── twitter.data.json← co-located data for `twitter.jsx`
@@ -204,6 +207,21 @@ The most common use of `config.json` is the `vars` block — a flat object of na
 
 Edit a `vars` value in `config.json`, save the file, and every artboard inheriting that value re-renders with the new value. This is how theming works across an entire page or whole project without touching component source.
 
+### Brand variables
+
+The studio's [brand library](/studio/#brand-library) is saved in `.lerret/_brand/brand.json` and mirrored into the root `config.json` `vars` as `brand-*` keys, so every artboard gets them like any other var:
+
+| Brand item | Var keys |
+|---|---|
+| Colour with id `primary` | `brand-primary` |
+| Text style with id `h1` | `brand-text-h1-font`, `brand-text-h1-size`, `brand-text-h1-weight`, `brand-text-h1-line`, `brand-text-h1-tracking` |
+
+Read them with `var(--brand-…)`, keeping the current value as a fallback — e.g. `color: 'var(--brand-primary, #2F5BFF)'`. The studio owns every `brand-*` key and rewrites them when the library changes, so edit brand values on the Brand page rather than in `config.json`. Text-style sizes are numbers in px for a 1080px-wide design.
+
+### Saved order
+
+Without a saved order, a folder's groups and assets sort alphabetically. Dragging artboards or groups in the studio saves the order in that folder's `config.json` as `"order"` — a list of child names (asset file names and group folder names). Unlisted children follow alphabetically. `order` is the one key that is **not** inherited by sub-folders.
+
 ## Four-tier prop resolution
 
 Every artboard's final props go through one function in `@lerret/core`. It merges four tiers in fixed precedence — highest first wins:
@@ -291,6 +309,8 @@ The font's CSS family name is derived from the file name without its extension. 
 ```
 
 Files in `_fonts/` with any other extension are ignored. Subfolders inside `_fonts/` are also ignored — fonts must be at the top level.
+
+Every export path embeds the fonts in `_fonts/` — `@lerret/cli export`, the studio's PNG/JPG/ZIP exports, Export for App Store, and Workflow mode downloads.
 
 ## The separation invariant
 

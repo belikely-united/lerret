@@ -9,11 +9,11 @@ description: Common questions about Lerret — what it is, what it isn't, browse
 
 At its core, Lerret rests on two architectural choices:
 
-**Your project is a folder. Lerret renders it.** There is no save button, no design mode, no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
+**Your project is a folder. Lerret renders it.** There is no save button and no proprietary file. The `.lerret/` directory on disk *is* the project — Lerret only reflects what's already there. Git treats it like any other folder. If Lerret disappears tomorrow, you still have a working set of React components.
 
-**Because everything is React, every LLM already knows how to edit it.** Just files an AI was trained on millions of times over. Lerret's own AI comes two ways: the in-studio dock (your own key, or local Ollama) and [`/lerret`](/ai-editing/#the-claude-code-plugin), installed as a Claude Code plugin (keyless, Claude Code only).
+**Because everything is React, every LLM already knows how to edit it.** Just files an AI was trained on millions of times over. For AI editing today, use [`/lerret`](/ai-editing/#the-claude-code-plugin), installed as a Claude Code plugin (keyless, Claude Code only). The studio's built-in agent has its chat input switched off in the current release.
 
-Mechanically: each `.jsx` / `.tsx` file in `.lerret/` becomes an **artboard** with its own pan-and-zoom card on the canvas; saving the file re-renders the artboard in under a second. You can export every artboard to PNG or JPG headlessly — single asset, page group, or whole project as a structured ZIP. No backend, no account.
+Mechanically: each `.jsx` / `.tsx` file in `.lerret/` becomes an **artboard** with its own pan-and-zoom card on the canvas; saving the file re-renders the artboard in under a second. You can export every artboard to PNG or JPG — headlessly from the CLI, or from the studio as a single asset, a page or group, or the whole project as a structured ZIP. No backend, no account.
 
 ## Is Lerret a Figma replacement?
 
@@ -29,15 +29,20 @@ Two different comparisons come up here. Lerret overlaps with neither cleanly.
 
 **Code playgrounds with design integrations** — CodePen, JSFiddle, and the Figma × CodePen embed flow — let you write a snippet and share it or embed it into a design file. Useful for demos and shareable prototypes; not a pipeline for production components, and not an asset export tool.
 
-Lerret runs differently from both. Your React components are the source of truth, and the canvas only renders what your code already produces. The output is a real component file that ships in your app, plus headless PNG / JPG / structured ZIP exports for asset use. There is no translation step, no codegen drift, no demo-vs-production split.
+Lerret runs differently from both. Your React components are the source of truth, and the canvas only renders what your code already produces. The output is a real component file that ships in your app, plus PNG / JPG / ZIP exports for asset use. There is no translation step, no codegen drift, no demo-vs-production split.
 
 If you already design in Penpot or sketch ideas in CodePen, Lerret does not replace them. If you want the React components your app ships to *also* be your social cards, OG images, and release graphics — that is what Lerret is for.
 
 ## Is Lerret a "no-code" tool?
 
-No. Every asset is a React component. If you don't write React, Lerret is not your day-one tool.
+Partly. Every asset is still a React component file, but you don't have to write it yourself:
 
-The in-studio editors do let you change **data** (props, theming variables) without touching code — but the asset itself is always a component file you author in your editor.
+- **New asset** creates a design at a platform's size (or from a poster template) without code — see [Creating pages, groups & assets](/studio/#creating-pages-groups--assets).
+- The **Design panel** lets you click any text, image or shape and change it; edits are written back to the `.jsx` or `.data.json` — see [Editing a design](/studio/#editing-a-design).
+- The **Brand page** holds your colours, text styles and logos — see [Brand library](/studio/#brand-library).
+- **Workflow mode** fills one design from a spreadsheet, one image per row — see [Workflow mode](/studio/#workflow-mode).
+
+Layouts the Design panel can't express (custom logic, computed data, new components) are written in code, by you or an AI tool.
 
 ## Is there a hosted SaaS?
 
@@ -72,7 +77,7 @@ The first time you open a folder in hosted mode, the browser shows a permission 
 
 ## Does Lerret have built-in AI?
 
-Yes. The studio ships a **brand-aware AI agent** in the dock: prompt it — *"re-theme the twitter banner to our brand"*, *"make a launch kit from this component"* — and it reads, writes, and restructures the files in your `.lerret/` folder for you. It's agentic (one prompt does multi-step work), sandboxed to `.lerret/` only, and every turn is one click to revert. Full guide: [AI in the Studio](/ai-studio/).
+Yes, but its chat input is **switched off in the current studio release** — for AI editing today, use the [Claude Code plugin](/ai-editing/#the-claude-code-plugin). The studio ships a **brand-aware AI agent**: prompt it — *"re-theme the twitter banner to our brand"*, *"make a launch kit from this component"* — and it reads, writes, and restructures the files in your `.lerret/` folder for you. It's agentic (one prompt does multi-step work), sandboxed to `.lerret/` only, and every turn is one click to revert. Full guide: [AI in the Studio](/ai-studio/).
 
 This is separate from — and complementary to — editing your assets with **your own** AI tool (Claude Code, Cursor, Copilot); see [Editing with AI Tools](/ai-editing/).
 
@@ -90,16 +95,18 @@ You bring your own provider — **BYOK**. Add an API key for OpenAI, Anthropic, 
 
 ## Is it production-ready?
 
-Lerret is in the **0.1 series** — the first public release. The full feature set works today:
+Lerret is **pre-1.0** (`@lerret/cli` 0.2.x, `@lerret/core` and `create-lerret` 0.1.x). The full feature set works today:
 
 - The folder-canvas model
 - Sub-second live-edit loop
-- In-studio data / config / meta editors
-- Headless export to PNG/JPG (single asset, page group, whole project ZIP)
+- In-studio data / config / meta editors and the Design panel
+- The brand library
+- Export to PNG/JPG (single asset, page group, whole project ZIP), plus Export for App Store
+- Workflow mode (bulk images from a spreadsheet)
 - Zero-install execution across npm, pnpm, yarn, and bun
-- Three deploy modes (CLI, hosted, self-host) with UX parity
+- Three deploy modes (CLI, hosted, self-host) — the same studio, with a few features that need CLI mode (the Brand page, dropping image files onto the canvas, reveal actions; see [Deployment](/deploy/#cli-only-features))
 
-Expect occasional sharp edges in the 0.1.x series; the public API stabilises for 1.0. Bug reports and feedback are welcome at [github.com/belikely-united/lerret/issues](https://github.com/belikely-united/lerret/issues).
+Expect occasional sharp edges before 1.0; the public API stabilises for 1.0. Bug reports and feedback are welcome at [github.com/belikely-united/lerret/issues](https://github.com/belikely-united/lerret/issues).
 
 ## What's the relationship between `@lerret/cli` and `lerret`?
 
@@ -135,6 +142,10 @@ The in-studio editors write back to the **co-located files**:
 | Config editor | `config.json` in the relevant folder |
 | Meta editor | The asset source file (modifies the `meta` export) |
 | Markdown editor | The `.md` file |
+| Design panel | The asset's `.jsx`, or its `.data.json` when the value comes from a prop |
+| Brand page | `_brand/brand.json` (logos next to it in `_brand/`), plus the `brand-*` vars in the root `config.json` |
+| Workflow mode | `.lerret/.workflows/<page>.json` |
+| Dragging to reorder | The folder's `config.json`, as `"order"` |
 
 Everything is on your disk, as plain JSON or JSX. No proprietary format, no opaque blob.
 
@@ -142,7 +153,7 @@ Everything is on your disk, as plain JSON or JSX. No proprietary format, no opaq
 
 `.lerret/` is just files. Git treats it like any other directory — your `.jsx`, `.json`, and `.md` files diff and merge normally. There is no binary blob, no opaque project file, no schema migration when you upgrade Lerret.
 
-A `.lerret/.state/` directory exists for transient studio state (cursor position, last-opened variant). It is **gitignored automatically** so it does not pollute your commits.
+A `.lerret/.state/` directory holds Lerret-managed state — the AI agent's per-turn snapshots and the first-run marker written by `create-lerret --demo`. Lerret does not write a `.gitignore` for it; add `.lerret/.state/` to your own `.gitignore` if you don't want it committed.
 
 ## Can I run `@lerret/cli export` in CI?
 
@@ -164,7 +175,10 @@ The CI benchmark for this target runs on every push to `main` against Ubuntu and
 
 ## Does `@lerret/cli dev` require network?
 
-Only the first time, to download `@lerret/cli` (plus Vite and React). After that, `@lerret/cli dev` makes no outbound network requests at runtime — it serves a local Vite dev server from already-installed packages. Offline development is fully supported.
+Only the first time, to download `@lerret/cli` (plus Vite and React). After that, `@lerret/cli dev` serves a local Vite dev server from already-installed packages, and offline development is supported. Two things do reach the network when you use them:
+
+- **Brand import** — the CLI fetches the website or store link you paste into the brand setup (public addresses only).
+- **Google Fonts** — the studio page loads its own UI fonts and the Design panel's font list from Google Fonts. Without a connection these fall back to system fonts; fonts in `.lerret/_fonts/` are always local.
 
 If you hit a hang in no-network mode, that indicates a runner timeout is misconfigured rather than a Lerret bug. Open an issue.
 

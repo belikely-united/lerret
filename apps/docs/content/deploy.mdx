@@ -34,7 +34,7 @@ What happens:
 - Node.js ≥ 20.19
 - Any modern browser for viewing the studio
 
-**Offline:** after the first run, dev startup is fully offline-capable. No outbound network calls during development.
+**Offline:** after the first run, dev startup is offline-capable. The only outbound request the CLI makes is **brand import**, which fetches the website or store link you paste into the brand setup. The studio page loads its UI fonts and the Design panel's font list from Google Fonts, falling back to system fonts offline.
 
 See the [CLI Reference](/cli/#lerretcli-dev) for the full flag list.
 
@@ -163,3 +163,14 @@ Cache hint: configure your host to send `Cache-Control: max-age=0, must-revalida
 | Run a CI export pipeline (no GUI) | **CLI**, via `@lerret/cli export` |
 
 All three modes render the **same** folder. There is no "hosted format" vs "local format"; nothing in `.lerret/` is mode-specific. You can edit a project locally with the CLI, share it on a Chromebook via hosted, and self-host it for your team — same files, same canvas, same renderer.
+
+## CLI-only features
+
+A few studio features need the local CLI (`@lerret/cli dev`) because they go through the Node process or your OS. In hosted and self-host mode they are hidden or disabled:
+
+- The built-in **Brand** page and the **Set up your brand** popup, including import from a website or store link. Existing `brand-*` vars in `config.json` still render.
+- **Dropping image files** onto the canvas, an artboard, or a phone frame.
+- **Open in code editor** and **Reveal in Finder**.
+- The **recent projects** list on the connect screen.
+
+With a folder opened through the File System Access API, the rest of the studio can write: the in-place editors, the Design panel, and creating, renaming, moving, deleting and reordering pages, groups and assets. A studio with no writable folder shows **Preview only** in the dock.
