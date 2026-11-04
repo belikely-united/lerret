@@ -208,7 +208,7 @@ Project resolution: `--folder` if given, otherwise walk up from CWD to the neare
 
 | Flag | Description |
 |---|---|
-| `--all` | Remove every child of `.lerret/` except the protected `config.json` and `_fonts/`. This also deletes `_brand/` (brand library), `.workflows/` (saved workflows) and `.state/` (AI snapshots). |
+| `--all` | Remove every child of `.lerret/` except `config.json` and the reserved `_` / `.` folders (`_fonts/`, `_brand/`, `.workflows/`, `.state/`). |
 | `--yes` | Skip the confirmation prompt (for scripts / CI). |
 | `--dry-run` | Print the removal plan without touching the filesystem. |
 
