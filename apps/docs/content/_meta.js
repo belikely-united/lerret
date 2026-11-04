@@ -21,7 +21,8 @@ export default {
     type: 'separator',
     title: 'AI',
   },
-  'ai-studio': 'AI in the Studio',
+  // Hidden while the in-studio AI chat is switched off; the page still resolves.
+  'ai-studio': { title: 'AI in the Studio', display: 'hidden' },
   'ai-editing': 'Editing with AI Tools',
   '-- meta': {
     type: 'separator',
