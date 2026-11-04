@@ -85,7 +85,7 @@ Two architectural choices define it:
 ### 7. AI Editing (documented)
 - The Claude Code plugin (`/plugin install lerret@belikely-united`, then `/lerret`) authors, previews and exports assets using your own Claude Code session — no API keys. See https://docs.lerret.io/ai-editing/
 - Because assets are ordinary React files, any AI tool (Claude Code, Cursor, Copilot, AGENTS.md agents) can edit a `.lerret/` folder directly; `create-lerret` writes per-tool convention files (opt out with `--no-ai-rules` or `--ai-tools=<list>`).
-- The studio also contains a BYOK agent (your own provider key or local Ollama, browser-direct, sandboxed to `.lerret/`), but its chat input is switched off in the current studio release. See https://docs.lerret.io/ai-studio/
+- The studio also contains a BYOK agent (your own provider key or local Ollama, browser-direct, sandboxed to `.lerret/`), but its chat input is switched off in the current studio release.
 
 ---
 
@@ -339,7 +339,6 @@ Documentation:
 - https://docs.lerret.io/studio/
 - https://docs.lerret.io/cli/
 - https://docs.lerret.io/deploy/
-- https://docs.lerret.io/ai-studio/
 - https://docs.lerret.io/ai-editing/
 - https://docs.lerret.io/faq/
 
