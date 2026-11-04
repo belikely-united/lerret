@@ -156,7 +156,7 @@ Lerret gives sized artboards, variants, a config cascade, and headless repeatabl
 
 | Package | Version | Role |
 |---|---|---|
-| `@lerret/cli` | 0.2.1 | The user-facing CLI. Installs a binary named `lerret`. Bundles the studio. |
+| `@lerret/cli` | 0.2.2 | The user-facing CLI. Installs a binary named `lerret`. Bundles the studio. |
 | `@lerret/core` | 0.1.4 | Environment-agnostic engine — loader, watcher, config cascade, filesystem contract. |
 | `create-lerret` | 0.1.5 | Project scaffolder. |
 | `@lerret/studio` | workspace-only | The React studio app. Not published; built and bundled into the CLI tarball. |

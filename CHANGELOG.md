@@ -8,6 +8,8 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.2.2 — 2026-11-04
+
 ### Fixed
 
 - **Workflow Preview:** clicking a thumbnail opened a broken image for every row except the last. Each new thumbnail revoked the earlier thumbnails' image URLs. The URLs now stay valid until the next preview run or until the step is closed.

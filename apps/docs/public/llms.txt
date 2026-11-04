@@ -32,7 +32,7 @@ cd my-canvas
 npx @lerret/cli@latest dev
 ```
 
-- [@lerret/cli](https://www.npmjs.com/package/@lerret/cli) — 0.2.1. The CLI. Subcommands: `dev`, `export`, `clear`. Note: `clear --all` protects only `config.json` and `_fonts/`, so it also deletes `_brand/`, `.workflows/` and `.state/`.
+- [@lerret/cli](https://www.npmjs.com/package/@lerret/cli) — 0.2.2. The CLI. Subcommands: `dev`, `export`, `clear`. `clear --all` keeps `config.json` and the reserved `_` / `.` folders (`_fonts/`, `_brand/`, `.workflows/`, `.state/`).
 - [@lerret/core](https://www.npmjs.com/package/@lerret/core) — 0.1.4. Loader, watcher, config cascade, filesystem contract.
 - [create-lerret](https://www.npmjs.com/package/create-lerret) — 0.1.5. Project scaffolder; the default is a five-page teaching kit.
 
