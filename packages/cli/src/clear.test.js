@@ -293,6 +293,25 @@ describe('resolveAllTargets', () => {
     }
   });
 
+  it('skips reserved _ / . folders (brand library, workflows, snapshots)', async () => {
+    const ctx = await makeProject({
+      'config.json': '{}',
+      _brand: { 'brand.json': '{}' },
+      '.workflows': { 'social.json': '{}' },
+      '.state': { 'snap.json': '{}' },
+      social: { 'a.jsx': 'export default () => null' },
+    });
+    try {
+      const targets = await resolveAllTargets({
+        fs: createNodeBackend(),
+        lerretDir: ctx.lerretDir,
+      });
+      expect(targets.map((t) => t.displayPath)).toEqual(['social']);
+    } finally {
+      await ctx.cleanup();
+    }
+  });
+
   it('returns an empty list when .lerret/ has only protected children', async () => {
     const ctx = await makeProject({
       'config.json': '{}',
@@ -357,6 +376,38 @@ describe('runClear', () => {
       // social/ is gone; config.json survives.
       await expect(fsp.access(join(ctx.lerretDir, 'social'))).rejects.toBeTruthy();
       await expect(fsp.access(join(ctx.lerretDir, 'config.json'))).resolves.toBeUndefined();
+    } finally { await ctx.cleanup(); }
+  });
+
+  it('--all keeps _brand/ and .workflows/', async () => {
+    const ctx = await makeProject({
+      'config.json': '{}',
+      _brand: { 'brand.json': '{}' },
+      '.workflows': { 'social.json': '{}' },
+      social: { 'a.jsx': 'x' },
+    });
+    try {
+      const { code, stdout } = await captureRun(() =>
+        runClear(['--all', '--yes'], { getCwd: () => ctx.projectRoot }),
+      );
+      expect(code).toBe(0);
+      expect(stdout).toMatch(/removed 1 item/);
+      const remaining = (await fsp.readdir(ctx.lerretDir)).sort();
+      expect(remaining).toEqual(['.workflows', '_brand', 'config.json']);
+    } finally { await ctx.cleanup(); }
+  });
+
+  it('removes _brand/ when named explicitly', async () => {
+    const ctx = await makeProject({
+      'config.json': '{}',
+      _brand: { 'brand.json': '{}' },
+    });
+    try {
+      const { code } = await captureRun(() =>
+        runClear(['_brand', '--yes'], { getCwd: () => ctx.projectRoot }),
+      );
+      expect(code).toBe(0);
+      expect(await fsp.readdir(ctx.lerretDir)).toEqual(['config.json']);
     } finally { await ctx.cleanup(); }
   });
 

@@ -14,8 +14,9 @@
 //               inside the project's `.lerret/` tree. Relative paths resolve
 //               against CWD; absolute paths must still land inside `.lerret/`.
 //
-//   --all       Remove every immediate child of `.lerret/` EXCEPT the always-
-//               protected `config.json` and `_fonts/`. Mutually exclusive with
+//   --all       Remove every immediate child of `.lerret/` EXCEPT
+//               `config.json` and the reserved `_` / `.` folders (`_fonts/`,
+//               `_brand/`, `.workflows/`, …). Mutually exclusive with
 //               positional paths — pass one or the other.
 //   --yes       Skip the "are you sure" confirmation prompt. Required for
 //               non-interactive runs. Without this flag and without a TTY, the
@@ -27,6 +28,11 @@
 //   - the project root `.lerret/` itself
 //   - `.lerret/config.json` (per-project root config)
 //   - `.lerret/_fonts/` (auto-registered fonts directory)
+//
+// Kept by `--all` (removable only when named explicitly):
+//   - every other reserved root folder — a leading `_` or `.` (`_brand/`, the
+//     brand library; `.workflows/`, saved workflows; `.state/`, snapshots).
+//     These hold the user's own work, never scaffolded samples.
 //
 // Resolution rules:
 //   - The project is resolved from CWD via `resolveProject` (same walk-up rule
@@ -69,6 +75,18 @@ import { resolveProject } from './resolve-project.js';
  * @type {ReadonlySet<string>}
  */
 const PROTECTED_LEAF_NAMES = new Set(['config.json', '_fonts']);
+
+/**
+ * Whether a `.lerret/` child is a reserved folder — a leading `_` or `.`, the
+ * same rule the loader uses to keep it off the canvas. `--all` skips these:
+ * they hold the brand library, saved workflows and snapshots, not samples.
+ *
+ * @param {string} name
+ * @returns {boolean}
+ */
+function isReservedName(name) {
+  return name.startsWith('_') || name.startsWith('.');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -115,14 +133,16 @@ function printUsage() {
     '                   exclusive with --all.',
     '',
     'Options:',
-    '  --all            Remove every child of `.lerret/` EXCEPT the always-',
-    '                   protected `config.json` and `_fonts/`. Use this to',
-    '                   wipe scaffolded samples and start fresh.',
+    '  --all            Remove every child of `.lerret/` EXCEPT `config.json`',
+    '                   and reserved `_` / `.` folders (`_fonts/`, `_brand/`,',
+    '                   `.workflows/`). Use this to wipe scaffolded samples',
+    '                   and start fresh.',
     '  --yes            Skip the confirmation prompt (required for scripts).',
     '  --dry-run        Print the plan; do not touch the filesystem.',
     '  -h, --help       Show this help.',
     '',
     'Protected paths (never removed): `.lerret/config.json`, `.lerret/_fonts/`.',
+    'Other reserved folders are kept by --all but can be removed by name.',
   ];
   process.stdout.write(lines.join('\n') + '\n');
 }
@@ -259,7 +279,7 @@ export function resolvePositionalTarget(rawPath, { cwd, lerretDir }) {
       error:
         `"${rawPath}" resolves to the project's \`.lerret/\` itself — refusing ` +
         'to remove the project root. Use --all to wipe its contents while ' +
-        'preserving config.json and _fonts/.',
+        'preserving config.json and reserved folders.',
     };
   }
 
@@ -320,7 +340,7 @@ function classifyKind(absPath) {
 
 /**
  * Enumerate the targets for `--all`: every immediate child of `.lerret/`
- * EXCEPT the protected leaves.
+ * EXCEPT `config.json` and the reserved `_` / `.` folders.
  *
  * @param {object} ctx
  * @param {import('@lerret/core').FilesystemAccess} ctx.fs
@@ -330,7 +350,10 @@ function classifyKind(absPath) {
 export async function resolveAllTargets({ fs, lerretDir }) {
   const entries = await fs.readDir(lerretDir);
   return entries
-    .filter((entry) => !PROTECTED_LEAF_NAMES.has(entry.name))
+    .filter(
+      (entry) =>
+        !PROTECTED_LEAF_NAMES.has(entry.name) && !isReservedName(entry.name),
+    )
     .map((entry) => ({
       absPath: toLerretPath(entry.path),
       displayPath: entry.name,
@@ -422,7 +445,7 @@ export async function runClear(argv, deps = {}) {
   if (!flags.all && flags.paths.length === 0) {
     process.stderr.write(
       '@lerret/cli clear: pass one or more paths to remove, or --all to wipe ' +
-        'samples (`config.json` and `_fonts/` are preserved).\n\n',
+        'samples (`config.json` and reserved `_` / `.` folders are preserved).\n\n',
     );
     printUsage();
     return 1;
@@ -483,7 +506,7 @@ export async function runClear(argv, deps = {}) {
 
   // Print the plan. Dry-run stops here.
   const planHeader = flags.all
-    ? `@lerret/cli clear: will remove ${targets.length} item${targets.length === 1 ? '' : 's'} from .lerret/ (preserving config.json and _fonts/):`
+    ? `@lerret/cli clear: will remove ${targets.length} item${targets.length === 1 ? '' : 's'} from .lerret/ (preserving config.json and reserved _ / . folders):`
     : `@lerret/cli clear: will remove ${targets.length} item${targets.length === 1 ? '' : 's'} from .lerret/:`;
   process.stdout.write(`${planHeader}\n${formatTargetList(targets)}\n`);
 

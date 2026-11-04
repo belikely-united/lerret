@@ -186,14 +186,12 @@ Remove sample assets or whole subtrees from a project — the quickest way to wi
 
 | Flag | Description |
 |---|---|
-| `--all` | Remove every child of `.lerret/` **except** the always-protected `config.json` and `_fonts/`. |
+| `--all` | Remove every child of `.lerret/` **except** `config.json` and the reserved `_` / `.` folders: `_fonts/`, `_brand/` (brand library), `.workflows/` (saved workflows) and `.state/` (AI snapshots). |
 | `--yes` | Skip the confirmation prompt (required for scripts / CI). |
 | `--dry-run` | Print the removal plan; do not touch the filesystem. |
 | `-h, --help` | Show help. |
 
-Protected paths are never removed: `.lerret/config.json` and `.lerret/_fonts/`. Like every Lerret command, `clear` refuses to touch anything outside `.lerret/`.
-
-> **`--all` removes more than sample pages.** Only `config.json` and `_fonts/` are protected, so `--all` also deletes `_brand/` (the brand library and its logos), `.workflows/` (saved workflows), and `.state/` (AI snapshots). Run with `--dry-run` first, or pass the page folders you want to remove instead of `--all`. The `brand-*` vars stay in `config.json`.
+Protected paths are never removed: `.lerret/config.json` and `.lerret/_fonts/`. Other reserved folders such as `_brand/` are kept by `--all` but can be removed by name (`clear _brand`). Like every Lerret command, `clear` refuses to touch anything outside `.lerret/`.
 
 ## `create-lerret`
 
