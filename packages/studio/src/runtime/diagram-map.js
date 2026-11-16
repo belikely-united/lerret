@@ -261,11 +261,13 @@ export function toggleDirection(text) {
   return text.replace(/^(\s*(?:flowchart|graph))\b[ \t]*\w*/im, `$1 ${next}`);
 }
 
-/** Add a free text box (`noteN["…"]`) — Mermaid places it. */
-export function addNote(text, label) {
-  const used = new Set(text.match(/\bnote\d+\b/g) || []);
-  let n = 1;
-  while (used.has(`note${n}`)) n += 1;
-  const safe = cleanLabel(label).replace(/"/g, '#quot;') || 'Note';
-  return `${text.replace(/\s*$/, '')}\n  note${n}["${safe}"]\n`;
+/** The map a folder gets from its first canvas arrow: just that arrow. */
+export function firstPageMap(from, to) {
+  return [
+    '%% Page map: arranges this folder. Each box named after an asset here is',
+    '%% where that asset sits on the canvas; the others stay in the row below.',
+    'flowchart LR',
+    `  ${from} --> ${to}`,
+    '',
+  ].join('\n');
 }

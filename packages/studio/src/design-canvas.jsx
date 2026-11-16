@@ -1343,7 +1343,7 @@ export function sectionDepthBg(depth) {
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
-export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope, mapLayout = null, renderMapOverlay = null }) {
+export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope, mapLayout = null, renderMapOverlay = null, renderConnect = null }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
  const all = React.Children.toArray(children);
@@ -1489,8 +1489,9 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // (`_index.mmd`, Mermaid Phase 4) the artboards the map names are placed
  // where Mermaid put their boxes, over the map's arrows; the rest keep the
  // normal row underneath.
- const frameFor = (k) => (
+ const frameFor = (k, placed = false) => (
  <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
+ extra={renderConnect ? renderConnect(k, placed) : null}
  label={(sec.labels || {})[k] ?? byId[k].props.label}
  onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
  onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
@@ -1512,7 +1513,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  <div key={k} style={{ position: 'absolute', left: mapLayout.positions[k].left, top: mapLayout.positions[k].top,
  width: mapLayout.positions[k].width, height: mapLayout.positions[k].height,
  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
- {frameFor(k)}
+ {frameFor(k, true)}
  </div>
  ))}
  {renderMapOverlay && renderMapOverlay(mapLayout)}
@@ -1520,7 +1521,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  )}
  {loose.length > 0 && (
  <div style={{ display: 'flex', gap, paddingTop, alignItems: 'flex-start', width: 'max-content' }}>
- {loose.map(frameFor)}
+ {loose.map((k) => frameFor(k))}
  </div>
  )}
  </>
@@ -1667,7 +1668,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
 // DCArtboard — marker; rendered by DCArtboardFrame via DCSection.
 export function DCArtboard() { return null; }
 
-function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus }) {
+function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus, extra = null }) {
  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {},
  // Per-artboard export wiring props
  assetName, variantName, isError, hasLiveRefresh, isMarkdown, isDiagram, assetPath } = artboard.props;
@@ -1972,6 +1973,7 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  Fonts not embedded: {fontNotice.join(', ')}
  </div>
  )}
+ {extra}
  </div>
  );
 }

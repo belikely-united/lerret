@@ -326,10 +326,11 @@ A page or group folder may contain \`_index.mmd\`. It is **not an artboard** —
 - Every node whose id is the name of an asset in the same folder (\`og-card\` ↔ \`og-card.jsx\`, \`notes\` ↔ \`notes.md\`, \`flow\` ↔ \`flow.mmd\`) is **where that asset's real artboard sits**, at its real size. Mermaid's arrows, edge labels and any other boxes are drawn behind the artboards.
 - Assets the map doesn't name, and extra variants, stay in the normal row below the map.
 - Flowcharts only (\`flowchart\` / \`graph\`). Node ids must equal the asset name and use only letters, digits, \`_\` and \`-\` (rename an asset with spaces to place it).
+- For a note or annotation, make a \`.md\` asset in the folder and connect it like any card (\`og-card -.-> notes\`). Don't add free text boxes (\`x[Some text]\`) to the map — nothing anchors them, so they float wherever Mermaid parks them.
 - It re-arranges live when the map, an asset or config changes, and uses the brand look. Arrows meet each artboard at its centre.
 - The map is drawn at the artboards' scale, so arrows and labels stay readable when the page is zoomed out. Spacing is in map units (defaults \`nodeSpacing: 56\`, \`rankSpacing: 96\`); tune it in frontmatter (\`config:\` → \`flowchart:\`).
 - It is hidden on the canvas and skipped by export. In the studio: page/group menu → **Create page map** (one node per asset — then add arrows), later **Open page map**.
-- People also edit it on the canvas: drag a card's handle onto another card (adds \`a --> b\`), click an arrow (label, solid \`-->\` / dashed \`-.->\` / thick \`==>\`, delete), flip direction (\`LR\` ↔ \`TB\`), **+ Note** (adds \`noteN["…"]\`). The canvas edits only simple one-arrow lines, so keep one edge per line (\`a -->|label| b\`) rather than chains (\`a --> b --> c\`) or \`a & b\` — then both you and the canvas can change it.
+- People also edit it on the canvas: drag any card's handle onto another card of the same folder (adds \`a --> b\`; the first arrow creates \`_index.mmd\` with just that line), click an arrow (label, solid \`-->\` / dashed \`-.->\` / thick \`==>\`, delete), flip direction (\`LR\` ↔ \`TB\`). The canvas edits only simple one-arrow lines, so keep one edge per line (\`a -->|label| b\`) rather than chains (\`a --> b --> c\`) or \`a & b\` — then both you and the canvas can change it.
 
 \`\`\`
 %% .lerret/launch/_index.mmd

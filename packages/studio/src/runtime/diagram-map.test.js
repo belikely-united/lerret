@@ -1,7 +1,7 @@
 // diagram-map.test.js — `_index.mmd` arranges a folder's canvas (Mermaid Phase 4).
 
 import { describe, expect, it } from 'vitest';
-import { preparePageMap, starterPageMap, isPageMap, MAP_PLACEHOLDER, listEdges, addEdge, updateEdge, removeEdge, mapDirection, toggleDirection, addNote } from './diagram-map.js';
+import { preparePageMap, starterPageMap, isPageMap, MAP_PLACEHOLDER, listEdges, addEdge, updateEdge, removeEdge, mapDirection, toggleDirection } from './diagram-map.js';
 
 const ab = (name, ext = '.jsx', width = 400, height = 300) => ({ id: `/p/.lerret/pg/${name}${ext}`, name, width, height });
 
@@ -74,11 +74,5 @@ describe('map editing (Phase 5)', () => {
     expect(mapDirection('flowchart\n a-->b')).toBe('TB');
     expect(toggleDirection(MAP).split('\n')[0]).toBe('flowchart TB');
     expect(toggleDirection('---\ntitle: t\n---\nflowchart\n  a-->b')).toContain('\nflowchart LR\n');
-  });
-
-  it('adds numbered note boxes', () => {
-    const one = addNote(MAP, 'Say "hi"');
-    expect(one).toContain('  note1["Say #quot;hi#quot;"]');
-    expect(addNote(one, '')).toContain('  note2["Note"]');
   });
 });
