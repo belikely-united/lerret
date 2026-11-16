@@ -55,7 +55,12 @@ export function modernDiagramCss(c) {
     '.edge-thickness-thick{stroke-width:3px}',
     '.edge-pattern-dotted{stroke-dasharray:2 5}',
     `.marker,.arrowMarkerPath{fill:${c.line};stroke:${c.line};stroke-linejoin:round;fill-opacity:.85;stroke-opacity:.85}`,
-    '.node rect{rx:10px;ry:10px}',
+    '.node rect,rect.actor,rect.note,rect.labelBox{rx:10px;ry:10px}',
+    // Sequence diagrams: same quiet lines, arrowheads and text weight.
+    `.messageLine0,.messageLine1{stroke:${c.line} !important;stroke-width:1.5px !important;stroke-opacity:.85}`,
+    `[id$="arrowhead"] path,[id$="crosshead"] path,[id$="filled-head"] path{fill:${c.line} !important;stroke:${c.line} !important}`,
+    `.messageText{font-weight:500;fill:${c.ink} !important}`,
+    '.actor-line{stroke-opacity:.6}',
     '.node .label text,.nodeLabel{font-weight:500}',
     `.edgeLabel text{font-size:12px;font-weight:500;letter-spacing:.01em;fill:${c.ink};fill-opacity:.72}`,
     `.edgeLabel rect.lerret-chip{fill:${c.bg} !important;opacity:1 !important;stroke-width:1px}`,
