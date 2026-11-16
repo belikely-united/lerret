@@ -1,10 +1,10 @@
 {
   "name": "lerret",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Design assistant for Claude Code: run /lerret to set up a project, author and edit visual assets, preview the studio live, or export images. Your own Claude is the brain — wraps @lerret/cli, no AI keys.",
   "author": { "name": "Be Likely United", "email": "oss@belikely.com", "url": "https://github.com/Belikely-United" },
   "homepage": "https://lerret.io",
   "repository": "https://github.com/Belikely-United/marketplace",
   "license": "MIT",
-  "keywords": ["design", "assets", "image-generation", "jsx", "lerret", "claude-code"]
+  "keywords": ["design", "assets", "image-generation", "jsx", "diagrams", "mermaid", "lerret", "claude-code"]
 }
