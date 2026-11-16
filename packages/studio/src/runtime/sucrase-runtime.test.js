@@ -733,3 +733,49 @@ describe('hostedRuntimeFactory', () => {
  expect(() => createHostedRuntime(project)).toThrow();
  });
 });
+
+describe('createHostedRuntime — relative imports inside an asset', () => {
+ it('registers imported helper files and points the imports at their URLs', async () => {
+ const asset = componentAsset('chars/ash/ash.jsx');
+ const fs = makeFs({
+ [asset.path]: "import { Card } from '../../_cast-card.jsx';\nimport copy from './copy.json';\nexport default function Ash() { return <Card title={copy.t} />; }",
+ '/proj/.lerret/_cast-card.jsx': "import { tone } from './_theme';\nexport function Card({ title }) { return <b style={{ color: tone }}>{title}</b>; }",
+ '/proj/.lerret/_theme.js': "export const tone = 'red';",
+ '/proj/.lerret/chars/ash/copy.json': '{ "t": "Ash" }',
+ });
+ const sw = makeSw();
+ const importModule = vi.fn(async () => ({ default: Ok }));
+ const [entry] = await createHostedRuntime(project, { fs, sw, importModule }).loadAsset(asset);
+
+ expect(entry.status).toBe(assetRuntimeStatus.OK);
+ const regs = sw.messages.filter((m) => m.type === 'REGISTER_MODULE');
+ const byPath = (p) => regs.find((m) => m.url.startsWith(`${HOSTED_ASSET_URL_PREFIX}${p}?h=`));
+ const card = byPath('_cast-card.jsx');
+ const theme = byPath('_theme.js'); // extensionless import resolved like Vite
+ const json = byPath('chars/ash/copy.json');
+ const ash = byPath('chars/ash/ash.jsx');
+ expect(card && theme && json && ash).toBeTruthy();
+ expect(json.code).toBe('export default { "t": "Ash" };');
+ expect(card.code).toContain(theme.url);
+ expect(ash.code).toContain(card.url);
+ expect(ash.code).toContain(json.url);
+ expect(ash.code).not.toContain('../../_cast-card.jsx');
+ expect(importModule.mock.calls[0][0]).toBe(ash.url);
+ });
+
+ it('leaves CSS/image imports and missing files as written; survives an import cycle', async () => {
+ const asset = componentAsset('a.jsx');
+ const fs = makeFs({
+ [asset.path]: "import './a.css';\nimport { b } from './b.jsx';\nimport x from './missing.jsx';\nexport default function A() { return b + x; }",
+ '/proj/.lerret/b.jsx': "import A from './a.jsx';\nexport const b = () => A;",
+ });
+ const sw = makeSw();
+ const [entry] = await createHostedRuntime(project, { fs, sw, importModule: async () => ({ default: Ok }) }).loadAsset(asset);
+ expect(entry.status).toBe(assetRuntimeStatus.OK);
+ const urls = sw.messages.filter((m) => m.type === 'REGISTER_MODULE').map((m) => m.url);
+ expect(urls).toContain(`${HOSTED_ASSET_URL_PREFIX}a.jsx`); // the cycle's plain URL is served too
+ const a = sw.messages.find((m) => m.url.startsWith(`${HOSTED_ASSET_URL_PREFIX}a.jsx?h=`));
+ expect(a.code).toContain("'./a.css'");
+ expect(a.code).toContain("'./missing.jsx'");
+ });
+});

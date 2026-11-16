@@ -186,6 +186,28 @@ describe('module-sw pre-register protocol', () => {
  expect(Array.from(new Uint8Array(await c.arrayBuffer()))).toEqual([137, 80, 78, 71]);
  });
 
+ it('ENABLE_IMAGES: an unseen image (incl. the CLI /@lerret-project/ route) is asked from the page on demand', async () => {
+ const asked = [];
+ const page = { postMessage: (m) => asked.push(m) };
+ sw.fakeClients.get = async () => page;
+ dispatchMessage(sw.handlers.message[0], { type: 'ENABLE_IMAGES' });
+ let response = null;
+ sw.handlers.fetch[0]({
+ request: { url: 'https://x.com/@lerret-project/_library/ash/face.png?v=1' },
+ clientId: 'c1',
+ respondWith(r) { response = r; },
+ });
+ await new Promise((r) => setTimeout(r, 0));
+ expect(asked[0].type).toBe('NEED_BINARY');
+ expect(asked[0].keys).toContain('_library/ash/face.png');
+ // The page reads the file and answers.
+ dispatchMessage(sw.handlers.message[0], { type: 'REGISTER_BINARY', key: '_library/ash/face.png', bytes: new Uint8Array([7]), contentType: 'image/png' });
+ dispatchMessage(sw.handlers.message[0], { type: 'BINARY_RESULT', id: asked[0].id, key: '_library/ash/face.png' });
+ const res = await response;
+ expect(res.status).toBe(200);
+ expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([7]);
+ });
+
  it('a fetch for an unregistered URL serves a 404 stub that throws on evaluation', async () => {
  const url = '/__lerret/asset/missing.jsx?h=xyz';
  const resolved = await dispatchFetch(sw.handlers.fetch[0], `https://example.com${url}`);

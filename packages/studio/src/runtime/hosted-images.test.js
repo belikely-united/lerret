@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import { createMemoryBackend } from '../fs/memory-backend.js';
-import { registerProjectImages, imageMime } from './hosted-images.js';
+import { registerProjectImages, imageMime, onSwMessage } from './hosted-images.js';
 
 describe('imageMime', () => {
   it('maps the known image extensions (case-insensitive)', () => {
@@ -24,37 +24,43 @@ describe('imageMime', () => {
   });
 });
 
-describe('registerProjectImages', () => {
-  it('walks .lerret/ and registers each image (binary) keyed by its relative path', async () => {
-    const backend = createMemoryBackend({
-      '.lerret/welcome/Welcome.jsx': 'export default () => null',
-      '.lerret/welcome/Welcome.data.json': '{}',
-      '.lerret/_assets/logo.png': new Uint8Array([1, 2, 3]),
-      '.lerret/social/card-logo.png': new Uint8Array([9, 8]),
-    });
+describe('registerProjectImages (on demand)', () => {
+  // A fake navigator.serviceWorker that captures the page's message listener.
+  const installSwContainer = () => {
+    const listeners = [];
+    vi.stubGlobal('navigator', { serviceWorker: { addEventListener: (_t, fn) => listeners.push(fn), controller: null } });
+    return listeners;
+  };
+  const ask = async (keys) => {
+    const source = { postMessage: vi.fn() };
+    await onSwMessage({ data: { type: 'NEED_BINARY', id: 7, keys }, source });
+    return source.postMessage.mock.calls.map((c) => c[0]);
+  };
+
+  it('reads nothing up front and turns on-demand images on', async () => {
+    const listeners = installSwContainer();
+    const backend = createMemoryBackend({ '.lerret/_assets/logo.png': new Uint8Array([1, 2, 3]) });
     const sw = { postMessage: vi.fn() };
-    const count = await registerProjectImages(backend, sw);
-    expect(count).toBe(2);
-    const msgs = sw.postMessage.mock.calls.map((c) => c[0]);
-    expect(msgs.every((m) => m.type === 'REGISTER_BINARY')).toBe(true);
-    const byKey = Object.fromEntries(msgs.map((m) => [m.key, m]));
-    // Keyed by the path RELATIVE to .lerret/ (so the SW can match the <img> tail).
-    expect(byKey['_assets/logo.png'].contentType).toBe('image/png');
-    expect(Array.from(byKey['_assets/logo.png'].bytes)).toEqual([1, 2, 3]);
-    expect(byKey['social/card-logo.png']).toBeTruthy();
-    // The .jsx / .data.json are NOT registered as binary.
-    expect(msgs.every((m) => m.key.endsWith('.png'))).toBe(true);
+    expect(await registerProjectImages(backend, sw)).toBe(0);
+    expect(sw.postMessage.mock.calls.map((c) => c[0])).toEqual([{ type: 'ENABLE_IMAGES' }]);
+    expect(listeners.length).toBeLessThanOrEqual(1); // installed once per page
   });
 
-  it('skips the .state snapshot sidecar', async () => {
-    const backend = createMemoryBackend({
-      '.lerret/_assets/logo.png': new Uint8Array([1]),
-      '.lerret/.state/history/blob.png': new Uint8Array([2]),
-    });
-    const sw = { postMessage: vi.fn() };
-    const count = await registerProjectImages(backend, sw);
-    expect(count).toBe(1);
-    expect(sw.postMessage.mock.calls[0][0].key).toBe('_assets/logo.png');
+  it('answers a request with the first candidate that is a project image', async () => {
+    installSwContainer();
+    await registerProjectImages(createMemoryBackend({
+      '.lerret/_library/ash/face.png': new Uint8Array([9, 8]),
+    }), { postMessage: vi.fn() });
+    const msgs = await ask(['@lerret-project/_library/ash/face.png', '_library/ash/face.png']);
+    expect(msgs[0]).toMatchObject({ type: 'REGISTER_BINARY', key: '_library/ash/face.png', contentType: 'image/png' });
+    expect(Array.from(msgs[0].bytes)).toEqual([9, 8]);
+    expect(msgs[1]).toEqual({ type: 'BINARY_RESULT', id: 7, key: '_library/ash/face.png' });
+  });
+
+  it('replies "none" for missing files, non-images and ../ paths', async () => {
+    installSwContainer();
+    await registerProjectImages(createMemoryBackend({ '.lerret/a.jsx': 'x' }), { postMessage: vi.fn() });
+    expect(await ask(['nope.png', 'a.jsx', '../secret.png'])).toEqual([{ type: 'BINARY_RESULT', id: 7, key: null }]);
   });
 
   it('is a no-op without a usable fs or sw', async () => {

@@ -428,7 +428,7 @@ export class ServiceWorkerRegistrationError extends Error {
  * @param {ReturnType<typeof createTransformCache>} ctx.cache
  * @returns {Promise<{ url: string, hash: string }>}
  */
-async function transformAndRegister(lerretPath, ctx) {
+async function transformAndRegister(lerretPath, ctx, seen = new Map()) {
  const source = await ctx.fs.readFile(lerretPath);
  if (typeof source !== 'string') {
  throw new Error(`hosted runtime: expected utf-8 text for "${lerretPath}"`);
@@ -436,24 +436,105 @@ async function transformAndRegister(lerretPath, ctx) {
  let transformed;
  if (fileExtensionIsTransformable(lerretPath)) {
  transformed = await transformJsx(source, lerretPath, { cache: ctx.cache });
+ } else if (/\.json$/i.test(lerretPath)) {
+ // `import data from './copy.json'` — served as a JS module, like Vite does.
+ const code = `export default ${source};`;
+ transformed = { code, hash: await hashSource(code), cached: false };
  } else {
- // Pass through as-is — already JS / CSS / JSON. Still compute a hash so
+ // Pass through as-is — already JS / CSS. Still compute a hash so
  // the SW URL carries a cache-bust segment.
  const hash = await hashSource(source);
  transformed = { code: source, hash, cached: false };
  }
+ // The files this module imports (`../_cast-card.jsx`, `./theme.js`) are not
+ // assets, so nothing else registers them: register them here and point the
+ // imports at their content-hashed URLs (a changed helper → a fresh module).
+ seen.set(lerretPath, null); // in progress — a cycle back here uses the plain URL
+ const code = await registerImports(transformed.code, lerretPath, ctx, seen);
+ const hash = code === transformed.code ? transformed.hash : await hashSource(code);
  // Build the SW URL using a synthetic AssetNode-ish locator: only `path` is
  // used by `hostedAssetModuleUrl`. We construct a minimal one here so the
  // helper stays focused.
- let url = hostedAssetModuleUrl({ path: lerretPath }, ctx.project, transformed.hash);
+ let url = hostedAssetModuleUrl({ path: lerretPath }, ctx.project, hash);
  // An optional refresh nonce yields a fresh URL (and module instance) even when
  // the source — and thus the content hash — is unchanged. Data modules use it so
  // an auto-refresh re-imports a .data.js and re-runs its fetch.
  if (ctx.bust != null) {
  url += (url.includes('?') ? '&' : '?') + 'r=' + encodeURIComponent(String(ctx.bust));
  }
- ctx.sw.postMessage({ type: 'REGISTER_MODULE', url, code: transformed.code });
- return { url, hash: transformed.hash };
+ ctx.sw.postMessage({ type: 'REGISTER_MODULE', url, code });
+ if (seen.get(lerretPath) === 'cycle') {
+ // Something in this module's own import graph imports it back by its plain URL.
+ ctx.sw.postMessage({ type: 'REGISTER_MODULE', url: hostedAssetModuleUrl({ path: lerretPath }, ctx.project), code });
+ }
+ seen.set(lerretPath, url);
+ return { url, hash };
+}
+
+/** Relative module specifiers: `from '../x.jsx'`, `import './x.js'`, `import('./x')`. */
+const RELATIVE_IMPORT_RE = /(\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"\n]+)\2/g;
+const MODULE_EXT_RE = /\.(jsx|tsx|ts|js|mjs|json)$/i;
+const RESOLVE_EXTS = ['.jsx', '.tsx', '.js', '.ts', '.mjs'];
+
+/** Posix join of a file's folder and a relative specifier. */
+function resolveRelative(fromPath, spec) {
+ const parts = fromPath.split('/');
+ parts.pop();
+ for (const seg of spec.split('/')) {
+ if (seg === '..') parts.pop();
+ else if (seg !== '.' && seg !== '') parts.push(seg);
+ }
+ return parts.join('/');
+}
+
+/** The project file a specifier points at (Vite-style extension lookup), or null. */
+async function findModuleFile(base, ctx) {
+ const candidates = MODULE_EXT_RE.test(base)
+ ? [base]
+ : [...RESOLVE_EXTS.map((e) => base + e), ...RESOLVE_EXTS.map((e) => `${base}/index${e}`)];
+ for (const path of candidates) {
+ try {
+ if (await ctx.fs.exists(path)) return path;
+ } catch {
+ // try the next candidate
+ }
+ }
+ return null;
+}
+
+/**
+ * Register every module `code` imports by a relative path (recursively) and
+ * return `code` with those specifiers rewritten to the registered URLs.
+ * Non-module imports (CSS, images) and unresolvable ones are left as written.
+ */
+async function registerImports(code, fromPath, ctx, seen) {
+ const root = (ctx.project && ctx.project.path) || '';
+ const specs = [...new Set([...code.matchAll(RELATIVE_IMPORT_RE)].map((m) => m[3]))];
+ const urls = {};
+ for (const spec of specs) {
+ const base = resolveRelative(fromPath, spec.split('?')[0]);
+ if (root && !base.startsWith(root)) continue; // never outside the project
+ if (/\.\w+$/.test(base) && !MODULE_EXT_RE.test(base)) continue; // .css, .png, …
+ const path = await findModuleFile(base, ctx);
+ if (!path) continue;
+ if (seen.has(path)) {
+ const known = seen.get(path);
+ if (known && known !== 'cycle') urls[spec] = known;
+ else {
+ // ponytail: import cycle → plain URL, registered once the module finishes.
+ seen.set(path, 'cycle');
+ urls[spec] = hostedAssetModuleUrl({ path }, ctx.project);
+ }
+ continue;
+ }
+ try {
+ urls[spec] = (await transformAndRegister(path, { ...ctx, bust: null }, seen)).url;
+ } catch {
+ // unreadable / invalid — leave the import as written; it fails visibly
+ }
+ }
+ if (Object.keys(urls).length === 0) return code;
+ return code.replace(RELATIVE_IMPORT_RE, (all, lead, q, spec) => (urls[spec] ? `${lead}${q}${urls[spec]}${q}` : all));
 }
 
 // ---------------------------------------------------------------------------
