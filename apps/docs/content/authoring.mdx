@@ -235,6 +235,8 @@ Markdown cards are useful for:
 
 Markdown does not get `meta` (today). It also does not get variants — one file is one card.
 
+A ` ```mermaid ` code fence in a note renders as a diagram — see [Diagrams in notes](/diagrams/#diagrams-in-notes).
+
 ## Custom fonts
 
 Drop a font file into `.lerret/_fonts/` and Lerret auto-registers it as a CSS `@font-face` rule.
@@ -376,9 +378,13 @@ export default {
 
 If two components share a logo, image, or constants file, import it from a normal relative path. The asset stays in `.lerret/` and is bundled by Vite (CLI mode) or fetched at runtime (hosted mode).
 
+### Diagram inside a design
+
+To put a Mermaid diagram inside a card or slide, `import mermaid from 'mermaid'` in a normal component — nothing to install, and the component stays plain React. Mark the diagram's box with `data-lerret-pending` while it draws so export waits for it. The **Diagram card** template writes this for you; the full pattern is in [Diagrams inside a design](/diagrams/#diagrams-inside-a-design). For a diagram on its own, a [`.mmd` file](/diagrams/#mmd-files) is simpler.
+
 ## What's next
 
-- **[Examples](/examples/)** — sixteen complete, runnable assets covering OG cards, YouTube thumbnails, variants, computed `.data.js`, custom fonts, component showcases.
+- **[Examples](/examples/)** — seventeen complete, runnable assets covering OG cards, YouTube thumbnails, variants, computed `.data.js`, custom fonts, component showcases.
 - **[Concepts](/concepts/)** — the model your assets live inside.
 - **[CLI Reference](/cli/)** — flags for running and exporting.
 - **[Deployment](/deploy/)** — running the studio locally, in a browser, or self-hosted.

@@ -1,11 +1,11 @@
 ---
 title: Examples
-description: Sixteen art-directed marketing posters — phone mockups, App Store screenshots, multi-device showcases, Product Hunt launches, feature drops, OSS releases and more — all written as plain React.
+description: Seventeen art-directed marketing posters — phone mockups, App Store screenshots, multi-device showcases, Product Hunt launches, feature drops, OSS releases and more — all written as plain React.
 ---
 
 # Examples
 
-You shipped the product. Now you need an App Store screenshot, a Product Hunt gallery image with your UI in a phone frame, a "X is live" launch poster, a feature-drop graphic for Twitter. Designers know this drill; most builders don't. **This is the gap.** Sixteen art-directed marketing posters below — each a complete Lerret asset you can drop in, edit, and export.
+You shipped the product. Now you need an App Store screenshot, a Product Hunt gallery image with your UI in a phone frame, a "X is live" launch poster, a feature-drop graphic for Twitter. Designers know this drill; most builders don't. **This is the gap.** Seventeen art-directed marketing posters below — each a complete Lerret asset you can drop in, edit, and export.
 
 The first three are the mockup-based ones (phone, multi-device, App Store screenshot) — the assets devs and indie founders ask "how do I make one of these" most often. The rest cover the announcement / milestone / community surface.
 
@@ -514,6 +514,42 @@ export const meta = {
 **Design notes.** Render the statement word-by-word and color only the trailing period in the pink accent. Tiny detail, but it lands like a punctuation mark that makes the line declarative.
 
 [View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/apps/docs/_examples-fixture/.lerret/examples/manifesto.jsx)
+
+---
+
+## 17. Architecture card — Diagram card
+
+**Use case.** "How it works" in one image: a bold title over a flowchart, sized for an OG card or a slide. Made from the **Diagram card** template, which imports the plain `mermaid` package — the chart text lives in the data file, so you edit words, not code. Landscape 1200×630.
+
+![Architecture card — white background, bold "How Lerret works" title, and a calm grey flowchart: .lerret/ folder branching to Studio canvas and CLI export, both arriving at PNG / JPG](/examples/architecture-card.jpg)
+
+**Path.** `.lerret/marketing/architecture-card.jsx` + `architecture-card.data.json`
+
+```json
+{
+  "title": "How Lerret works",
+  "chart": "flowchart LR\n  files[.lerret/ folder] --> studio[Studio canvas]\n  files --> cli[CLI export]\n  studio --> images[PNG / JPG]\n  cli --> images"
+}
+```
+
+```jsx
+import { useEffect, useId, useRef, useState } from 'react';
+import mermaid from 'mermaid';
+
+export const meta = {
+  dimensions: { width: 1200, height: 630 },
+  propsSchema: {
+    title: { type: 'string', default: 'How it works' },
+    chart: { type: 'string', description: 'Mermaid text.' },
+  },
+};
+
+// Full source — see the fixture file in the docs repo.
+```
+
+**Design notes.** Mark the diagram's box with `data-lerret-pending` until Mermaid has drawn, so export never captures a blank card. Mermaid needs real colours, so the template reads your brand CSS vars with `getComputedStyle` and passes the values in. More in [Diagrams inside a design](/diagrams/#diagrams-inside-a-design).
+
+[View full source on GitHub →](https://github.com/belikely-united/lerret/blob/main/apps/docs/_examples-fixture/.lerret/examples/architecture-card.jsx)
 
 ---
 

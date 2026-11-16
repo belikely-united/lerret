@@ -13,6 +13,7 @@ export default {
   },
   concepts: 'Concepts',
   authoring: 'Authoring Assets',
+  diagrams: 'Diagrams (Mermaid)',
   examples: 'Examples',
   studio: 'The Studio',
   cli: 'CLI Reference',

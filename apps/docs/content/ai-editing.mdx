@@ -131,6 +131,22 @@ Variants share the file's `meta` — including `dimensions` — so the model wil
 
 The conventions know that fonts in `.lerret/_fonts/` are auto-registered as `@font-face` rules — no import, no manual CSS. The model uses the font's family name directly in inline styles, the same way the samples use the bundled `'LerretFixtureMono'`.
 
+**Draw a flow as a diagram.**
+
+```
+/lerret-edit draw our signup flow as a diagram in social/
+```
+
+The conventions know Lerret renders plain Mermaid: the model writes a `signup-flow.mmd` (no Lerret-only syntax, so it also renders on GitHub) and leaves the colours to the folder's brand.
+
+**Arrange a page.**
+
+```
+arrange the social page: og-card → tw-banner, and a dashed arrow from og-card to the notes
+```
+
+The model writes `social/_index.mmd` — a [page map](/diagrams/#page-maps-_indexmmd) whose boxes are named after the assets, one arrow per line — and the canvas re-arranges.
+
 ## Troubleshooting
 
 **Claude Code does not seem to pick up the skill.**
@@ -168,4 +184,4 @@ The bundled AI-tool files are local-project-scoped — Claude Code reads `.claud
 
 - **[Authoring Assets](/authoring/)** — the same conventions the bundled files encode, in human-readable form. Useful when you want to read what the model is reading.
 - **[CLI Reference](/cli/)** — `@lerret/cli dev` and `@lerret/cli export` flags. The bundled files know these, but the reference is the source of truth.
-- **[Examples](/examples/)** — sixteen runnable assets to crib from. Many of them are excellent starting prompts for `/lerret` or your own AI tool.
+- **[Examples](/examples/)** — seventeen runnable assets to crib from. Many of them are excellent starting prompts for `/lerret` or your own AI tool.

@@ -13,7 +13,7 @@ Two architectural choices define it:
 **Documentation:** https://docs.lerret.io
 **Source:** https://github.com/belikely-united/lerret
 **Licence:** MIT
-**Version:** pre-1.0 (`@lerret/cli` 0.2.x)
+**Version:** pre-1.0 (`@lerret/cli` 0.3.x)
 
 ---
 
@@ -82,7 +82,13 @@ Two architectural choices define it:
 - **Export for App Store:** a page/group action that downloads every App Store-sized design as exact-size JPGs, one folder per device, in one ZIP.
 - **Workflow mode:** fill one design from an Excel or CSV sheet — one image per row, downloaded as a PNG/JPG ZIP or one PDF. Saved in `.lerret/.workflows/<page>.json`. See https://docs.lerret.io/studio/#workflow-mode
 
-### 7. AI Editing (documented)
+### 7. Diagrams (Mermaid)
+- A `.mmd` / `.mermaid` file is an artboard, sized to the diagram; plain Mermaid only (the same file renders on GitHub). Exports to PNG/JPG; the studio adds SVG.
+- Diagrams take colours and font from the folder's `config.json` (brand library vars, common var names, or a `mermaid.themeVariables` block with `$var` references).
+- A JSX asset can `import mermaid from 'mermaid'` with nothing to install (stays plain React); export waits for `data-lerret-pending`. "Diagram card" poster template.
+- `_index.mmd` page maps arrange a page's real artboards as a flowchart with arrows; editable on the canvas (drag to connect, click an arrow to label / restyle / delete). See https://docs.lerret.io/diagrams/
+
+### 8. AI Editing (documented)
 - The Claude Code plugin (`/plugin install lerret@belikely-united`, then `/lerret`) authors, previews and exports assets using your own Claude Code session — no API keys. See https://docs.lerret.io/ai-editing/
 - Because assets are ordinary React files, any AI tool (Claude Code, Cursor, Copilot, AGENTS.md agents) can edit a `.lerret/` folder directly; `create-lerret` writes per-tool convention files (opt out with `--no-ai-rules` or `--ai-tools=<list>`).
 - The studio also contains a BYOK agent (your own provider key or local Ollama, browser-direct, sandboxed to `.lerret/`), but its chat input is switched off in the current studio release.
@@ -156,9 +162,9 @@ Lerret gives sized artboards, variants, a config cascade, and headless repeatabl
 
 | Package | Version | Role |
 |---|---|---|
-| `@lerret/cli` | 0.2.2 | The user-facing CLI. Installs a binary named `lerret`. Bundles the studio. |
-| `@lerret/core` | 0.1.4 | Environment-agnostic engine — loader, watcher, config cascade, filesystem contract. |
-| `create-lerret` | 0.1.5 | Project scaffolder. |
+| `@lerret/cli` | 0.3.0 | The user-facing CLI. Installs a binary named `lerret`. Bundles the studio. |
+| `@lerret/core` | 0.1.5 | Environment-agnostic engine — loader, watcher, config cascade, filesystem contract. |
+| `create-lerret` | 0.1.6 | Project scaffolder. |
 | `@lerret/studio` | workspace-only | The React studio app. Not published; built and bundled into the CLI tarball. |
 
 Note: the bare `lerret` name on npm is a different, unrelated, deprecated package. Always use the scoped `@lerret/cli` form with `npx`.
@@ -258,7 +264,7 @@ A: Yes. Export boots a headless Chromium through Playwright and never opens a wi
 A: Only the first time, to download the packages. After that the only outbound request the CLI makes is brand import (it fetches the website or store link you paste into brand setup). The studio page loads UI fonts and the font picker's list from Google Fonts, falling back to system fonts offline.
 
 **Q: Is it production-ready?**
-A: It is pre-1.0 (`@lerret/cli` 0.2.x). The folder-canvas model, live-edit loop, in-studio editors and Design panel, brand library, export (including Export for App Store), Workflow mode, and all three run modes work today. The Brand page, image-file drops and reveal actions need CLI mode. Expect sharp edges before 1.0; the public API stabilises for 1.0.
+A: It is pre-1.0 (`@lerret/cli` 0.3.x). The folder-canvas model, live-edit loop, in-studio editors and Design panel, brand library, export (including Export for App Store), Workflow mode, and all three run modes work today. The Brand page, image-file drops and reveal actions need CLI mode. Expect sharp edges before 1.0; the public API stabilises for 1.0.
 
 **Q: What is the relationship between `@lerret/cli` and `lerret`?**
 A: `@lerret/cli` is the npm package; it ships a binary named `lerret`. The bare `lerret` package on npm is unrelated and deprecated.
@@ -355,7 +361,7 @@ Packages:
 ---
 
 ## Last Updated
-2026-11-03
+2026-11-16
 
 ---
 
