@@ -89,7 +89,7 @@ import {
   readTextFile,
 } from './fs/node-backend.js';
 import { resolveProject } from './resolve-project.js';
-import { resolveStudioRoot } from './dev.js';
+import { resolveStudioRoot, mermaidAliases } from './dev.js';
 import {
   lerretProjectPlugin,
   studioChunkResolvePlugin,
@@ -1021,6 +1021,7 @@ export async function bootViteServer({ projectRoot, lerretDir, dataOverride, con
     { find: 'react-dom/client', replacement: cliRequire.resolve('react-dom/client') },
     { find: /^react-dom$/, replacement: cliRequire.resolve('react-dom') },
     { find: /^react$/, replacement: cliRequire.resolve('react') },
+    ...mermaidAliases(studioRoot, isPreBuilt),
   ];
 
   const server = await createServer({

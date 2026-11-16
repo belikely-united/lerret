@@ -221,6 +221,28 @@ function _customFontFaceRule(family, b64, format) {
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** How long capture waits for `data-lerret-pending` content before going ahead. */
+export const PENDING_TIMEOUT_MS = 10000;
+
+/**
+ * Resolve once no element inside `root` carries `data-lerret-pending`, or
+ * after `timeoutMs` (capture then proceeds with whatever is drawn — a slow
+ * diagram never blocks an export forever).
+ *
+ * @param {Element} root
+ * @param {number} [timeoutMs]
+ * @returns {Promise<boolean>} `true` when nothing is pending any more.
+ */
+export async function waitForPending(root, timeoutMs = PENDING_TIMEOUT_MS) {
+ if (!root || typeof root.querySelector !== 'function') return true;
+ const start = Date.now();
+ while (root.querySelector('[data-lerret-pending]')) {
+ if (Date.now() - start >= timeoutMs) return false;
+ await new Promise((r) => setTimeout(r, 50));
+ }
+ return true;
+}
+
 /**
  * Capture an artboard DOM element as a rasterized image Blob.
  *
@@ -270,6 +292,12 @@ export async function captureArtboard(artboardElement, options = {}) {
  //. `resolveFormat` throws a caller-catchable Error for any
  // unrecognized format string and defaults to 'png' when format is undefined.
  const { format: fmt } = resolveFormat(format);
+
+ // Wait for content that renders asynchronously — e.g. a Mermaid diagram in
+ // a JSX asset or a Markdown note — to finish. Plain-DOM convention: such
+ // content carries `data-lerret-pending` until it is drawn (Phase 3 of the
+ // Mermaid spec). Outside Lerret the attribute does nothing.
+ await waitForPending(artboardElement);
 
  // Wait for the document fonts to finish loading before measuring
  if (typeof document !== 'undefined' && document.fonts?.ready) {

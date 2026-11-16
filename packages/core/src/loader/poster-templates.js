@@ -18,6 +18,7 @@ import {
   BRAND_DIR,
   brandRoles,
   colorRef,
+  colorVarKey,
   hasBrand,
   logoVariantFor,
   luminance,
@@ -43,6 +44,7 @@ export const POSTER_TEMPLATES = Object.freeze([
   { id: 'headline-phone', label: 'Headline + phone', description: 'Your message on top, the app below.' },
   { id: 'phone-headline', label: 'Phone + caption', description: 'The app first, a caption underneath.' },
   { id: 'big-headline', label: 'Big statement', description: 'One bold line on a dark background.' },
+  { id: 'diagram-card', label: 'Diagram card', description: 'A title and a Mermaid diagram (plain React + the mermaid package).' },
 ]);
 
 const r = (n) => Math.round(n);
@@ -275,6 +277,7 @@ function layout(id, W, H, roles) {
 export function posterTemplateContent(templateId, name, dimensions, kit) {
   const dims = validateAssetDimensions(dimensions).ok ? dimensions : DEFAULT_ASSET_DIMENSIONS;
   const roles = kitRoles(kit);
+  if (templateId === 'diagram-card') return diagramCardContent(name, dims, roles);
   const lay = layout(templateId, dims.width, dims.height, roles);
   if (!lay) return null;
   const id = componentIdentifier(name);
@@ -320,5 +323,110 @@ export function posterTemplateContent(templateId, name, dimensions, kit) {
     null,
     2,
   )}\n`;
+  return { source, data };
+}
+
+const DIAGRAM_CARD_CHART = [
+  'flowchart LR',
+  '  idea[Idea] --> build[Build]',
+  '  build --> launch[Launch]',
+  '  launch --> feedback{Feedback}',
+  '  feedback -->|iterate| build',
+].join('\n');
+
+/**
+ * The "Diagram card" template (spec-mermaid-diagrams.md, Phase 3 / D6): a title
+ * plus a Mermaid diagram, written as a PLAIN React component that imports the
+ * `mermaid` npm package itself — no Lerret import, so it works in any React
+ * app. Brand colours are read from the CSS variables Lerret injects (with
+ * neutral fallbacks outside Lerret); the chart text lives in the data file.
+ *
+ * @param {string} name
+ * @param {{ width: number, height: number }} dims
+ * @param {ReturnType<typeof kitRoles>} roles
+ * @returns {{ source: string, data: string }}
+ */
+function diagramCardContent(name, dims, roles) {
+  const id = componentIdentifier(name);
+  const q = JSON.stringify;
+  // A theme colour: the brand CSS var when there is a brand, its value as fallback.
+  const tv = (role, dflt) => `cssVar(box.current, ${q(role ? `--${colorVarKey(role)}` : null)}, ${q(role?.value ?? dflt)})`;
+  const pad = r(Math.min(dims.width, dims.height) * 0.08);
+  const titleSize = r(Math.min(dims.width, dims.height) * 0.08);
+  const paper = colorOr(roles?.paper, '#FFFFFF');
+  const ink = colorOr(roles?.ink, '#111111');
+  const source = [
+    `// ${id} — made from the "Diagram card" template.`,
+    '// A plain React component: it imports the `mermaid` npm package directly, so it',
+    '// works in any React app. Edit the title and the chart in the data file.',
+    "import { useEffect, useId, useRef, useState } from 'react';",
+    "import mermaid from 'mermaid';",
+    '',
+    'export const meta = {',
+    `  dimensions: { width: ${dims.width}, height: ${dims.height} },`,
+    '  propsSchema: {',
+    "    title: { type: 'string', default: 'How it works' },",
+    `    chart: { type: 'string', default: ${q(DIAGRAM_CARD_CHART)}, description: 'Mermaid text.' },`,
+    '  },',
+    '};',
+    '',
+    '// A CSS variable from the page (Lerret injects brand colours), or a fallback.',
+    'function cssVar(el, name, fallback) {',
+    "  const v = el && name ? getComputedStyle(el).getPropertyValue(name).trim() : '';",
+    '  return v || fallback;',
+    '}',
+    '',
+    `export default function ${id}({ title = 'How it works', chart = ${q(DIAGRAM_CARD_CHART)} }) {`,
+    "  const renderId = `mmd${useId().replace(/[^a-zA-Z0-9]/g, '')}`;",
+    '  const box = useRef(null);',
+    "  const [svg, setSvg] = useState('');",
+    '  const [error, setError] = useState(null);',
+    '',
+    '  useEffect(() => {',
+    '    let live = true;',
+    '    mermaid.initialize({',
+    "      startOnLoad: false, securityLevel: 'strict', htmlLabels: false, flowchart: { htmlLabels: false },",
+    "      theme: 'base',",
+    '      themeVariables: {',
+    `        background: ${tv(roles?.paper, '#FFFFFF')},`,
+    `        primaryColor: ${tv(roles?.paper, '#FFFFFF')},`,
+    `        primaryBorderColor: ${tv(roles?.primary ?? roles?.ink, '#111111')},`,
+    `        primaryTextColor: ${tv(roles?.ink, '#111111')},`,
+    `        lineColor: ${tv(roles?.ink, '#111111')},`,
+    '      },',
+    '    });',
+    '    mermaid.render(renderId, chart).then(',
+    '      (r) => { if (live) { setSvg(r.svg); setError(null); } },',
+    '      (e) => { if (live) setError(String(e?.message || e)); },',
+    '    );',
+    '    return () => { live = false; };',
+    '  }, [renderId, chart]);',
+    '',
+    '  // Scale the diagram to fit its box.',
+    '  useEffect(() => {',
+    "    const el = box.current?.querySelector('svg');",
+    "    if (el) Object.assign(el.style, { width: '100%', height: '100%', maxWidth: 'none' });",
+    '  }, [svg]);',
+    '',
+    '  return (',
+    `    <div style={{ width: '100%', height: '100%', boxSizing: 'border-box', padding: ${pad}, display: 'flex', flexDirection: 'column', gap: ${r(pad / 2)}, background: ${q(paper)}, color: ${q(ink)} }}>`,
+    `      <div style={{ ${textStyleEntries(roles?.headline, titleSize, 800, 1.1, '-0.02em')} }}>{title}</div>`,
+    '      {error ? (',
+    "        <pre style={{ flex: 1, margin: 0, whiteSpace: 'pre-wrap', fontSize: 14, opacity: 0.7 }}>{error}</pre>",
+    '      ) : (',
+    '        <div',
+    '          ref={box}',
+    "          // Tells Lerret's export to wait until the diagram is drawn; does nothing elsewhere.",
+    "          data-lerret-pending={svg ? undefined : ''}",
+    '          style={{ flex: 1, minHeight: 0 }}',
+    '          dangerouslySetInnerHTML={{ __html: svg }}',
+    '        />',
+    '      )}',
+    '    </div>',
+    '  );',
+    '}',
+    '',
+  ].join('\n');
+  const data = `${q({ title: 'How it works', chart: DIAGRAM_CARD_CHART }, null, 2)}\n`;
   return { source, data };
 }

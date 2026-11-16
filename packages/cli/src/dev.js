@@ -178,6 +178,31 @@ export function parseDevArgs(argv) {
  *
  * @returns {string}  An absolute path to the studio root (static or source).
  */
+/**
+ * Alias for a user asset's plain `import mermaid from 'mermaid'`
+ * (spec-mermaid-diagrams.md, Phase 3 / D6). The project has no
+ * `node_modules`, so — like React — `mermaid` resolves to the studio's copy:
+ * the pre-built bundle's stable `assets/mermaid-instance.js`, or, when
+ * serving the studio from source, the studio package's own `mermaid`.
+ * Returns `[]` when neither exists (an older bundle) so nothing breaks.
+ *
+ * @param {string} studioRoot
+ * @param {boolean} isPreBuilt
+ * @returns {Array<{ find: RegExp, replacement: string }>}
+ */
+export function mermaidAliases(studioRoot, isPreBuilt) {
+  if (isPreBuilt) {
+    const file = resolve(studioRoot, 'assets', 'mermaid-instance.js');
+    return pathExists(file) ? [{ find: /^mermaid$/, replacement: file }] : [];
+  }
+  try {
+    const req = createRequire(resolve(studioRoot, 'package.json'));
+    return [{ find: /^mermaid$/, replacement: req.resolve('mermaid') }];
+  } catch {
+    return [];
+  }
+}
+
 export function resolveStudioRoot() {
   // This file: packages/cli/src/dev.js → packages/cli/src/ → packages/cli/
   const cliDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -312,6 +337,7 @@ export async function runDev(argv) {
     { find: 'react-dom/client', replacement: cliRequire.resolve('react-dom/client') },
     { find: /^react-dom$/, replacement: cliRequire.resolve('react-dom') },
     { find: /^react$/, replacement: cliRequire.resolve('react') },
+    ...mermaidAliases(studioRoot, isPreBuilt),
   ];
 
   const server = await createServer({

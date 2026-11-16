@@ -130,6 +130,8 @@ function lerretSelfHostPlugin({ studioDir }) {
  'react/jsx-runtime': './assets/react-jsx-runtime-instance.js',
  'react-dom': './assets/react-dom-instance.js',
  'react-dom/client': './assets/react-dom-client-instance.js',
+ // Phase 3 (D6): JSX assets import the plain `mermaid` package.
+ mermaid: './assets/mermaid-instance.js',
  },
  });
  out = out.replace(
@@ -239,7 +241,19 @@ export default defineConfig({
  // instance — and `hosted-react-urls.js` points the import map at the
  // stable URLs so SW-served user assets resolve `react` to it. (Epic 10 / H1.2.)
  ...(isCliBuild
- ? {}
+ ? {
+ // CLI build: also emit Mermaid as a stable entry chunk so the CLI
+ // server can alias a user asset's `import 'mermaid'` to it (Phase 3).
+ preserveEntrySignatures: 'allow-extension',
+ input: {
+ index: resolve(studioDir, 'index.html'),
+ 'mermaid-instance': resolve(studioDir, 'src/runtime/mermaid-instance.js'),
+ },
+ output: {
+ entryFileNames: (chunk) =>
+ chunk.name === 'mermaid-instance' ? 'assets/[name].js' : 'assets/[name]-[hash].js',
+ },
+ }
  : {
  // The re-export entries have no in-graph importer (the import map +
  // service worker consume them at RUNTIME), so without this Rolldown
@@ -252,6 +266,7 @@ export default defineConfig({
  'react-jsx-runtime-instance': resolve(studioDir, 'src/runtime/react-jsx-runtime-instance.js'),
  'react-dom-instance': resolve(studioDir, 'src/runtime/react-dom-instance.js'),
  'react-dom-client-instance': resolve(studioDir, 'src/runtime/react-dom-client-instance.js'),
+ 'mermaid-instance': resolve(studioDir, 'src/runtime/mermaid-instance.js'),
  },
  output: {
  entryFileNames: (chunk) =>
@@ -260,6 +275,7 @@ export default defineConfig({
  'react-jsx-runtime-instance',
  'react-dom-instance',
  'react-dom-client-instance',
+ 'mermaid-instance',
  ].includes(chunk.name)
  ? 'assets/[name].js'
  : 'assets/[name]-[hash].js',

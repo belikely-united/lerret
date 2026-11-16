@@ -317,3 +317,22 @@ describe('captureArtboard', () => {
  expect(opts.backgroundColor).toBe('#ff0000');
  });
 });
+
+describe('waitForPending', () => {
+  it('waits until data-lerret-pending is gone', async () => {
+    const { waitForPending } = await import('./capture.js');
+    const root = document.createElement('div');
+    const child = document.createElement('div');
+    child.setAttribute('data-lerret-pending', '');
+    root.appendChild(child);
+    setTimeout(() => child.removeAttribute('data-lerret-pending'), 80);
+    expect(await waitForPending(root, 2000)).toBe(true);
+  });
+
+  it('gives up after the timeout', async () => {
+    const { waitForPending } = await import('./capture.js');
+    const root = document.createElement('div');
+    root.innerHTML = '<span data-lerret-pending></span>';
+    expect(await waitForPending(root, 120)).toBe(false);
+  });
+});

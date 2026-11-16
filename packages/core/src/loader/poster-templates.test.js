@@ -15,9 +15,10 @@ describe('posterTemplateContent', () => {
         const out = posterTemplateContent(t.id, 'launch-1', dims);
         expect(parses(out.source)).not.toThrow();
         expect(out.source).toContain(`dimensions: { width: ${dims.width}, height: ${dims.height} }`);
-        expect(out.source).toContain('{headline}');
-        expect(out.source).toContain('{subheadline}');
-        expect(JSON.parse(out.data)).toHaveProperty('headline');
+        // The diagram card's text fields are `title` + `chart`; the posters' are headline/subheadline.
+        const fields = t.id === 'diagram-card' ? ['title', 'chart'] : ['headline', 'subheadline'];
+        expect(out.source).toContain(`{${fields[0]}}`);
+        for (const f of fields) expect(JSON.parse(out.data)).toHaveProperty(f);
       });
     }
   }
@@ -101,5 +102,21 @@ describe('brand-aware templates', () => {
   it('starts Add-menu text and shapes on brand', () => {
     expect(elementJsx('text', { width: 1080, height: 1080 }, { brand })).toContain('var(--brand-text-h1-font');
     expect(elementJsx('rectangle', { width: 1080, height: 1080 }, { brand })).toContain('var(--brand-primary, #5E6AD2)');
+  });
+});
+
+describe('diagram-card template (Mermaid Phase 3)', () => {
+  it('is plain React + the mermaid package — no Lerret import', () => {
+    const { source, data } = posterTemplateContent('diagram-card', 'flow', { width: 1200, height: 630 });
+    expect(source).toContain("import mermaid from 'mermaid';");
+    expect(source).not.toMatch(/@lerret\//);
+    expect(source).toContain('data-lerret-pending');
+    expect(JSON.parse(data).chart).toMatch(/^flowchart LR/);
+  });
+
+  it('links colours to the brand library when there is one', () => {
+    const brand = { version: 2, app: {}, colors: [{ id: 'primary', name: 'P', value: '#2F5BFF' }, { id: 'ink', name: 'I', value: '#111111' }, { id: 'paper', name: 'Pa', value: '#FAFAFA' }], textStyles: [], logos: [] };
+    const { source } = posterTemplateContent('diagram-card', 'flow', { width: 1200, height: 630 }, { brand, brandDir: '../_brand/' });
+    expect(source).toContain('cssVar(box.current, "--brand-primary", "#2F5BFF")');
   });
 });

@@ -262,7 +262,15 @@ function TemplateThumb({ id, width, height }) {
   return (
     <span aria-hidden="true" style={{ width: box, height: box, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <span style={{ position: 'relative', width: w, height: h, borderRadius: 3, overflow: 'hidden', background: dark ? '#1C1C1E' : 'var(--lm-bg-tertiary, #EBEBEB)', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)' }}>
-        {id === 'blank' ? null : id === 'big-headline' ? (
+        {id === 'blank' ? null : id === 'diagram-card' ? (
+          <>
+            {bar('12%', 60, 3)}
+            {[18, 58].map((left) => (
+              <span key={left} style={{ position: 'absolute', top: '48%', left: `${left}%`, width: '24%', height: '22%', borderRadius: 2, border: '1.5px solid currentColor', opacity: 0.6 }} />
+            ))}
+            <span style={{ position: 'absolute', top: '58%', left: '42%', width: '16%', height: 1.5, background: 'currentColor', opacity: 0.6 }} />
+          </>
+        ) : id === 'big-headline' ? (
           <>
             {bar('40%', 70, 4)}
             {bar('52%', 50)}
