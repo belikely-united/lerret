@@ -77,11 +77,15 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
  *   - arrowheads become slim tapered points instead of chunky triangles
  *     (same tip position, so they still meet the box edge exactly).
  *
+ *   - connectors between neighbouring boxes become one even S-curve that
+ *     leaves and arrives along the flow (`axis`), instead of a lopsided swoop.
+ *
  * @param {string} svg
  * @param {{ bg: string, line: string }} c
+ * @param {'x' | 'y' | null} [axis]  Flow axis of a flowchart; null → keep curves.
  * @returns {string}
  */
-export function polishDiagramSvg(svg, c) {
+export function polishDiagramSvg(svg, c, axis = null) {
   if (typeof document === 'undefined') return svg;
   const host = document.createElement('div');
   host.style.cssText = 'position:absolute;left:-100000px;top:0;visibility:hidden;pointer-events:none';
@@ -109,6 +113,7 @@ export function polishDiagramSvg(svg, c) {
       chip.setAttribute('stroke-opacity', '0.45');
       text.parentNode.insertBefore(chip, text);
     }
+    if (axis) evenCurves(root, axis);
     // Slim, tapered arrowheads — tip stays at (10, 5) in the marker box.
     for (const marker of root.querySelectorAll('marker')) {
       const path = marker.querySelector('path');
@@ -120,6 +125,57 @@ export function polishDiagramSvg(svg, c) {
   } finally {
     host.remove();
   }
+}
+
+/**
+ * Redraw each flowchart connector between neighbouring ranks (dagre gives
+ * exactly 3 points: start, bend, end) as one cubic whose tangents run along
+ * the flow axis, so it leaves and arrives flat and is symmetric. Longer edges
+ * (routed around boxes) keep Mermaid's path. Labels move to the new midpoint.
+ *
+ * @param {SVGSVGElement} root
+ * @param {'x' | 'y'} axis
+ */
+function evenCurves(root, axis) {
+  for (const path of root.querySelectorAll('path.flowchart-link')) {
+    let pts;
+    try {
+      pts = JSON.parse(atob(path.dataset.points || ''));
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(pts) || pts.length !== 3) continue;
+    // Mermaid's own ends (already shortened for the arrowheads).
+    const nums = (path.getAttribute('d') || '').match(/-?[\d.]+(?:e-?\d+)?/g)?.map(Number);
+    if (!nums || nums.length < 4) continue;
+    const [x0, y0] = nums;
+    const [x1, y1] = nums.slice(-2);
+    const mx = (x0 + x1) / 2;
+    const my = (y0 + y1) / 2;
+    const d = axis === 'x'
+      ? `M${x0},${y0}C${mx},${y0},${mx},${y1},${x1},${y1}`
+      : `M${x0},${y0}C${x0},${my},${x1},${my},${x1},${y1}`;
+    path.setAttribute('d', d);
+    // The cubic's t=0.5 point is the midpoint of its ends.
+    const key = path.id.replace(/^.*?-(L_)/, '$1');
+    const label = root.querySelector(`g.label[data-id="${CSS.escape(key)}"]`)?.closest('g.edgeLabel');
+    if (label?.hasAttribute('transform')) label.setAttribute('transform', `translate(${mx}, ${my})`);
+  }
+}
+
+/**
+ * Flow axis of a flowchart's text, or null (other diagram types, or the file
+ * picks its own `curve`).
+ *
+ * @param {string} text
+ * @returns {'x' | 'y' | null}
+ */
+export function flowAxis(text) {
+  if (/\bcurve\s*:/.test(text)) return null;
+  const body = text.replace(/^---\n[\s\S]*?\n---\n/, '');
+  const m = /^\s*(?:flowchart|graph)\b[ \t]*(\w*)/im.exec(body.replace(/^\s*%%.*$/gm, ''));
+  if (!m) return null;
+  return /^(LR|RL)$/i.test(m[1]) ? 'x' : 'y';
 }
 
 /** Padding (px) around the diagram inside its artboard (decision D3). */
@@ -201,7 +257,7 @@ export function renderDiagram(text, look = null, flowchart = {}) {
     }
     renderCount += 1;
     const { svg: raw } = await mermaid.render(`lerret-mmd-${renderCount}`, text);
-    const svg = polishDiagramSvg(raw, colors);
+    const svg = polishDiagramSvg(raw, colors, flowAxis(text));
     const size = svgSize(svg) ?? { width: 400, height: 300 };
     return { svg, ...size };
   };
