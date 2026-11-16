@@ -40,6 +40,7 @@
 // broken asset can never crash the runtime or blank the canvas.
 
 import { resolveVariants, parseMeta } from '@lerret/core';
+import { bytesToDataUrl, imageMime } from './diagram-theme.js';
 
 import {
  makeVariantEntry,
@@ -253,7 +254,15 @@ async function loadMarkdownAsset(asset, project, ctx) {
  : '';
  const source = typeof text === 'string' ? text : '';
  // A diagram (`.mmd`) is text too — rendered to SVG before it becomes an entry.
- if (asset.assetKind === 'diagram') return [await makeDiagramEntry(asset, source)];
+ if (asset.assetKind === 'diagram') {
+ // Project images in image nodes are fetched from the dev server and inlined.
+ const readImage = async (path) => {
+ const res = await fetch(assetModuleUrl({ path }, project, ctx.assetBaseUrl));
+ if (!res.ok) return null;
+ return bytesToDataUrl(new Uint8Array(await res.arrayBuffer()), imageMime(path));
+ };
+ return [await makeDiagramEntry(asset, source, { getConfigFor: ctx.getConfigFor, readImage })];
+ }
  return [makeMarkdownEntry(asset, source)];
 }
 
@@ -327,9 +336,11 @@ export function createViteRuntime(project, options = {}) {
  const runtime = {
  /**
  * @param {AssetNode} asset
+ * @param {{ getConfigFor?: (folderPath: string) => object }} [opts]
+ * Diagrams only: the canvas's cascade lookup, for the brand look.
  * @returns {Promise<AssetEntry[]>}
  */
- async loadAsset(asset) {
+ async loadAsset(asset, opts = {}) {
  if (disposed) {
  return [
  makeErrorEntry(
@@ -352,7 +363,7 @@ export function createViteRuntime(project, options = {}) {
  // ; a component (`.jsx`/`.tsx`) asset is imported as a
  // module and rendered as 1..N artboards.
  if (asset.assetKind === 'markdown' || asset.assetKind === 'diagram') {
- return loadMarkdownAsset(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });
+ return loadMarkdownAsset(asset, project, { assetBaseUrl, importModule, reloadToken, epoch, getConfigFor: opts.getConfigFor });
  }
  return loadAssetModule(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });
  },

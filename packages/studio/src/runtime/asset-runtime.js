@@ -33,6 +33,7 @@ import React from 'react';
 import { MarkdownAssetCard } from '../components/canvas/markdown-asset-card.jsx';
 import { DiagramAssetCard } from '../components/canvas/diagram-asset-card.jsx';
 import { DIAGRAM_PADDING, renderDiagram } from './diagram-render.js';
+import { diagramTheme, inlineDiagramImages } from './diagram-theme.js';
 
 // ---------------------------------------------------------------------------
 // Status enum
@@ -443,19 +444,39 @@ const EMPTY_DIAGRAM_SIZE = Object.freeze({ width: 260, height: 200 });
  * `'error'` entry carrying Mermaid's message (e.g. "Parse error on line 2").
  * An empty file is an empty card, not an error (same rule as `.md`).
  *
+ * Phase 2: the folder's effective config gives the brand look
+ * (`diagram-theme.js`), and relative image paths in image nodes are inlined
+ * as data URLs so the SVG is self-contained.
+ *
  * @param {AssetNode} asset
  * @param {string} text  The file's raw Mermaid source.
- * @param {(text: string) => Promise<{ svg: string, width: number, height: number }>} [render]
+ * @param {object} [opts]
+ * @param {(folderPath: string) => object} [opts.getConfigFor]
+ *   Effective (cascaded) config for a folder — from the canvas's cascade
+ *   context. Absent → Mermaid's neutral default theme.
+ * @param {(path: string) => Promise<string | null>} [opts.readImage]
+ *   Reads a project image as a `data:` URL; supplied by each runtime.
+ * @param {(text: string, look: object | null) => Promise<{ svg: string, width: number, height: number }>} [opts.render]
  *   Injected by tests; defaults to the lazy Mermaid renderer.
  * @returns {Promise<AssetEntry>}
  */
-export async function makeDiagramEntry(asset, text, render = renderDiagram) {
+export async function makeDiagramEntry(asset, text, opts = {}) {
+  const render = opts.render ?? renderDiagram;
   const source = typeof text === 'string' ? text : '';
+  const folder = asset.path.slice(0, asset.path.lastIndexOf('/'));
+  let look = null;
+  try {
+    look = typeof opts.getConfigFor === 'function' ? diagramTheme(opts.getConfigFor(folder)) : null;
+  } catch {
+    look = null; // a bad config never breaks the diagram — default look
+  }
+  const background = look ? look.background : '#FFFFFF';
   let svg = '';
   let dimensions = EMPTY_DIAGRAM_SIZE;
   if (source.trim().length > 0) {
     try {
-      const out = await render(source);
+      const withImages = await inlineDiagramImages(source, folder, opts.readImage);
+      const out = await render(withImages, look);
       svg = out.svg;
       dimensions = {
         width: out.width + DIAGRAM_PADDING * 2,
@@ -467,7 +488,7 @@ export async function makeDiagramEntry(asset, text, render = renderDiagram) {
       return makeErrorEntry(asset, { phase, message });
     }
   }
-  const DiagramEntryCard = () => React.createElement(DiagramAssetCard, { svg });
+  const DiagramEntryCard = () => React.createElement(DiagramAssetCard, { svg, background });
   DiagramEntryCard.displayName = `DiagramAssetCard(${asset.fileName})`;
   return {
     id: asset.path,

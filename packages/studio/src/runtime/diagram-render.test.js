@@ -18,15 +18,17 @@ describe('svgSize', () => {
 
 describe('makeDiagramEntry', () => {
   it('sizes the artboard to the diagram plus padding', async () => {
-    const entry = await makeDiagramEntry(asset, 'flowchart LR\n a-->b', async () => ({ svg: '<svg/>', width: 100, height: 50 }));
+    const entry = await makeDiagramEntry(asset, 'flowchart LR\n a-->b', { render: async () => ({ svg: '<svg/>', width: 100, height: 50 }) });
     expect(entry.status).toBe(assetRuntimeStatus.OK);
     expect(entry.dimensions).toEqual({ width: 100 + 2 * DIAGRAM_PADDING, height: 50 + 2 * DIAGRAM_PADDING });
     expect(entry.id).toBe(asset.path);
   });
 
   it('turns a Mermaid error into an error entry with its message', async () => {
-    const entry = await makeDiagramEntry(asset, 'flowchart ???', async () => {
-      throw new Error('Parse error on line 1');
+    const entry = await makeDiagramEntry(asset, 'flowchart ???', {
+      render: async () => {
+        throw new Error('Parse error on line 1');
+      },
     });
     expect(entry.status).toBe(assetRuntimeStatus.ERROR);
     expect(entry.error).toEqual({ phase: 'evaluate', message: 'Parse error on line 1' });
@@ -34,8 +36,34 @@ describe('makeDiagramEntry', () => {
 
   it('shows an empty file as an empty card without rendering', async () => {
     let called = false;
-    const entry = await makeDiagramEntry(asset, '  \n', async () => { called = true; });
+    const entry = await makeDiagramEntry(asset, '  \n', { render: async () => { called = true; } });
     expect(called).toBe(false);
     expect(entry.status).toBe(assetRuntimeStatus.OK);
+  });
+});
+
+describe('makeDiagramEntry — brand look and images (Phase 2)', () => {
+  it('renders with the folder theme and inlines relative images', async () => {
+    let seen;
+    const entry = await makeDiagramEntry(asset, 'flowchart LR\n a@{ img: "../logo.png" }', {
+      getConfigFor: (folder) => (folder === '/p/.lerret/a' ? { vars: { paper: '#0A0A0A', ink: '#FFFFFF' } } : {}),
+      readImage: async (path) => (path === '/p/.lerret/logo.png' ? 'data:image/png;base64,AA==' : null),
+      render: async (text, look) => {
+        seen = { text, look };
+        return { svg: '<svg/>', width: 10, height: 10 };
+      },
+    });
+    expect(seen.text).toContain('img: "data:image/png;base64,AA=="');
+    expect(seen.look.themeVariables).toMatchObject({ background: '#0A0A0A', textColor: '#FFFFFF', darkMode: true });
+    expect(entry.status).toBe(assetRuntimeStatus.OK);
+  });
+
+  it('keeps the default look when the config getter throws', async () => {
+    let look = 'unset';
+    await makeDiagramEntry(asset, 'flowchart LR\n a', {
+      getConfigFor: () => { throw new Error('bad config'); },
+      render: async (_t, l) => { look = l; return { svg: '<svg/>', width: 1, height: 1 }; },
+    });
+    expect(look).toBeNull();
   });
 });

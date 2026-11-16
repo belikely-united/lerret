@@ -11,16 +11,17 @@ import { DIAGRAM_PADDING } from '../../runtime/diagram-render.js';
  * @param {object} props
  * @param {string} [props.svg]  Rendered SVG markup (Mermaid output,
  *   sanitized by Mermaid's `securityLevel: 'strict'`). Empty → empty state.
+ * @param {string} [props.background]  Card colour — the brand background.
  * @returns {React.ReactElement}
  */
-export function DiagramAssetCard({ svg }) {
+export function DiagramAssetCard({ svg, background = '#FFFFFF' }) {
   if (!svg) {
     return (
       <div
         data-asset-kind="diagram"
         style={{
           width: '100%', height: '100%', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', background: '#FFFFFF', color: '#A3A3A3',
+          justifyContent: 'center', background, color: '#A3A3A3',
           fontFamily: 'var(--lm-font-sans, sans-serif)', fontSize: 12, fontStyle: 'italic',
         }}
       >
@@ -32,7 +33,7 @@ export function DiagramAssetCard({ svg }) {
     <div
       data-asset-kind="diagram"
       className="lm-diagram"
-      style={{ width: '100%', height: '100%', boxSizing: 'border-box', padding: DIAGRAM_PADDING, background: '#FFFFFF' }}
+      style={{ width: '100%', height: '100%', boxSizing: 'border-box', padding: DIAGRAM_PADDING, background }}
       // Mermaid's own output, rendered under securityLevel 'strict'.
       dangerouslySetInnerHTML={{ __html: svg }}
     />

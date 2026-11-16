@@ -55,6 +55,7 @@
 // having to compare bytes itself.
 
 import { resolveVariants, parseMeta } from '@lerret/core';
+import { bytesToDataUrl, imageMime } from './diagram-theme.js';
 
 import {
  makeVariantEntry,
@@ -548,7 +549,14 @@ async function loadMarkdownAsset(asset, _project, ctx) {
  }
  const source = typeof text === 'string' ? text : '';
  // A diagram (`.mmd`) is text too — rendered to SVG before it becomes an entry.
- if (asset.assetKind === 'diagram') return [await makeDiagramEntry(asset, source)];
+ if (asset.assetKind === 'diagram') {
+ // Project images in image nodes are read through the FSA backend and inlined.
+ const readImage = async (path) => {
+ const bytes = await ctx.fs.readFile(path, { encoding: 'binary' });
+ return bytes instanceof Uint8Array ? bytesToDataUrl(bytes, imageMime(path)) : null;
+ };
+ return [await makeDiagramEntry(asset, source, { getConfigFor: ctx.getConfigFor, readImage })];
+ }
  return [makeMarkdownEntry(asset, source)];
 }
 
@@ -616,9 +624,11 @@ export function createHostedRuntime(project, options) {
  const runtime = {
  /**
  * @param {AssetNode} asset
+ * @param {{ getConfigFor?: (folderPath: string) => object }} [opts]
+ * Diagrams only: the canvas's cascade lookup, for the brand look.
  * @returns {Promise<AssetEntry[]>}
  */
- async loadAsset(asset) {
+ async loadAsset(asset, opts = {}) {
  if (disposed) {
  return [
  makeErrorEntry(
@@ -640,7 +650,7 @@ export function createHostedRuntime(project, options) {
  // `vite-runtime.js` — markdown is text + a card, components are
  // modules + variants.
  if (asset.assetKind === 'markdown' || asset.assetKind === 'diagram') {
- return loadMarkdownAsset(asset, project, { fs });
+ return loadMarkdownAsset(asset, project, { fs, getConfigFor: opts.getConfigFor });
  }
  return loadAssetModule(asset, project, { fs, sw, cache, importModule });
  },
