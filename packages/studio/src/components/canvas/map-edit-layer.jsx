@@ -6,14 +6,15 @@
 //   - Connect (`ConnectHandle`, on every card): drag its handle onto another
 //     card of the same folder → `a --> b`. The first arrow creates the map.
 //   - Arrow (`MapEditLayer`): click it → label, solid/dashed/thick, delete.
-//   - Toolbar (on hover): flip direction, add a note box, open the file.
+//   - Toolbar (on hover): flip direction, open the file.
+// Notes are `.md` assets connected like any card — not text boxes in the map.
 // No free drag-to-position: Mermaid owns the layout.
 
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { writeProjectFile } from '../../runtime/write-client.js';
 import {
-  EDGE_STYLES, PAGE_MAP_FILE, addEdge, addNote, firstPageMap, listEdges, mapDirection, removeEdge,
+  EDGE_STYLES, PAGE_MAP_FILE, addEdge, firstPageMap, listEdges, mapDirection, removeEdge,
   toggleDirection, updateEdge,
 } from '../../runtime/diagram-map.js';
 import { inCliMode, reveal } from '../menu/index.js';
@@ -35,8 +36,8 @@ const CSS_RULES = [
   '.lm-map-pop button:hover,.lm-map-bar button:hover{background:var(--lm-bg-secondary,#F4F4F5)}',
   '.lm-map-pop button[aria-pressed=true]{background:var(--lm-bg-secondary,#F4F4F5);font-weight:600}',
   '.lm-map-pop button.lm-danger{color:#DC2626}',
-  '.lm-map-pop input,.lm-map-bar input{height:26px;width:150px;padding:0 8px;border:1px solid var(--lm-border,#E4E4E7);border-radius:7px;font:inherit;color:inherit;background:transparent;outline:none}',
-  '.lm-map-pop input:focus,.lm-map-bar input:focus{border-color:var(--lm-accent,#111)}',
+  '.lm-map-pop input{height:26px;width:150px;padding:0 8px;border:1px solid var(--lm-border,#E4E4E7);border-radius:7px;font:inherit;color:inherit;background:transparent;outline:none}',
+  '.lm-map-pop input:focus{border-color:var(--lm-accent,#111)}',
   '.lm-map-sep{width:1px;height:16px;background:var(--lm-border,#E4E4E7);margin:0 2px}',
 ].join('');
 
@@ -190,7 +191,6 @@ export function MapEditLayer({ layout }) {
   const popRef = React.useRef(null);
   const [edge, setEdge] = React.useState(null); // { id, x, y }
   const [hover, setHover] = React.useState(null);
-  const [noteOpen, setNoteOpen] = React.useState(false);
   const [inv, setInv] = React.useState(1);
   useMapStyles();
   const { text, path } = layout;
@@ -221,7 +221,6 @@ export function MapEditLayer({ layout }) {
       const hit = hitOf(e);
       if (!hit) return;
       const p = toLocal(e);
-      setNoteOpen(false);
       setEdge({ id: hit.getAttribute('data-edge'), x: p.x, y: p.y });
     };
     const onOver = (e) => {
@@ -299,16 +298,6 @@ export function MapEditLayer({ layout }) {
 
       <div className={`lm-map-bar ${CTA}`} style={{ pointerEvents: 'auto' }}>
         <button type="button" aria-label={`Map direction: ${DIR_LABEL[dir].slice(2)}. Click to flip`} onClick={() => edit(toggleDirection)}>{DIR_LABEL[dir]}</button>
-        {noteOpen ? (
-          <input autoFocus placeholder="Note text, then Enter" aria-label="Note text"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { const v = e.currentTarget.value; setNoteOpen(false); if (v.trim()) edit((t) => addNote(t, v)); }
-              if (e.key === 'Escape') setNoteOpen(false);
-            }}
-            onBlur={() => setNoteOpen(false)} />
-        ) : (
-          <button type="button" onClick={() => { setEdge(null); setNoteOpen(true); }}>+ Note</button>
-        )}
         {inCliMode() && <button type="button" onClick={() => reveal(path, 'editor')}>Edit file</button>}
       </div>
     </div>

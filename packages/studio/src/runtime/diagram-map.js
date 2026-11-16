@@ -271,12 +271,3 @@ export function firstPageMap(from, to) {
     '',
   ].join('\n');
 }
-
-/** Add a free text box (`noteN["…"]`) — Mermaid places it. */
-export function addNote(text, label) {
-  const used = new Set(text.match(/\bnote\d+\b/g) || []);
-  let n = 1;
-  while (used.has(`note${n}`)) n += 1;
-  const safe = cleanLabel(label).replace(/"/g, '#quot;') || 'Note';
-  return `${text.replace(/\s*$/, '')}\n  note${n}["${safe}"]\n`;
-}
