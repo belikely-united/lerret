@@ -22,17 +22,7 @@ export const DIAGRAM_PADDING = 32;
 
 function loadMermaid() {
   if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((mod) => {
-      const mermaid = mod.default ?? mod;
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        htmlLabels: false,
-        flowchart: { htmlLabels: false },
-        theme: 'default',
-      });
-      return mermaid;
-    });
+    mermaidPromise = import('mermaid').then((mod) => mod.default ?? mod);
     // A failed chunk load must not poison every later render.
     mermaidPromise.catch(() => {
       mermaidPromise = null;
@@ -62,15 +52,36 @@ export function svgSize(svg) {
  * invalid text, so the caller can show it on the asset's error card.
  *
  * @param {string} text  Mermaid source.
+ * @param {{ theme: string, themeVariables: Record<string, unknown> } | null} [look]
+ *   Brand theme from `diagram-theme.js`; `null` → Mermaid's neutral default.
  * @returns {Promise<{ svg: string, width: number, height: number }>}
  */
-export function renderDiagram(text) {
+export function renderDiagram(text, look = null) {
   const run = async () => {
     const mermaid = await loadMermaid();
-    // Labels are measured at render time — wait for web fonts so boxes are
-    // sized for the real font, not a fallback.
-    if (typeof document !== 'undefined' && document.fonts?.ready) {
-      await document.fonts.ready;
+    // `initialize` rebuilds Mermaid's site config from its defaults each
+    // call, so one diagram's theme never leaks into the next (renders are
+    // serialized below). The file's own frontmatter still wins over this.
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      htmlLabels: false,
+      flowchart: { htmlLabels: false },
+      theme: look ? look.theme : 'default',
+      themeVariables: look ? look.themeVariables : {},
+    });
+    // Labels are measured at render time — make sure the brand font is
+    // actually loaded (not just declared), then wait for any other web fonts.
+    if (typeof document !== 'undefined' && document.fonts) {
+      const family = look?.themeVariables?.fontFamily;
+      if (typeof family === 'string') {
+        try {
+          await document.fonts.load(`16px ${family}`);
+        } catch {
+          // unknown font → fallback stack
+        }
+      }
+      if (document.fonts.ready) await document.fonts.ready;
     }
     renderCount += 1;
     const { svg } = await mermaid.render(`lerret-mmd-${renderCount}`, text);

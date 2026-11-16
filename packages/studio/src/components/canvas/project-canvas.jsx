@@ -393,6 +393,11 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // its async load finishes.
  /** @type {[null | { pagePath: string, sections: ReadonlyArray<{ id: string, title: string, depth: number, kicker: string | null, parentPath: string | null, isEmpty: boolean, entries: import('../../runtime/asset-runtime.js').AssetEntry[] }>, cueKeys: Readonly<Record<string, number>> }, React.Dispatch<React.SetStateAction<any>>]} */
  const [loaded, setLoaded] = React.useState(null);
+ // Latest cascade lookup + loaded state for the async loaders below (diagrams
+ // read the folder config when they render).
+ const getConfigForRef = React.useRef(getConfigFor);
+ const loadedRef = React.useRef(loaded);
+ React.useEffect(() => { loadedRef.current = loaded; }, [loaded]);
 
  // In-canvas creation. `createState` is `{ kind, parentPath, parentLabel,
  // existingNames }` while the shared CreateEntryDialog is open (opened by the
@@ -428,7 +433,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  parentPath: def.parentPath,
  isEmpty: !!def.isEmpty,
  entries: (
- await Promise.all((def.assets || []).map((a) => runtime.loadAsset(a)))
+ await Promise.all((def.assets || []).map((a) => runtime.loadAsset(a, { getConfigFor: getConfigForRef.current })))
  ).flat(),
  })),
  );
@@ -493,7 +498,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  const reloadedBySection = new Map();
  await Promise.all(
  affected.map(async ({ section, entry }) => {
- const fresh = await runtime.loadAsset(entry.asset);
+ const fresh = await runtime.loadAsset(entry.asset, { getConfigFor: getConfigForRef.current });
  const byAsset = reloadedBySection.get(section.id) || new Map();
  byAsset.set(entry.asset.path, fresh);
  reloadedBySection.set(section.id, byAsset);
@@ -542,6 +547,34 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  });
  return unsubscribe;
  }, [runtime]);
+
+ // Diagrams take their brand look from the folder config at render time, so
+ // when any config.json changes (a new `getConfigFor`), re-render just the
+ // diagram artboards. Components/notes read vars live via CSS — untouched.
+ React.useEffect(() => {
+ if (getConfigForRef.current === getConfigFor) return undefined;
+ getConfigForRef.current = getConfigFor;
+ if (!runtime) return undefined;
+ let cancelled = false;
+ (async () => {
+ const current = loadedRef.current;
+ if (!current) return;
+ const diagrams = current.sections.flatMap((s) => s.entries).filter((e) => e.assetKind === 'diagram' && e.asset);
+ if (diagrams.length === 0) return;
+ const fresh = new Map(
+ await Promise.all(diagrams.map(async (e) => [e.asset.path, await runtime.loadAsset(e.asset, { getConfigFor })])),
+ );
+ if (cancelled) return;
+ setLoaded((cur) => cur && {
+ ...cur,
+ sections: cur.sections.map((sec) => ({
+ ...sec,
+ entries: sec.entries.flatMap((e) => (e.assetKind === 'diagram' && e.asset && fresh.has(e.asset.path) ? fresh.get(e.asset.path) : [e])),
+ })),
+ });
+ })();
+ return () => { cancelled = true; };
+ }, [getConfigFor, runtime]);
 
  // Create-dialog confirm + element, shared by the empty-state CTAs and the
  // empty-group placeholders. Defined after all hooks, before the first early
