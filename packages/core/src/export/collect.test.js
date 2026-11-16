@@ -485,3 +485,12 @@ describe('collectArtboards — group scope locationPath root assets', () => {
     expect(artboards[0].locationSegments).toEqual([]);
   });
 });
+
+describe('collectArtboards — page maps', () => {
+  it('skips a folder page map (_index.mmd): it arranges the canvas, it is not an artboard', () => {
+    const a = { kind: 'asset', name: 'a', fileName: 'a.jsx', path: '/p/.lerret/pg/a.jsx', assetKind: 'component', ext: '.jsx' };
+    const map = { kind: 'asset', name: '_index', fileName: '_index.mmd', path: '/p/.lerret/pg/_index.mmd', assetKind: 'diagram', ext: '.mmd' };
+    const project = { kind: 'project', name: 'p', path: '/p/.lerret', fonts: [], pages: [{ kind: 'page', name: 'pg', path: '/p/.lerret/pg', groups: [], assets: [a, map] }] };
+    expect(collectArtboards(project).map((x) => x.asset.fileName)).toEqual(['a.jsx']);
+  });
+});

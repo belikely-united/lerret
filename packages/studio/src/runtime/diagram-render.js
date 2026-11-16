@@ -54,9 +54,11 @@ export function svgSize(svg) {
  * @param {string} text  Mermaid source.
  * @param {{ theme: string, themeVariables: Record<string, unknown> } | null} [look]
  *   Brand theme from `diagram-theme.js`; `null` → Mermaid's neutral default.
+ * @param {{ nodeSpacing?: number, rankSpacing?: number }} [flowchart]
+ *   Extra flowchart layout defaults (page maps space artboards wider).
  * @returns {Promise<{ svg: string, width: number, height: number }>}
  */
-export function renderDiagram(text, look = null) {
+export function renderDiagram(text, look = null, flowchart = {}) {
   const run = async () => {
     const mermaid = await loadMermaid();
     // `initialize` rebuilds Mermaid's site config from its defaults each
@@ -66,7 +68,7 @@ export function renderDiagram(text, look = null) {
       startOnLoad: false,
       securityLevel: 'strict',
       htmlLabels: false,
-      flowchart: { htmlLabels: false },
+      flowchart: { htmlLabels: false, ...flowchart },
       theme: look ? look.theme : 'default',
       themeVariables: look ? look.themeVariables : {},
     });

@@ -48,6 +48,9 @@
 
 import React from 'react';
 
+// Height a Markdown note is given in a page map (notes are auto-height).
+const MAP_NOTE_HEIGHT = 360;
+
 import { NODE_KIND, serializeJson } from '@lerret/core';
 
 // Epic 8 / Story 8.2 — the canvas writes the AI selection scope (for the dock
@@ -64,7 +67,10 @@ import {
 } from '../../ai/selection-scope-context.jsx';
 
 import { DesignCanvas, DCSection } from '../../design-canvas.jsx';
-import { artboardForEntry } from './asset-artboard.jsx';
+import { artboardForEntry, artboardSize, MARKDOWN_CARD_WIDTH } from './asset-artboard.jsx';
+import { isPageMap, layoutPageMap, MAP_SPACING } from '../../runtime/diagram-map.js';
+import { diagramTheme } from '../../runtime/diagram-theme.js';
+import { renderDiagram } from '../../runtime/diagram-render.js';
 import { useCascadedConfig } from './cascade-context.jsx';
 import { useAssetConfig } from './asset-config-context.jsx';
 import { useLiveRefresh } from './live-refresh-manager.js';
@@ -548,6 +554,49 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  return unsubscribe;
  }, [runtime]);
 
+ // Page maps (Mermaid Phase 4): a folder's `_index.mmd` arranges its
+ // artboards. Recomputed whenever the loaded entries or the config change
+ // (an edited map, a resized artboard, a new brand colour).
+ const [mapLayouts, setMapLayouts] = React.useState({});
+ React.useEffect(() => {
+ if (!loaded) return undefined;
+ let cancelled = false;
+ (async () => {
+ const next = {};
+ for (const s of loaded.sections) {
+ const map = s.entries.find((e) => isPageMap(e.asset) && e.status !== 'error' && typeof e.text === 'string');
+ if (!map) continue;
+ // Primary artboard of each asset (variants keep the normal row).
+ const artboards = s.entries
+ .filter((e) => e !== map && e.asset && e.id === e.asset.path)
+ .map((e) => {
+ let size = artboardSize(e);
+ if (e.assetKind === 'markdown') {
+ // Notes are auto-height: use the rendered card when it's on screen.
+ const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(e.id) : e.id;
+ const card = typeof document !== 'undefined' ? document.querySelector(`[data-dc-slot="${esc}"] .dc-card`) : null;
+ size = { width: MARKDOWN_CARD_WIDTH, height: card?.offsetHeight || MAP_NOTE_HEIGHT };
+ }
+ return { id: e.id, name: e.asset.name, ...size };
+ });
+ let look = null;
+ try {
+ look = diagramTheme(getConfigFor(s.id));
+ } catch {
+ look = null;
+ }
+ try {
+ const layout = await layoutPageMap(map.text, artboards, (t) => renderDiagram(t, look, MAP_SPACING));
+ if (layout) next[s.id] = { ...layout, mapId: map.id };
+ } catch {
+ // An unusable map leaves the normal row layout in place.
+ }
+ }
+ if (!cancelled) setMapLayouts(next);
+ })();
+ return () => { cancelled = true; };
+ }, [loaded, getConfigFor]);
+
  // Diagrams take their brand look from the folder config at render time, so
  // when any config.json changes (a new `getConfigFor`), re-render just the
  // diagram artboards. Components/notes read vars live via CSS — untouched.
@@ -780,10 +829,12 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  sectionStyle={sectionStyle}
  bare={sectionKind === 'page'}
  onSelectScope={(element, assetPath, frame) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath, frame)}
+ mapLayout={mapLayouts[s.id] || null}
  >
- {node.entries.map((entry) =>
- artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }),
- )}
+ {node.entries
+ // A map that arranges this folder is the layout, not an artboard.
+ .filter((entry) => !(mapLayouts[s.id] && entry.id === mapLayouts[s.id].mapId))
+ .map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }))}
  {/* Nested sub-groups render INSIDE this frame — true containment. */}
  {node.children.map((child) => renderSection(child))}
  {/* In-canvas "add into THIS group" control — the spatially-explicit

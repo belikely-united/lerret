@@ -41,6 +41,8 @@
 // PURE — no DOM APIs, no Node built-ins. Runs identically in the browser studio
 // and in the Node CLI. The core-purity invariant test will catch any drift.
 
+import { PAGE_MAP_FILE } from '../loader/model.js';
+
 /**
  * @typedef {import('../fs/filesystem.js').LerretPath} LerretPath
  * @typedef {import('../loader/model.js').ProjectNode} ProjectNode
@@ -136,6 +138,7 @@ function makeArtboard(asset, pagePath, groupPath, groupSegments) {
 function walkContainer(container, pagePath, immediateGroupPath, ancestorSegments, out) {
   // Assets first (depth-first pre-order: current level before children).
   for (const asset of container.assets) {
+    if (asset.fileName === PAGE_MAP_FILE) continue; // a page map arranges the canvas; it isn't an artboard
     out.push(makeArtboard(asset, pagePath, immediateGroupPath, ancestorSegments));
   }
   // Then recurse into child groups.
@@ -304,6 +307,7 @@ function findGroupInContainer(groups, pagePath, targetPath) {
 function walkGroupScope(rootGroup, pagePath, out) {
   // Assets directly in the root group: locationSegments is empty (root of scope).
   for (const asset of rootGroup.assets) {
+    if (asset.fileName === PAGE_MAP_FILE) continue; // a page map arranges the canvas; it isn't an artboard
     out.push(makeArtboard(asset, pagePath, rootGroup.path, []));
   }
   // Child groups: their name becomes the first locationSegment.

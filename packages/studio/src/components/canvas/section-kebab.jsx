@@ -39,6 +39,9 @@ import {
 import { runBulkExport, triggerBulkDownload } from '../../export/bulk.js';
 import { useCascadedConfig } from './cascade-context.jsx';
 import { KIND_ICONS } from '../menu/kind-icons.jsx';
+import { writeProjectFile } from '../../runtime/write-client.js';
+import { PAGE_MAP_FILE, starterPageMap } from '../../runtime/diagram-map.js';
+import { dcToast } from '../../design-canvas.jsx';
 
 /**
  * Derive the parent folder LerretPath for a folder path. Strips the last
@@ -63,6 +66,17 @@ function parentFolderOf(folderPath) {
  * @param {string} path
  * @returns {string[]}
  */
+/** The assets directly in the folder at `path`, or `[]`. */
+function assetsAt(project, path) {
+ const stack = [...((project && project.pages) || [])];
+ while (stack.length) {
+ const node = stack.pop();
+ if (node && node.path === path) return node.assets || [];
+ if (node && node.groups) for (const g of node.groups) stack.push(g);
+ }
+ return [];
+}
+
 function childNamesAt(project, path) {
  if (!project || !path) return [];
  const stack = [...(project.pages || [])];
@@ -297,6 +311,20 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
 
  const onAddGroup = React.useCallback(() => setCreateKind('group'), []);
  const onAddAsset = React.useCallback(() => setCreateKind('asset'), []);
+ // Page map (Mermaid Phase 4): write a starter `_index.mmd` — one box per
+ // asset here, each showing that asset live. Never overwrites an existing map.
+ // The map is the layout, not an artboard — so once it exists the same item
+ // opens it in the code editor instead.
+ const mapAsset = assetsAt(project, sectionId).find((a) => a.fileName === PAGE_MAP_FILE) || null;
+ const onCreateMap = React.useCallback(async () => {
+ if (!sectionId) return;
+ if (mapAsset) {
+ reveal(mapAsset.path, 'editor');
+ return;
+ }
+ const res = await writeProjectFile(`${sectionId}/${PAGE_MAP_FILE}`, starterPageMap(assetsAt(project, sectionId)));
+ if (!res.ok) dcToast(`Couldn’t create the page map: ${res.error || 'unknown error'}`);
+ }, [sectionId, project, mapAsset]);
  const onConfirmCreate = React.useCallback(
  async (payload) => {
  if (!sectionId || !createKind) return;
@@ -407,6 +435,9 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  },
  onAddAsset,
  onAddGroup,
+ // Opening needs an editor (CLI); creating works everywhere.
+ onCreateMap: mapAsset && !cliMode ? undefined : onCreateMap,
+ mapLabel: mapAsset ? 'Open page map' : 'Create page map',
  onEditConfig: () => setConfigOpen(true),
  onRename,
  onMove,
@@ -417,7 +448,7 @@ export function SectionKebab({ sectionId, sectionTitle, sectionKind = 'page', pr
  onRevealFinder,
  cliMode,
  }),
- [sectionTitle, sectionKind, onAddAsset, onAddGroup, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [sectionTitle, sectionKind, onAddAsset, onAddGroup, onCreateMap, mapAsset, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
  // The ⋮ lives in the section's name tag (`.dc-section-tag-slot`, rendered by
