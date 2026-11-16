@@ -171,10 +171,9 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // markdown edit: EDIT sits in the fourth slot, left of PDF.
  '.dc-dl-edit{right:calc((var(--dc-cluster-w, 26px) + 166px) * var(--dc-inv, 1))}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #111111;outline-offset:1px}',
- // Page map (Mermaid Phase 4): the map's SVG fills its box; the boxes that
- // stand for artboards are hidden — the real artboards sit on top of them.
+ // Page map (Mermaid Phase 4): the map's SVG (arrows, labels, extra boxes)
+ // fills its box; the real artboards sit on top where Mermaid left holes.
  '.dc-map-bg svg{display:block;width:100%;height:100%;max-width:none}',
- '.dc-map-bg g.image-shape{display:none}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');
  document.head.appendChild(s);
@@ -1503,12 +1502,16 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  return (
  <>
  {placed.length > 0 && (
- <div data-dc-page-map="true" style={{ position: 'relative', width: mapLayout.width, height: mapLayout.height, marginTop: paddingTop }}>
+ <div data-dc-page-map="true" style={{ position: 'relative', width: mapLayout.width, height: mapLayout.height, marginTop: paddingTop, marginBottom: loose.length > 0 ? 24 : 0 }}>
  <div className="dc-map-bg" aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, width: mapLayout.width, height: mapLayout.height, pointerEvents: 'none' }}
  // Mermaid's own output, rendered under securityLevel 'strict'.
  dangerouslySetInnerHTML={{ __html: mapLayout.svg }} />
  {placed.map((k) => (
- <div key={k} style={{ position: 'absolute', left: mapLayout.positions[k].left, top: mapLayout.positions[k].top }}>
+ // The box Mermaid laid out for this artboard; the card is centred in it,
+ // so arrows meet it even if its live size drifts from the measured one.
+ <div key={k} style={{ position: 'absolute', left: mapLayout.positions[k].left, top: mapLayout.positions[k].top,
+ width: mapLayout.positions[k].width, height: mapLayout.positions[k].height,
+ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
  {frameFor(k)}
  </div>
  ))}

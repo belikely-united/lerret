@@ -1,7 +1,7 @@
 // diagram-map.test.js — `_index.mmd` arranges a folder's canvas (Mermaid Phase 4).
 
 import { describe, expect, it } from 'vitest';
-import { preparePageMap, starterPageMap, isPageMap, MAP_PLACEHOLDER, MAP_LABEL_SPACE } from './diagram-map.js';
+import { preparePageMap, starterPageMap, isPageMap, MAP_PLACEHOLDER } from './diagram-map.js';
 
 const ab = (name, ext = '.jsx', width = 400, height = 300) => ({ id: `/p/.lerret/pg/${name}${ext}`, name, width, height });
 
@@ -9,10 +9,10 @@ describe('preparePageMap', () => {
   it('turns every node named after an artboard into a hole of its size', () => {
     const { text, nodes } = preparePageMap('flowchart LR\n  og-card --> x-banner\n  x-banner --> other[Other]\n', [ab('og-card', '.jsx', 1200, 630), ab('x-banner'), ab('notes', '.md')]);
     expect(nodes).toEqual([
-      { id: 'og-card', slotId: '/p/.lerret/pg/og-card.jsx', width: 1200, height: 630 + MAP_LABEL_SPACE },
-      { id: 'x-banner', slotId: '/p/.lerret/pg/x-banner.jsx', width: 400, height: 300 + MAP_LABEL_SPACE },
+      { id: 'og-card', slotId: '/p/.lerret/pg/og-card.jsx', width: 1200, height: 630 },
+      { id: 'x-banner', slotId: '/p/.lerret/pg/x-banner.jsx', width: 400, height: 300 },
     ]);
-    expect(text).toContain(`og-card@{ img: "${MAP_PLACEHOLDER}", label: "", w: 1200, h: ${630 + MAP_LABEL_SPACE} }`);
+    expect(text).toContain(`og-card@{ img: "${MAP_PLACEHOLDER}", label: "", w: 1200, h: 630 }`);
     expect(text).not.toContain('notes@{');
   });
 

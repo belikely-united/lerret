@@ -21,11 +21,28 @@ export { PAGE_MAP_FILE };
 export const MAP_PLACEHOLDER =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-/** Default spacing (px) between artboards in a map; the file's frontmatter can override. */
-export const MAP_SPACING = Object.freeze({ nodeSpacing: 120, rankSpacing: 160 });
+/**
+ * Default spacing between artboards, in MAP units (see `mapScale`); the
+ * file's frontmatter can override. ×scale on the canvas.
+ */
+export const MAP_SPACING = Object.freeze({ nodeSpacing: 56, rankSpacing: 96 });
 
-/** Room (px) kept above each artboard for its name label on the canvas. */
-export const MAP_LABEL_SPACE = 40;
+/**
+ * How much bigger than Mermaid units the map is drawn. Artboards are large
+ * (600–1500 px) and a page is viewed zoomed out, so a map drawn at 1:1 would
+ * show hairline arrows and unreadable labels. Instead Mermaid lays the map out
+ * with every artboard shrunk by `k`, and the canvas shows the result `k`×
+ * larger — lines, arrowheads, labels and spacing all scale with the artboards.
+ *
+ * @param {Array<{ width: number, height: number }>} artboards
+ * @returns {number}  1 … 6
+ */
+export function mapScale(artboards) {
+  const sizes = (artboards || []).map((a) => Math.max(a.width, a.height)).filter((n) => n > 0).sort((a, b) => a - b);
+  if (sizes.length === 0) return 1;
+  const median = sizes[Math.floor(sizes.length / 2)];
+  return Math.min(6, Math.max(1, median / 240));
+}
 
 /** @param {{ fileName?: string }} asset */
 export function isPageMap(asset) {
@@ -43,8 +60,10 @@ function diagramType(text) {
 }
 
 /**
- * Turn every node that names a sibling asset into a hole the size of that
- * asset's artboard (plus label room).
+ * Turn every node that names a sibling asset into a hole exactly the size of
+ * that asset's artboard — so Mermaid aims each arrow at the artboard's centre
+ * and stops it at the artboard's edge. (The artboard's name label sits above
+ * the card, inside Mermaid's node spacing.)
  *
  * Only flowcharts (`flowchart` / `graph`) — image nodes are a flowchart
  * feature; any other diagram type leaves the folder's normal layout alone.
@@ -52,9 +71,10 @@ function diagramType(text) {
  * @param {string} text  The `_index.mmd` source.
  * @param {Array<{ id: string, name: string, width: number, height: number }>} artboards
  *   The folder's artboards: `id` = canvas slot id, `name` = asset name.
+ * @param {number} [k]  Map scale — node sizes are the artboard sizes ÷ k.
  * @returns {{ text: string, nodes: Array<{ id: string, slotId: string, width: number, height: number }> }}
  */
-export function preparePageMap(text, artboards) {
+export function preparePageMap(text, artboards, k = 1) {
   const type = diagramType(text);
   if (type !== 'flowchart' && type !== 'graph') return { text, nodes: [] };
   const nodes = [];
@@ -66,8 +86,8 @@ export function preparePageMap(text, artboards) {
     const used = new RegExp(`(^|[^A-Za-z0-9_-])${a.name.replace(/-/g, '\\-')}(?![A-Za-z0-9_])(?!-[A-Za-z0-9_])`, 'm');
     if (!used.test(text)) continue;
     seen.add(a.name);
-    const w = Math.round(a.width);
-    const h = Math.round(a.height) + MAP_LABEL_SPACE;
+    const w = Math.round(a.width / k);
+    const h = Math.round(a.height / k);
     nodes.push({ id: a.name, slotId: a.id, width: w, height: h });
     lines.push(`  ${a.name}@{ img: "${MAP_PLACEHOLDER}", label: "", w: ${w}, h: ${h} }`);
   }
@@ -84,11 +104,14 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * @param {Array<{ id: string, name: string, width: number, height: number }>} artboards
  * @param {(text: string) => Promise<{ svg: string, width: number, height: number }>} render
  * @returns {Promise<{ svg: string, width: number, height: number,
- *   positions: Record<string, { left: number, top: number }> } | null>}
+ *   positions: Record<string, { left: number, top: number, width: number, height: number }> } | null>}
+ *   The returned `svg` has the placeholder nodes removed (the real artboards
+ *   go there) — a user's own image nodes are kept.
  *   `null` when the map names no artboard (normal layout applies).
  */
 export async function layoutPageMap(text, artboards, render) {
-  const { text: prepared, nodes } = preparePageMap(text, artboards);
+  const k = mapScale(artboards);
+  const { text: prepared, nodes } = preparePageMap(text, artboards, k);
   if (nodes.length === 0) return null;
   const out = await render(prepared);
   // Measure in a hidden, unscaled copy: 1 SVG unit = 1 px.
@@ -104,12 +127,17 @@ export async function layoutPageMap(text, artboards, render) {
     const positions = {};
     for (const n of nodes) {
       const re = new RegExp(`-flowchart-${escapeRe(n.id)}-\\d+$`);
-      const img = groups.find((g) => re.test(g.id))?.querySelector('image');
+      const group = groups.find((g) => re.test(g.id));
+      const img = group?.querySelector('image');
       if (!img) continue;
       const r = img.getBoundingClientRect();
-      positions[n.slotId] = { left: r.left - origin.left, top: r.top - origin.top + MAP_LABEL_SPACE };
+      positions[n.slotId] = { left: (r.left - origin.left) * k, top: (r.top - origin.top) * k, width: r.width * k, height: r.height * k };
+      group.remove(); // the real artboard is drawn here instead
     }
-    return { svg: out.svg, width: out.width, height: out.height, positions };
+    svg.style.removeProperty('width');
+    svg.style.removeProperty('height');
+    svg.style.removeProperty('max-width');
+    return { svg: svg.outerHTML, width: out.width * k, height: out.height * k, positions };
   } finally {
     host.remove();
   }

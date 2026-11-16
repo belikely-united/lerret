@@ -241,6 +241,7 @@ Lerret renders **plain Mermaid**. Never invent Lerret-only syntax: every diagram
 - Invalid Mermaid shows the asset's error card with Mermaid's own message ("Parse error on line 2…"); an empty file shows an empty card. Render to verify like any asset.
 - Exports to PNG/JPG like any artboard (\`${CLI.exportCmd}\`); the studio also offers an **SVG** download for diagrams.
 - In the studio: **New asset → Mermaid diagram**.
+- Lerret applies a clean finish to every diagram: a neutral zinc look when there's no brand, rounded cards, quiet curved connectors with slim arrowheads, and edge labels as chips (a line never runs through a label). Don't restyle these in the file unless asked; a frontmatter \`themeCSS\` replaces the finish.
 
 ### Brand look (automatic)
 
@@ -325,7 +326,8 @@ A page or group folder may contain \`_index.mmd\`. It is **not an artboard** —
 - Every node whose id is the name of an asset in the same folder (\`og-card\` ↔ \`og-card.jsx\`, \`notes\` ↔ \`notes.md\`, \`flow\` ↔ \`flow.mmd\`) is **where that asset's real artboard sits**, at its real size. Mermaid's arrows, edge labels and any other boxes are drawn behind the artboards.
 - Assets the map doesn't name, and extra variants, stay in the normal row below the map.
 - Flowcharts only (\`flowchart\` / \`graph\`). Node ids must equal the asset name and use only letters, digits, \`_\` and \`-\` (rename an asset with spaces to place it).
-- It re-arranges live when the map, an asset or config changes, and uses the brand look. Spacing is generous by default; tune it in frontmatter (\`config:\` → \`flowchart:\` → \`nodeSpacing\` / \`rankSpacing\`).
+- It re-arranges live when the map, an asset or config changes, and uses the brand look. Arrows meet each artboard at its centre.
+- The map is drawn at the artboards' scale, so arrows and labels stay readable when the page is zoomed out. Spacing is in map units (defaults \`nodeSpacing: 56\`, \`rankSpacing: 96\`); tune it in frontmatter (\`config:\` → \`flowchart:\`).
 - It is hidden on the canvas and skipped by export. In the studio: page/group menu → **Create page map** (one node per asset — then add arrows), later **Open page map**.
 
 \`\`\`

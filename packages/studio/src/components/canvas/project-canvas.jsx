@@ -558,6 +558,9 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // artboards. Recomputed whenever the loaded entries or the config change
  // (an edited map, a resized artboard, a new brand colour).
  const [mapLayouts, setMapLayouts] = React.useState({});
+ // Bumped when a placed note turns out a different height than it was laid
+ // out with (notes are auto-height) — one more layout pass fixes the holes.
+ const [mapPass, setMapPass] = React.useState(0);
  React.useEffect(() => {
  if (!loaded) return undefined;
  let cancelled = false;
@@ -595,7 +598,24 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  if (!cancelled) setMapLayouts(next);
  })();
  return () => { cancelled = true; };
- }, [loaded, getConfigFor]);
+ }, [loaded, getConfigFor, mapPass]);
+
+ React.useEffect(() => {
+ if (typeof document === 'undefined') return undefined;
+ const raf = requestAnimationFrame(() => {
+ for (const layout of Object.values(mapLayouts)) {
+ for (const [slotId, box] of Object.entries(layout.positions)) {
+ const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(slotId) : slotId;
+ const card = document.querySelector(`[data-dc-page-map] [data-dc-slot="${esc}"] .dc-card`);
+ if (card && card.offsetHeight > 0 && Math.abs(card.offsetHeight - box.height) > 8) {
+ setMapPass((n) => (n < 3 ? n + 1 : n)); // capped: never loops
+ return;
+ }
+ }
+ }
+ });
+ return () => cancelAnimationFrame(raf);
+ }, [mapLayouts]);
 
  // Diagrams take their brand look from the folder config at render time, so
  // when any config.json changes (a new `getConfigFor`), re-render just the
