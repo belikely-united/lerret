@@ -28,7 +28,7 @@ const WINDOWS_RESERVED = new Set([
 // Control characters (incl. NUL) are caught separately, escape-free, below.
 const ILLEGAL_CHARS = /[<>:"/\\|?*]/;
 
-/** Known asset extensions, lower-case (e.g. ['.jsx', '.tsx', '.md']). */
+/** Known asset extensions, lower-case (e.g. ['.jsx', '.tsx', '.md', '.mmd']). */
 const KNOWN_ASSET_EXTS = Object.keys(ASSET_EXTENSIONS);
 
 /**
@@ -102,11 +102,13 @@ export function validateEntryName(rawName, { kind } = {}) {
  * The on-disk filename for a new asset of the given kind.
  *
  * @param {string} name  Validated base name (no extension).
- * @param {'component'|'markdown'} assetKind
+ * @param {'component'|'markdown'|'diagram'} assetKind
  * @returns {string}
  */
 export function assetFileName(name, assetKind) {
-  return assetKind === ASSET_KIND.MARKDOWN ? `${name}.md` : `${name}.jsx`;
+  if (assetKind === ASSET_KIND.MARKDOWN) return `${name}.md`;
+  if (assetKind === ASSET_KIND.DIAGRAM) return `${name}.mmd`;
+  return `${name}.jsx`;
 }
 
 /** Starter artboard size when the create dialog didn't pick one. */
@@ -165,16 +167,20 @@ export function componentIdentifier(name) {
  * safe inside JSX.
  *
  * @param {string} name  Validated base name.
- * @param {'component'|'markdown'} assetKind
+ * @param {'component'|'markdown'|'diagram'} assetKind
  * @param {{ dimensions?: { width: number, height: number } }} [opts]
  *   `dimensions` — the artboard size picked in the create dialog (a platform
  *   preset or a custom W×H). Omitted or invalid → {@link DEFAULT_ASSET_DIMENSIONS}.
- *   Ignored for Markdown, which sizes to its content.
+ *   Ignored for Markdown and diagrams, which size to their content.
  * @returns {string}
  */
 export function starterAssetContent(name, assetKind, opts = {}) {
   if (assetKind === ASSET_KIND.MARKDOWN) {
     return `# ${name}\n\nStart writing — this card renders as Markdown.\n`;
+  }
+  if (assetKind === ASSET_KIND.DIAGRAM) {
+    // Plain Mermaid — the same file renders on GitHub and in editors.
+    return 'flowchart LR\n  idea[Idea] --> draft[Draft]\n  draft --> ship[Ship]\n';
   }
   const id = componentIdentifier(name);
   const label = JSON.stringify(name);

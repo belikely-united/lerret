@@ -31,6 +31,8 @@
 import React from 'react';
 
 import { MarkdownAssetCard } from '../components/canvas/markdown-asset-card.jsx';
+import { DiagramAssetCard } from '../components/canvas/diagram-asset-card.jsx';
+import { DIAGRAM_PADDING, renderDiagram } from './diagram-render.js';
 
 // ---------------------------------------------------------------------------
 // Status enum
@@ -425,6 +427,59 @@ export function makeMarkdownEntry(asset, text) {
  label: asset.name,
  text: source,
  };
+}
+
+/** Artboard size for an empty `.mmd` file (nothing to measure yet). */
+const EMPTY_DIAGRAM_SIZE = Object.freeze({ width: 260, height: 200 });
+
+/**
+ * Build the {@link AssetEntry} for a Mermaid diagram (`.mmd` / `.mermaid`)
+ * from the file's raw text. Both runtimes call this after reading the text,
+ * so CLI and hosted render diagrams identically.
+ *
+ * The diagram is rendered HERE, before the entry exists: the entry is a plain
+ * fixed-size artboard (diagram size + padding) whose `Component` draws a
+ * finished SVG — so export never races Mermaid. Invalid Mermaid becomes an
+ * `'error'` entry carrying Mermaid's message (e.g. "Parse error on line 2").
+ * An empty file is an empty card, not an error (same rule as `.md`).
+ *
+ * @param {AssetNode} asset
+ * @param {string} text  The file's raw Mermaid source.
+ * @param {(text: string) => Promise<{ svg: string, width: number, height: number }>} [render]
+ *   Injected by tests; defaults to the lazy Mermaid renderer.
+ * @returns {Promise<AssetEntry>}
+ */
+export async function makeDiagramEntry(asset, text, render = renderDiagram) {
+  const source = typeof text === 'string' ? text : '';
+  let svg = '';
+  let dimensions = EMPTY_DIAGRAM_SIZE;
+  if (source.trim().length > 0) {
+    try {
+      const out = await render(source);
+      svg = out.svg;
+      dimensions = {
+        width: out.width + DIAGRAM_PADDING * 2,
+        height: out.height + DIAGRAM_PADDING * 2,
+      };
+    } catch (thrown) {
+      // Mermaid's message already names the line; its stack is noise.
+      const { phase, message } = toAssetError(thrown, 'evaluate');
+      return makeErrorEntry(asset, { phase, message });
+    }
+  }
+  const DiagramEntryCard = () => React.createElement(DiagramAssetCard, { svg });
+  DiagramEntryCard.displayName = `DiagramAssetCard(${asset.fileName})`;
+  return {
+    id: asset.path,
+    asset,
+    assetKind: asset.assetKind,
+    status: assetRuntimeStatus.OK,
+    Component: DiagramEntryCard,
+    error: null,
+    label: asset.name,
+    dimensions,
+    text: source,
+  };
 }
 
 /**

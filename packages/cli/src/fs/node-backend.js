@@ -1152,7 +1152,7 @@ async function createEntry(parentPath, name, kind, opts = {}) {
     throw e;
   }
 
-  const assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
+  const assetKind = opts.assetKind === 'markdown' || opts.assetKind === 'diagram' ? opts.assetKind : 'component';
   const childName = kind === 'asset' ? assetFileName(name, assetKind) : name;
 
   // Case-insensitive collision check among existing siblings (macOS/Windows are

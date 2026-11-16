@@ -59,6 +59,7 @@ import { resolveVariants, parseMeta } from '@lerret/core';
 import {
  makeVariantEntry,
  makeMarkdownEntry,
+ makeDiagramEntry,
  makeErrorEntry,
  toAssetError,
 } from './asset-runtime.js';
@@ -545,7 +546,10 @@ async function loadMarkdownAsset(asset, _project, ctx) {
  } catch (thrown) {
  return [makeErrorEntry(asset, toAssetError(thrown, 'load'))];
  }
- return [makeMarkdownEntry(asset, typeof text === 'string' ? text : '')];
+ const source = typeof text === 'string' ? text : '';
+ // A diagram (`.mmd`) is text too — rendered to SVG before it becomes an entry.
+ if (asset.assetKind === 'diagram') return [await makeDiagramEntry(asset, source)];
+ return [makeMarkdownEntry(asset, source)];
 }
 
 // ---------------------------------------------------------------------------
@@ -635,7 +639,7 @@ export function createHostedRuntime(project, options) {
  // Branch on asset kind, NOT deploy mode (AR4). Same pattern as
  // `vite-runtime.js` — markdown is text + a card, components are
  // modules + variants.
- if (asset.assetKind === 'markdown') {
+ if (asset.assetKind === 'markdown' || asset.assetKind === 'diagram') {
  return loadMarkdownAsset(asset, project, { fs });
  }
  return loadAssetModule(asset, project, { fs, sw, cache, importModule });

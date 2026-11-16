@@ -44,6 +44,7 @@ import { resolveVariants, parseMeta } from '@lerret/core';
 import {
  makeVariantEntry,
  makeMarkdownEntry,
+ makeDiagramEntry,
  makeErrorEntry,
  toAssetError,
 } from './asset-runtime.js';
@@ -250,7 +251,10 @@ async function loadMarkdownAsset(asset, project, ctx) {
  : typeof mod === 'string'
  ? mod
  : '';
- return [makeMarkdownEntry(asset, typeof text === 'string' ? text : '')];
+ const source = typeof text === 'string' ? text : '';
+ // A diagram (`.mmd`) is text too — rendered to SVG before it becomes an entry.
+ if (asset.assetKind === 'diagram') return [await makeDiagramEntry(asset, source)];
+ return [makeMarkdownEntry(asset, source)];
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +351,7 @@ export function createViteRuntime(project, options = {}) {
  // (`.md`) asset is read as raw text and rendered as a document card
  // ; a component (`.jsx`/`.tsx`) asset is imported as a
  // module and rendered as 1..N artboards.
- if (asset.assetKind === 'markdown') {
+ if (asset.assetKind === 'markdown' || asset.assetKind === 'diagram') {
  return loadMarkdownAsset(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });
  }
  return loadAssetModule(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });

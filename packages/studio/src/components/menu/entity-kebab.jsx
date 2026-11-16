@@ -150,7 +150,7 @@ export function buildComponentItems(ctx) {
 export function buildMarkdownItems(ctx) {
  return tidy([
  header(ctx.header),
- { kind: 'item', id: 'edit', label: 'Edit', onSelect: ctx.onEdit },
+ typeof ctx.onEdit === 'function' && { kind: 'item', id: 'edit', label: 'Edit', onSelect: ctx.onEdit },
  SEP,
  { kind: 'item', id: 'duplicate', label: 'Duplicate', onSelect: ctx.onDuplicate },
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },

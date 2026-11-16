@@ -25,6 +25,7 @@
 
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import { renderDiagram } from '../../runtime/diagram-render.js';
 
 // ---------------------------------------------------------------------------
 // Scoped element styles
@@ -135,6 +136,8 @@ export function ensureMarkdownCardStyles() {
  background:var(--lm-bg-tertiary,#EBEBEB);
 }
 .lm-md-doc img{max-width:100%;border-radius:var(--lm-radius-sm,6px);}
+.lm-md-mermaid{margin:var(--lm-space-4,16px) 0;}
+.lm-md-mermaid svg{display:block;max-width:100%;height:auto;margin:0 auto;}
 .lm-md-doc table{
  border-collapse:collapse;
  margin:var(--lm-space-4,16px) 0;
@@ -168,6 +171,43 @@ function MarkdownGlyph() {
  </svg>
  );
 }
+
+// A ```mermaid fence inside a `.md` card renders as a diagram (spec-mermaid-
+// diagrams.md, Phase 1). Rendered after mount; until then (and on a Mermaid
+// error) the fence shows as its source code, with the error underneath.
+function MermaidBlock({ text }) {
+ const [state, setState] = React.useState({ svg: '', error: null });
+ React.useEffect(() => {
+ let live = true;
+ renderDiagram(text).then(
+ ({ svg }) => live && setState({ svg, error: null }),
+ (err) => live && setState({ svg: '', error: err?.message || String(err) }),
+ );
+ return () => { live = false; };
+ }, [text]);
+ if (state.svg) {
+ return <div className="lm-md-mermaid" data-asset-kind="diagram" dangerouslySetInnerHTML={{ __html: state.svg }} />;
+ }
+ return (
+ <>
+ <pre><code>{text}</code></pre>
+ {state.error ? <p className="lm-md-card__empty">Mermaid: {state.error}</p> : null}
+ </>
+ );
+}
+
+// `pre > code.language-mermaid` → a diagram; every other block is unchanged.
+const MARKDOWN_COMPONENTS = {
+ pre({ node, children, ...rest }) {
+ const code = node?.children?.[0];
+ const cls = code?.properties?.className;
+ if (code?.tagName === 'code' && Array.isArray(cls) && cls.includes('language-mermaid')) {
+ const text = (code.children || []).map((c) => c.value || '').join('');
+ return <MermaidBlock text={text} />;
+ }
+ return <pre {...rest}>{children}</pre>;
+ },
+};
 
 /**
  * The Markdown asset card — renders one `.md` asset's text as a rich-preview
@@ -208,7 +248,7 @@ export function MarkdownAssetCard({ text }) {
  <div className="lm-md-card__empty">Empty document</div>
  ) : (
  <div className="lm-md-doc">
- <ReactMarkdown>{source}</ReactMarkdown>
+ <ReactMarkdown components={MARKDOWN_COMPONENTS}>{source}</ReactMarkdown>
  </div>
  )}
  </div>

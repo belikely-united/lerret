@@ -631,7 +631,7 @@ export async function createProjectEntry(parentPath, name, kind, opts = {}) {
   if (!isCliMode() && hostedWriter) return hostedWriter.createEntry(parentPath, name, kind, opts);
   const reqBody = { parentPath, name, kind };
   if (kind === 'asset') {
-    reqBody.assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
+    reqBody.assetKind = opts.assetKind === 'markdown' || opts.assetKind === 'diagram' ? opts.assetKind : 'component';
     if (reqBody.assetKind === 'component' && opts.dimensions) {
       reqBody.dimensions = { width: opts.dimensions.width, height: opts.dimensions.height };
     }

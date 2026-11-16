@@ -907,7 +907,10 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  * @param {React.ReactNode} props.children The rendered markdown card node.
  * @returns {React.ReactElement}
  */
-export function MarkdownCardKebab({ entry, children }) {
+export function MarkdownCardKebab({ entry, children, kind = 'markdown' }) {
+ // A diagram (`.mmd`) shares this menu but has no in-place Markdown editor —
+ // it is edited in the code editor ("Open in editor"); the canvas live-reloads.
+ const isDiagram = kind === 'diagram';
  const [open, setOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
  const [moveOpen, setMoveOpen] = React.useState(false);
@@ -977,8 +980,10 @@ export function MarkdownCardKebab({ entry, children }) {
 
  const baseItems = React.useMemo(
  () => buildMarkdownItems({
- header: { label: entry?.label || entry?.asset?.name, meta: 'Note', icon: KIND_ICONS.markdown },
- onEdit: () => setOpen(true),
+ header: isDiagram
+ ? { label: entry?.label || entry?.asset?.name, meta: 'Diagram', icon: KIND_ICONS.diagram }
+ : { label: entry?.label || entry?.asset?.name, meta: 'Note', icon: KIND_ICONS.markdown },
+ onEdit: isDiagram ? undefined : () => setOpen(true),
  onDuplicate,
  onRename,
  onMove,
@@ -988,7 +993,7 @@ export function MarkdownCardKebab({ entry, children }) {
  onRevealFinder,
  cliMode,
  }),
- [entry?.label, entry?.asset?.name, onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [isDiagram, entry?.label, entry?.asset?.name, onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = baseItems;
@@ -1040,7 +1045,9 @@ export function MarkdownCardKebab({ entry, children }) {
  {/* Editing happens in place: the card becomes its source; a live
  preview docks on the right (markdown-editor.jsx). Double-click the
  card to start. */}
- {open
+ {isDiagram
+ ? children
+ : open
  ? <MarkdownEditorHost open onClose={() => setOpen(false)} entry={entry} />
  : <div onDoubleClick={() => setOpen(true)} title="Double-click to edit">{children}</div>}
  {labelRowEl ? ReactDOM.createPortal(kebab, labelRowEl) : null}

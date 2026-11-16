@@ -173,3 +173,29 @@ export async function exportArtboard(artboardEl, options = {}) {
  triggerDownload(blob, filename);
  return { ok: true, filename, unembeddedFonts, error: null };
 }
+
+/**
+ * Download a diagram artboard as an SVG file — the vector Mermaid output,
+ * sized to the diagram (spec-mermaid-diagrams.md, Phase 1). No rasterizing.
+ *
+ * @param {HTMLElement} artboardEl  The artboard's `.dc-card` element.
+ * @param {{ assetName?: string, variantName?: string }} [options]
+ * @returns {{ ok: boolean, filename: string | null, error: Error | null }}
+ */
+export function exportArtboardSvg(artboardEl, options = {}) {
+ const svgEl = artboardEl?.querySelector('[data-asset-kind="diagram"] svg');
+ if (!svgEl) return { ok: false, filename: null, error: new Error('No diagram SVG in this artboard') };
+ const svg = svgEl.cloneNode(true);
+ // Mermaid emits width="100%"; a standalone file needs a real size.
+ const [, , w, h] = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+ if (w > 0 && h > 0) {
+ svg.setAttribute('width', String(Math.ceil(w)));
+ svg.setAttribute('height', String(Math.ceil(h)));
+ svg.style.removeProperty('max-width');
+ }
+ svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+ const markup = new XMLSerializer().serializeToString(svg);
+ const filename = buildFilename(options.assetName, options.variantName, '.svg');
+ triggerDownload(new Blob([markup], { type: 'image/svg+xml' }), filename);
+ return { ok: true, filename, error: null };
+}
