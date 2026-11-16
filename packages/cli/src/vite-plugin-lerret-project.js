@@ -1873,9 +1873,10 @@ export function createCreateMiddleware(opts) {
       kind === 'asset' &&
       assetKind !== undefined &&
       assetKind !== 'component' &&
-      assetKind !== 'markdown'
+      assetKind !== 'markdown' &&
+      assetKind !== 'diagram'
     ) {
-      sendJson(res, 400, { ok: false, error: 'assetKind must be "component" or "markdown"' });
+      sendJson(res, 400, { ok: false, error: 'assetKind must be "component", "markdown" or "diagram"' });
       return;
     }
     if (kind === 'asset' && template !== undefined && !POSTER_TEMPLATES.some((t) => t.id === template)) {

@@ -31,8 +31,8 @@ describe('node-kind and asset-kind constants', () => {
     });
   });
 
-  it('exposes the two asset kinds', () => {
-    expect(ASSET_KIND).toEqual({ COMPONENT: 'component', MARKDOWN: 'markdown' });
+  it('exposes the three asset kinds', () => {
+    expect(ASSET_KIND).toEqual({ COMPONENT: 'component', MARKDOWN: 'markdown', DIAGRAM: 'diagram' });
   });
 
   it('maps the recognized asset extensions to kinds', () => {

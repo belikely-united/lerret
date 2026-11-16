@@ -56,18 +56,21 @@ export const NODE_KIND = Object.freeze({
  * - `'component'` — a `.jsx` or `.tsx` file: a React component rendered as a
  *   live artboard (FR8).
  * - `'markdown'` — a `.md` file: rendered as a Markdown card on the canvas.
+ * - `'diagram'` — a `.mmd` / `.mermaid` file: Mermaid text rendered as an
+ *   SVG artboard sized to the diagram.
  *
- * @typedef {'component' | 'markdown'} AssetKind
+ * @typedef {'component' | 'markdown' | 'diagram'} AssetKind
  */
 
 /**
  * The frozen set of asset-kind string constants.
  *
- * @type {Readonly<{ COMPONENT: 'component', MARKDOWN: 'markdown' }>}
+ * @type {Readonly<{ COMPONENT: 'component', MARKDOWN: 'markdown', DIAGRAM: 'diagram' }>}
  */
 export const ASSET_KIND = Object.freeze({
   COMPONENT: 'component',
   MARKDOWN: 'markdown',
+  DIAGRAM: 'diagram',
 });
 
 /**
@@ -81,6 +84,8 @@ export const ASSET_EXTENSIONS = Object.freeze({
   '.jsx': ASSET_KIND.COMPONENT,
   '.tsx': ASSET_KIND.COMPONENT,
   '.md': ASSET_KIND.MARKDOWN,
+  '.mmd': ASSET_KIND.DIAGRAM,
+  '.mermaid': ASSET_KIND.DIAGRAM,
 });
 
 // ---------------------------------------------------------------------------

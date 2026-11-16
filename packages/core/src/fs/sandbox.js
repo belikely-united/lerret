@@ -301,7 +301,7 @@ export function createSandbox({ projectRoot, fs } = {}) {
             const stateRoot = `${projectRoot}/.lerret/.state`;
             const TEXT_EXT = new Set([
                 '.jsx', '.tsx', '.js', '.ts', '.mjs', '.cjs',
-                '.json', '.md', '.mdx', '.txt', '.css', '.html', '.svg',
+                '.json', '.md', '.mdx', '.mmd', '.mermaid', '.txt', '.css', '.html', '.svg',
             ]);
             const MAX_MATCHES = 200;
             const MAX_FILE_BYTES = 256 * 1024;

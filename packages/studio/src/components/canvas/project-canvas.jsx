@@ -258,10 +258,10 @@ export function collectPageSections(page) {
  const assets = (container.assets || []).filter(
  (a) =>
  a.kind === NODE_KIND.ASSET &&
- (a.assetKind === 'component' || a.assetKind === 'markdown'),
+ (a.assetKind === 'component' || a.assetKind === 'diagram' || a.assetKind === 'markdown'),
  );
  const ordered = [
- ...assets.filter((a) => a.assetKind === 'component'),
+ ...assets.filter((a) => a.assetKind !== 'markdown'),
  ...assets.filter((a) => a.assetKind === 'markdown'),
  ];
  // Emit for the page only when it directly holds assets; emit for EVERY

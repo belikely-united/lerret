@@ -371,7 +371,7 @@ const KIND_COPY = {
  *   Close handler — Esc, click-outside, Cancel, or after a successful confirm.
  * @param {(args: {
  *   name: string,
- *   assetKind?: 'component'|'markdown',
+ *   assetKind?: 'component'|'markdown'|'diagram',
  *   dimensions?: { width: number, height: number },
  * }) => Promise<void>} props.onConfirm
  *   Invoked with the validated base name — plus, for assets, the asset kind and
@@ -469,9 +469,10 @@ export function CreateEntryDialog({
     setStepDir('fwd');
     setStep('details');
   };
-  const chooseMarkdown = () => {
+  // Markdown notes and Mermaid diagrams size to their content — no platform.
+  const chooseTextKind = (kind) => {
     setPlatformId(null);
-    setAssetKind('markdown');
+    setAssetKind(kind);
     setStepDir('fwd');
     setStep('details');
   };
@@ -510,7 +511,8 @@ export function CreateEntryDialog({
 
   let copy = isRename ? { ...baseCopy, title: `Rename ${kind}`, cta: 'Rename' } : baseCopy;
   if (pickSize && step === 'details') {
-    if (!isComponent) copy = { ...copy, title: 'New Markdown note', placeholder: 'e.g. notes' };
+    if (assetKind === 'diagram') copy = { ...copy, title: 'New Mermaid diagram', placeholder: 'e.g. user-flow' };
+    else if (!isComponent) copy = { ...copy, title: 'New Markdown note', placeholder: 'e.g. notes' };
     else if (isCustom) copy = { ...copy, title: 'New custom-size asset' };
     else if (platform && isSet) copy = { ...copy, title: `New ${platform.label} set`, cta: `Create ${setItems.length} assets`, placeholder: platform.label };
     else if (platform) copy = { ...copy, title: `New ${platform.label} asset` };
@@ -662,10 +664,19 @@ export function CreateEntryDialog({
           type="button"
           className="lm-focusable"
           style={linkButtonStyle}
-          onClick={chooseMarkdown}
+          onClick={() => chooseTextKind('markdown')}
           data-testid="lm-create-type-markdown"
         >
           Write a Markdown note instead
+        </button>
+        <button
+          type="button"
+          className="lm-focusable"
+          style={linkButtonStyle}
+          onClick={() => chooseTextKind('diagram')}
+          data-testid="lm-create-type-diagram"
+        >
+          Mermaid diagram
         </button>
         {cancelButton}
       </div>

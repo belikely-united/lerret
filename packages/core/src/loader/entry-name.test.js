@@ -179,3 +179,20 @@ describe('imageAssetContent', () => {
     expect(imageAssetContent('x', 'x.svg', { width: 0, height: 0 })).toContain('dimensions: { width: 800, height: 450 }');
   });
 });
+
+describe('diagram assets (.mmd)', () => {
+  it('recognizes .mmd and .mermaid as diagrams', async () => {
+    const { ASSET_EXTENSIONS, ASSET_KIND } = await import('./model.js');
+    expect(ASSET_EXTENSIONS['.mmd']).toBe(ASSET_KIND.DIAGRAM);
+    expect(ASSET_EXTENSIONS['.mermaid']).toBe(ASSET_KIND.DIAGRAM);
+  });
+
+  it('names a new diagram .mmd and strips a typed extension', () => {
+    expect(assetFileName('flow', 'diagram')).toBe('flow.mmd');
+    expect(validateEntryName('flow.mmd', { kind: 'asset' })).toEqual({ ok: true, name: 'flow' });
+  });
+
+  it('starts a new diagram as plain Mermaid', () => {
+    expect(starterAssetContent('flow', 'diagram')).toMatch(/^flowchart LR\n/);
+  });
+});

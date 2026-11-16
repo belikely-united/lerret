@@ -205,7 +205,7 @@ export function createHostedWriter(backend) {
           return { ok: true, path };
         }
         // asset
-        const assetKind = opts.assetKind === 'markdown' ? 'markdown' : 'component';
+        const assetKind = opts.assetKind === 'markdown' || opts.assetKind === 'diagram' ? opts.assetKind : 'component';
         const fileName = assetFileName(v.name, assetKind);
         const path = joinPath(parentPath, fileName);
         if (await backend.exists(path)) return { ok: false, error: `"${fileName}" already exists here.` };

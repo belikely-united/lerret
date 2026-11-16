@@ -23,4 +23,9 @@ export const KIND_ICONS = {
  <path d="M3 4h10M3 8h10M3 12h6" />
  </svg>
  ),
+ diagram: (
+ <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+ <rect x="1.5" y="2.5" width="5" height="4" rx="1" /><rect x="9.5" y="9.5" width="5" height="4" rx="1" /><path d="M4 6.5v5h5.5" />
+ </svg>
+ ),
 };

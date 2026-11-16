@@ -24,7 +24,7 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
-import { exportArtboard } from './export/single.js';
+import { exportArtboard, exportArtboardSvg } from './export/single.js';
 import { exportArtboardPdf } from './export/pdf.js';
 import { ContextMenu, useContextMenu } from './components/menu/context-menu.jsx';
 import { move as moveEntry } from './components/menu/entity-kebab.jsx';
@@ -166,6 +166,8 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-dl-animated{right:calc((var(--dc-cluster-w, 26px) + 122px) * var(--dc-inv, 1))}',
  // markdown export: PDF sits in the third slot (markdown has no ANIM).
  '.dc-dl-pdf{right:calc((var(--dc-cluster-w, 26px) + 122px) * var(--dc-inv, 1))}',
+ // diagram export: SVG sits in the third slot (diagrams have no ANIM).
+ '.dc-dl-svg{right:calc((var(--dc-cluster-w, 26px) + 122px) * var(--dc-inv, 1))}',
  // markdown edit: EDIT sits in the fourth slot, left of PDF.
  '.dc-dl-edit{right:calc((var(--dc-cluster-w, 26px) + 166px) * var(--dc-inv, 1))}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #111111;outline-offset:1px}',
@@ -1643,7 +1645,7 @@ export function DCArtboard() { return null; }
 function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus }) {
  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {},
  // Per-artboard export wiring props
- assetName, variantName, isError, hasLiveRefresh, isMarkdown, assetPath } = artboard.props;
+ assetName, variantName, isError, hasLiveRefresh, isMarkdown, isDiagram, assetPath } = artboard.props;
  const id = rawId ?? rawLabel;
  const ref = React.useRef(null);
  const cardRef = React.useRef(null);
@@ -1673,6 +1675,8 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  try {
  const result = fmt === 'pdf'
  ? await exportArtboardPdf({ assetPath, assetName, variantName })
+ : fmt === 'svg'
+ ? exportArtboardSvg(cardRef.current, { assetName, variantName })
  : await exportArtboard(cardRef.current, { format: fmt, assetName, variantName });
  if (!result.ok) {
  // Capture failed — surface calm inline message, no file download.
@@ -1870,6 +1874,18 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  title={isError ? "Can't export — this artboard has an error" : 'Export as animated (WebP / GIF / APNG / MP4)'}
  aria-label={isError ? "Can't export — this artboard has an error" : 'Export as animated'}
  >ANIM</button>
+ ) : null}
+ {/* SVG export — diagrams only: Mermaid output is vector, so hand it over as-is. */}
+ {isDiagram ? (
+ <button
+ className="dc-dl dc-dl-svg"
+ onClick={() => download('svg')}
+ onPointerDown={(e) => e.stopPropagation()}
+ disabled={!!busy || isError}
+ data-dc-error-disabled={isError ? 'true' : undefined}
+ title={isError ? "Can't export — this artboard has an error" : captureError === 'svg' ? 'Export failed — try again' : 'Download as SVG'}
+ aria-label={isError ? "Can't export — this artboard has an error" : 'Download as SVG'}
+ >{busy === 'svg' ? '…' : 'SVG'}</button>
  ) : null}
  {/* PDF export — markdown only. A document wants a PDF; component artboards
  keep PNG/JPG. One-click raster: the bitmap on a page sized to the card. */}
