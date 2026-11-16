@@ -2,7 +2,7 @@
 // Mermaid itself needs a real layout engine, so the renderer is injected.
 
 import { describe, expect, it } from 'vitest';
-import { svgSize, DIAGRAM_PADDING } from './diagram-render.js';
+import { svgSize, DIAGRAM_PADDING, flowAxis } from './diagram-render.js';
 import { makeDiagramEntry, assetRuntimeStatus } from './asset-runtime.js';
 
 const asset = { kind: 'asset', name: 'flow', fileName: 'flow.mmd', path: '/p/.lerret/a/flow.mmd', assetKind: 'diagram', ext: '.mmd' };
@@ -65,5 +65,18 @@ describe('makeDiagramEntry — brand look and images (Phase 2)', () => {
       render: async (_t, l) => { look = l; return { svg: '<svg/>', width: 1, height: 1 }; },
     });
     expect(look).toBeNull();
+  });
+});
+
+describe('flowAxis', () => {
+  it('reads the flow direction of a flowchart', () => {
+    expect(flowAxis('flowchart LR\n  a --> b')).toBe('x');
+    expect(flowAxis('graph RL;\n  a --> b')).toBe('x');
+    expect(flowAxis('%% note\nflowchart TD\n  a --> b')).toBe('y');
+    expect(flowAxis('---\ntitle: x\n---\nflowchart\n  a --> b')).toBe('y');
+  });
+  it('leaves other diagrams and explicit curves alone', () => {
+    expect(flowAxis('sequenceDiagram\n  a->>b: hi')).toBeNull();
+    expect(flowAxis('---\nconfig:\n  flowchart:\n    curve: linear\n---\nflowchart LR\n  a --> b')).toBeNull();
   });
 });

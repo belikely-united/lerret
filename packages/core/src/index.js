@@ -73,6 +73,7 @@ export {
   NODE_KIND,
   ASSET_KIND,
   ASSET_EXTENSIONS,
+  PAGE_MAP_FILE,
   FONT_EXTENSIONS,
   createProjectNode,
   createPageNode,

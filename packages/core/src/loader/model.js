@@ -88,6 +88,16 @@ export const ASSET_EXTENSIONS = Object.freeze({
   '.mermaid': ASSET_KIND.DIAGRAM,
 });
 
+/**
+ * A folder's page map (spec-mermaid-diagrams.md, Phase 4): a Mermaid file
+ * that arranges the folder's artboards on the canvas instead of being an
+ * artboard itself. It is still a `diagram` asset in the model; the canvas
+ * uses it for layout and export skips it.
+ *
+ * @type {string}
+ */
+export const PAGE_MAP_FILE = '_index.mmd';
+
 // ---------------------------------------------------------------------------
 // Font files
 // ---------------------------------------------------------------------------

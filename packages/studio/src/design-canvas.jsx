@@ -171,6 +171,9 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // markdown edit: EDIT sits in the fourth slot, left of PDF.
  '.dc-dl-edit{right:calc((var(--dc-cluster-w, 26px) + 166px) * var(--dc-inv, 1))}',
  '.dc-dl:focus-visible{opacity:1;outline:2px solid #111111;outline-offset:1px}',
+ // Page map (Mermaid Phase 4): the map's SVG (arrows, labels, extra boxes)
+ // fills its box; the real artboards sit on top where Mermaid left holes.
+ '.dc-map-bg svg{display:block;width:100%;height:100%;max-width:none}',
  '.dc-focus-overlay button:focus-visible{outline:2px solid rgba(255,255,255,.8);outline-offset:2px}',
  ].join('\n');
  document.head.appendChild(s);
@@ -1340,7 +1343,7 @@ export function sectionDepthBg(depth) {
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
-export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope }) {
+export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope, mapLayout = null, renderMapOverlay = null }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
  const all = React.Children.toArray(children);
@@ -1482,6 +1485,48 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  onSelectScope(element, assetPath, frame);
  };
 
+ // The artboard area. Normally one row in `order`. With a page map
+ // (`_index.mmd`, Mermaid Phase 4) the artboards the map names are placed
+ // where Mermaid put their boxes, over the map's arrows; the rest keep the
+ // normal row underneath.
+ const frameFor = (k) => (
+ <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
+ label={(sec.labels || {})[k] ?? byId[k].props.label}
+ onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
+ onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
+ onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
+ );
+ const renderArtboards = (paddingTop) => {
+ const placed = mapLayout ? order.filter((k) => mapLayout.positions[k]) : [];
+ const loose = order.filter((k) => !placed.includes(k));
+ return (
+ <>
+ {placed.length > 0 && (
+ <div data-dc-page-map="true" style={{ position: 'relative', width: mapLayout.width, height: mapLayout.height, marginTop: paddingTop, marginBottom: loose.length > 0 ? 24 : 0 }}>
+ <div className="dc-map-bg" aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, width: mapLayout.width, height: mapLayout.height, pointerEvents: 'none' }}
+ // Mermaid's own output, rendered under securityLevel 'strict'.
+ dangerouslySetInnerHTML={{ __html: mapLayout.svg }} />
+ {placed.map((k) => (
+ // The box Mermaid laid out for this artboard; the card is centred in it,
+ // so arrows meet it even if its live size drifts from the measured one.
+ <div key={k} style={{ position: 'absolute', left: mapLayout.positions[k].left, top: mapLayout.positions[k].top,
+ width: mapLayout.positions[k].width, height: mapLayout.positions[k].height,
+ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+ {frameFor(k)}
+ </div>
+ ))}
+ {renderMapOverlay && renderMapOverlay(mapLayout)}
+ </div>
+ )}
+ {loose.length > 0 && (
+ <div style={{ display: 'flex', gap, paddingTop, alignItems: 'flex-start', width: 'max-content' }}>
+ {loose.map(frameFor)}
+ </div>
+ )}
+ </>
+ );
+ };
+
  // The container's name tag (page or group) — see .dc-section-tag CSS.
  const kind = bare ? 'page' : 'group';
  // Publish the tag's width (layout px) so the group's frame is never narrower
@@ -1554,17 +1599,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  }}
  >
  {tag}
- {hasArtboards && (
- <div style={{ display: 'flex', gap, paddingTop: 44, alignItems: 'flex-start', width: 'max-content' }}>
- {order.map((k) => (
- <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
- label={(sec.labels || {})[k] ?? byId[k].props.label}
- onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
- onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
- onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
- ))}
- </div>
- )}
+ {hasArtboards && renderArtboards(44)}
  {rest}
  </div>
  );
@@ -1619,17 +1654,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  color: cascadeColor || undefined,
  }}>
 
- {hasArtboards && (
- <div style={{ display: 'flex', gap, paddingTop: 36, alignItems: 'flex-start', width: 'max-content' }}>
- {order.map((k) => (
- <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
- label={(sec.labels || {})[k] ?? byId[k].props.label}
- onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
- onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
- onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
- ))}
- </div>
- )}
+ {hasArtboards && renderArtboards(36)}
  {/* Non-artboard children — nested sub-group cards and the in-canvas add
  bar — render INSIDE the frame, after the artboard row, so a sub-group
  is visually contained by its parent (true nesting). */}

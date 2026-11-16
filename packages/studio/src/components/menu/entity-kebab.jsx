@@ -171,6 +171,7 @@ export function buildMarkdownItems(ctx) {
  * @param {{ label: string, meta?: string, icon?: React.ReactNode }} [ctx.header]
  * @param {() => void} [ctx.onAddAsset]
  * @param {() => void} [ctx.onAddGroup]
+ * @param {() => void} [ctx.onCreateMap]
  * @param {() => void} ctx.onEditConfig
  * @param {() => void} ctx.onRename
  * @param {() => void} [ctx.onMove]
@@ -187,6 +188,7 @@ export function buildSectionItems(ctx) {
  header(ctx.header),
  typeof ctx.onAddAsset === 'function' && { kind: 'item', id: 'add-asset', label: 'New asset…', onSelect: ctx.onAddAsset },
  typeof ctx.onAddGroup === 'function' && { kind: 'item', id: 'add-group', label: 'New group…', onSelect: ctx.onAddGroup },
+ typeof ctx.onCreateMap === 'function' && { kind: 'item', id: 'create-map', label: ctx.mapLabel || 'Create page map', onSelect: ctx.onCreateMap },
  SEP,
  { kind: 'item', id: 'rename', label: 'Rename', onSelect: ctx.onRename },
  typeof ctx.onMove === 'function' && { kind: 'item', id: 'move', label: 'Move to…', onSelect: ctx.onMove },
