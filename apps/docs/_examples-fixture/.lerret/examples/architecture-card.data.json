@@ -1,0 +1,4 @@
+{
+  "title": "How Lerret works",
+  "chart": "flowchart LR\n  files[.lerret/ folder] --> studio[Studio canvas]\n  files --> cli[CLI export]\n  studio --> images[PNG / JPG]\n  cli --> images"
+}

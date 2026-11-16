@@ -141,6 +141,11 @@ you drag, the order is **saved in the project**: it's written to the folder's
 `config.json` as `"order"` (it is not inherited by sub-folders), so everyone who
 opens the project sees the same arrangement.
 
+A folder with a [page map](/diagrams/#page-maps-_indexmmd) (`_index.mmd`) is
+arranged by the map instead: the assets it names sit where the map puts them,
+with arrows between them, and the rest keep this order in a row below. You can
+add and edit the map's arrows right on the canvas.
+
 ## Brand library
 
 The brand library holds the colours, text styles and logos that every design in
@@ -211,6 +216,9 @@ add a folder or a first file:
   on the canvas.
 - **On the empty canvas** — right-click and choose **New asset…**, **New
   group…** or **New page…** (see [Right-click menus](#right-click-menus)).
+- **A diagram** — in *New asset*, **Mermaid diagram** creates a `.mmd` file; the
+  **Diagram card** template puts a diagram inside a designed card. See
+  [Diagrams](/diagrams/).
 
 ### New asset: pick where it will be published
 
@@ -349,9 +357,11 @@ exposes the same set:
   · Delete…
 - **Markdown note** — Edit · Duplicate · Rename · Move to… · Export
   (PNG/JPG/PDF) · Open in code editor · Reveal in Finder · Delete…
-- **Group / page** — New asset… · New group… · Rename · Move to… · Settings… ·
-  Export… · Export for App Store… · Open in code editor · Reveal in Finder ·
-  Delete…
+- **Mermaid diagram** — Duplicate · Rename · Move to… · Export · Open in code
+  editor · Reveal in Finder · Delete… (edit the `.mmd` text in your editor)
+- **Group / page** — New asset… · New group… · Create page map (or Open page
+  map) · Rename · Move to… · Settings… · Export… · Export for App Store… · Open
+  in code editor · Reveal in Finder · Delete…
 
 **Open in code editor** and **Reveal in Finder** (Explorer / file manager on
 other systems) are CLI-only — they shell out to your OS, which the hosted
@@ -417,7 +427,7 @@ also drag an artboard onto another group.
 
 | Scope | What it captures |
 |---|---|
-| **Single artboard** | One artboard → one image (the label row's **PNG** / **JPG**, or its menu's **Export**). Markdown notes also offer **PDF**. |
+| **Single artboard** | One artboard → one image (the label row's **PNG** / **JPG**, or its menu's **Export**). Markdown notes also offer **PDF**; Mermaid diagrams also offer **SVG**. |
 | **Animated** | An auto-refreshing artboard → **WebP**, **GIF**, **APNG** or **MP4** (**Export animated…**). |
 | **Page or group** | Every artboard in that branch (**Export…**, with a PNG/JPG × structured/flat picker). |
 | **Whole project** | Every artboard → one structured ZIP (the brand menu's **Export ZIP**). |

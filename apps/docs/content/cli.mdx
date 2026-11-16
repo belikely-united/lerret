@@ -142,6 +142,10 @@ The run exits `1` (fatal) only for these conditions:
 - No Chromium could be launched (neither a system `chrome` / `msedge` channel nor a bundled Playwright browser).
 - `--data` or `--config` file missing or unparseable.
 
+### Diagrams and page maps
+
+[Mermaid diagrams](/diagrams/) (`.mmd`) export like any artboard, in their brand look. A folder's `_index.mmd` [page map](/diagrams/#page-maps-_indexmmd) is a layout, not an artboard, so it is skipped. Export waits for any element marked `data-lerret-pending` (for example a diagram drawn inside a component) to finish, up to 10 seconds per artboard.
+
 ### Chromium resolution
 
 `@lerret/cli export` tries a system Chromium **channel** first (`chrome`, then `msedge`) so a zero-install `npx @lerret/cli@latest export` stays light. It falls back to a bundled Playwright browser if one has been installed (`npx playwright install chromium`). If neither is available, the command exits with code `1` and a clear, actionable message about how to install one.
