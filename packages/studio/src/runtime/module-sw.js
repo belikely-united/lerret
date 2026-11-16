@@ -128,6 +128,19 @@ const moduleStore = new Map();
 const binaryStore = new Map();
 
 /**
+ * Project images are fetched ON DEMAND: on a miss the SW asks the page, which
+ * reads that one file through the FSA backend and replies (NEED_BINARY →
+ * REGISTER_BINARY + BINARY_RESULT). Nothing is preloaded, so a project with
+ * gigabytes of images opens instantly. Turned on by `ENABLE_IMAGES` once a
+ * project is mounted.
+ */
+let imagesEnabled = false;
+let binaryRequestId = 0;
+/** @type {Map<number, (key: string | null) => void>} */
+const binaryWaiters = new Map();
+const BINARY_WAIT_MS = 15000;
+
+/**
  * Insert `entry` for `url`, evicting the oldest entry if the store would
  * exceed {@link MAX_MODULES}.
  *
@@ -211,6 +224,21 @@ self.addEventListener('message', (event) => {
  });
  break;
  }
+ case 'ENABLE_IMAGES': {
+ imagesEnabled = true;
+ // A (re)mount or an image change on disk: forget cached bytes so the next
+ // request re-reads the file.
+ binaryStore.clear();
+ break;
+ }
+ case 'BINARY_RESULT': {
+ const done = binaryWaiters.get(data.id);
+ if (done) {
+ binaryWaiters.delete(data.id);
+ done(typeof data.key === 'string' ? data.key : null);
+ }
+ break;
+ }
  case 'INVALIDATE': {
  if (typeof data.url !== 'string') return;
  moduleStore.delete(data.url);
@@ -260,7 +288,8 @@ self.addEventListener('fetch', (event) => {
  // the studio's MAIN document, so `<img src="../_assets/x.png">` resolves
  // PAGE-relative (e.g. `/_assets/x.png`), not against the module URL.
  const isLerret = url.indexOf(LERRET_PREFIX) !== -1;
- const isImage = binaryStore.size > 0 && /\.(png|jpe?g|gif|svg|webp|avif)(\?|$)/i.test(url);
+ const isImage = (imagesEnabled || binaryStore.size > 0) && /\.(png|jpe?g|gif|svg|webp|avif)(\?|$)/i.test(url)
+ && (!self.location || url.indexOf(self.location.origin) === 0); // only this origin's paths can be project files
  if (!isLerret && !isImage) return;
 
  // The pathname is the lookup key (origin / scheme are runtime-specific).
@@ -279,10 +308,10 @@ self.addEventListener('fetch', (event) => {
  event.respondWith(serveModule(pathAndQuery));
  return;
  }
- // A registered binary asset (image), matched however its `<img src>` resolved.
- const key = matchBinaryKey(pathname);
- if (key) {
- event.respondWith(serveBinary(key));
+ // A project image, matched however its `<img src>` resolved — fetched from
+ // the page on demand when not cached yet.
+ if (isImage) {
+ event.respondWith(serveImage(event, pathname));
  return;
  }
  // A `/__lerret/` module miss → the JS stub; any other request passes through.
@@ -302,11 +331,13 @@ self.addEventListener('fetch', (event) => {
  * @param {string} pathname
  * @returns {string | null}
  */
-function matchBinaryKey(pathname) {
- if (binaryStore.size === 0 || !/\.(png|jpe?g|gif|svg|webp|avif)$/i.test(pathname)) {
- return null;
- }
+function binaryCandidates(pathname) {
+ if (!/\.(png|jpe?g|gif|svg|webp|avif)$/i.test(pathname)) return [];
  const candidates = [];
+ // The CLI's project route (`/@lerret-project/<path>`), which the studio's own
+ // editors write into data files — the same file in hosted mode.
+ const route = /^\/@(?:lerret-project|fixture-lerret)\//.exec(pathname);
+ if (route) candidates.push(pathname.slice(route[0].length));
  if (pathname.indexOf(ASSET_URL_PREFIX) === 0) {
  candidates.push(pathname.slice(ASSET_URL_PREFIX.length));
  } else if (pathname.indexOf(LERRET_PREFIX) === 0) {
@@ -315,12 +346,51 @@ function matchBinaryKey(pathname) {
  candidates.push(pathname.replace(/^\/+/, '')); // page-relative (strip leading /)
  const at = pathname.indexOf('_assets/');
  if (at >= 0) candidates.push(pathname.slice(at)); // the `_assets/…` tail
- for (let candidate of candidates) {
- let key = candidate;
- try { key = decodeURIComponent(candidate); } catch { /* keep raw */ }
- if (binaryStore.has(key)) return key;
- }
- return null;
+ return [...new Set(candidates.map((c) => {
+ try { return decodeURIComponent(c); } catch { return c; }
+ }))];
+}
+
+/** The registered binary key a request pathname maps to, or null. */
+function matchBinaryKey(pathname) {
+ return binaryCandidates(pathname).find((k) => binaryStore.has(k)) || null;
+}
+
+/**
+ * Serve a project image: from the store, else ask the page that made the
+ * request to read the file, else let the request go to the network (the
+ * studio's own images, or a path that isn't in the project).
+ *
+ * @param {FetchEvent} event
+ * @param {string} pathname
+ * @returns {Promise<Response>}
+ */
+async function serveImage(event, pathname) {
+ let key = matchBinaryKey(pathname);
+ if (!key && imagesEnabled) key = await requestBinary(event.clientId, binaryCandidates(pathname));
+ if (key && binaryStore.has(key)) return serveBinary(key);
+ return fetch(event.request);
+}
+
+/**
+ * Ask a page to read one of `keys` and register it. Resolves with the key it
+ * found, or null (not a project file / no page answered in time).
+ *
+ * @param {string} clientId
+ * @param {string[]} keys
+ * @returns {Promise<string | null>}
+ */
+async function requestBinary(clientId, keys) {
+ if (keys.length === 0) return null;
+ let client = clientId ? await clients.get(clientId) : null;
+ if (!client) client = (await clients.matchAll({ type: 'window' }))[0];
+ if (!client) return null;
+ const id = ++binaryRequestId;
+ return new Promise((resolve) => {
+ const timer = setTimeout(() => { binaryWaiters.delete(id); resolve(null); }, BINARY_WAIT_MS);
+ binaryWaiters.set(id, (key) => { clearTimeout(timer); resolve(key); });
+ client.postMessage({ type: 'NEED_BINARY', id, keys });
+ });
 }
 
 /**

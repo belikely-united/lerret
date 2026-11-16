@@ -4,11 +4,12 @@
 // WHY: the SW serves Sucrase-transformed JS modules, registered by walking each
 // asset's JS `import`s. A plain `<img src="…/logo.png">` is NOT a JS import and
 // the file is binary, so it is never registered — the request 404s and the
-// image shows broken. This walks the `.lerret/` tree, reads each image's bytes
-// via the FSA backend, and registers them with the SW keyed by their
-// project-relative path. The SW resolves an `<img>` request's tail to that key,
-// so it is TOLERANT of the `../` depth the agent used in the reference — logos
-// under `.lerret/_assets/` and companion images both display.
+// image shows broken. So the SW asks the page for an image when a card first
+// requests it; the page reads that one file via the FSA backend and sends the
+// bytes keyed by their project-relative path. The SW maps an `<img>` request's
+// tail to that key, so it is TOLERANT of the `../` depth in the reference (and
+// of the CLI's `/@lerret-project/` route) — logos under `.lerret/_assets/` and
+// companion images both display. Nothing is preloaded.
 
 /** Extension → MIME for the image kinds Lerret recognizes. */
 const IMAGE_MIME = Object.freeze({
@@ -35,13 +36,47 @@ export function imageMime(name) {
   return IMAGE_MIME[name.slice(dot).toLowerCase()] || null;
 }
 
+/** What the NEED_BINARY listener reads from — the latest mounted project. */
+const current = { fs: null, scanRoot: '.lerret', installed: false };
+
 /**
- * Walk a project's `.lerret/` tree and register every image file's bytes with
- * the service worker, keyed by the path RELATIVE to `scanRoot` (so the SW can
- * match an `<img>` request's tail regardless of its `../` depth). The snapshot
- * sidecar (`.state/`) is skipped — it holds no canvas images.
+ * Answer the service worker's on-demand image requests from the mounted
+ * project. The SW asks with the candidate project-relative keys for a request
+ * (`NEED_BINARY`); the first that is an image file in the project is read and
+ * sent back (`REGISTER_BINARY`), then `BINARY_RESULT` says which (or none).
  *
- * Resolves to the number of images registered (handy for diagnostics/tests).
+ * @param {MessageEvent} event
+ */
+export async function onSwMessage(event) {
+  const data = event.data;
+  if (!data || data.type !== 'NEED_BINARY' || !Array.isArray(data.keys)) return;
+  const target = event.source || (navigator.serviceWorker && navigator.serviceWorker.controller);
+  if (!target) return;
+  let found = null;
+  for (const key of data.keys) {
+    const contentType = imageMime(key);
+    if (!contentType || !current.fs || key.split('/').includes('..')) continue;
+    try {
+      const bytes = await current.fs.readFile(`${current.scanRoot}/${key}`, { encoding: 'binary' });
+      if (!ArrayBuffer.isView(bytes)) continue;
+      target.postMessage({ type: 'REGISTER_BINARY', key, bytes, contentType });
+      found = key;
+      break;
+    } catch {
+      // not this candidate
+    }
+  }
+  target.postMessage({ type: 'BINARY_RESULT', id: data.id, key: found });
+}
+
+/**
+ * Serve the project's image files to the service worker ON DEMAND, so
+ * `<img src>` references in assets resolve in hosted mode. Nothing is read up
+ * front — a project with gigabytes of images opens immediately, and each image
+ * is read once, when a card first shows it. Call again after an image changes
+ * on disk: the SW drops its cached bytes and re-reads on the next request.
+ *
+ * (Name kept from the eager version it replaced; resolves to 0 images read.)
  *
  * @param {import('@lerret/core').FilesystemAccess} fs
  * @param {{ postMessage: (message: object) => void }} sw
@@ -49,39 +84,15 @@ export function imageMime(name) {
  * @returns {Promise<number>}
  */
 export async function registerProjectImages(fs, sw, scanRoot = '.lerret') {
-  if (!fs || typeof fs.readDir !== 'function' || !sw || typeof sw.postMessage !== 'function') {
+  if (!fs || typeof fs.readFile !== 'function' || !sw || typeof sw.postMessage !== 'function') {
     return 0;
   }
-  let count = 0;
-  const walk = async (dir) => {
-    let entries;
-    try {
-      entries = await fs.readDir(dir);
-    } catch {
-      return; // missing / unreadable dir contributes nothing
-    }
-    for (const entry of entries) {
-      const path = entry && entry.path ? entry.path : `${dir}/${entry.name}`;
-      if (entry.isDirectory) {
-        if (entry.name === '.state') continue; // snapshot store — no canvas images
-        await walk(path);
-        continue;
-      }
-      const contentType = imageMime(entry.name);
-      if (!contentType) continue;
-      let bytes;
-      try {
-        bytes = await fs.readFile(path, { encoding: 'binary' });
-      } catch {
-        continue;
-      }
-      if (!ArrayBuffer.isView(bytes)) continue;
-      const prefix = `${scanRoot}/`;
-      const key = path.startsWith(prefix) ? path.slice(prefix.length) : path;
-      sw.postMessage({ type: 'REGISTER_BINARY', key, bytes, contentType });
-      count += 1;
-    }
-  };
-  await walk(scanRoot);
-  return count;
+  current.fs = fs;
+  current.scanRoot = scanRoot;
+  if (!current.installed && typeof navigator !== 'undefined' && navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', onSwMessage);
+    current.installed = true;
+  }
+  sw.postMessage({ type: 'ENABLE_IMAGES' });
+  return 0;
 }
