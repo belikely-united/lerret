@@ -8,6 +8,16 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.3.0 · @lerret/core 0.1.5 · create-lerret 0.1.6 — 2026-11-16
+
+### Added
+- **Mermaid diagrams as assets.** A `.mmd` or `.mermaid` file in `.lerret/` is an artboard: it renders as a diagram sized to fit (plus 32 px padding), shows an error card for invalid text, and exports to PNG/JPG like any design (plus an SVG button in the studio). *New asset → Mermaid diagram* starts one. Plain Mermaid only — the same file works on GitHub, Notion and in editors.
+- **On-brand diagrams.** Diagrams take their colours and fonts from the folder's `config.json` (brand library colours first, then common var names, then an optional `mermaid.themeVariables` block that can reference vars as `"$accent"`); a file's own frontmatter can override (`theme: base`). The default look is a calm neutral: quiet 1.5 px connectors, slim arrowheads, rounded boxes, label chips the line never cuts through, and even S-curves between boxes. `img:` paths in a diagram resolve relative to the file.
+- **Diagrams inside designs.** A JSX asset can `import mermaid from 'mermaid'` with nothing to install, so it stays plain React. Export waits for anything marked `data-lerret-pending` (up to 10 s). New *Diagram card* poster template. ```` ```mermaid ```` fences render in Markdown notes.
+- **Page maps (`_index.mmd`).** A page or group may hold an `_index.mmd` flowchart that arranges its canvas: every node named after an asset places that asset's real artboard there, with Mermaid's arrows and labels drawn behind. Assets the map doesn't name stay in the normal row below. The map is hidden as an artboard and skipped by export. Page/group menu: *Create page map* / *Open page map*.
+- **Edit page maps on the canvas.** Drag any card's handle onto another card to add an arrow (the first arrow in a folder creates `_index.mmd`); click an arrow to label it, make it solid / dashed / thick, or delete it; flip a map between left-to-right and top-to-bottom. Every edit rewrites the plain `_index.mmd`.
+- The AI agent instructions and the `/lerret` skill cover diagrams, brand looks, the JSX pattern and page maps.
+
 ## @lerret/cli 0.2.2 — 2026-11-04
 
 ### Fixed
