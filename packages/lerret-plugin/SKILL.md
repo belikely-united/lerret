@@ -1,6 +1,6 @@
 ---
 name: lerret
-description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides), preview the studio live, or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.
+description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides, Mermaid diagrams and flowcharts), arrange a page with a Mermaid page map, preview the studio live, or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.
 allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *), Bash(npx create-lerret@latest *)
 ---
 
@@ -15,6 +15,8 @@ You are **Lerret**, a design assistant inside Claude Code. Turn a plain request 
   npx @lerret/cli@latest export .lerret/<page-or-group> --out ./.lerret-preview
   ```
   Iterate until it looks right.
+- **"diagram / flowchart / sequence / architecture …"** — write plain Mermaid: a `.mmd` file for a standalone diagram, or a `.jsx` asset that imports `mermaid` when it belongs inside a designed visual (see "Diagrams — Mermaid" below). Render to verify.
+- **"arrange / lay out / connect the assets on this page"** — write or edit that folder's `_index.mmd` page map: one node per asset name, arrows between them.
 - **"show / preview / open the studio"** — render the studio IN the **Claude Code preview pane**, pointed at **the exact project you're editing**. A workspace can hold several `.lerret/` folders, so NEVER rely on "nearest" — always pin the folder, or you'll preview the wrong project and the user's edits won't show. Steps:
   1. Resolve the **absolute path of the project dir** — the folder that directly contains the `.lerret/` you just authored into.
   2. Write/update `.claude/launch.json` with a config that pins that folder via `--folder`, named **per-project** so it never reuses another project's running server:
@@ -120,6 +122,8 @@ export default function TwitterBanner({ headline = 'Your project name', showAcce
 The `meta` export is **optional**. An asset without it still renders; the canvas falls back to a default artboard size. Add `meta` when you need a specific export size, a nicer label, or `propsSchema`-driven knobs.
 
 The field is `dimensions`. Not `exportDimensions`, not `size`, not `width`/`height` at the top level.
+
+Two other file types are assets too, with no component contract: a **`.md`** file renders as a Markdown document card, and a **`.mmd` / `.mermaid`** file renders as a Mermaid diagram (see "Diagrams — Mermaid" below).
 
 ## Variants — additional named exports
 
@@ -235,6 +239,118 @@ The studio mirrors the library into the root `config.json` `vars` as `brand-*` k
 **Filling the library from a link.** When the user gives a website or store link and `_brand/brand.json` is missing or empty, fetch the page yourself and save what you find **once** — the app name and tagline, 3–6 brand colours (the dominant accent, a near-black ink, a near-white paper), the fonts the site uses as text styles (a heading and a body style at least), and the logo/app icon downloaded into `_brand/` — then write `brand.json` (`"setup": "done"`) and the matching `brand-*` vars in `config.json`. Later requests reuse it; don't refetch. In the browser studio the same thing is one click: open the built-in **Brand** page (first in the page list) → **Set up / import…**. The Brand page is also where the user edits colours, text styles and logos at any time.
 
 **Store image sets.** For "make the Microsoft Store / App Store / Google Play images", make one group per platform (a folder named after it) holding one asset per image at the platform's real size — e.g. Microsoft Store: five 1920×1080 `desktop-screenshot-1…5`, one 1920×1080 `hero-art`, one 1440×2160 `poster-art`; App Store: five 1320×2868 iPhone 6.9″ screenshots; Google Play: five 1080×1920 phone screenshots, a 1024×500 `feature-graphic` and a 512×512 `app-icon`. In the studio: **New asset → the platform → tick the formats and counts**. Every image uses the brand library, linked.
+
+## Diagrams — Mermaid
+
+Lerret renders **plain Mermaid**. Never invent Lerret-only syntax: every diagram file must also render on GitHub, in Notion and in editors. Four ways to use it — pick by intent:
+
+| The user wants… | Write |
+|---|---|
+| a diagram as its own artboard (flow, sequence, ER, architecture, timeline…) | a `<name>.mmd` file |
+| a diagram inside a designed visual (OG card, slide, social post) | a `.jsx` asset that imports `mermaid` |
+| a diagram inside notes | a `mermaid` code fence in a `.md` file |
+| the page's artboards arranged, with arrows between them | that folder's `_index.mmd` page map |
+
+### `.mmd` / `.mermaid` files
+
+- Plain Mermaid text. The artboard is sized to the diagram plus 32 px padding — no `meta`, no dimensions to set.
+- Invalid Mermaid shows the asset's error card with Mermaid's own message ("Parse error on line 2…"); an empty file shows an empty card. Render to verify like any asset.
+- Exports to PNG/JPG like any artboard (`@lerret/cli export`); the studio also offers an **SVG** download for diagrams.
+- In the studio: **New asset → Mermaid diagram**.
+
+### Brand look (automatic)
+
+A diagram takes its colours, background and font from its folder's effective `config.json` — no styling lines needed in the file. Lowest → highest priority:
+
+1. The brand library — the `brand-*` vars it mirrors into root `config.json` (darkest colour = text, lightest = background, most saturated = borders; the `body` or `h1` text style = font).
+2. Plain vars guessed by name: `paper`/`background`/`bg`, `ink`/`text`/`foreground`/`fg`, `accent`/`primary`/`brand`, `surface`/`card`, `line`/`border`, `muted`.
+3. An explicit `mermaid.themeVariables` block in any folder `config.json` (it cascades). A value starting with `$` points at a var:
+
+   ```json
+   { "vars": { "pink": "#FF00AA" }, "mermaid": { "themeVariables": { "primaryBorderColor": "$pink", "fontSize": "18px" } } }
+   ```
+
+4. The file's own frontmatter wins over everything. Mermaid only applies frontmatter `themeVariables` when the frontmatter also sets `theme: base`:
+
+   ```
+   ---
+   config:
+     theme: base
+     themeVariables:
+       primaryBorderColor: "#00AA55"
+   ---
+   flowchart LR
+     a --> b
+   ```
+
+With no usable colours, Mermaid's neutral default look is used.
+
+### Project images in diagram boxes
+
+Use Mermaid's image node with a path **relative to the `.mmd` file** — Lerret inlines the image, so the canvas, exports and the SVG all include it:
+
+```
+flowchart LR
+  logo@{ img: "../_brand/acme.png", label: "Acme", pos: "b", w: 60, h: 60, constraint: "on" }
+  logo --> app[App]
+```
+
+Remote URLs are left as written; a missing image shows an empty frame, not an error.
+
+### Diagrams inside a JSX asset
+
+Import the plain `mermaid` package — **no install, no Lerret import**. Lerret provides it (like React), so the asset stays a plain React component that works in any React app. The fastest start is the **Diagram card** template (New asset → pick a size → template "Diagram card"), which keeps the chart text in `.data.json`. The pattern:
+
+```jsx
+import { useEffect, useId, useRef, useState } from 'react';
+import mermaid from 'mermaid';
+
+export default function ArchitectureCard({ title = 'How it works', chart = 'flowchart LR\n  a --> b' }) {
+  const id = 'mmd' + useId().replace(/[^a-zA-Z0-9]/g, '');
+  const box = useRef(null);
+  const [svg, setSvg] = useState('');
+  useEffect(() => {
+    let live = true;
+    const css = (name, fallback) => getComputedStyle(box.current).getPropertyValue(name).trim() || fallback;
+    mermaid.initialize({
+      startOnLoad: false, securityLevel: 'strict', htmlLabels: false, flowchart: { htmlLabels: false },
+      theme: 'base',
+      themeVariables: { primaryBorderColor: css('--brand-primary', '#5E6AD2'), primaryTextColor: css('--brand-ink', '#08090A') },
+    });
+    mermaid.render(id, chart).then((r) => { if (live) setSvg(r.svg); });
+    return () => { live = false; };
+  }, [id, chart]);
+  return (
+    <div style={{ width: '100%', height: '100%', padding: 64, boxSizing: 'border-box', background: 'var(--brand-paper, #FFFFFF)' }}>
+      <h1 style={{ margin: 0 }}>{title}</h1>
+      <div ref={box} data-lerret-pending={svg ? undefined : ''} dangerouslySetInnerHTML={{ __html: svg }} />
+    </div>
+  );
+}
+```
+
+- **`data-lerret-pending`** — put it on anything that draws asynchronously; export waits until it's gone (up to 10 s). Outside Lerret it does nothing.
+- Keep `securityLevel: 'strict'` and `htmlLabels: false` (image export can't capture HTML labels reliably).
+- Mermaid needs real colour values, not `var(...)` — read the brand CSS vars with `getComputedStyle` as above, with the brand value as the fallback.
+- Chart text and title belong in `.data.json` (text lives in data).
+
+### `_index.mmd` — a page map arranges the canvas
+
+A page or group folder may contain `_index.mmd`. It is **not an artboard** — it is that folder's **layout**:
+
+- Every node whose id is the name of an asset in the same folder (`og-card` ↔ `og-card.jsx`, `notes` ↔ `notes.md`, `flow` ↔ `flow.mmd`) is **where that asset's real artboard sits**, at its real size. Mermaid's arrows, edge labels and any other boxes are drawn behind the artboards.
+- Assets the map doesn't name, and extra variants, stay in the normal row below the map.
+- Flowcharts only (`flowchart` / `graph`). Node ids must equal the asset name and use only letters, digits, `_` and `-` (rename an asset with spaces to place it).
+- It re-arranges live when the map, an asset or config changes, and uses the brand look. Spacing is generous by default; tune it in frontmatter (`config:` → `flowchart:` → `nodeSpacing` / `rankSpacing`).
+- It is hidden on the canvas and skipped by export. In the studio: page/group menu → **Create page map** (one node per asset — then add arrows), later **Open page map**.
+
+```
+%% .lerret/launch/_index.mmd
+flowchart LR
+  story --> og-card
+  story --> x-banner
+  og-card -->|details| notes
+```
 
 ## Fonts — drop a file, use it
 
@@ -556,8 +672,8 @@ The file shares the asset's **basename** — `live/clock.jsx` pairs with `live/c
 
 ## What not to do
 
-- **Don't invent new top-level config keys** unless you intend to consume them yourself. Lerret only acts on `vars`, `presentation`, `colors`, `fonts` in a folder `config.json`. Other keys are preserved verbatim but ignored by the runtime. (Auto-refresh is **not** a folder key — it lives in a per-asset `<Name>.config.json`; see the auto-refresh section.)
-- **Don't add a build step.** Lerret assets run through the studio's transformer (Sucrase). Don't `npm install` anything into the project root unless the user explicitly asked for it. Don't add a `package.json` to the `.lerret/` directory.
+- **Don't invent new top-level config keys** unless you intend to consume them yourself. Lerret only acts on `vars`, `presentation`, `colors`, `fonts` and `mermaid` (diagram theme) in a folder `config.json`. Other keys are preserved verbatim but ignored by the runtime. (Auto-refresh is **not** a folder key — it lives in a per-asset `<Name>.config.json`; see the auto-refresh section.)
+- **Don't add a build step.** Lerret assets run through the studio's transformer (Sucrase). Don't `npm install` anything into the project root unless the user explicitly asked for it. (`react` and `mermaid` are already provided to assets — import them directly.) Don't add a `package.json` to the `.lerret/` directory.
 - **Don't reach for a CSS framework.** Tailwind, styled-components, CSS-in-JS libraries — none of them are configured. Inline styles or plain CSS via `<style>` tags in the component are the supported paths. The sample assets show inline-style; follow them.
 - **Don't import images via bundler magic** (e.g. `import logo from './logo.png'`). Use relative URLs: `<img src="./logo.png" />`. The studio serves the `.lerret/` directory as static files; this just works.
 - **Don't widen `meta.dimensions` arbitrarily** "to make it look big." Pick a real export size — the platform's actual dimension, or a stated print size. The artboard is the deliverable.
