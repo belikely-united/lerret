@@ -68,7 +68,7 @@ import {
 
 import { DesignCanvas, DCSection } from '../../design-canvas.jsx';
 import { artboardForEntry, artboardSize, MARKDOWN_CARD_WIDTH } from './asset-artboard.jsx';
-import { isPageMap, layoutPageMap, MAP_SPACING } from '../../runtime/diagram-map.js';
+import { isPageMap, layoutPageMap, mapDirection, MAP_SPACING } from '../../runtime/diagram-map.js';
 import { diagramTheme } from '../../runtime/diagram-theme.js';
 import { renderDiagram } from '../../runtime/diagram-render.js';
 import { useCascadedConfig } from './cascade-context.jsx';
@@ -77,7 +77,7 @@ import { useLiveRefresh } from './live-refresh-manager.js';
 // per-section kebab menu (Edit config / Rename / Delete / Export /
 // Reveal …). Replaces the temporary `SectionWithConfigTrigger` .
 import { SectionKebab } from './section-kebab.jsx';
-import { MapEditLayer } from './map-edit-layer.jsx';
+import { ConnectHandle, MapEditLayer } from './map-edit-layer.jsx';
 // in-canvas creation — the empty-page CTAs and empty-group placeholders open
 // the shared CreateEntryDialog; `create` performs the write.
 import { CreateEntryDialog, createFromDialog, inCliMode } from '../menu/index.js';
@@ -851,7 +851,14 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  bare={sectionKind === 'page'}
  onSelectScope={(element, assetPath, frame) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath, frame)}
  mapLayout={mapLayouts[s.id] || null}
- renderMapOverlay={(layout) => <MapEditLayer sectionId={s.id} layout={layout} />}
+ renderMapOverlay={(layout) => <MapEditLayer layout={layout} />}
+ renderConnect={(slotId, placed) => {
+ // Every card can start an arrow; the first one creates `_index.mmd`.
+ const mapEntry = s.entries.find((e) => isPageMap(e.asset));
+ const map = mapEntry ? { text: mapEntry.text, path: mapEntry.asset.path } : null;
+ const dir = placed && typeof mapEntry?.text === 'string' ? mapDirection(mapEntry.text) : 'LR';
+ return <ConnectHandle sectionId={s.id} slotId={slotId} map={map} dir={dir} />;
+ }}
  >
  {node.entries
  // A map that arranges this folder is the layout, not an artboard.
