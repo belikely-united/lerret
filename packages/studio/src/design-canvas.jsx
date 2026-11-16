@@ -1343,7 +1343,7 @@ export function sectionDepthBg(depth) {
  return steps[Math.min(Math.max(depth | 0, 0), steps.length - 1)];
 }
 
-export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope, mapLayout = null }) {
+export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, sectionStyle, bare = false, onSelectScope, mapLayout = null, renderMapOverlay = null }) {
  const ctx = React.useContext(DCCtx);
  const sid = id ?? title;
  const all = React.Children.toArray(children);
@@ -1515,6 +1515,7 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  {frameFor(k)}
  </div>
  ))}
+ {renderMapOverlay && renderMapOverlay(mapLayout)}
  </div>
  )}
  {loose.length > 0 && (

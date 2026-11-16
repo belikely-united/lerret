@@ -107,6 +107,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  *   positions: Record<string, { left: number, top: number, width: number, height: number }> } | null>}
  *   The returned `svg` has the placeholder nodes removed (the real artboards
  *   go there) — a user's own image nodes are kept.
+ *   `names` maps each placed slot to its node id; `scale` is the map scale.
  *   `null` when the map names no artboard (normal layout applies).
  */
 export async function layoutPageMap(text, artboards, render) {
@@ -134,10 +135,24 @@ export async function layoutPageMap(text, artboards, render) {
       positions[n.slotId] = { left: (r.left - origin.left) * k, top: (r.top - origin.top) * k, width: r.width * k, height: r.height * k };
       group.remove(); // the real artboard is drawn here instead
     }
+    // Wide invisible twins of the connectors, so an arrow is easy to click.
+    for (const link of svg.querySelectorAll('path.flowchart-link')) {
+      const hit = link.cloneNode(false);
+      hit.removeAttribute('style');
+      hit.removeAttribute('marker-end');
+      hit.removeAttribute('marker-start');
+      hit.setAttribute('class', 'lerret-hit dc-section-cta'); // dc-section-cta: no canvas pan
+      hit.setAttribute('data-edge', link.id.replace(/^.*?-(L_)/, '$1'));
+      hit.setAttribute('fill', 'none');
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '12');
+      link.parentNode.appendChild(hit);
+    }
     svg.style.removeProperty('width');
     svg.style.removeProperty('height');
     svg.style.removeProperty('max-width');
-    return { svg: svg.outerHTML, width: out.width * k, height: out.height * k, positions };
+    const names = Object.fromEntries(nodes.filter((n) => positions[n.slotId]).map((n) => [n.slotId, n.id]));
+    return { svg: svg.outerHTML, width: out.width * k, height: out.height * k, positions, names, scale: k };
   } finally {
     host.remove();
   }
@@ -160,4 +175,97 @@ export function starterPageMap(assets) {
     body,
     '',
   ].join('\n');
+}
+
+// ── Editing a map from the canvas (Phase 5) ────────────────────────────────
+// Every gesture is a small rewrite of the plain Mermaid text, so the file stays
+// the source of truth and hand edits keep working. Only simple one-edge lines
+// (`a --> b`, `a -.->|text| b`) are edited in place; anything fancier (chains,
+// `a & b`, `-- text -->`) is left to the code editor (helpers return null).
+
+/** Arrow styles the canvas offers → Mermaid arrows. */
+export const EDGE_STYLES = Object.freeze({ solid: '-->', dashed: '-.->', thick: '==>' });
+const STYLE_OF = { '-->': 'solid', '---': 'solid', '-.->': 'dashed', '-.-': 'dashed', '==>': 'thick', '===': 'thick' };
+
+const ID = '[A-Za-z0-9_][A-Za-z0-9_-]*?';
+const EDGE_LINE = new RegExp(`^(\\s*)(${ID})\\s*(-->|-\\.->|==>|---|-\\.-|===)\\s*(?:\\|([^|]*)\\|\\s*)?(${ID})\\s*;?\\s*$`);
+
+/**
+ * Simple edges, each with the id Mermaid gives its SVG path (`L_a_b_N`, N
+ * counting repeats of the same pair).
+ *
+ * @param {string} text
+ * @returns {Array<{ id: string, line: number, from: string, to: string, style: string, label: string }>}
+ */
+export function listEdges(text) {
+  const seen = {};
+  const out = [];
+  text.split('\n').forEach((raw, line) => {
+    const m = EDGE_LINE.exec(raw);
+    if (!m) return;
+    const [, , from, arrow, label = '', to] = m;
+    const pair = `${from}_${to}`;
+    const n = seen[pair] ?? 0;
+    seen[pair] = n + 1;
+    out.push({ id: `L_${pair}_${n}`, line, from, to, style: STYLE_OF[arrow], label: label.trim() });
+  });
+  return out;
+}
+
+const cleanLabel = (s) => String(s || '').replace(/[|\n]/g, ' ').trim();
+
+/** Append `from --> to` (no-op text when that edge already exists). */
+export function addEdge(text, from, to) {
+  if (from === to || listEdges(text).some((e) => e.from === from && e.to === to)) return text;
+  return `${text.replace(/\s*$/, '')}\n  ${from} --> ${to}\n`;
+}
+
+/**
+ * Change an edge's label and/or style; `null` → not a simple edge line.
+ *
+ * @param {string} text
+ * @param {string} edgeId  e.g. `L_story_og-card_0`
+ * @param {{ label?: string, style?: 'solid'|'dashed'|'thick' }} patch
+ * @returns {string | null}
+ */
+export function updateEdge(text, edgeId, patch) {
+  const edge = listEdges(text).find((e) => e.id === edgeId);
+  if (!edge) return null;
+  const lines = text.split('\n');
+  const indent = /^\s*/.exec(lines[edge.line])[0];
+  const label = cleanLabel(patch.label ?? edge.label);
+  const arrow = EDGE_STYLES[patch.style ?? edge.style];
+  lines[edge.line] = `${indent}${edge.from} ${arrow}${label ? `|${label}|` : ''} ${edge.to}`;
+  return lines.join('\n');
+}
+
+/** Delete an edge's line; `null` → not a simple edge line. */
+export function removeEdge(text, edgeId) {
+  const edge = listEdges(text).find((e) => e.id === edgeId);
+  if (!edge) return null;
+  const lines = text.split('\n');
+  lines.splice(edge.line, 1);
+  return lines.join('\n');
+}
+
+/** `LR` | `RL` | `TB` | `BT` of the flowchart line (`TD` → `TB`; none → `TB`). */
+export function mapDirection(text) {
+  const m = /^\s*(?:flowchart|graph)\b[ \t]*(\w*)/im.exec(text.replace(/^---\n[\s\S]*?\n---\n/, ''));
+  const d = (m?.[1] || 'TB').toUpperCase();
+  return d === 'TD' ? 'TB' : ['LR', 'RL', 'TB', 'BT'].includes(d) ? d : 'TB';
+}
+
+/** Flip a horizontal map vertical and back (rewrites the `flowchart` line). */
+export function toggleDirection(text) {
+  const next = { LR: 'TB', RL: 'BT', TB: 'LR', BT: 'RL' }[mapDirection(text)];
+  return text.replace(/^(\s*(?:flowchart|graph))\b[ \t]*\w*/im, `$1 ${next}`);
+}
+
+/** Add a free text box (`noteN["…"]`) — Mermaid places it. */
+export function addNote(text, label) {
+  const used = new Set(text.match(/\bnote\d+\b/g) || []);
+  let n = 1;
+  while (used.has(`note${n}`)) n += 1;
+  const safe = cleanLabel(label).replace(/"/g, '#quot;') || 'Note';
+  return `${text.replace(/\s*$/, '')}\n  note${n}["${safe}"]\n`;
 }

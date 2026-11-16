@@ -77,6 +77,7 @@ import { useLiveRefresh } from './live-refresh-manager.js';
 // per-section kebab menu (Edit config / Rename / Delete / Export /
 // Reveal …). Replaces the temporary `SectionWithConfigTrigger` .
 import { SectionKebab } from './section-kebab.jsx';
+import { MapEditLayer } from './map-edit-layer.jsx';
 // in-canvas creation — the empty-page CTAs and empty-group placeholders open
 // the shared CreateEntryDialog; `create` performs the write.
 import { CreateEntryDialog, createFromDialog, inCliMode } from '../menu/index.js';
@@ -590,7 +591,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  }
  try {
  const layout = await layoutPageMap(map.text, artboards, (t) => renderDiagram(t, look, MAP_SPACING));
- if (layout) next[s.id] = { ...layout, mapId: map.id };
+ if (layout) next[s.id] = { ...layout, mapId: map.id, text: map.text, path: map.asset.path };
  } catch {
  // An unusable map leaves the normal row layout in place.
  }
@@ -850,6 +851,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  bare={sectionKind === 'page'}
  onSelectScope={(element, assetPath, frame) => emitSectionScope(s, sectionKind, page && page.name, element, assetPath, frame)}
  mapLayout={mapLayouts[s.id] || null}
+ renderMapOverlay={(layout) => <MapEditLayer sectionId={s.id} layout={layout} />}
  >
  {node.entries
  // A map that arranges this folder is the layout, not an artboard.

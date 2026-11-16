@@ -345,6 +345,7 @@ A page or group folder may contain `_index.mmd`. It is **not an artboard** — i
 - It re-arranges live when the map, an asset or config changes, and uses the brand look. Arrows meet each artboard at its centre.
 - The map is drawn at the artboards' scale, so arrows and labels stay readable when the page is zoomed out. Spacing is in map units (defaults `nodeSpacing: 56`, `rankSpacing: 96`); tune it in frontmatter (`config:` → `flowchart:`).
 - It is hidden on the canvas and skipped by export. In the studio: page/group menu → **Create page map** (one node per asset — then add arrows), later **Open page map**.
+- People also edit it on the canvas: drag a card's handle onto another card (adds `a --> b`), click an arrow (label, solid `-->` / dashed `-.->` / thick `==>`, delete), flip direction (`LR` ↔ `TB`), **+ Note** (adds `noteN["…"]`). The canvas edits only simple one-arrow lines, so keep one edge per line (`a -->|label| b`) rather than chains (`a --> b --> c`) or `a & b` — then both you and the canvas can change it.
 
 ```
 %% .lerret/launch/_index.mmd
