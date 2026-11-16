@@ -175,6 +175,7 @@ function MarkdownGlyph() {
 // A ```mermaid fence inside a `.md` card renders as a diagram (spec-mermaid-
 // diagrams.md, Phase 1). Rendered after mount; until then (and on a Mermaid
 // error) the fence shows as its source code, with the error underneath.
+// While rendering it carries `data-lerret-pending`, so export waits for it.
 function MermaidBlock({ text }) {
  const [state, setState] = React.useState({ svg: '', error: null });
  React.useEffect(() => {
@@ -190,7 +191,7 @@ function MermaidBlock({ text }) {
  }
  return (
  <>
- <pre><code>{text}</code></pre>
+ <pre data-lerret-pending={state.error ? undefined : ''}><code>{text}</code></pre>
  {state.error ? <p className="lm-md-card__empty">Mermaid: {state.error}</p> : null}
  </>
  );
