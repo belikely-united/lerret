@@ -25,6 +25,7 @@ have to remember sub-commands or flags. It handles, by intent:
 | (first time, no `.lerret/`) | **Sets the project up** — asks, then scaffolds (`create-lerret`) or adds `.lerret/` in place |
 | "make / design / edit …" | **Authors** the `.jsx` asset, then renders it to verify |
 | "show / preview / open the studio" | **Previews** — boots the studio and surfaces the URL (live, interactive) |
+| "map this app's APIs / screens" | **Maps the backend** — a screenshot of each screen beside the APIs it calls, and a card per API (who, input, output, rules, where used), in one diagram |
 | "export / render to files" | **Exports** to PNG/JPG |
 | "clear / wipe samples" | **Clears** samples (keeps `config.json` + `_fonts/`) |
 
