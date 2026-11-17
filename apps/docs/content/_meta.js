@@ -14,6 +14,7 @@ export default {
   concepts: 'Concepts',
   authoring: 'Authoring Assets',
   diagrams: 'Diagrams (Mermaid)',
+  models: '3D Models',
   examples: 'Examples',
   studio: 'The Studio',
   cli: 'CLI Reference',

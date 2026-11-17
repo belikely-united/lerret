@@ -61,6 +61,7 @@ import {
  makeVariantEntry,
  makeMarkdownEntry,
  makeDiagramEntry,
+ makeModelEntry,
  makeErrorEntry,
  toAssetError,
 } from './asset-runtime.js';
@@ -732,6 +733,20 @@ export function createHostedRuntime(project, options) {
  // modules + variants.
  if (asset.assetKind === 'markdown' || asset.assetKind === 'diagram') {
  return loadMarkdownAsset(asset, project, { fs, getConfigFor: opts.getConfigFor });
+ }
+ if (asset.assetKind === 'model') {
+ // A 3D file is read as bytes through the FSA backend and rendered to a still.
+ const readFile = async (path) => {
+ const bytes = await fs.readFile(path, { encoding: 'binary' });
+ return bytes instanceof Uint8Array ? bytes : null;
+ };
+ let bytes;
+ try {
+ bytes = await readFile(asset.path);
+ } catch (thrown) {
+ return [makeErrorEntry(asset, toAssetError(thrown, 'load'))];
+ }
+ return [await makeModelEntry(asset, bytes, { getConfigFor: opts.getConfigFor, readFile })];
  }
  return loadAssetModule(asset, project, { fs, sw, cache, importModule });
  },

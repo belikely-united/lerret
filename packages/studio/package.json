@@ -20,7 +20,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
-    "sucrase": "^3.35.0"
+    "sucrase": "^3.35.0",
+    "three": "^0.187.0"
   },
   "optionalDependencies": {
     "@lerret/ai": "workspace:^",

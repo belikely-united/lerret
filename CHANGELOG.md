@@ -8,6 +8,14 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.4.0 · @lerret/core 0.1.6 — 2026-11-17
+
+### Added
+- **3D models as assets.** A `.glb`, `.gltf`, `.stl` or `.obj` file in a page folder is an artboard: lit, framed from a three-quarter view and drawn in the folder's brand colours (STL/OBJ take the accent colour; glTF keeps its own materials). Open it in focus view to drag-rotate and zoom. Exports to PNG/JPG from the studio and `@lerret/cli export`. A `.gltf`'s side files (`.bin`, textures) are read in. Rendered with three.js (MIT), loaded only when a page has a model.
+
+### Changed
+- A `.glb`/`.gltf`/`.stl`/`.obj` file already sitting in a page folder now shows as an artboard. Files used only inside a component can live in a root `_` folder (e.g. `.lerret/_models/`), which never becomes a page.
+
 ## @lerret/cli 0.3.3 — 2026-11-17
 
 ### Changed
