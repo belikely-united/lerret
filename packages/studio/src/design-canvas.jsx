@@ -96,7 +96,9 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  // At least as wide as its tab (tab is counter-scaled, so ×--dc-inv), so the
  // tab's right edge always lands on the frame's top edge.
  '.dc-group-frame{min-width:max(400px, calc((var(--dc-tag-w, 0px) + 40px) * var(--dc-inv, 1)))}',
- '.dc-group-frame{box-shadow:0 calc(1px * var(--dc-inv, 1)) calc(3px * var(--dc-inv, 1)) rgba(0, 0, 0,.06),0 calc(6px * var(--dc-inv, 1)) calc(24px * var(--dc-inv, 1)) rgba(0, 0, 0,.07);transition:box-shadow .12s}',
+ '.dc-group-frame{box-shadow:0 calc(1px * var(--dc-inv, 1)) calc(3px * var(--dc-inv, 1)) rgba(0, 0, 0,.06),0 calc(6px * var(--dc-inv, 1)) calc(24px * var(--dc-inv, 1)) rgba(0, 0, 0,.07)}',
+ // No box-shadow transition on the frame: its shadow is sized by --dc-inv, so
+ // a transition re-animated (restyle + repaint) every group on every zoom step.
  '[data-dc-section]{--dc-group-shadow-tab:0 -1px 3px rgba(0, 0, 0,.05),0 -4px 14px rgba(0, 0, 0,.05)}',
  // Hover lifts the innermost group a little — a deeper shadow, no border.
  '[data-dc-section]:hover:not(:has([data-dc-section]:hover)){--dc-group-shadow-tab:0 -1px 4px rgba(0, 0, 0,.08),0 -6px 20px rgba(0, 0, 0,.08)}',
@@ -735,6 +737,11 @@ export function clampAxis(pos, originLocal, sizeLocal, viewport, scale, margin) 
 // skip style, layout and paint entirely (content-visibility: hidden). The
 // margin hides the swap from a normal-speed pan.
 const CULL_MARGIN = 0.75;
+// Above this many live artboards, the labels stop counter-scaling while a
+// zoom gesture runs and snap to size when it settles (tldraw's "debounced
+// zoom"): restyling every label each frame is what drops zoom to ~30 fps on
+// slow CPUs. Small pages keep the per-frame update.
+const LIVE_CHROME_MAX = 12;
 
 function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvasMenuItems = [] }) {
  const vpRef = React.useRef(null);
@@ -785,17 +792,22 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  // Hide artboards far outside the view (tldraw-style culling). Offscreen
  // slots keep their box (contain-intrinsic-size) so nothing moves; only the
  // attribute flips, and only when a slot crosses the margin.
+ // Returns how many artboards are live (not culled).
  const cull = React.useCallback(() => {
  const vp = vpRef.current;
- if (!vp || !vp.clientWidth) return; // jsdom / not laid out
+ if (!vp || !vp.clientWidth) return 0; // jsdom / not laid out
  const { x, y, scale } = tf.current;
  const vw = vp.clientWidth / scale, vh = vp.clientHeight / scale;
- const left = -x / scale - vw * CULL_MARGIN, top = -y / scale - vh * CULL_MARGIN;
- const right = left + vw * (1 + 2 * CULL_MARGIN), bottom = top + vh * (1 + 2 * CULL_MARGIN);
+ // Hysteresis: show within 1× the margin, hide only past 2×, so zooming
+ // back and forth doesn't re-render the same artboards over and over.
+ const outside = (sl, m) => sl.x > -x / scale + vw * (1 + m) || sl.x + sl.w < -x / scale - vw * m ||
+ sl.y > -y / scale + vh * (1 + m) || sl.y + sl.h < -y / scale - vh * m;
+ let live = 0;
  for (const sl of measureGeom().slots) {
- const off = !sl.el.hasAttribute('data-dc-pin') &&
- (sl.x > right || sl.x + sl.w < left || sl.y > bottom || sl.y + sl.h < top);
- if (off === sl.el.hasAttribute('data-dc-off')) continue;
+ const wasOff = sl.el.hasAttribute('data-dc-off');
+ const off = !sl.el.hasAttribute('data-dc-pin') && outside(sl, wasOff ? CULL_MARGIN : CULL_MARGIN * 2);
+ if (!off) live++;
+ if (off === wasOff) continue;
  if (off) {
  sl.el.style.containIntrinsicSize = `${sl.lw}px ${sl.lh}px`;
  sl.el.setAttribute('data-dc-off', '');
@@ -804,6 +816,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  sl.el.style.containIntrinsicSize = '';
  }
  }
+ return live;
  }, [measureGeom]);
 
  // Settle timer for crisp-at-rest rendering. While panning/zooming we keep the
@@ -819,22 +832,24 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  const { x, y, scale } = tf.current;
  const el = worldRef.current;
  geomRef.current = null; // content may change between gestures
- if (!el || rasterScaleRef.current === scale) return;
+ if (!el) return;
+ // Publish 1/scale so the per-artboard chrome counter-scales to a constant
+ // screen size (catches up after a zoom gesture that paused it).
+ publishChromeScale(el, scale);
+ if (rasterScaleRef.current === scale) return;
  rasterScaleRef.current = scale;
  el.style.willChange = 'auto';
  el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
- // Publish 1/scale so the per-artboard chrome counter-scales to a constant
- // screen size. Inherited by every slot/chrome element inside the world.
- publishChromeScale(el, scale);
  }, []);
- const apply = React.useCallback(() => {
+ // `gesture`: called from a wheel/pinch/drag frame (see LIVE_CHROME_MAX).
+ const apply = React.useCallback((gesture = false) => {
  const { x, y, scale } = tf.current;
  const el = worldRef.current;
  if (el) {
  if (el.style.willChange !== 'transform') el.style.willChange = 'transform';
  el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
- publishChromeScale(el, scale);
- cull();
+ const live = cull();
+ if (!gesture || live <= LIVE_CHROME_MAX) publishChromeScale(el, scale);
  }
  if (settleRef.current) clearTimeout(settleRef.current);
  settleRef.current = setTimeout(applySettled, 180);
@@ -892,7 +907,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (frameRef.current) return;
  frameRef.current = requestAnimationFrame(() => {
  frameRef.current = 0;
- clampPan(); apply(); publish();
+ clampPan(); apply(true); publish();
  });
  }, [apply, clampPan, publish]);
  React.useEffect(() => () => {
