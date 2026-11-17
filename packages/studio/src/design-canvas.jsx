@@ -26,6 +26,7 @@ import * as ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { exportArtboard, exportArtboardSvg } from './export/single.js';
 import { exportArtboardPdf } from './export/pdf.js';
+import { pinForCapture } from './export/capture.js';
 import { ContextMenu, useContextMenu } from './components/menu/context-menu.jsx';
 import { move as moveEntry } from './components/menu/entity-kebab.jsx';
 import { KIND_ICONS } from './components/menu/kind-icons.jsx';
@@ -70,7 +71,11 @@ if (typeof document !== 'undefined' && !document.getElementById('dc-styles')) {
  '.dc-toast--out{opacity:0;translate:0 8px;transition-duration:160ms}',
  '@media (prefers-reduced-motion:reduce){.dc-toast{transition-property:opacity}}',
  '[data-dc-slot].dc-dragging .dc-card{box-shadow:0 12px 40px rgba(0,0,0,.25),0 0 0 2px #111111;transform:scale(1.02)}',
- '.dc-card{transition:box-shadow .15s,transform .15s}',
+ // --dc-inv stops at the artboard: a zoom restyles only the chrome, not every
+ // element of every design (halves the per-frame style cost on big pages).
+ '.dc-card{transition:box-shadow .15s,transform .15s;--dc-inv:1}',
+ // Culled (far off-screen) artboards: no style, layout or paint until near.
+ '[data-dc-off]{content-visibility:hidden}',
  '.dc-card *{scrollbar-width:none}',
  '.dc-card *::-webkit-scrollbar{display:none}',
  '.dc-labelrow{display:flex;align-items:center;gap:4px;height:24px}',
@@ -278,6 +283,7 @@ async function dcCapture(node, { width, height, fmt }) {
  try { await document.fonts.ready; } catch (_) {}
  }
  const fontEmbedCSS = await ensureFontEmbedCSS();
+ const release = pinForCapture(node);
  const opts = {
  width, height, canvasWidth: width, canvasHeight: height,
  pixelRatio: 2, cacheBust: true, skipAutoScale: true,
@@ -291,9 +297,13 @@ async function dcCapture(node, { width, height, fmt }) {
  height: height + 'px',
  },
  };
- return fmt === 'png'
+ try {
+ return await (fmt === 'png'
  ? window.htmlToImage.toPng(node, opts)
- : window.htmlToImage.toJpeg(node, { ...opts, quality: 0.95 });
+ : window.htmlToImage.toJpeg(node, { ...opts, quality: 0.95 }));
+ } finally {
+ release();
+ }
 }
 
 function dcTriggerDownload(dataUrl, filename) {
@@ -691,10 +701,40 @@ const DC_BLOCK_GAP = 88;
 const DC_PAGE_GAP = 120;
 const FAR_ZOOM = 0.35;
 function publishChromeScale(el, scale) {
- el.style.setProperty('--dc-inv', String(Math.min(1 / (scale || 1), CHROME_MAX_INV)));
- if (scale < FAR_ZOOM) el.setAttribute('data-dc-far', '');
- else el.removeAttribute('data-dc-far');
+ // Every chrome element inherits --dc-inv, so a change restyles them all —
+ // only write it when it actually changed (pans leave it alone).
+ const inv = String(Math.min(1 / (scale || 1), CHROME_MAX_INV));
+ if (el.style.getPropertyValue('--dc-inv') !== inv) el.style.setProperty('--dc-inv', inv);
+ if ((scale < FAR_ZOOM) !== el.hasAttribute('data-dc-far')) el.toggleAttribute('data-dc-far', scale < FAR_ZOOM);
 }
+
+// Wheel deltas in px: Firefox reports lines (deltaMode 1), some mice pages (2).
+const wheelPx = (e) => (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 800 : 1);
+// One zoom step per wheel event, capped (like tldraw): a trackpad pinch sends
+// small deltas and stays smooth; a mouse notch (deltaY ≈ 100) is ~1.28×
+// instead of a 2.7× jump.
+const WHEEL_ZOOM_CAP = 25;
+export function wheelZoomFactor(e) {
+ const d = Math.max(-WHEEL_ZOOM_CAP, Math.min(WHEEL_ZOOM_CAP, e.deltaY * wheelPx(e)));
+ return Math.exp(-d * 0.01);
+}
+
+// Pan bounds on one axis: where the content's near edge may sit on screen.
+// Large content can pan until its far edge is `margin` inside the viewport;
+// small content stays fully in view but is NOT re-centered, so zooming keeps
+// the point under the cursor fixed. Continuous at size ≈ viewport.
+export function clampAxis(pos, originLocal, sizeLocal, viewport, scale, margin) {
+ const origin = originLocal * scale;
+ const size = sizeLocal * scale;
+ const lo = Math.min(viewport - margin - size, 0) - origin;
+ const hi = Math.max(margin, viewport - size) - origin;
+ return Math.max(lo, Math.min(hi, pos));
+}
+
+// Off-screen culling: artboards further than this (× viewport) from the view
+// skip style, layout and paint entirely (content-visibility: hidden). The
+// margin hides the swap from a normal-speed pan.
+const CULL_MARGIN = 0.75;
 
 function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvasMenuItems = [] }) {
  const vpRef = React.useRef(null);
@@ -708,17 +748,79 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  // Right-click on the empty canvas (the void) opens a small context menu.
  const ctx = useContextMenu();
 
+ // Geometry cache: top-level card rects (bounds, mini-map) and every artboard
+ // slot (culling), in world-LOCAL coords. Measuring forces a layout, so it
+ // runs once per gesture instead of once per wheel event; cleared when motion
+ // settles and whenever the world resizes.
+ const geomRef = React.useRef(null);
+ const measureGeom = React.useCallback(() => {
+ if (geomRef.current) return geomRef.current;
+ const world = worldRef.current;
+ if (!world) return { cards: [], slots: [] };
+ const wr = world.getBoundingClientRect(); // reflects the applied transform
+ // The scale actually on screen — handlers update tf before the frame writes
+ // it, so tf.current.scale can be ahead of the DOM.
+ const s = (world.offsetWidth && wr.width / world.offsetWidth) || tf.current.scale || 1;
+ const local = (el) => {
+ const b = el.getBoundingClientRect();
+ return { x: (b.left - wr.left) / s, y: (b.top - wr.top) / s, w: b.width / s, h: b.height / s };
+ };
+ const cards = [...world.querySelectorAll('[data-dc-section-depth="0"], [data-dc-section-depth="1"]')].map(local);
+ const slots = [...world.querySelectorAll('[data-dc-slot]')].map((el) => ({
+ el, ...local(el), lw: el.offsetWidth, lh: el.offsetHeight,
+ }));
+ const geom = { cards, slots };
+ // Never cache "nothing yet": the auto-fit polls until cards appear.
+ if (cards.length) geomRef.current = geom;
+ return geom;
+ }, []);
+ React.useEffect(() => {
+ const world = worldRef.current;
+ if (!world || typeof ResizeObserver === 'undefined') return undefined;
+ const ro = new ResizeObserver(() => { geomRef.current = null; });
+ ro.observe(world);
+ return () => ro.disconnect();
+ }, []);
+
+ // Hide artboards far outside the view (tldraw-style culling). Offscreen
+ // slots keep their box (contain-intrinsic-size) so nothing moves; only the
+ // attribute flips, and only when a slot crosses the margin.
+ const cull = React.useCallback(() => {
+ const vp = vpRef.current;
+ if (!vp || !vp.clientWidth) return; // jsdom / not laid out
+ const { x, y, scale } = tf.current;
+ const vw = vp.clientWidth / scale, vh = vp.clientHeight / scale;
+ const left = -x / scale - vw * CULL_MARGIN, top = -y / scale - vh * CULL_MARGIN;
+ const right = left + vw * (1 + 2 * CULL_MARGIN), bottom = top + vh * (1 + 2 * CULL_MARGIN);
+ for (const sl of measureGeom().slots) {
+ const off = !sl.el.hasAttribute('data-dc-pin') &&
+ (sl.x > right || sl.x + sl.w < left || sl.y > bottom || sl.y + sl.h < top);
+ if (off === sl.el.hasAttribute('data-dc-off')) continue;
+ if (off) {
+ sl.el.style.containIntrinsicSize = `${sl.lw}px ${sl.lh}px`;
+ sl.el.setAttribute('data-dc-off', '');
+ } else {
+ sl.el.removeAttribute('data-dc-off');
+ sl.el.style.containIntrinsicSize = '';
+ }
+ }
+ }, [measureGeom]);
+
  // Settle timer for crisp-at-rest rendering. While panning/zooming we keep the
  // world on the GPU fast path (translate3d + will-change), which promotes it to
  // a fixed raster-scale layer — so zooming IN magnifies a cached texture and
- // text goes blurry. When motion stops we drop to a 2D transform and release
- // will-change, so the browser re-rasterizes the content sharp at the current
- // zoom. Re-promoted the instant the next pan/zoom frame calls apply().
+ // text goes blurry. When a ZOOM stops we drop to a 2D transform and release
+ // will-change, so the browser re-rasterizes the content sharp at the new
+ // zoom. A pure pan never changes the raster scale, so it keeps the layer —
+ // no full re-raster each time a scroll pauses.
  const settleRef = React.useRef(0);
+ const rasterScaleRef = React.useRef(null);
  const applySettled = React.useCallback(() => {
  const { x, y, scale } = tf.current;
  const el = worldRef.current;
- if (!el) return;
+ geomRef.current = null; // content may change between gestures
+ if (!el || rasterScaleRef.current === scale) return;
+ rasterScaleRef.current = scale;
  el.style.willChange = 'auto';
  el.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
  // Publish 1/scale so the per-artboard chrome counter-scales to a constant
@@ -729,13 +831,14 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  const { x, y, scale } = tf.current;
  const el = worldRef.current;
  if (el) {
- el.style.willChange = 'transform';
+ if (el.style.willChange !== 'transform') el.style.willChange = 'transform';
  el.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
  publishChromeScale(el, scale);
+ cull();
  }
  if (settleRef.current) clearTimeout(settleRef.current);
  settleRef.current = setTimeout(applySettled, 180);
- }, [applySettled]);
+ }, [applySettled, cull]);
 
  // Notify subscribers of the current transform (rAF-throttled).
  const publish = React.useCallback(() => {
@@ -747,30 +850,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  });
  }, []);
 
- // Measure each top-level card (a page's own section or a top-level group) in
- // world-LOCAL coordinates (transform-independent). Sub-groups are nested
- // inside these, so the top-level cards bound all content.
- const measureCards = React.useCallback(() => {
- const world = worldRef.current;
- if (!world) return [];
- const cards = world.querySelectorAll(
- '[data-dc-section-depth="0"], [data-dc-section-depth="1"]',
- );
- if (!cards.length) return [];
- const s = tf.current.scale || 1;
- const wr = world.getBoundingClientRect(); // reflects the applied transform
- const out = [];
- for (const c of cards) {
- const b = c.getBoundingClientRect();
- out.push({
- x: (b.left - wr.left) / s,
- y: (b.top - wr.top) / s,
- w: b.width / s,
- h: b.height / s,
- });
- }
- return out;
- }, []);
+ const measureCards = React.useCallback(() => measureGeom().cards, [measureGeom]);
 
  // Union bbox of the cards, in world-local coords. `null` when there's nothing.
  const getContentBounds = React.useCallback(() => {
@@ -785,36 +865,40 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  }, [measureCards]);
 
  const getViewportSize = React.useCallback(() => {
- const r = vpRef.current && vpRef.current.getBoundingClientRect();
- return r ? { width: r.width, height: r.height } : { width: 0, height: 0 };
+ const vp = vpRef.current;
+ return vp ? { width: vp.clientWidth, height: vp.clientHeight } : { width: 0, height: 0 };
  }, []);
 
- // Bounded pan — content can never be flung into the void (the bug). When the
- // content is larger than the viewport on an axis you can pan across it, but
- // its far edge can't recede more than a small breathing margin past the
- // viewport edge; when it's smaller than the viewport, it centers on that axis.
+ // Bounded pan — content can never be flung into the void. Large content pans
+ // until its far edge is a breathing margin inside the viewport; small content
+ // stays in view (see clampAxis).
  const clampPan = React.useCallback(() => {
  const b = getContentBounds();
- const r = vpRef.current && vpRef.current.getBoundingClientRect();
- if (!b || !r) return;
+ const r = getViewportSize();
+ if (!b || !r.width) return;
  const t = tf.current;
- const s = t.scale;
  // How much empty canvas may show past an edge — the pannable "slack". Kept
  // generous so the user can always tuck content up / to the side, clear of the
  // fixed bottom-left overview map and the bottom toolbar, when content overflows.
  const BM = 320;
- const clampAxis = (pos, originLocal, sizeLocal, viewport) => {
- const origin = originLocal * s;
- const size = sizeLocal * s;
- const lo = viewport - BM - (origin + size); // far edge ≥ viewport − BM
- const hi = BM - origin; // near edge ≤ BM
- // Content smaller than the viewport (lo > hi) → center it on this axis.
- if (lo > hi) return (viewport - size) / 2 - origin;
- return Math.max(lo, Math.min(hi, pos));
- };
- t.x = clampAxis(t.x, b.minX, b.width, r.width);
- t.y = clampAxis(t.y, b.minY, b.height, r.height);
- }, [getContentBounds]);
+ t.x = clampAxis(t.x, b.minX, b.width, r.width, t.scale, BM);
+ t.y = clampAxis(t.y, b.minY, b.height, r.height, t.scale, BM);
+ }, [getContentBounds, getViewportSize]);
+
+ // Input handlers only update `tf`; the DOM write happens once per frame, so a
+ // 120 Hz trackpad (2+ wheel events per frame) costs one style pass, not three.
+ const frameRef = React.useRef(0);
+ const schedule = React.useCallback(() => {
+ if (frameRef.current) return;
+ frameRef.current = requestAnimationFrame(() => {
+ frameRef.current = 0;
+ clampPan(); apply(); publish();
+ });
+ }, [apply, clampPan, publish]);
+ React.useEffect(() => () => {
+ cancelAnimationFrame(frameRef.current);
+ clearTimeout(settleRef.current);
+ }, []);
 
  // Frame ALL content (the Fit button / Shift+1). Capped at 100% so a small
  // project isn't blown up past its true size.
@@ -889,7 +973,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  t.x = px - (px - t.x) * k;
  t.y = py - (py - t.y) * k;
  t.scale = next;
- clampPan(); apply(); publish();
+ schedule();
  };
 
  // Wheel routing — convention matches most apps:
@@ -904,17 +988,18 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (e.ctrlKey || e.metaKey) {
  // Trackpad pinch sends fractional deltas; mouse ctrl+wheel sends
  // larger integer deltas. Both feel right with this exponent.
- zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+ zoomAt(e.clientX, e.clientY, wheelZoomFactor(e));
  } else if (e.shiftKey && e.deltaX === 0) {
  // Shift+wheel → horizontal pan (browsers don't auto-flip axis here)
- tf.current.x -= e.deltaY;
- clampPan(); apply(); publish();
+ tf.current.x -= e.deltaY * wheelPx(e);
+ schedule();
  } else {
  // Plain wheel scroll — pan in both axes (deltaX is non-zero on
  // trackpads and tilt-wheels; zero on a vertical-only mouse wheel).
- tf.current.x -= e.deltaX;
- tf.current.y -= e.deltaY;
- clampPan(); apply(); publish();
+ const k = wheelPx(e);
+ tf.current.x -= e.deltaX * k;
+ tf.current.y -= e.deltaY * k;
+ schedule();
  }
  };
 
@@ -960,7 +1045,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  tf.current.x += e.clientX - drag.lx;
  tf.current.y += e.clientY - drag.ly;
  drag.lx = e.clientX; drag.ly = e.clientY;
- clampPan(); apply(); publish();
+ schedule();
  };
  const onPointerUp = (e) => {
  if (!drag || e.pointerId !== drag.id) return;
@@ -987,7 +1072,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  vp.removeEventListener('pointerup', onPointerUp);
  vp.removeEventListener('pointercancel', onPointerUp);
  };
- }, [apply, minScale, maxScale, clampPan, publish]);
+ }, [minScale, maxScale, schedule]);
 
  // Public viewport API for the zoom controls + mini-map (rendered as fixed
  // chrome outside the panned world, so they don't trip the pan handler).

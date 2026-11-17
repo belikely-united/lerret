@@ -8,6 +8,12 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.3.1 — 2026-11-17
+
+### Fixed
+- **Smoother canvas on big projects.** Scrolling no longer stutters and zooming no longer freezes with many artboards: artboards far off-screen skip drawing (exports still capture them), the canvas measures cards once per gesture and updates once per frame, and a pause in scrolling no longer redraws everything. On a 93-artboard project the worst scroll freeze dropped from 567 ms to 117 ms and the worst zoom freeze from 383 ms to 17 ms.
+- **Zoom feels right.** One mouse-wheel notch with ⌘/Ctrl zooms about 1.28× (it was 2.7×), Firefox's line-based wheel is handled, and the point under the cursor stays put — small pages are no longer pulled back to the centre while zooming.
+
 ## @lerret/cli 0.3.0 · @lerret/core 0.1.5 · create-lerret 0.1.6 — 2026-11-16
 
 ### Added

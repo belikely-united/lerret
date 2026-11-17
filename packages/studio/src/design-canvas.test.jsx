@@ -23,7 +23,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-import { DesignCanvas, DCSection, DCArtboard, sectionDepthBg } from './design-canvas.jsx';
+import { DesignCanvas, DCSection, DCArtboard, sectionDepthBg, wheelZoomFactor, clampAxis } from './design-canvas.jsx';
 
 // ─── jsdom environment stubs ──────────────────────────────────────────────────
 
@@ -753,5 +753,24 @@ describe('DCSection onSelectScope — artboard pinpoint', () => {
  expect(onSelectScope).toHaveBeenCalledTimes(1);
  expect(onSelectScope.mock.calls[0][1]).toBeNull();
  cleanup();
+ });
+});
+
+describe('canvas zoom + pan math', () => {
+ it('caps a mouse-wheel notch and leaves a trackpad pinch smooth', () => {
+ expect(wheelZoomFactor({ deltaY: -100, deltaMode: 0 })).toBeCloseTo(Math.exp(0.25)); // ~1.28×, not 2.7×
+ expect(wheelZoomFactor({ deltaY: 3, deltaMode: 0 })).toBeCloseTo(Math.exp(-0.03));
+ expect(wheelZoomFactor({ deltaY: 3, deltaMode: 1 })).toBeCloseTo(Math.exp(-0.25)); // Firefox lines
+ });
+ it('keeps small content in view without re-centering it', () => {
+ // 200px content in a 1000px viewport: any spot inside is allowed…
+ expect(clampAxis(300, 0, 200, 1000, 1, 320)).toBe(300);
+ // …but it cannot leave the viewport.
+ expect(clampAxis(-50, 0, 200, 1000, 1, 320)).toBe(0);
+ expect(clampAxis(950, 0, 200, 1000, 1, 320)).toBe(800);
+ });
+ it('lets large content pan until its far edge is the margin inside', () => {
+ expect(clampAxis(-5000, 0, 3000, 1000, 1, 320)).toBe(1000 - 320 - 3000);
+ expect(clampAxis(900, 0, 3000, 1000, 1, 320)).toBe(320);
  });
 });

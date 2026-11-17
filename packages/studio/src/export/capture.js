@@ -277,7 +277,33 @@ export async function waitForPending(root, timeoutMs = PENDING_TIMEOUT_MS) {
  * `unembeddedFonts` — families that could not be fetched/decoded; callers can
  * surface a calm, non-blocking warning.
  */
+/**
+ * Keep an artboard rendered while it is captured. The canvas culls far
+ * off-screen artboards (`data-dc-off` → content-visibility: hidden); a bulk
+ * export captures those too, so un-cull and pin the slot until done.
+ *
+ * @param {Element} el  The artboard (or anything inside its slot).
+ * @returns {() => void}  Releases the pin.
+ */
+export function pinForCapture(el) {
+ const slot = el && typeof el.closest === 'function' ? el.closest('[data-dc-slot]') : null;
+ if (!slot) return () => {};
+ slot.setAttribute('data-dc-pin', '');
+ slot.removeAttribute('data-dc-off');
+ slot.style.containIntrinsicSize = '';
+ return () => slot.removeAttribute('data-dc-pin');
+}
+
 export async function captureArtboard(artboardElement, options = {}) {
+ const release = pinForCapture(artboardElement);
+ try {
+ return await captureArtboardPinned(artboardElement, options);
+ } finally {
+ release();
+ }
+}
+
+async function captureArtboardPinned(artboardElement, options = {}) {
  const {
  format, // resolved by resolveFormat below; undefined → defaults to 'png'
  quality = 0.92,
