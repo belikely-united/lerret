@@ -116,7 +116,7 @@ function StudioComingSoon({ label }) {
 // ───────────────────────────────────────────
 // ponytail: AI input hidden from the dock for now (user request, 2026-09-26).
 // Flip to true to bring it back — nothing else was removed.
-const SHOW_AI_INPUT = false;
+const SHOW_AI_INPUT = false; // also hides AI settings + Revert AI history in the Lerret menu
 
 function StudioDockSeparator() {
  return <div style={{ width: 1, height: 24, background: 'var(--lm-bg-tertiary, #EBEBEB)', alignSelf: 'center' }} />;
@@ -604,8 +604,9 @@ function StudioDock({ pages, current, onNavigate, onHelp }) {
  onTakeTour={() => { setBrandOpen(false); onHelp && onHelp(); }}
  onSwitchProject={cliMode ? () => { setBrandOpen(false); setConnectOpen(true); } : getHostedController() ? () => { setBrandOpen(false); getHostedController().openAnother(); } : undefined}
  onCloseProject={cliMode && projectModel ? () => { setBrandOpen(false); switchProject(null); } : getHostedController() && projectModel ? () => { setBrandOpen(false); getHostedController().close(); } : undefined}
- onAiSettings={() => { setBrandOpen(false); setAiSettingsOpen(true); }}
- onAiRevertHistory={() => { setBrandOpen(false); setRevertTimelineFocusTurn(null); setRevertTimelineOpen(true); }}
+ // AI items follow the AI input: hidden while it is.
+ onAiSettings={SHOW_AI_INPUT ? () => { setBrandOpen(false); setAiSettingsOpen(true); } : undefined}
+ onAiRevertHistory={SHOW_AI_INPUT ? () => { setBrandOpen(false); setRevertTimelineFocusTurn(null); setRevertTimelineOpen(true); } : undefined}
  canExport={!!projectModel}
  exportFormat={exportFormat}
  onExportFormatChange={setExportFormat}
