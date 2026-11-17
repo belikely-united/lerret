@@ -58,19 +58,22 @@ export const NODE_KIND = Object.freeze({
  * - `'markdown'` — a `.md` file: rendered as a Markdown card on the canvas.
  * - `'diagram'` — a `.mmd` / `.mermaid` file: Mermaid text rendered as an
  *   SVG artboard sized to the diagram.
+ * - `'model'` — a `.glb` / `.gltf` / `.stl` / `.obj` file: a 3D model rendered
+ *   (three.js) as a fixed-size artboard.
  *
- * @typedef {'component' | 'markdown' | 'diagram'} AssetKind
+ * @typedef {'component' | 'markdown' | 'diagram' | 'model'} AssetKind
  */
 
 /**
  * The frozen set of asset-kind string constants.
  *
- * @type {Readonly<{ COMPONENT: 'component', MARKDOWN: 'markdown', DIAGRAM: 'diagram' }>}
+ * @type {Readonly<{ COMPONENT: 'component', MARKDOWN: 'markdown', DIAGRAM: 'diagram', MODEL: 'model' }>}
  */
 export const ASSET_KIND = Object.freeze({
   COMPONENT: 'component',
   MARKDOWN: 'markdown',
   DIAGRAM: 'diagram',
+  MODEL: 'model',
 });
 
 /**
@@ -86,6 +89,10 @@ export const ASSET_EXTENSIONS = Object.freeze({
   '.md': ASSET_KIND.MARKDOWN,
   '.mmd': ASSET_KIND.DIAGRAM,
   '.mermaid': ASSET_KIND.DIAGRAM,
+  '.glb': ASSET_KIND.MODEL,
+  '.gltf': ASSET_KIND.MODEL,
+  '.stl': ASSET_KIND.MODEL,
+  '.obj': ASSET_KIND.MODEL,
 });
 
 /**

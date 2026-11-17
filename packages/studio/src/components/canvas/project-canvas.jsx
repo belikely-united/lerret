@@ -265,7 +265,7 @@ export function collectPageSections(page) {
  const assets = (container.assets || []).filter(
  (a) =>
  a.kind === NODE_KIND.ASSET &&
- (a.assetKind === 'component' || a.assetKind === 'diagram' || a.assetKind === 'markdown'),
+ (a.assetKind === 'component' || a.assetKind === 'diagram' || a.assetKind === 'model' || a.assetKind === 'markdown'),
  );
  const ordered = [
  ...assets.filter((a) => a.assetKind !== 'markdown'),
@@ -618,9 +618,10 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  return () => cancelAnimationFrame(raf);
  }, [mapLayouts]);
 
- // Diagrams take their brand look from the folder config at render time, so
- // when any config.json changes (a new `getConfigFor`), re-render just the
- // diagram artboards. Components/notes read vars live via CSS — untouched.
+ // Diagrams and 3D models take their brand look from the folder config at
+ // render time, so when any config.json changes (a new `getConfigFor`),
+ // re-render just those artboards. Components/notes read vars live via CSS.
+ const themed = (e) => (e.assetKind === 'diagram' || e.assetKind === 'model') && e.asset;
  React.useEffect(() => {
  if (getConfigForRef.current === getConfigFor) return undefined;
  getConfigForRef.current = getConfigFor;
@@ -629,7 +630,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  (async () => {
  const current = loadedRef.current;
  if (!current) return;
- const diagrams = current.sections.flatMap((s) => s.entries).filter((e) => e.assetKind === 'diagram' && e.asset);
+ const diagrams = current.sections.flatMap((s) => s.entries).filter(themed);
  if (diagrams.length === 0) return;
  const fresh = new Map(
  await Promise.all(diagrams.map(async (e) => [e.asset.path, await runtime.loadAsset(e.asset, { getConfigFor })])),
@@ -639,7 +640,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  ...cur,
  sections: cur.sections.map((sec) => ({
  ...sec,
- entries: sec.entries.flatMap((e) => (e.assetKind === 'diagram' && e.asset && fresh.has(e.asset.path) ? fresh.get(e.asset.path) : [e])),
+ entries: sec.entries.flatMap((e) => (themed(e) && fresh.has(e.asset.path) ? fresh.get(e.asset.path) : [e])),
  })),
  });
  })();

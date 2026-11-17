@@ -32,13 +32,14 @@ describe('node-kind and asset-kind constants', () => {
   });
 
   it('exposes the three asset kinds', () => {
-    expect(ASSET_KIND).toEqual({ COMPONENT: 'component', MARKDOWN: 'markdown', DIAGRAM: 'diagram' });
+    expect(ASSET_KIND).toEqual({ COMPONENT: 'component', MARKDOWN: 'markdown', DIAGRAM: 'diagram', MODEL: 'model' });
   });
 
   it('maps the recognized asset extensions to kinds', () => {
     expect(ASSET_EXTENSIONS['.jsx']).toBe('component');
     expect(ASSET_EXTENSIONS['.tsx']).toBe('component');
     expect(ASSET_EXTENSIONS['.md']).toBe('markdown');
+    for (const ext of ['.glb', '.gltf', '.stl', '.obj']) expect(ASSET_EXTENSIONS[ext]).toBe('model');
   });
 
   it('does not recognize non-asset extensions', () => {

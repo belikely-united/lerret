@@ -46,6 +46,7 @@ import {
  makeVariantEntry,
  makeMarkdownEntry,
  makeDiagramEntry,
+ makeModelEntry,
  makeErrorEntry,
  toAssetError,
 } from './asset-runtime.js';
@@ -364,6 +365,16 @@ export function createViteRuntime(project, options = {}) {
  // module and rendered as 1..N artboards.
  if (asset.assetKind === 'markdown' || asset.assetKind === 'diagram') {
  return loadMarkdownAsset(asset, project, { assetBaseUrl, importModule, reloadToken, epoch, getConfigFor: opts.getConfigFor });
+ }
+ if (asset.assetKind === 'model') {
+ // A 3D file is fetched as bytes from the dev server and rendered to a still.
+ const readFile = async (path) => {
+ const res = await fetch(assetModuleUrl({ path }, project, assetBaseUrl, reloadToken, epoch), { cache: 'no-store' });
+ return res.ok ? new Uint8Array(await res.arrayBuffer()) : null;
+ };
+ const bytes = await readFile(asset.path).catch(() => null);
+ if (!bytes) return [makeErrorEntry(asset, toAssetError(new Error(`Could not read ${asset.fileName}`), 'load'))];
+ return [await makeModelEntry(asset, bytes, { getConfigFor: opts.getConfigFor, readFile })];
  }
  return loadAssetModule(asset, project, { assetBaseUrl, importModule, reloadToken, epoch });
  },

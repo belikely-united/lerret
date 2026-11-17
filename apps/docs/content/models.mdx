@@ -1,0 +1,80 @@
+---
+title: 3D Models
+description: 3D models in Lerret — drop a .glb, .gltf, .stl or .obj file into a page and it shows as an artboard, lit and in your brand colours, ready to export.
+---
+
+# 3D Models
+
+Drop a 3D file into a page folder and it shows on the canvas as an artboard:
+lit, framed from a three-quarter view, in your brand's colours. It exports to
+PNG and JPG like any other design.
+
+| Format | Typical source |
+|---|---|
+| `.glb` | Blender, most 3D tools — one self-contained file. The best choice. |
+| `.gltf` | The same as text, often with a `.bin` and textures beside it. |
+| `.stl` | CAD tools and 3D printing. |
+| `.obj` | Older 3D tools and asset packs. |
+
+```
+.lerret/
+└── product/
+    ├── headphones.glb
+    └── bracket.stl
+```
+
+![A 3D still life rendered on a Lerret artboard — a chrome sphere and an orange cube on a white disc](/studio/model-still-life.jpg)
+
+There's no Lerret format and nothing to write: it's the file your 3D tool
+already saved. Lerret draws it with [three.js](https://threejs.org/) (MIT),
+loaded only when a page has a model.
+
+## How it looks
+
+- **Size.** Every model artboard is 1024 × 768. The whole model fits in the frame.
+- **Brand.** The background is your folder's background colour, the same one
+  [diagrams](/diagrams/#brand-look) use. Models without their own materials
+  (STL and OBJ) are painted in your accent colour. With no brand: a light grey
+  stage and a grey model.
+- **Materials.** `.glb` and `.gltf` keep their own colours, textures and
+  metal/rough finish.
+- **Live.** Re-save the file, or change a colour in `config.json`, and the
+  artboard redraws.
+
+![The same STL knot, painted in the folder's accent colour on its background colour](/studio/model-knot.jpg)
+
+## Rotate it
+
+Open a model in **focus view** (⤢ on the artboard). Drag to rotate, scroll to
+zoom. On the canvas a model is a still picture, so a page can hold many models
+and stay fast.
+
+## `.gltf` with side files
+
+A `.gltf` may point at a `.bin` file and texture images. Keep them where the
+`.gltf` says (usually the same folder) and Lerret reads them in. Files that
+aren't assets, like `.bin`, never show as artboards themselves. If one is
+missing, the artboard shows an error naming it.
+
+## Errors
+
+A broken or unreadable file shows the asset's error card with the reason. The
+other artboards keep rendering. 3D needs WebGL, which every current browser
+has; if it is turned off, the card says so.
+
+## Limits
+
+- One camera angle and one size for now. Turn the model in your 3D tool to
+  change the angle on the artboard.
+- Animations in a `.glb` don't play; the model shows in its rest pose.
+- OBJ `.mtl` material files are ignored: OBJ models take the accent colour.
+- `.fbx`, `.3mf` and `.usdz` aren't read. Export to `.glb` from your 3D tool.
+- A 3D file in a page or group folder is an artboard. Keep files you only use
+  inside a component in a root `_` folder (for example `.lerret/_models/`),
+  which [never becomes a page](/concepts/).
+
+## What's next
+
+- **[Authoring Assets](/authoring/)** — components, data files, notes.
+- **[Diagrams (Mermaid)](/diagrams/)** — the other plain-file asset type.
+- **[The Studio](/studio/)** — focus view, export, menus.

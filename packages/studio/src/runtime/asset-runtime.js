@@ -34,6 +34,8 @@ import { MarkdownAssetCard } from '../components/canvas/markdown-asset-card.jsx'
 import { DiagramAssetCard } from '../components/canvas/diagram-asset-card.jsx';
 import { DIAGRAM_PADDING, renderDiagram } from './diagram-render.js';
 import { diagramTheme, inlineDiagramImages } from './diagram-theme.js';
+import { ModelAssetCard } from '../components/canvas/model-asset-card.jsx';
+import { MODEL_NEUTRAL, MODEL_SIZE, modelExt, renderModelStill } from './model-render.js';
 
 // ---------------------------------------------------------------------------
 // Status enum
@@ -500,6 +502,62 @@ export async function makeDiagramEntry(asset, text, opts = {}) {
     label: asset.name,
     dimensions,
     text: source,
+  };
+}
+
+/**
+ * Build the {@link AssetEntry} for a 3D model (`.glb` / `.gltf` / `.stl` /
+ * `.obj`) from the file's bytes (spec-3d-models.md). Both runtimes call this
+ * after reading the bytes, so CLI and hosted render models identically.
+ *
+ * Like diagrams, the model is rendered HERE to a still image, so the artboard
+ * is a plain fixed-size picture and export never waits on WebGL. A file that
+ * fails to parse (or no WebGL) becomes an `'error'` entry with the message.
+ *
+ * @param {AssetNode} asset
+ * @param {Uint8Array} bytes  The file's contents.
+ * @param {object} [opts]
+ * @param {(folderPath: string) => object} [opts.getConfigFor]  Brand look source.
+ * @param {(path: string) => Promise<Uint8Array | null>} [opts.readFile]
+ *   Reads a project file (a `.gltf`'s side files); supplied by each runtime.
+ * @param {(model: object) => Promise<string>} [opts.render]  Injected by tests.
+ * @returns {Promise<AssetEntry>}
+ */
+export async function makeModelEntry(asset, bytes, opts = {}) {
+  const render = opts.render ?? renderModelStill;
+  const folder = asset.path.slice(0, asset.path.lastIndexOf('/'));
+  let look = null;
+  try {
+    look = typeof opts.getConfigFor === 'function' ? diagramTheme(opts.getConfigFor(folder)) : null;
+  } catch {
+    look = null; // a bad config never breaks the model — neutral look
+  }
+  const model = {
+    ext: modelExt(asset.fileName),
+    bytes,
+    folder,
+    readFile: opts.readFile,
+    background: look?.background ?? MODEL_NEUTRAL.background,
+    color: look?.themeVariables?.primaryBorderColor ?? MODEL_NEUTRAL.color,
+  };
+  let image;
+  try {
+    image = await render(model);
+  } catch (thrown) {
+    const { phase, message } = toAssetError(thrown, 'evaluate');
+    return makeErrorEntry(asset, { phase, message });
+  }
+  const ModelEntryCard = () => React.createElement(ModelAssetCard, { image, model });
+  ModelEntryCard.displayName = `ModelAssetCard(${asset.fileName})`;
+  return {
+    id: asset.path,
+    asset,
+    assetKind: asset.assetKind,
+    status: assetRuntimeStatus.OK,
+    Component: ModelEntryCard,
+    error: null,
+    label: asset.name,
+    dimensions: MODEL_SIZE,
   };
 }
 

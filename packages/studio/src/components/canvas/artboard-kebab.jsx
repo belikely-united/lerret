@@ -908,9 +908,9 @@ export function ComponentArtboardKebab({ entry, renderComponent, children, impor
  * @returns {React.ReactElement}
  */
 export function MarkdownCardKebab({ entry, children, kind = 'markdown' }) {
- // A diagram (`.mmd`) shares this menu but has no in-place Markdown editor —
- // it is edited in the code editor ("Open in editor"); the canvas live-reloads.
- const isDiagram = kind === 'diagram';
+ // A diagram (`.mmd`) or 3D model shares this menu but has no in-place
+ // Markdown editor — it is edited in its own tool; the canvas live-reloads.
+ const isDiagram = kind === 'diagram' || kind === 'model';
  const [open, setOpen] = React.useState(false);
  const [confirming, setConfirming] = React.useState(false);
  const [moveOpen, setMoveOpen] = React.useState(false);
@@ -981,7 +981,7 @@ export function MarkdownCardKebab({ entry, children, kind = 'markdown' }) {
  const baseItems = React.useMemo(
  () => buildMarkdownItems({
  header: isDiagram
- ? { label: entry?.label || entry?.asset?.name, meta: 'Diagram', icon: KIND_ICONS.diagram }
+ ? { label: entry?.label || entry?.asset?.name, meta: kind === 'model' ? '3D model' : 'Diagram', icon: KIND_ICONS[kind] }
  : { label: entry?.label || entry?.asset?.name, meta: 'Note', icon: KIND_ICONS.markdown },
  onEdit: isDiagram ? undefined : () => setOpen(true),
  onDuplicate,
@@ -993,7 +993,7 @@ export function MarkdownCardKebab({ entry, children, kind = 'markdown' }) {
  onRevealFinder,
  cliMode,
  }),
- [isDiagram, entry?.label, entry?.asset?.name, onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
+ [isDiagram, kind, entry?.label, entry?.asset?.name, onDuplicate, onRename, onMove, onDelete, onExport, onRevealEditor, onRevealFinder, cliMode],
  );
 
  const items = baseItems;

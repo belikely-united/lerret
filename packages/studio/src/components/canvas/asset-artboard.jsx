@@ -162,14 +162,14 @@ export function artboardForEntry(entry, opts = {}) {
  // cascade context to inject `vars` entries as CSS custom properties scoped
  // to this artboard. When the folder has no `vars`, `VarsWrapper` renders
  // an identical plain `<div>` with the same `style`.
- // A Mermaid diagram — a fixed-size artboard (diagram + padding, measured by
- // the runtime) with the document-style menu and an extra SVG export.
- if (entry.assetKind === 'diagram') {
+ // A Mermaid diagram or a 3D model — a fixed-size artboard (size from the
+ // runtime) with the document-style menu; diagrams add an SVG export.
+ if (entry.assetKind === 'diagram' || entry.assetKind === 'model') {
  return (
  <DCArtboard key={entry.id} id={entry.id} label={entry.label} width={width} height={height}
- assetName={assetName} isDiagram assetPath={filePath}>
+ assetName={assetName} isDiagram={entry.assetKind === 'diagram'} assetPath={filePath}>
  <VarsWrapper folderPath={folderPath} style={{ position: 'relative', width: '100%', height: '100%' }}>
- <MarkdownCardKebab entry={entry} kind="diagram">
+ <MarkdownCardKebab entry={entry} kind={entry.assetKind}>
  <AssetErrorBoundary
  resetKey={boundaryResetKey}
  fallback={
