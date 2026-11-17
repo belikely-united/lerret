@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.3.2 — 2026-11-17
+
+### Fixed
+- **Smooth zoom on slower computers.** On pages with many artboards, the name labels now pause resizing while you zoom and snap to size when you stop, and group frames no longer re-animate their shadow on every zoom step. Artboards that come into view stay drawn until they are well away, so zooming in and out doesn't redraw them again. With the CPU slowed 6×, a zoom on a 93-artboard page went from 24 stutters to 8, with a quarter of the style work.
+
 ## @lerret/cli 0.3.1 — 2026-11-17
 
 ### Fixed
