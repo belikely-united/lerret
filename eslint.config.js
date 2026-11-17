@@ -235,6 +235,14 @@ export default [
     },
   },
 
+  // The plugin's reference assets (copied into a user's .lerret/) render in the browser.
+  {
+    files: ['packages/lerret-plugin/references/**/*.jsx'],
+    plugins: { react: reactPlugin },
+    languageOptions: { globals: { ...globals.browser } },
+    rules: { 'react/jsx-uses-vars': 'error' },
+  },
+
   // core is environment-agnostic — neither browser nor Node globals.
   {
     files: ['packages/core/**/*.{js,jsx}'],
