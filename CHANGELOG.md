@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.3.3 — 2026-11-17
+
+### Changed
+- **AI items hidden from the Lerret menu.** *AI settings* and *Revert AI history* no longer show while the studio's AI input is switched off; they come back together with it.
+
 ## @lerret/cli 0.3.2 — 2026-11-17
 
 ### Fixed
