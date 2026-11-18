@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## create-lerret 0.1.7 · Lerret plugin 0.2.6 — 2026-11-18
+
+### Added
+- **The AI guidance knows 3D models.** The `/lerret` Claude Code plugin skill and the files `create-lerret` writes for AI tools (`lerret-author` skill, `AGENTS.md`, Cursor, Copilot) now cover `.glb`/`.gltf`/`.stl`/`.obj` assets: drop the file in a page folder, brand look, `.gltf` side files, limits.
+
 ## @lerret/cli 0.4.0 · @lerret/core 0.1.6 — 2026-11-17
 
 ### Added

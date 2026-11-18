@@ -47,7 +47,7 @@ export const CLI = {
 export const SECTIONS = {
   // Short skill description used in Claude's YAML frontmatter (one line).
   claudeSkillDescription:
-    'Author and edit visual assets inside a Lerret project. Use whenever you create, modify, or refactor a `.jsx`/`.tsx` asset or a Mermaid diagram (`.mmd`/`.mermaid`, including a folder page map `_index.mmd`) under a `.lerret/` directory, change `config.json`, or work with `.data.json`/`.data.js`, `_fonts/`, or `assets/` files in that tree. Covers Lerret\'s conventions (meta export, propsSchema, variants, four-tier prop resolution, cascading config, auto-registered fonts, ambient CSS vars) and the `@lerret/cli` surface (`create-lerret`, `dev`, `export`). Bakes in aesthetic direction so generated visuals are distinctive, cohesive, and production-grade — not generic AI output.',
+    'Author and edit visual assets inside a Lerret project. Use whenever you create, modify, or refactor a `.jsx`/`.tsx` asset or a Mermaid diagram (`.mmd`/`.mermaid`, including a folder page map `_index.mmd`) under a `.lerret/` directory, place a 3D model (`.glb`/`.gltf`/`.stl`/`.obj`), change `config.json`, or work with `.data.json`/`.data.js`, `_fonts/`, or `assets/` files in that tree. Covers Lerret\'s conventions (meta export, propsSchema, variants, four-tier prop resolution, cascading config, auto-registered fonts, ambient CSS vars) and the `@lerret/cli` surface (`create-lerret`, `dev`, `export`). Bakes in aesthetic direction so generated visuals are distinctive, cohesive, and production-grade — not generic AI output.',
 
   // Short Cursor description (used in MDC frontmatter).
   cursorDescription: 'Lerret asset authoring conventions',
@@ -132,7 +132,7 @@ The \`meta\` export is **optional**. An asset without it still renders; the canv
 
 The field is \`dimensions\`. Not \`exportDimensions\`, not \`size\`, not \`width\`/\`height\` at the top level.
 
-Two other file types are assets too, with no component contract: a **\`.md\`** file renders as a Markdown document card, and a **\`.mmd\` / \`.mermaid\`** file renders as a Mermaid diagram (see "Diagrams — Mermaid" below).`,
+Three other file types are assets too, with no component contract: a **\`.md\`** file renders as a Markdown document card, a **\`.mmd\` / \`.mermaid\`** file renders as a Mermaid diagram (see "Diagrams — Mermaid" below), and a **\`.glb\` / \`.gltf\` / \`.stl\` / \`.obj\`** file renders as a 3D model (see "3D models" below).`,
 
   variants: `## Variants — additional named exports
 
@@ -339,6 +339,18 @@ flowchart LR
   story --> x-banner
   og-card -->|details| notes
 \`\`\``,
+
+  models: `## 3D models
+
+A **\`.glb\`**, **\`.gltf\`**, **\`.stl\`** or **\`.obj\`** file in a page or group folder is an asset: Lerret draws it with three.js as a lit, framed still and shows it as a **1024 × 768** artboard. No \`meta\`, no settings — it's the file a 3D tool (Blender, CAD, a slicer) already saved.
+
+- **You don't write 3D files.** Get them from the user or their tools, then copy them into the right folder. Prefer \`.glb\` (one self-contained file).
+- **Brand look is automatic.** The background is the folder's background colour (the same rule as diagrams). STL and OBJ models are painted in the brand accent; \`.glb\`/\`.gltf\` keep their own materials. Change the colours in \`config.json\`, not in the file.
+- **Fixed view.** A 3/4 camera angle that fits the whole model. To change the angle, turn the model in the 3D tool. In the studio, focus view (⤢) lets people drag to rotate and scroll to zoom.
+- **\`.gltf\` side files** (\`.bin\`, textures) must sit where the \`.gltf\` points (usually the same folder). A missing one shows an error card naming it.
+- **Errors** (a broken file, no WebGL) show the asset's error card; render to verify like any asset. Exports to PNG/JPG with \`${CLI.exportCmd}\`.
+- **Not supported yet:** importing \`three\` inside a \`.jsx\` asset (a 3D model inside a designed card), playing animations, OBJ \`.mtl\` materials, \`.fbx\`/\`.3mf\`/\`.usdz\` (ask the user to export \`.glb\`). To show a model inside a designed card, export the model artboard to PNG first and use that image.
+- A 3D file in a page or group folder always becomes an artboard. Keep files that shouldn't appear in a root \`_\` folder (e.g. \`.lerret/_models/\`).`,
 
   fonts: `## Fonts — drop a file, use it
 
@@ -724,6 +736,7 @@ function sharedBody() {
     SECTIONS.cascadingConfig,
     SECTIONS.brandLibrary,
     SECTIONS.diagrams,
+    SECTIONS.models,
     SECTIONS.fonts,
     SECTIONS.imageNaming,
     SECTIONS.cliSurface,
@@ -778,7 +791,7 @@ export function renderPluginSkill() {
   const frontmatter = [
     '---',
     'name: lerret',
-    'description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides, Mermaid diagrams and flowcharts), arrange a page with a Mermaid page map, map the screens and APIs of an app (screenshot beside the APIs each screen calls, a card per API), preview the studio live, or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.',
+    'description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides, Mermaid diagrams and flowcharts, 3D model renders from .glb/.gltf/.stl/.obj files), arrange a page with a Mermaid page map, map the screens and APIs of an app (screenshot beside the APIs each screen calls, a card per API), preview the studio live, or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.',
     'allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *), Bash(npx create-lerret@latest *), Bash(node ${CLAUDE_PLUGIN_ROOT}/references/api-map/build-map.mjs *)',
     '---',
   ].join('\n');
@@ -795,6 +808,7 @@ You are **Lerret**, a design assistant inside Claude Code. Turn a plain request 
   \`\`\`
   Iterate until it looks right.
 - **"diagram / flowchart / sequence / architecture …"** — write plain Mermaid: a \`.mmd\` file for a standalone diagram, or a \`.jsx\` asset that imports \`mermaid\` when it belongs inside a designed visual (see "Diagrams — Mermaid" below). Render to verify.
+- **"show / render this 3D model"** (a \`.glb\`, \`.gltf\`, \`.stl\` or \`.obj\` file) — copy the file into a page folder; it becomes an artboard on its own, in the folder's brand colours (see "3D models" below). Don't write 3D files or a \`.jsx\` wrapper. Render to verify.
 - **"map / document / visualise an app's APIs, backend or screens"** — read \`\${CLAUDE_PLUGIN_ROOT}/references/api-map.md\` first and follow it. It builds one page: gateway → an area card per group of screens (screenshot beside the APIs each screen calls) → a card per API (who can call it, input, output, rules, where it's used). The card component and the map script sit beside it in \`references/api-map/\`.
 - **"arrange / lay out / connect the assets on this page"** — write or edit that folder's \`_index.mmd\` page map: one node per asset name, arrows between them.
 - **"show / preview / open the studio"** — render the studio IN the **Claude Code preview pane**, pointed at **the exact project you're editing**. A workspace can hold several \`.lerret/\` folders, so NEVER rely on "nearest" — always pin the folder, or you'll preview the wrong project and the user's edits won't show. Steps:
