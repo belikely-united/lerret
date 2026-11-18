@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.0 — 2026-11-18
+
+### Added
+- **The studio inside Claude and ChatGPT.** `@lerret/cli mcp` serves a project as an MCP App (the open standard both chats implement). The chat's model authors with `lerret_write`, checks its work with `lerret_render`, and `lerret_open` shows the live studio in the conversation: pages, 3D, props, export. Edits appear live; clicking an artboard tells the model what "this" means; "Open studio" goes full screen or to Claude's side panel. Stdio for Claude Desktop, `--http <port>` for URL-based hosts. Files stay local and writes are limited to `.lerret/`.
+
 ## create-lerret 0.1.7 · Lerret plugin 0.2.6 — 2026-11-18
 
 ### Added

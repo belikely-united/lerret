@@ -23,6 +23,7 @@ This package ships the `lerret` binary:
 
 - `@lerret/cli dev` — run the studio against a `.lerret/` folder (Vite dev server + bundled studio).
 - `@lerret/cli export` — headlessly render a project (or page/group) to image files.
+- `@lerret/cli mcp` — serve a project as an MCP App: the studio inside Claude or ChatGPT.
 
 After installing globally (`npm install -g @lerret/cli`), the command is just `lerret`.
 
@@ -37,6 +38,16 @@ If you use [Claude Code](https://claude.com/claude-code), Lerret ships as a plug
 ```
 
 One do-anything `/lerret` command: it authors the `.jsx`, renders to verify, previews, or exports — all by describing what you want. Runs in Claude Code only (CLI, desktop app, VS Code, `claude.ai/code`).
+
+## The studio inside Claude or ChatGPT (MCP App)
+
+`@lerret/cli mcp --folder <project>` serves your project as an MCP App: the chat's model writes the assets and the live studio opens inside the conversation. Claude Desktop config:
+
+```json
+{ "mcpServers": { "lerret": { "command": "npx", "args": ["-y", "@lerret/cli@latest", "mcp", "--folder", "/path/to/project"] } } }
+```
+
+Details: [docs.lerret.io/chat-app](https://docs.lerret.io/chat-app/).
 
 ## Requirements
 

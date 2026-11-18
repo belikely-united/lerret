@@ -37,6 +37,7 @@ out/
 # cause stale-bundle churn every time the studio changes.
 dist-cli/
 dist-studio/
+dist-embed/
 
 # Test / coverage
 coverage/

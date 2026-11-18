@@ -1,0 +1,80 @@
+---
+title: Claude & ChatGPT App
+description: Run Lerret as an MCP App — the studio opens inside your Claude or ChatGPT chat, and the chat's own model designs, renders and edits your project.
+---
+
+# Claude & ChatGPT App
+
+`@lerret/cli mcp` turns a Lerret project into an **MCP App**: the chat's model
+writes your assets, and the studio opens **inside the conversation**, where you
+look, switch pages, rotate 3D models, edit props and export. Your files stay
+on your machine.
+
+It uses [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps), the
+open standard both Claude and ChatGPT implement, so one server works in both.
+There are no Lerret AI keys: the chat is the designer.
+
+## Claude Desktop
+
+Open **Settings → Developer → Edit Config** and add Lerret, pointing at your
+project folder (the one that contains `.lerret/`):
+
+```json
+{
+  "mcpServers": {
+    "lerret": {
+      "command": "npx",
+      "args": ["-y", "@lerret/cli@latest", "mcp", "--folder", "/path/to/your-project"]
+    }
+  }
+}
+```
+
+Quit Claude Desktop fully (⌘Q) and reopen it. Then ask:
+
+> Open my Lerret studio and make a 1200×630 launch card for "Ship faster".
+
+Claude reads the authoring guide, writes the `.jsx`, checks a render, and shows
+the studio. Click **Open studio** for the full canvas (it opens beside the chat
+where Claude offers a side panel).
+
+## claude.ai and ChatGPT
+
+Web chats connect to a server by URL. Run it over HTTP and expose it with a
+tunnel (for example `cloudflared tunnel --url http://localhost:3333`):
+
+```bash
+npx @lerret/cli@latest mcp --http 3333 --folder /path/to/your-project
+```
+
+Add the tunnel's `https://…/mcp` address as a **custom connector** in Claude, or
+in ChatGPT's developer mode. A hosted Lerret server that needs no tunnel is
+planned.
+
+## What the app does
+
+| In the chat | How |
+|---|---|
+| The studio appears inline, live | Edits the model makes show up within a second or two |
+| **Open studio** | Full canvas, side panel or full screen (host-dependent) |
+| Click an artboard | The model is told which one you mean — "make this bolder" works |
+| Edit props, duplicate, rename | Written straight to your project files |
+| Export PNG/JPG | Saved through the chat's download prompt |
+| "Show me the social page" | The model can switch the open studio's page |
+
+The model gets these tools: `lerret_open` (show the studio), `lerret_guide`
+(conventions), `lerret_list` / `lerret_read` / `lerret_write` / `lerret_delete`
+(files, limited to `.lerret/`), and `lerret_render` (render a page to small
+images so it can check its own work).
+
+## Limits
+
+- The studio's built-in AI chat is off inside the app — ask the chat instead.
+- Opening a code editor or Finder isn't available from the chat.
+- The first open loads a ~6 MB page (Mermaid and three.js included); later
+  opens are cached by the chat.
+
+## What's next
+
+- **[Editing with AI Tools](/ai-editing/)** — the Claude Code plugin and AI files.
+- **[CLI Reference](/cli/)** — every command and flag.

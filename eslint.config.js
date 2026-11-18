@@ -202,6 +202,8 @@ export default [
       // tool (not production CLI code) and must use `node:fs` directly — the
       // `FilesystemAccess` abstraction is for user project files.
       'packages/cli/scripts/bundle-studio.js',
+      // Same for the MCP App page (studio embed build) and its guide.
+      'packages/cli/scripts/bundle-embed.js',
       // @lerret/ai's bundle-size measurement script is a Node build tool (not
       // production code) and reads the built output via node:fs directly.
       'packages/ai/scripts/measure-bundle.js',
