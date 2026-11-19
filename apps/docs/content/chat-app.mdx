@@ -38,18 +38,17 @@ Claude reads the authoring guide, writes the `.jsx`, checks a render, and shows
 the studio. Click **Open studio** for the full canvas (it opens beside the chat
 where Claude offers a side panel).
 
-## claude.ai and ChatGPT
+## ChatGPT (early)
 
-Web chats connect to a server by URL. Run it over HTTP and expose it with a
-tunnel (for example `cloudflared tunnel --url http://localhost:3333`):
+Tested in Claude Desktop; ChatGPT support is early, so tell us if something
+breaks. ChatGPT connects to a server by URL: run it over HTTP and expose it
+with a tunnel (for example `cloudflared tunnel --url http://localhost:3333`):
 
 ```bash
 npx @lerret/cli@latest mcp --http 3333 --folder /path/to/your-project
 ```
 
-Add the tunnel's `https://…/mcp` address as a **custom connector** in Claude, or
-in ChatGPT's developer mode. A hosted Lerret server that needs no tunnel is
-planned.
+Add the tunnel's `https://…/mcp` address in ChatGPT's developer mode.
 
 ## What the app does
 
