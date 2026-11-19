@@ -68,7 +68,7 @@ import {
 
 import { DesignCanvas, DCSection } from '../../design-canvas.jsx';
 import { artboardForEntry, artboardSize, MARKDOWN_CARD_WIDTH } from './asset-artboard.jsx';
-import { isPageMap, layoutPageMap, mapDirection, MAP_SPACING } from '../../runtime/diagram-map.js';
+import { driftedSlots, isPageMap, layoutPageMap, mapDirection, MAP_SPACING } from '../../runtime/diagram-map.js';
 import { diagramTheme } from '../../runtime/diagram-theme.js';
 import { renderDiagram } from '../../runtime/diagram-render.js';
 import { useCascadedConfig } from './cascade-context.jsx';
@@ -559,14 +559,18 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // artboards. Recomputed whenever the loaded entries or the config change
  // (an edited map, a resized artboard, a new brand colour).
  const [mapLayouts, setMapLayouts] = React.useState({});
- // Bumped when a placed note turns out a different height than it was laid
- // out with (notes are auto-height) — one more layout pass fixes the holes.
+ // Bumped when a placed card turns out a different height than it was laid
+ // out with (notes are auto-height) — see the observer below.
  const [mapPass, setMapPass] = React.useState(0);
+ // The running/last layout pass: `key` is everything it was computed from.
+ // The project reloads several times per file save; a reload that changes
+ // nothing the map reads keeps that pass instead of restarting it.
+ const mapJob = React.useRef(null);
+ // A drift re-layout has been asked for and not yet applied (see below).
+ const mapPassPending = React.useRef(false);
  React.useEffect(() => {
- if (!loaded) return undefined;
- let cancelled = false;
- (async () => {
- const next = {};
+ if (!loaded) return;
+ const jobs = [];
  for (const s of loaded.sections) {
  const map = s.entries.find((e) => isPageMap(e.asset) && e.status !== 'error' && typeof e.text === 'string');
  if (!map) continue;
@@ -589,33 +593,67 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  } catch {
  look = null;
  }
+ jobs.push({ id: s.id, map, artboards, look });
+ }
+ const key = JSON.stringify(jobs.map((j) => [j.id, j.map.id, j.map.text, j.artboards, j.look]));
+ if (mapJob.current?.key === key) {
+ mapPassPending.current = false; // nothing moved: the current layout stands
+ return;
+ }
+ if (mapJob.current) mapJob.current.cancelled = true;
+ const job = { key, cancelled: false };
+ mapJob.current = job;
+ (async () => {
+ const next = {};
+ for (const { id, map, artboards, look } of jobs) {
+ if (job.cancelled) return;
  try {
  const layout = await layoutPageMap(map.text, artboards, (t) => renderDiagram(t, look, MAP_SPACING));
- if (layout) next[s.id] = { ...layout, mapId: map.id, text: map.text, path: map.asset.path };
+ if (layout) next[id] = { ...layout, mapId: map.id, text: map.text, path: map.asset.path };
  } catch {
  // An unusable map leaves the normal row layout in place.
  }
  }
- if (!cancelled) setMapLayouts(next);
+ if (job.cancelled) return;
+ mapPassPending.current = false;
+ setMapLayouts(next);
  })();
- return () => { cancelled = true; };
  }, [loaded, getConfigFor, mapPass]);
+ React.useEffect(() => () => { if (mapJob.current) mapJob.current.cancelled = true; }, []);
 
+ // Watch the placed cards: whenever one's height drifts from its hole (a note
+ // finished rendering, a web font loaded, the file was edited), lay out again.
+ // Each pass measures the cards as they are, so it settles in one or two.
+ // One request at a time: re-bumping while that pass is still running would
+ // restart it (and starve the map); the next layout's observer catches the rest.
+ // ponytail: a per-change cap guards against a card whose height depends on
+ // its own position (none today); raise it if a map ever needs more passes.
+ const mapPasses = React.useRef(0);
+ React.useEffect(() => { mapPasses.current = 0; }, [loaded]);
  React.useEffect(() => {
- if (typeof document === 'undefined') return undefined;
- const raf = requestAnimationFrame(() => {
+ if (typeof document === 'undefined' || typeof ResizeObserver === 'undefined') return undefined;
+ const slotOf = (id) => document.querySelector(`[data-dc-page-map] [data-dc-slot="${CSS.escape(id)}"]`);
+ let raf = 0;
+ const check = () => {
+ raf = 0;
+ if (mapPassPending.current) return;
+ const drifted = Object.values(mapLayouts).some((layout) =>
+ driftedSlots(layout.positions, (id) => slotOf(id)?.querySelector('.dc-card')?.offsetHeight || 0).length > 0);
+ if (drifted && mapPasses.current < 6) {
+ mapPassPending.current = true;
+ mapPasses.current += 1;
+ setMapPass((n) => n + 1);
+ }
+ };
+ // Fires once on observe too — that is the post-layout check.
+ const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(check); });
  for (const layout of Object.values(mapLayouts)) {
- for (const [slotId, box] of Object.entries(layout.positions)) {
- const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(slotId) : slotId;
- const card = document.querySelector(`[data-dc-page-map] [data-dc-slot="${esc}"] .dc-card`);
- if (card && card.offsetHeight > 0 && Math.abs(card.offsetHeight - box.height) > 8) {
- setMapPass((n) => (n < 3 ? n + 1 : n)); // capped: never loops
- return;
+ for (const id of Object.keys(layout.positions)) {
+ const slot = slotOf(id);
+ if (slot) ro.observe(slot);
  }
  }
- }
- });
- return () => cancelAnimationFrame(raf);
+ return () => { ro.disconnect(); cancelAnimationFrame(raf); };
  }, [mapLayouts]);
 
  // Diagrams and 3D models take their brand look from the folder config at

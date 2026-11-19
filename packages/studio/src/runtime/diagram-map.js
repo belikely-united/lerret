@@ -159,6 +159,25 @@ export async function layoutPageMap(text, artboards, render) {
 }
 
 /**
+ * Placed artboards whose live height no longer matches the hole Mermaid left
+ * for them. Notes are auto-height and keep growing after the layout ran (their
+ * Markdown renders, a web font loads); a card taller than its hole spills over
+ * its neighbours and the arrows aim at its middle — so any drift means one
+ * more layout pass, measured from the cards as they are now.
+ *
+ * @param {Record<string, { height: number }>} positions  `layoutPageMap().positions`
+ * @param {(slotId: string) => number} heightOf  Live card height; 0 = not rendered.
+ * @param {number} [tolerance]  px of drift ignored (rounding through the map scale).
+ * @returns {string[]} The drifted slot ids.
+ */
+export function driftedSlots(positions, heightOf, tolerance = 8) {
+  return Object.keys(positions || {}).filter((id) => {
+    const h = heightOf(id);
+    return h > 0 && Math.abs(h - positions[id].height) > tolerance;
+  });
+}
+
+/**
  * Starter `_index.mmd` for a folder: one node per asset, left to right, so
  * the user only has to draw the arrows.
  *
