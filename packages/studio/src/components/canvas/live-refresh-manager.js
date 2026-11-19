@@ -115,6 +115,27 @@ export function buildIntervalMap(page, getAssetConfig) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Whether an auto-refreshing asset is worth a tick: the tab is visible and at
+ * least one of its artboards has its content mounted (the canvas unmounts
+ * off-screen artboards, see useSlotLive in design-canvas.jsx). Focus view
+ * shows the asset outside its slot, so it always ticks. An asset with no slot
+ * on the canvas keeps the old always-tick behaviour.
+ *
+ * @param {string} path  The asset path.
+ * @returns {boolean}
+ */
+export function isShowing(path) {
+ if (typeof document === 'undefined') return true;
+ if (document.hidden) return false;
+ if (document.querySelector('.dc-focus-overlay')) return true;
+ const esc = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(path) : path;
+ const slots = document.querySelectorAll(`[data-dc-asset-path="${esc}"]`);
+ if (slots.length === 0) return true;
+ for (const slot of slots) if (!slot.querySelector('[data-dc-virtual]')) return true;
+ return false;
+}
+
+/**
  * React hook: set up (and reconcile) per-asset refresh timers for the current
  * page based on `liveRefresh` blocks in the cascaded config.
  *
@@ -190,7 +211,7 @@ export function useLiveRefresh(page, getAssetConfig, runtime) {
  // the dialog and dismisses any open native `<select>` popup, making the
  // dialog's dropdowns unusable on a live page. The asset's own internal
  // animation keeps ticking; only the studio's reload timer pauses.
- if (isLiveRefreshSuspended()) return;
+ if (isLiveRefreshSuspended() || !isShowing(path)) return;
  runtime.notifyChange(path);
  }, intervalMs);
  timers.set(path, id);

@@ -277,10 +277,17 @@ export async function waitForPending(root, timeoutMs = PENDING_TIMEOUT_MS) {
  * `unembeddedFonts` — families that could not be fetched/decoded; callers can
  * surface a calm, non-blocking warning.
  */
+/** Events `pinForCapture` fires on the slot (the canvas mounts / releases it). */
+export const PIN_EVENT = 'lerret:pin';
+export const UNPIN_EVENT = 'lerret:unpin';
+
 /**
  * Keep an artboard rendered while it is captured. The canvas culls far
- * off-screen artboards (`data-dc-off` → content-visibility: hidden); a bulk
- * export captures those too, so un-cull and pin the slot until done.
+ * off-screen artboards (`data-dc-off` → content-visibility: hidden) and does
+ * not mount their content at all; a bulk export captures those too, so
+ * un-cull and pin the slot until done. The pin events tell the slot to mount
+ * its content; until it has, the card holds `data-lerret-pending`, which the
+ * capture waits on.
  *
  * @param {Element} el  The artboard (or anything inside its slot).
  * @returns {() => void}  Releases the pin.
@@ -291,7 +298,11 @@ export function pinForCapture(el) {
  slot.setAttribute('data-dc-pin', '');
  slot.removeAttribute('data-dc-off');
  slot.style.containIntrinsicSize = '';
- return () => slot.removeAttribute('data-dc-pin');
+ slot.dispatchEvent(new Event(PIN_EVENT));
+ return () => {
+ slot.removeAttribute('data-dc-pin');
+ slot.dispatchEvent(new Event(UNPIN_EVENT));
+ };
 }
 
 export async function captureArtboard(artboardElement, options = {}) {

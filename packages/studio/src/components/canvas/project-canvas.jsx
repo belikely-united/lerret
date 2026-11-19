@@ -85,6 +85,36 @@ import { ImageDropLayer } from './image-drop-layer.jsx';
 import { WorkflowView } from '../workflow/workflow-view.jsx';
 import { useWorkflowMode } from '../workflow/workflow-mode.js';
 import { readProjectFile, writeProjectFile } from '../../runtime/write-client.js';
+import { assetRuntimeStatus } from '../../runtime/asset-runtime.js';
+import { MODEL_SIZE } from '../../runtime/model-render.js';
+
+// ───────────────────────────────────────────────────────────────────────────
+// Streamed assets
+// ───────────────────────────────────────────────────────────────────────────
+
+// 3D models are rendered (three.js) before their entry exists: slow, and not
+// needed to lay the page out (a model's size is fixed). They stream in after
+// the rest of the page shows; until then a placeholder of the same size holds
+// the slot. Diagrams stay eager: their size is only known once rendered, and
+// Mermaid measures text in the live document, which costs far more once the
+// page is mounted.
+const isStreamed = (asset) => asset.assetKind === 'model';
+const PendingCard = () => (
+ // `data-lerret-pending` makes an export wait for the real render.
+ <div data-lerret-pending="" style={{ width: '100%', height: '100%', background: 'var(--lm-bg-secondary, #F4F4F5)' }} />
+);
+function placeholderEntry(asset) {
+ return {
+ id: asset.path,
+ asset,
+ assetKind: asset.assetKind,
+ status: assetRuntimeStatus.LOADING,
+ Component: PendingCard,
+ error: null,
+ label: asset.name,
+ dimensions: MODEL_SIZE,
+ };
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Presentation config helpers
@@ -426,11 +456,34 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  /** @type {React.MutableRefObject<Map<string, number>>} */
  const cueKeysRef = React.useRef(new Map());
 
+ // Reuse each entry's artboard element while nothing it depends on changed:
+ // React then skips it entirely, so a live edit or auto-refresh tick
+ // re-renders only the artboard it touched, not the whole page.
+ const [artboardCache] = React.useState(() => new WeakMap());
+ const cachedArtboard = (entry, opts) => {
+ const hit = artboardCache.get(entry);
+ if (hit && hit.cueKey === opts.cueKey && hit.getConfigFor === opts.getConfigFor && hit.getAssetConfig === opts.getAssetConfig) return hit.el;
+ const el = artboardForEntry(entry, opts);
+ artboardCache.set(entry, { ...opts, el });
+ return el;
+ };
+ // The connect handle's `map` prop, stable per map entry (keeps frames memoized).
+ const [mapRefs] = React.useState(() => new WeakMap());
+ const mapRefFor = (mapEntry) => {
+ if (!mapEntry) return null;
+ let m = mapRefs.get(mapEntry);
+ if (!m) mapRefs.set(mapEntry, (m = { text: mapEntry.text, path: mapEntry.asset.path }));
+ return m;
+ };
+
  React.useEffect(() => {
  if (!page) return undefined;
  let cancelled = false;
  (async () => {
  const defs = collectPageSections(page);
+ const load = (a) => runtime.loadAsset(a, { getConfigFor: getConfigForRef.current });
+ /** @type {Map<string, Promise<any[]>>} */
+ const streaming = new Map();
  const sections = await Promise.all(
  defs.map(async (def) => ({
  id: def.id,
@@ -440,7 +493,11 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  parentPath: def.parentPath,
  isEmpty: !!def.isEmpty,
  entries: (
- await Promise.all((def.assets || []).map((a) => runtime.loadAsset(a, { getConfigFor: getConfigForRef.current })))
+ await Promise.all((def.assets || []).map((a) => {
+ if (!isStreamed(a)) return load(a);
+ streaming.set(a.path, load(a));
+ return [placeholderEntry(a)];
+ }))
  ).flat(),
  })),
  );
@@ -448,6 +505,18 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // A fresh page load — drop any stale cue keys, then commit.
  cueKeysRef.current = new Map();
  setLoaded({ pagePath: page.path, sections, cueKeys: {} });
+ if (streaming.size === 0) return;
+ // Then swap each placeholder for its render, in one commit.
+ const done = new Map(await Promise.all([...streaming].map(async ([path, p]) => [path, await p])));
+ if (cancelled) return;
+ setLoaded((cur) => (cur && cur.pagePath === page.path ? {
+ ...cur,
+ sections: cur.sections.map((sec) => ({
+ ...sec,
+ // Only still-pending slots: a live edit may already have replaced one.
+ entries: sec.entries.flatMap((e) => (e.status === assetRuntimeStatus.LOADING && done.has(e.id) ? done.get(e.id) : [e])),
+ })),
+ } : cur));
  })();
  return () => {
  cancelled = true;
@@ -894,7 +963,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  renderConnect={(slotId, placed) => {
  // Every card can start an arrow; the first one creates `_index.mmd`.
  const mapEntry = s.entries.find((e) => isPageMap(e.asset));
- const map = mapEntry ? { text: mapEntry.text, path: mapEntry.asset.path } : null;
+ const map = mapRefFor(mapEntry);
  const dir = placed && typeof mapEntry?.text === 'string' ? mapDirection(mapEntry.text) : 'LR';
  return <ConnectHandle sectionId={s.id} slotId={slotId} map={map} dir={dir} />;
  }}
@@ -902,7 +971,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  {node.entries
  // A map that arranges this folder is the layout, not an artboard.
  .filter((entry) => !(mapLayouts[s.id] && entry.id === mapLayouts[s.id].mapId))
- .map((entry) => artboardForEntry(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }))}
+ .map((entry) => cachedArtboard(entry, { cueKey: cueKeys[entry.id], getConfigFor, getAssetConfig }))}
  {/* Nested sub-groups render INSIDE this frame — true containment. */}
  {node.children.map((child) => renderSection(child))}
  {/* In-canvas "add into THIS group" control — the spatially-explicit

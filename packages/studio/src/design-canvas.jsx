@@ -26,7 +26,7 @@ import * as ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { exportArtboard, exportArtboardSvg } from './export/single.js';
 import { exportArtboardPdf } from './export/pdf.js';
-import { pinForCapture } from './export/capture.js';
+import { pinForCapture, PIN_EVENT, UNPIN_EVENT } from './export/capture.js';
 import { ContextMenu, useContextMenu } from './components/menu/context-menu.jsx';
 import { move as moveEntry } from './components/menu/entity-kebab.jsx';
 import { KIND_ICONS } from './components/menu/kind-icons.jsx';
@@ -743,6 +743,101 @@ const CULL_MARGIN = 0.75;
 // slow CPUs. Small pages keep the per-frame update.
 const LIVE_CHROME_MAX = 12;
 
+// Viewport virtualization (react-window / tldraw style). An artboard's content
+// mounts only while its slot is within CULL_MARGIN of the view, and unmounts
+// UNMOUNT_DELAY_MS after it leaves (the delay keeps a quick pan-and-back from
+// remounting). The slot and its card keep their size, so nothing moves.
+// One shared IntersectionObserver watches every slot; frames register through
+// this context. `null` (no IntersectionObserver, e.g. jsdom) = always mounted.
+const DCLiveCtx = React.createContext(null);
+const UNMOUNT_DELAY_MS = 2000;
+// Render queue: artboards entering the view mount in batches, one per frame,
+// nearest the view's centre first, so a big page shows its middle at once and
+// a pan never blocks on one long render. The batch doubles while the queue
+// drains: every commit costs a page-wide layout pass, so few big ones beat
+// many small ones.
+const MOUNT_BATCH = 8;
+function createLiveRegistry() {
+ if (typeof IntersectionObserver === 'undefined') return null;
+ const cbs = new Map();
+ const queue = new Map(); // el → { mount, dist }
+ let io = null;
+ let raf = 0;
+ let batch = MOUNT_BATCH;
+ const flush = () => {
+ raf = 0;
+ const next = [...queue].sort((a, b) => a[1].dist - b[1].dist).slice(0, batch);
+ for (const [el, item] of next) { queue.delete(el); item.mount(); }
+ if (queue.size) { batch *= 2; raf = requestAnimationFrame(flush); } else batch = MOUNT_BATCH;
+ };
+ return {
+ // Frames observe before the viewport's effect sets the root (child effects
+ // run first): queue until then.
+ setRoot(root) {
+ io = new IntersectionObserver((entries) => {
+ for (const e of entries) {
+ const r = e.boundingClientRect, v = e.rootBounds;
+ const dist = v ? Math.hypot(r.x + r.width / 2 - (v.x + v.width / 2), r.y + r.height / 2 - (v.y + v.height / 2)) : 0;
+ cbs.get(e.target)?.(e.isIntersecting, dist);
+ }
+ }, { root, rootMargin: `${CULL_MARGIN * 100}%` });
+ for (const el of cbs.keys()) io.observe(el);
+ return () => { io.disconnect(); io = null; cancelAnimationFrame(raf); raf = 0; queue.clear(); };
+ },
+ observe(el, cb) {
+ cbs.set(el, cb);
+ io?.observe(el);
+ return () => { cbs.delete(el); queue.delete(el); io?.unobserve(el); };
+ },
+ enqueue(el, mount, dist) {
+ queue.set(el, { mount, dist });
+ raf ||= requestAnimationFrame(flush);
+ },
+ dequeue(el) { queue.delete(el); },
+ };
+}
+// An open modal (editor sheet, dialog) or focus inside the slot may belong to
+// this artboard's content: never unmount under it.
+const busyWith = (el) => (typeof document !== 'undefined' &&
+ (!!document.querySelector('[aria-modal="true"]') || el.contains(document.activeElement)));
+/** Whether a slot's content should be mounted now. */
+function useSlotLive(ref, enabled) {
+ const reg = React.useContext(DCLiveCtx);
+ const on = enabled && !!reg;
+ const [live, setLive] = React.useState(!on);
+ React.useEffect(() => {
+ const el = ref.current;
+ if (!on || !el) return undefined;
+ let timer = 0, seen = false, pinned = false, dist = 0, mounted = false;
+ const mount = () => { mounted = true; setLive(true); };
+ const unmountLater = () => {
+ timer = setTimeout(() => {
+ if (busyWith(el)) unmountLater();
+ else { mounted = false; setLive(false); }
+ }, UNMOUNT_DELAY_MS);
+ };
+ const update = () => {
+ clearTimeout(timer);
+ reg.dequeue(el);
+ if (pinned) mount(); // export is waiting: mount now
+ else if (seen) { if (!mounted) reg.enqueue(el, mount, dist); }
+ else if (mounted) unmountLater();
+ };
+ const pin = () => { pinned = true; update(); };
+ const unpin = () => { pinned = false; update(); };
+ el.addEventListener(PIN_EVENT, pin);
+ el.addEventListener(UNPIN_EVENT, unpin);
+ const stop = reg.observe(el, (v, d) => { seen = v; dist = d; update(); });
+ return () => {
+ clearTimeout(timer);
+ stop();
+ el.removeEventListener(PIN_EVENT, pin);
+ el.removeEventListener(UNPIN_EVENT, unpin);
+ };
+ }, [on, reg, ref]);
+ return live || !on;
+}
+
 function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvasMenuItems = [] }) {
  const vpRef = React.useRef(null);
  const worldRef = React.useRef(null);
@@ -781,6 +876,9 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  if (cards.length) geomRef.current = geom;
  return geom;
  }, []);
+ // Slot visibility for virtualization (see useSlotLive).
+ const [liveReg] = React.useState(createLiveRegistry);
+ React.useEffect(() => (liveReg && vpRef.current ? liveReg.setRoot(vpRef.current) : undefined), [liveReg]);
  React.useEffect(() => {
  const world = worldRef.current;
  if (!world || typeof ResizeObserver === 'undefined') return undefined;
@@ -1198,7 +1296,7 @@ function DCViewport({ children, minScale = 0.1, maxScale = 8, style = {}, canvas
  }}
  >
  <div style={{ position: 'absolute', inset: -6000, backgroundImage: gridSvg, backgroundSize: '120px 120px', pointerEvents: 'none', zIndex: -1 }} />
- {children}
+ <DCLiveCtx.Provider value={liveReg}>{children}</DCLiveCtx.Provider>
  </div>
  </div>
  {/* Wayfinding chrome — fixed, outside the panned world so they never trip
@@ -1589,13 +1687,29 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
  // (`_index.mmd`, Mermaid Phase 4) the artboards the map names are placed
  // where Mermaid put their boxes, over the map's arrows; the rest keep the
  // normal row underneath.
+ // Stable per-artboard handlers (they read the latest ctx), so the memoized
+ // frames skip re-rendering when only another artboard changed.
+ const [latest] = React.useState(() => ({ ctx }));
+ // eslint-disable-next-line react-hooks/immutability -- a mutable box read only by event handlers
+ React.useLayoutEffect(() => { latest.ctx = ctx; });
+ const [handlers] = React.useState(() => new Map());
+ const handlersFor = (k) => {
+ let h = handlers.get(k);
+ if (!h) {
+ h = {
+ onRename: (v) => latest.ctx && latest.ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } })),
+ onReorder: (next) => latest.ctx && latest.ctx.reorderSlots(sid, next),
+ onFocus: () => latest.ctx && latest.ctx.setFocus(`${sid}/${k}`),
+ };
+ handlers.set(k, h);
+ }
+ return h;
+ };
  const frameFor = (k, placed = false) => (
  <DCArtboardFrame key={k} sectionId={sid} sectionTitle={title} artboard={byId[k]} order={order}
  extra={renderConnect ? renderConnect(k, placed) : null}
  label={(sec.labels || {})[k] ?? byId[k].props.label}
- onRename={(v) => ctx && ctx.patchSection(sid, (x) => ({ labels: { ...x.labels, [k]: v } }))}
- onReorder={(next) => ctx && ctx.reorderSlots(sid, next)}
- onFocus={() => ctx && ctx.setFocus(`${sid}/${k}`)} />
+ {...handlersFor(k)} />
  );
  const renderArtboards = (paddingTop) => {
  const placed = mapLayout ? order.filter((k) => mapLayout.positions[k]) : [];
@@ -1768,12 +1882,18 @@ export function DCSection({ id, title, subtitle, children, gap = 48, depth = 0, 
 // DCArtboard — marker; rendered by DCArtboardFrame via DCSection.
 export function DCArtboard() { return null; }
 
-function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus, extra = null }) {
+// Memoized: a live edit or auto-refresh tick re-renders only its own artboard.
+// (Callers pass stable handlers and reuse the `artboard` element when nothing changed.)
+const DCArtboardFrame = React.memo(function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRename, onReorder, onFocus, extra = null }) {
  const { id: rawId, label: rawLabel, width = 260, height = 480, children, style = {},
  // Per-artboard export wiring props
  assetName, variantName, isError, hasLiveRefresh, isMarkdown, isDiagram, assetPath } = artboard.props;
  const id = rawId ?? rawLabel;
  const ref = React.useRef(null);
+ // Off-screen artboards don't mount their content (see useSlotLive). Markdown
+ // and error cards always do: markdown is auto-height, and page maps lay out
+ // by its measured height.
+ const live = useSlotLive(ref, !isMarkdown && !isError);
  const cardRef = React.useRef(null);
  const [busy, setBusy] = React.useState(null); // 'png' | 'jpg' | null
  // Inline capture-failure message ('png' | 'jpg' | null)
@@ -2043,8 +2163,12 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  >Edit</button>
  ) : null}
  <div ref={cardRef} className="dc-card"
- style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: 'var(--lm-bg-primary, #FFFFFF)', ...style }}>
- {children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}
+ style={{ borderRadius: 2, boxShadow: '0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,0,0,.06)', overflow: 'hidden', width, height, background: 'var(--lm-bg-primary, #FFFFFF)',
+ // A fixed-size card is an island: a change inside (an auto-refresh tick, a
+ // live edit) never re-lays-out or repaints the rest of the page.
+ ...(isMarkdown ? null : { contain: 'strict' }), ...style }}>
+ {!live ? <div data-dc-virtual="" data-lerret-pending="" style={{ height: '100%' }} />
+ : children || <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 13, fontFamily: DC.font }}>{id}</div>}
  </div>
  {/* Calm inline capture-failure message — overlaid on the slot
  (outside the overflow:hidden card) so the canvas is otherwise undisturbed
@@ -2076,6 +2200,14 @@ function DCArtboardFrame({ sectionId, sectionTitle, artboard, label, order, onRe
  {extra}
  </div>
  );
+}, (a, b) => Object.keys(b).every((k) => (k === 'extra' ? sameElement(a.extra, b.extra) : Object.is(a[k], b[k]))));
+
+// Two elements of the same type with shallow-equal props (`extra` is built fresh each render).
+function sameElement(a, b) {
+ if (a === b) return true;
+ if (!a || !b || a.type !== b.type || a.key !== b.key) return false;
+ const ka = Object.keys(a.props);
+ return ka.length === Object.keys(b.props).length && ka.every((k) => Object.is(a.props[k], b.props[k]));
 }
 
 // Inline rename — commits on blur or Enter.
