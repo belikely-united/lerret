@@ -176,23 +176,31 @@ function MarkdownGlyph() {
 // diagrams.md, Phase 1). Rendered after mount; until then (and on a Mermaid
 // error) the fence shows as its source code, with the error underneath.
 // While rendering it carries `data-lerret-pending`, so export waits for it.
+// Rendered diagrams are remembered by source: a card that remounts (every
+// project reload) shows its diagram at once instead of flashing the source,
+// which would also change the card's height and re-trigger page-map layout.
+// ponytail: unbounded, one entry per distinct diagram source seen this session.
+const renderedDiagrams = new Map();
 function MermaidBlock({ text }) {
- const [state, setState] = React.useState({ svg: '', error: null });
+ const [state, setState] = React.useState({ text: '', svg: '', error: null });
  React.useEffect(() => {
+ if (renderedDiagrams.has(text)) return undefined;
  let live = true;
  renderDiagram(text).then(
- ({ svg }) => live && setState({ svg, error: null }),
- (err) => live && setState({ svg: '', error: err?.message || String(err) }),
+ ({ svg }) => { renderedDiagrams.set(text, svg); if (live) setState({ text, svg, error: null }); },
+ (err) => live && setState({ text, svg: '', error: err?.message || String(err) }),
  );
  return () => { live = false; };
  }, [text]);
- if (state.svg) {
- return <div className="lm-md-mermaid" data-asset-kind="diagram" dangerouslySetInnerHTML={{ __html: state.svg }} />;
+ const svg = renderedDiagrams.get(text) || (state.text === text ? state.svg : '');
+ const error = state.text === text ? state.error : null;
+ if (svg) {
+ return <div className="lm-md-mermaid" data-asset-kind="diagram" dangerouslySetInnerHTML={{ __html: svg }} />;
  }
  return (
  <>
- <pre data-lerret-pending={state.error ? undefined : ''}><code>{text}</code></pre>
- {state.error ? <p className="lm-md-card__empty">Mermaid: {state.error}</p> : null}
+ <pre data-lerret-pending={error ? undefined : ''}><code>{text}</code></pre>
+ {error ? <p className="lm-md-card__empty">Mermaid: {error}</p> : null}
  </>
  );
 }

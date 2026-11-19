@@ -1,7 +1,7 @@
 // diagram-map.test.js — `_index.mmd` arranges a folder's canvas (Mermaid Phase 4).
 
 import { describe, expect, it } from 'vitest';
-import { preparePageMap, starterPageMap, isPageMap, MAP_PLACEHOLDER, listEdges, addEdge, updateEdge, removeEdge, mapDirection, toggleDirection } from './diagram-map.js';
+import { driftedSlots, preparePageMap, starterPageMap, isPageMap, MAP_PLACEHOLDER, listEdges, addEdge, updateEdge, removeEdge, mapDirection, toggleDirection } from './diagram-map.js';
 
 const ab = (name, ext = '.jsx', width = 400, height = 300) => ({ id: `/p/.lerret/pg/${name}${ext}`, name, width, height });
 
@@ -74,5 +74,29 @@ describe('map editing (Phase 5)', () => {
     expect(mapDirection('flowchart\n a-->b')).toBe('TB');
     expect(toggleDirection(MAP).split('\n')[0]).toBe('flowchart TB');
     expect(toggleDirection('---\ntitle: t\n---\nflowchart\n  a-->b')).toContain('\nflowchart LR\n');
+  });
+});
+
+describe('driftedSlots (tall notes must not overlap)', () => {
+  // Two API notes stacked in a column, laid out before their Markdown finished
+  // rendering: the holes are 945 and 884 px tall, 48 px apart.
+  const positions = {
+    'stripe-webhook.md': { left: 0, top: 0, width: 380, height: 945 },
+    'dev-seed.md': { left: 0, top: 993, width: 380, height: 884 },
+    'screen.jsx': { left: -900, top: 400, width: 600, height: 400 },
+  };
+
+  it('flags a note that grew past its hole (it would spill onto the one below)', () => {
+    const live = { 'stripe-webhook.md': 1173, 'dev-seed.md': 884, 'screen.jsx': 400 };
+    expect(driftedSlots(positions, (id) => live[id])).toEqual(['stripe-webhook.md']);
+  });
+
+  it('leaves a settled map alone (no re-layout loop)', () => {
+    const live = { 'stripe-webhook.md': 948, 'dev-seed.md': 880, 'screen.jsx': 400 };
+    expect(driftedSlots(positions, (id) => live[id])).toEqual([]);
+  });
+
+  it('ignores cards not rendered yet', () => {
+    expect(driftedSlots(positions, () => 0)).toEqual([]);
   });
 });
