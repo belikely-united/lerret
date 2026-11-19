@@ -36,7 +36,7 @@ const fixtureLerretDir = resolve(studioDir, 'fixtures/sample-project/.lerret');
  * In `@lerret/cli dev` the CLI plugin's `resolveId` is registered first and
  * wins, so this shim is a fallback the CLI path never reaches.
  */
-function virtualLerretProjectShim() {
+export function virtualLerretProjectShim() {
  const id = 'virtual:lerret-project';
  const resolved = '\0' + id;
  return {

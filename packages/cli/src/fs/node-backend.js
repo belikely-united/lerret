@@ -347,6 +347,18 @@ export async function statEntry(targetPath) {
   }
 }
 
+/**
+ * Size and modification time of a file — for change signatures
+ * (`@lerret/cli mcp`'s `lerret_version`). Not part of the core contract.
+ *
+ * @param {string} targetPath
+ * @returns {Promise<{ size: number, mtimeMs: number }>}
+ */
+export async function fileInfo(targetPath) {
+  const st = await fsp.stat(toNativePath(targetPath));
+  return { size: st.size, mtimeMs: st.mtimeMs };
+}
+
 // ---------------------------------------------------------------------------
 // watch
 // ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ import { pathToFileURL } from 'node:url';
 import { runDev } from './dev.js';
 import { runExport } from './export.js';
 import { runClear } from './clear.js';
+import { runMcp } from './mcp.js';
 
 /**
  * The set of recognized subcommands and their entry points. Centralized so the
@@ -48,6 +49,10 @@ const SUBCOMMANDS = {
   clear: {
     describe: 'Remove sample assets or subtrees from a project (preserves config.json and _fonts/)',
     run: runClear,
+  },
+  mcp: {
+    describe: 'Serve a project as an MCP App — the studio inside Claude or ChatGPT',
+    run: runMcp,
   },
 };
 

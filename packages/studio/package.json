@@ -2,7 +2,7 @@
   "name": "@lerret/studio",
   "version": "0.1.0",
   "private": true,
-  "description": "The Lerret studio — a React 19 + Vite 8 design canvas (browser-only).",
+  "description": "The Lerret studio \u2014 a React 19 + Vite 8 design canvas (browser-only).",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -10,7 +10,8 @@
     "build": "vite build",
     "build:cli": "LERRET_CLI_BUILD=1 vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:embed": "vite build --config vite.embed.config.js"
   },
   "dependencies": {
     "@lerret/core": "workspace:*",
@@ -28,6 +29,7 @@
     "@lerret/animation": "workspace:^"
   },
   "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.4",
     "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^29.1.1",
     "vite": "^8.0.0",

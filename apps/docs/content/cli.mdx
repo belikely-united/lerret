@@ -197,6 +197,22 @@ Remove sample assets or whole subtrees from a project — the quickest way to wi
 
 Protected paths are never removed: `.lerret/config.json` and `.lerret/_fonts/`. Other reserved folders such as `_brand/` are kept by `--all` but can be removed by name (`clear _brand`). Like every Lerret command, `clear` refuses to touch anything outside `.lerret/`.
 
+## `@lerret/cli mcp`
+
+Serve a project as an **MCP App**: the studio opens inside Claude or ChatGPT,
+and the chat's model authors with file tools. See
+[Claude & ChatGPT App](/chat-app/).
+
+```bash
+npx @lerret/cli@latest mcp --folder ./my-project          # stdio (Claude Desktop)
+npx @lerret/cli@latest mcp --http 3333 --folder ./my-project  # http://localhost:3333/mcp
+```
+
+| Flag | Meaning |
+|---|---|
+| `--folder <dir>` | Project folder. Default: nearest `.lerret/` from the current folder. |
+| `--http <port>` | Serve Streamable HTTP on localhost instead of stdio. |
+
 ## `create-lerret`
 
 Scaffolder for new Lerret projects — `create-*` is the npm convention for scaffolders.

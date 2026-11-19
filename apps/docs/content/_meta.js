@@ -26,6 +26,7 @@ export default {
   // Hidden while the in-studio AI chat is switched off; the page still resolves.
   'ai-studio': { title: 'AI in the Studio', display: 'hidden' },
   'ai-editing': 'Editing with AI Tools',
+  'chat-app': 'Claude & ChatGPT App',
   '-- meta': {
     type: 'separator',
     title: 'Meta',
