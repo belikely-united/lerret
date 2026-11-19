@@ -408,7 +408,7 @@ If you're not sure whether something is shared, prefix it. Renaming later is che
 
   cliSurface: `## The \`${CLI.pkg}\` surface
 
-Four commands. All four are zero-install: \`npx ${CLI.pkg}@latest <cmd>\`, \`pnpm dlx ${CLI.pkg}@latest <cmd>\`, \`yarn dlx ${CLI.pkg}@latest <cmd>\`, \`bunx ${CLI.pkg}@latest <cmd>\`.
+Five commands. All are zero-install: \`npx ${CLI.pkg}@latest <cmd>\`, \`pnpm dlx ${CLI.pkg}@latest <cmd>\`, \`yarn dlx ${CLI.pkg}@latest <cmd>\`, \`bunx ${CLI.pkg}@latest <cmd>\`.
 
 ### \`${CLI.scaffolder} <name> [--no-samples] [--no-ai-rules] [--ai-tools=...]\`
 
@@ -438,6 +438,19 @@ Headlessly renders artboards to image files. Output mirrors the folder tree by d
 - \`--config\` — substitute a config file for the run. Useful for re-skinning the whole project (e.g. swap \`vars\` to render light + dark variants of every asset).
 
 Reach for it when: shipping the actual images. CI-friendly — exit code 0 on success.
+
+### \`${CLI.pkg} mcp [--folder <path>] [--http <port>]\`
+
+Serves the project as an **MCP App**, so the studio opens inside a chat app (Claude Desktop, ChatGPT developer mode). The chat's own model authors through tools (\`lerret_write\`, \`lerret_render\`, \`lerret_open\`, …); the user sees the live studio in the conversation. Writes are limited to \`.lerret/\`.
+
+- Default transport is stdio — what Claude Desktop uses. Its config entry (Settings → Developer → Edit Config, then quit with ⌘Q and reopen):
+  \`\`\`json
+  { "mcpServers": { "lerret": { "command": "npx", "args": ["-y", "${CLI.pkg}@latest", "mcp", "--folder", "<ABSOLUTE project dir>"] } } }
+  \`\`\`
+- \`--folder\` — the project dir (the folder containing \`.lerret/\`). Always pass it: a chat app has no useful working directory.
+- \`--http <port>\` — serve over HTTP on localhost instead, for chat apps that connect by URL (ChatGPT; expose it with a tunnel). ChatGPT support is early.
+
+Reach for it when: the user wants Lerret in Claude Desktop or ChatGPT rather than Claude Code. Inside Claude Code, the preview pane is the studio — don't set this up there.
 
 ### \`${CLI.clear} [path...] [--all] [--yes] [--dry-run]\`
 
@@ -791,7 +804,7 @@ export function renderPluginSkill() {
   const frontmatter = [
     '---',
     'name: lerret',
-    'description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides, Mermaid diagrams and flowcharts, 3D model renders from .glb/.gltf/.stl/.obj files), arrange a page with a Mermaid page map, map the screens and APIs of an app (screenshot beside the APIs each screen calls, a card per API), preview the studio live, or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.',
+    'description: Lerret — design assistant. Use to set up a Lerret project, author or edit visual assets (social cards, og-images, thumbnails, banners, brand marks, slides, Mermaid diagrams and flowcharts, 3D model renders from .glb/.gltf/.stl/.obj files), arrange a page with a Mermaid page map, map the screens and APIs of an app (screenshot beside the APIs each screen calls, a card per API), preview the studio live, open the studio inside Claude Desktop or ChatGPT (MCP App), or export images. Triggers on "lerret", on designing/making/tweaking any visual, or on any work under a `.lerret/` directory.',
     'allowed-tools: Read, Write, Edit, Glob, Bash(npx @lerret/cli@latest *), Bash(npx create-lerret@latest *), Bash(node ${CLAUDE_PLUGIN_ROOT}/references/api-map/build-map.mjs *)',
     '---',
   ].join('\n');
@@ -831,6 +844,7 @@ You are **Lerret**, a design assistant inside Claude Code. Turn a plain request 
   3. Launch THAT config via the preview feature so it appears in-pane. If a studio is already open on a **different** project, start this one under its own name/port — don't reuse the other. If a config already exists but points at the wrong \`--folder\`, fix it and restart the server.
   4. Confirm the pane is showing the **right** project (your assets / the expected project name in the studio) before handing off.
   Only if no preview feature is available, run \`${CLI.npxDev} --folder <ABSOLUTE project dir>\` in the background and hand the user the \`localhost\` URL. Never run the studio in the foreground (it is long-running). Either way it is live and interactive — the user clicks and edits in it.
+- **"use Lerret in Claude Desktop / ChatGPT" / "the studio inside a chat"** — that's \`${CLI.pkg} mcp\` (see its section below). For Claude Desktop, give the user the \`mcpServers\` entry with the **absolute** project dir. Offer to add it to their config yourself (macOS: \`~/Library/Application Support/Claude/claude_desktop_config.json\`): ask first, back the file up, and merge into \`mcpServers\` without touching other servers. If \`npx\` isn't on the app's PATH (common with nvm / custom Node installs), use its absolute path as \`command\`. Then they quit Claude Desktop (⌘Q), reopen it, and ask "Open my Lerret studio".
 - **"export / render to files"** — \`${CLI.npxExport}\` to PNG/JPG.
 - **"clear / wipe samples / start fresh"** — \`${CLI.npxClear}\` (always preserves \`config.json\` + \`_fonts/\`; suggest \`--dry-run\` first).
 

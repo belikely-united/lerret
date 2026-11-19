@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## create-lerret 0.1.8 · Lerret plugin 0.2.7 — 2026-11-19
+
+### Added
+- **The AI guidance knows the MCP App.** The `/lerret` plugin skill and the AI files `create-lerret` writes now cover `@lerret/cli mcp`: when to use it (Claude Desktop, ChatGPT), the Claude Desktop config entry with an absolute `--folder`, and that inside Claude Code the preview pane stays the studio.
+
 ## @lerret/cli 0.5.0 — 2026-11-18
 
 ### Added
