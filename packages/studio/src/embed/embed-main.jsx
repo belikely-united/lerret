@@ -70,7 +70,13 @@ app.oncalltool = async ({ name, arguments: args = {} }) => {
   location.hash = `#${page.path}`;
   return { content: [{ type: 'text', text: `Showing ${page.name || page.path}.` }] };
 };
-const bridge = createEmbedBridge(app);
+// The folder this studio's own lerret_open returned. Wait briefly for it; an
+// older server (or a host that sends no result) falls back to its default.
+let gotFolder;
+const folderReady = new Promise((r) => (gotFolder = r));
+app.addEventListener('toolresult', (res) => gotFolder(res?.structuredContent?.folder));
+setTimeout(() => gotFolder(undefined), 3000);
+const bridge = createEmbedBridge(app, () => folderReady);
 
 /** Path → content of every project file the app holds (images, fonts, diffing). */
 const files = new Map();

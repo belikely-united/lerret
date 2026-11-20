@@ -190,13 +190,37 @@ const text = (t) => ({ type: 'text', text: t });
 /**
  * Build the MCP server for one project folder.
  *
- * @param {string} projectRoot  Absolute folder containing `.lerret/`.
+ * @param {string | null} projectRoot  Absolute folder containing `.lerret/`, or null to wait for a `folder` argument.
  * @param {{ version?: string }} [opts]
  */
 export async function createLerretMcpServer(projectRoot, opts = {}) {
   const version = opts.version || (await cliVersion());
   const appUri = `ui://lerret/studio-${version}.html`;
-  const name = projectRoot.split(/[\\/]/).filter(Boolean).pop() || 'project';
+  const nameOf = (root) => root.split(/[\\/]/).filter(Boolean).pop() || 'project';
+
+  // Which project a call works on: its own `folder`, else the last one opened,
+  // else the server's --folder. The studio in a chat passes the folder its
+  // lerret_open returned, so it never follows a later open in another chat.
+  // ponytail: one shared default per server process (Claude Desktop shares it
+  // across chats); the model passes `folder` again when it switches projects.
+  let current = projectRoot;
+  const roots = new Map();
+  async function rootFor(folder) {
+    if (!folder) {
+      if (current) return current;
+      throw new Error('No Lerret project chosen yet. Call lerret_open with `folder` set to the project\'s absolute path.');
+    }
+    if (!roots.has(folder)) {
+      const found = await resolveProject(resolve(folder));
+      if (!found.found) throw new Error(`No .lerret/ folder found in ${folder} or above it. Run \`npx create-lerret\` there first.`);
+      roots.set(folder, found.projectRoot);
+    }
+    return roots.get(folder);
+  }
+  const folderArg = z
+    .string()
+    .optional()
+    .describe('Absolute path of the Lerret project (the folder with .lerret/, or any folder inside it). Defaults to the project last opened.');
 
   const server = new McpServer(
     { name: 'lerret', title: 'Lerret', version },
@@ -204,7 +228,8 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
       instructions:
         'Lerret is a design canvas: every .jsx file under .lerret/ is a visual asset (React), .mmd files are Mermaid diagrams, .md files are notes, .glb/.stl files are 3D models. ' +
         'Before authoring, call lerret_guide once for the conventions and aesthetic bar. Author with lerret_write, verify with lerret_render, ' +
-        'and call lerret_open to show the live studio to the user in the chat — it updates as you write.',
+        'and call lerret_open to show the live studio to the user in the chat — it updates as you write. ' +
+        'When you are working in a project folder (a coding session), pass its absolute path as `folder` to lerret_open.',
     },
   );
 
@@ -215,18 +240,23 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Open the Lerret studio',
       description:
-        'Show the live Lerret studio (the design canvas) inside the chat. The user can browse pages, open the full studio, edit props and export. It updates live as files change. Optional `page`: a page folder to mention.',
-      inputSchema: z.object({ page: z.string().optional() }),
+        'Show the live Lerret studio (the design canvas) inside the chat. The user can browse pages, open the full studio, edit props and export. It updates live as files change. ' +
+        'Pass `folder` (absolute path) when you are working in a project folder, e.g. a coding session: the studio then shows that project, and later calls use it too. ' +
+        'Optional `page`: a page folder to mention.',
+      inputSchema: z.object({ folder: folderArg, page: z.string().optional() }),
       annotations: { readOnlyHint: true },
       // Global entry point: Claude (remote connectors) and ChatGPT can list the app on their own.
       _meta: { ...ui(), 'openai/ui': { entrypoints: [{ type: 'global' }] } },
     },
-    async ({ page }) => {
-      const files = await walkProject(projectRoot);
+    async ({ folder, page }) => {
+      const root = await rootFor(folder);
+      current = root;
+      const name = nameOf(root);
+      const files = await walkProject(root);
       const pages = [...new Set(files.map((f) => f.rel.split('/')[1]).filter((p) => p && !p.includes('.') && !p.startsWith('_')))];
       return {
-        content: [text(`Opened the Lerret studio for "${name}" (${files.length} files; pages: ${pages.join(', ') || 'none yet'}).${page ? ` Look at the "${page}" page.` : ''}`)],
-        structuredContent: { name, pages },
+        content: [text(`Opened the Lerret studio for "${name}" at ${root} (${files.length} files; pages: ${pages.join(', ') || 'none yet'}).${page ? ` Look at the "${page}" page.` : ''}`)],
+        structuredContent: { name, pages, folder: root },
       };
     },
   );
@@ -253,11 +283,12 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'List project files',
       description: 'List every file in the project (.lerret/ and a root assets/ folder) with sizes.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({ folder: folderArg }),
       annotations: { readOnlyHint: true },
     },
-    async () => {
-      const files = await walkProject(projectRoot);
+    async ({ folder }) => {
+      const root = await rootFor(folder);
+      const files = await walkProject(root);
       return { content: [text(files.map((f) => `${f.rel}  (${f.size} B)`).join('\n') || 'The project is empty.')] };
     },
   );
@@ -267,11 +298,12 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Read a project file',
       description: 'Read a text file from the project, e.g. ".lerret/social/og-card.jsx".',
-      inputSchema: z.object({ path: z.string() }),
+      inputSchema: z.object({ path: z.string(), folder: folderArg }),
       annotations: { readOnlyHint: true },
     },
-    async ({ path }) => {
-      const { abs, rel } = safePath(projectRoot, path);
+    async ({ path, folder }) => {
+      const root = await rootFor(folder);
+      const { abs, rel } = safePath(root, path);
       const body = await readText(abs);
       return { content: [text(body.length > MAX_READ_CHARS ? `${body.slice(0, MAX_READ_CHARS)}\n… (truncated; ${rel} is ${body.length} chars)` : body)] };
     },
@@ -288,11 +320,13 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
         content: z.string(),
         encoding: z.enum(['utf8', 'base64']).optional(),
         append: z.boolean().optional(),
+        folder: folderArg,
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
-    async ({ path, content, encoding = 'utf8', append = false }) => {
-      const { abs, rel } = safePath(projectRoot, path);
+    async ({ path, content, encoding = 'utf8', append = false, folder }) => {
+      const root = await rootFor(folder);
+      const { abs, rel } = safePath(root, path);
       await fs.mkdir(dirname(abs));
       let data = encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf8');
       // ponytail: append = read + rewrite (atomic writes); chunks are ≤90K so this is fine for project-sized files.
@@ -307,11 +341,12 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Delete a project file',
       description: 'Delete a file (or, with dir: true, an empty folder) in the project.',
-      inputSchema: z.object({ path: z.string(), dir: z.boolean().optional() }),
+      inputSchema: z.object({ path: z.string(), dir: z.boolean().optional(), folder: folderArg }),
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
-    async ({ path, dir }) => {
-      const { abs, rel } = safePath(projectRoot, path);
+    async ({ path, dir, folder }) => {
+      const root = await rootFor(folder);
+      const { abs, rel } = safePath(root, path);
       if (rel === '.lerret') throw new Error('Refusing to delete the .lerret/ folder itself.');
       if (dir) await fs.removeDir(abs);
       else await fs.deleteFile(abs);
@@ -325,11 +360,12 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
       title: 'Render a page to images',
       description:
         'Render a page or group folder (e.g. ".lerret/social") headlessly and return the artboards as small JPEGs, so you can check how your design looks. Use after writing.',
-      inputSchema: z.object({ path: z.string() }),
+      inputSchema: z.object({ path: z.string(), folder: folderArg }),
       annotations: { readOnlyHint: true },
     },
-    async ({ path }) => {
-      const { images, total } = await renderFolder(projectRoot, path);
+    async ({ path, folder }) => {
+      const root = await rootFor(folder);
+      const { images, total } = await renderFolder(root, path);
       if (images.length === 0) return { content: [text(`Nothing rendered in ${path} (no artboards, or they failed — check lerret_list).`)] };
       return {
         content: [
@@ -347,14 +383,15 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Project files (app)',
       description: 'Paged project contents for the Lerret studio app.',
-      inputSchema: z.object({ cursor: z.number().int().min(0).optional() }),
+      inputSchema: z.object({ cursor: z.number().int().min(0).optional(), folder: folderArg }),
       annotations: { readOnlyHint: true },
       _meta: ui(['app']),
     },
-    async ({ cursor = 0 }) => {
-      const page = await filesPage(projectRoot, cursor);
-      const v = cursor === 0 ? await projectVersion(projectRoot) : undefined;
-      return { content: [text(`${page.files.length} files`)], structuredContent: { ...page, version: v, name } };
+    async ({ cursor = 0, folder }) => {
+      const root = await rootFor(folder);
+      const page = await filesPage(root, cursor);
+      const v = cursor === 0 ? await projectVersion(root) : undefined;
+      return { content: [text(`${page.files.length} files`)], structuredContent: { ...page, version: v, name: nameOf(root) } };
     },
   );
 
@@ -363,12 +400,13 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Project version (app)',
       description: 'Change signature of the project files, polled by the Lerret studio app.',
-      inputSchema: z.object({}),
+      inputSchema: z.object({ folder: folderArg }),
       annotations: { readOnlyHint: true },
       _meta: ui(['app']),
     },
-    async () => {
-      const version = await projectVersion(projectRoot);
+    async ({ folder }) => {
+      const root = await rootFor(folder);
+      const version = await projectVersion(root);
       return { content: [text(version)], structuredContent: { version } };
     },
   );
@@ -378,12 +416,13 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Create a folder (app)',
       description: 'Create a folder in the project, for the Lerret studio app.',
-      inputSchema: z.object({ path: z.string() }),
+      inputSchema: z.object({ path: z.string(), folder: folderArg }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       _meta: ui(['app']),
     },
-    async ({ path }) => {
-      const { abs, rel } = safePath(projectRoot, path);
+    async ({ path, folder }) => {
+      const root = await rootFor(folder);
+      const { abs, rel } = safePath(root, path);
       await fs.mkdir(abs);
       return { content: [text(`Created ${rel}.`)] };
     },
@@ -407,7 +446,8 @@ function printUsage() {
       'Usage: @lerret/cli mcp [options]',
       '',
       'Options:',
-      '  --folder <dir>   Project folder (default: nearest .lerret/ from the current folder).',
+      '  --folder <dir>   Default project (default: nearest .lerret/ from the current folder;',
+      '                   without one, the chat picks the project with lerret_open\'s `folder`).',
       '  --http <port>    Serve Streamable HTTP at http://localhost:<port>/mcp instead of stdio.',
       '  -h, --help       Show this help.',
       '',
@@ -442,11 +482,12 @@ export async function runMcp(argv) {
   }
 
   const found = await resolveProject(values.folder ? resolve(values.folder) : process.cwd());
-  if (!found.found) {
-    process.stderr.write(`@lerret/cli mcp: no .lerret/ folder found from ${found.startDir}. Pass --folder <project>.\n`);
+  if (!found.found && values.folder) {
+    process.stderr.write(`@lerret/cli mcp: no .lerret/ folder found from ${found.startDir}.\n`);
     return 1;
   }
-  const projectRoot = found.projectRoot;
+  // Without --folder and outside a project, the model picks one with lerret_open's `folder`.
+  const projectRoot = found.found ? found.projectRoot : null;
   // stdout carries the protocol; route stray logs to stderr.
   console.log = console.info = (...a) => process.stderr.write(a.join(' ') + '\n');
 
@@ -481,7 +522,7 @@ export async function runMcp(argv) {
     });
     // ponytail: localhost only — this server can write the project folder.
     await new Promise((r) => httpServer.listen(port, '127.0.0.1', r));
-    process.stderr.write(`@lerret/cli mcp: ${projectRoot}\n@lerret/cli mcp: listening on http://localhost:${port}/mcp\n`);
+    process.stderr.write(`@lerret/cli mcp: ${projectRoot ?? '(no default project)'}\n@lerret/cli mcp: listening on http://localhost:${port}/mcp\n`);
     return new Promise(() => {}); // until killed
   }
 
@@ -489,6 +530,6 @@ export async function runMcp(argv) {
   const server = await createLerretMcpServer(projectRoot);
   await server.connect(new StdioServerTransport());
   process.stdin.on('end', () => process.exit(0));
-  process.stderr.write(`@lerret/cli mcp: serving ${projectRoot} over stdio\n`);
+  process.stderr.write(`@lerret/cli mcp: serving ${projectRoot ?? '(no default project)'} over stdio\n`);
   return new Promise(() => {}); // until the client closes stdin
 }

@@ -19,7 +19,7 @@ You are **Lerret**, a design assistant inside Claude Code. Turn a plain request 
 - **"show / render this 3D model"** (a `.glb`, `.gltf`, `.stl` or `.obj` file) — copy the file into a page folder; it becomes an artboard on its own, in the folder's brand colours (see "3D models" below). Don't write 3D files or a `.jsx` wrapper. Render to verify.
 - **"map / document / visualise an app's APIs, backend or screens"** — read `${CLAUDE_PLUGIN_ROOT}/references/api-map.md` first and follow it. It builds one page: gateway → an area card per group of screens (screenshot beside the APIs each screen calls) → a card per API (who can call it, input, output, rules, where it's used). The card component and the map script sit beside it in `references/api-map/`.
 - **"arrange / lay out / connect the assets on this page"** — write or edit that folder's `_index.mmd` page map: one node per asset name, arrows between them.
-- **"show / preview / open the studio"** — render the studio IN the **Claude Code preview pane**, pointed at **the exact project you're editing**. A workspace can hold several `.lerret/` folders, so NEVER rely on "nearest" — always pin the folder, or you'll preview the wrong project and the user's edits won't show. Steps:
+- **"show / preview / open the studio"** — if the `lerret_open` tool is in your session (the Lerret MCP App), call it with `folder` set to the **absolute project dir** and stop there: the studio shows in the chat. Do NOT also start a browser studio. Otherwise, render the studio IN the **Claude Code preview pane**, pointed at **the exact project you're editing**. A workspace can hold several `.lerret/` folders, so NEVER rely on "nearest" — always pin the folder, or you'll preview the wrong project and the user's edits won't show. Steps:
   1. Resolve the **absolute path of the project dir** — the folder that directly contains the `.lerret/` you just authored into.
   2. Write/update `.claude/launch.json` with a config that pins that folder via `--folder`, named **per-project** so it never reuses another project's running server:
   ```json
@@ -466,10 +466,10 @@ Serves the project as an **MCP App**, so the studio opens inside a chat app (Cla
   ```json
   { "mcpServers": { "lerret": { "command": "npx", "args": ["-y", "@lerret/cli@latest", "mcp", "--folder", "<ABSOLUTE project dir>"] } } }
   ```
-- `--folder` — the project dir (the folder containing `.lerret/`). Always pass it: a chat app has no useful working directory.
+- `--folder` — the default project dir (the folder containing `.lerret/`), for chats that aren't about a project folder. Each call can still pick another project: `lerret_open` takes `folder` (absolute path), and the studio it opens stays on that project.
 - `--http <port>` — serve over HTTP on localhost instead, for chat apps that connect by URL (ChatGPT; expose it with a tunnel). ChatGPT support is early.
 
-Reach for it when: the user wants Lerret in Claude Desktop or ChatGPT rather than Claude Code. Inside Claude Code, the preview pane is the studio — don't set this up there.
+Reach for it when: the user wants Lerret in Claude Desktop or ChatGPT. If its tools (`lerret_open`, …) are already in your session, the app is set up — use it (see "show / preview / open the studio").
 
 ### `@lerret/cli clear [path...] [--all] [--yes] [--dry-run]`
 

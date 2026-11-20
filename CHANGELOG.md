@@ -8,6 +8,12 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.3 · create-lerret 0.1.9 · Lerret plugin 0.2.8 — 2026-11-20
+
+### Fixed
+- **The studio in a chat shows the project you're working on.** `lerret_open` (and every Lerret MCP tool) takes an optional `folder`, so one Claude Desktop setup works for every project instead of the one `--folder` named. A studio stays on the project it opened, even when another chat opens a different one. `--folder` is now an optional default; without it the server starts and waits for a `folder`.
+- **No second, browser studio.** The `/lerret` skill now opens the studio with `lerret_open` when the MCP App is available, instead of also starting `@lerret/cli dev`.
+
 ## create-lerret 0.1.8 · Lerret plugin 0.2.7 — 2026-11-19
 
 ### Added
