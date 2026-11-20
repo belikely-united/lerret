@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.4 — 2026-11-20
+
+### Fixed
+- **Page maps no longer overlap in the in-chat studio.** A chat app can load the studio while it is still hidden. Everything measured then reads as 0, so Mermaid diagrams came out as blank squares and notes got a guessed height, and the map stayed broken after it was shown. Diagrams and page-map layout now wait until the studio is visible.
+
 ## @lerret/cli 0.5.3 · create-lerret 0.1.9 · Lerret plugin 0.2.8 — 2026-11-20
 
 ### Fixed

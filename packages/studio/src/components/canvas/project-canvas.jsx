@@ -70,7 +70,7 @@ import { DesignCanvas, DCSection } from '../../design-canvas.jsx';
 import { artboardForEntry, artboardSize, MARKDOWN_CARD_WIDTH } from './asset-artboard.jsx';
 import { driftedSlots, isPageMap, layoutPageMap, mapDirection, MAP_SPACING } from '../../runtime/diagram-map.js';
 import { diagramTheme } from '../../runtime/diagram-theme.js';
-import { renderDiagram } from '../../runtime/diagram-render.js';
+import { isLaidOut, renderDiagram, whenLaidOut } from '../../runtime/diagram-render.js';
 import { useCascadedConfig } from './cascade-context.jsx';
 import { useAssetConfig } from './asset-config-context.jsx';
 import { useLiveRefresh } from './live-refresh-manager.js';
@@ -638,7 +638,13 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  // A drift re-layout has been asked for and not yet applied (see below).
  const mapPassPending = React.useRef(false);
  React.useEffect(() => {
- if (!loaded) return;
+ if (!loaded) return undefined;
+ // Hidden frame: every card measures 0. Lay out once it is shown.
+ if (!isLaidOut()) {
+   let live = true;
+   whenLaidOut().then(() => live && setMapPass((n) => n + 1));
+   return () => { live = false; };
+ }
  const jobs = [];
  for (const s of loaded.sections) {
  const map = s.entries.find((e) => isPageMap(e.asset) && e.status !== 'error' && typeof e.text === 'string');
@@ -667,7 +673,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  const key = JSON.stringify(jobs.map((j) => [j.id, j.map.id, j.map.text, j.artboards, j.look]));
  if (mapJob.current?.key === key) {
  mapPassPending.current = false; // nothing moved: the current layout stands
- return;
+ return undefined;
  }
  if (mapJob.current) mapJob.current.cancelled = true;
  const job = { key, cancelled: false };
@@ -687,6 +693,7 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  mapPassPending.current = false;
  setMapLayouts(next);
  })();
+ return undefined;
  }, [loaded, getConfigFor, mapPass]);
  React.useEffect(() => () => { if (mapJob.current) mapJob.current.cancelled = true; }, []);
 

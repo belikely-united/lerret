@@ -80,3 +80,25 @@ describe('flowAxis', () => {
     expect(flowAxis('---\nconfig:\n  flowchart:\n    curve: linear\n---\nflowchart LR\n  a --> b')).toBeNull();
   });
 });
+
+describe('whenLaidOut', () => {
+  it('waits while the frame is hidden (0 wide) and resolves when it is shown', async () => {
+    const { isLaidOut, whenLaidOut } = await import('./diagram-render.js');
+    const real = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 0 });
+      expect(isLaidOut()).toBe(false);
+      let done = false;
+      const p = whenLaidOut().then(() => (done = true));
+      window.dispatchEvent(new Event('resize'));
+      await Promise.resolve();
+      expect(done).toBe(false); // still hidden
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+      window.dispatchEvent(new Event('resize'));
+      await p;
+      expect(done).toBe(true);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: real });
+    }
+  });
+});

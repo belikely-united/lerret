@@ -219,6 +219,29 @@ export function svgSize(svg) {
  *   Extra flowchart layout defaults (page maps space artboards wider).
  * @returns {Promise<{ svg: string, width: number, height: number }>}
  */
+/**
+ * True when this document is laid out. A frame inside `display: none` (a chat
+ * app can load the in-chat studio before it shows it) measures everything as
+ * 0: Mermaid would size its boxes at 0 and page maps would read every card as
+ * 0 tall, and both results stick.
+ */
+export function isLaidOut() {
+  return typeof window === 'undefined' || window.innerWidth > 0;
+}
+
+/** Resolves once the document is laid out (showing a hidden frame fires `resize`). */
+export function whenLaidOut() {
+  if (isLaidOut()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const check = () => {
+      if (!isLaidOut()) return;
+      window.removeEventListener('resize', check);
+      resolve();
+    };
+    window.addEventListener('resize', check);
+  });
+}
+
 export function renderDiagram(text, look = null, flowchart = {}) {
   // Brand variables sit on top of the neutral look, so a partial brand (say,
   // only a background) still gets modern defaults for everything else.
@@ -229,6 +252,7 @@ export function renderDiagram(text, look = null, flowchart = {}) {
     ink: String(vars.primaryTextColor ?? vars.textColor),
   };
   const run = async () => {
+    await whenLaidOut();
     const mermaid = await loadMermaid();
     // `initialize` rebuilds Mermaid's site config from its defaults each
     // call, so one diagram's theme never leaks into the next (renders are
