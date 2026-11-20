@@ -78,4 +78,13 @@ describe('createEmbedBridge', () => {
     await createEmbedBridge(app).writeFile('.lerret/big.md', 'x'.repeat(WRITE_CHUNK * 2 + 5));
     expect(calls.map((c) => [c.content.length, c.append])).toEqual([[WRITE_CHUNK, false], [WRITE_CHUNK, true], [5, true]]);
   });
+
+  it('sends its own project folder on every call', async () => {
+    const calls = [];
+    const app = { callServerTool: async (c) => (calls.push(c.arguments), { structuredContent: { version: 'v' } }) };
+    const bridge = createEmbedBridge(app, async () => '/work/webshots');
+    await bridge.version();
+    await bridge.deleteFile('.lerret/a.md');
+    expect(calls).toEqual([{ folder: '/work/webshots' }, { path: '.lerret/a.md', folder: '/work/webshots' }]);
+  });
 });

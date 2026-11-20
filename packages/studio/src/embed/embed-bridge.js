@@ -15,10 +15,14 @@ const b64decode = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /**
  * @param {{ callServerTool: (p: { name: string, arguments: object }) => Promise<any> }} app
+ * @param {() => Promise<string | undefined>} [getFolder]  The project this studio
+ *   shows (from its lerret_open result); sent on every call so the studio
+ *   stays on its own project when another chat opens a different one.
  */
-export function createEmbedBridge(app) {
+export function createEmbedBridge(app, getFolder = async () => undefined) {
   async function call(name, args = {}) {
-    const res = await app.callServerTool({ name, arguments: args });
+    const folder = await getFolder();
+    const res = await app.callServerTool({ name, arguments: folder ? { ...args, folder } : args });
     if (res?.isError) {
       const msg = res.content?.find((c) => c.type === 'text')?.text || `${name} failed`;
       throw new Error(msg);
