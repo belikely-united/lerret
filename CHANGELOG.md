@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.5 — 2026-11-22
+
+### Fixed
+- **Page maps no longer overlap in Claude Desktop's in-chat studio.** The map is laid out before its notes render, then re-measured once they have. Claude Desktop's chat frame never delivered the resize/animation-frame events that triggered that second pass, so notes kept a guessed height and covered each other. The map now also re-checks on plain timers.
+
 ## @lerret/cli 0.5.4 — 2026-11-20
 
 ### Fixed

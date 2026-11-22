@@ -723,13 +723,16 @@ export function ProjectCanvas({ project, runtime, pageId }) {
  };
  // Fires once on observe too — that is the post-layout check.
  const ro = new ResizeObserver(() => { if (!raf) raf = requestAnimationFrame(check); });
+ // Some chat hosts (Claude Desktop) never deliver ResizeObserver/rAF to the
+ // app frame, so re-check on plain timers too; check() is a no-op when nothing drifted.
+ const timers = [100, 500, 1500, 4000].map((ms) => setTimeout(check, ms));
  for (const layout of Object.values(mapLayouts)) {
  for (const id of Object.keys(layout.positions)) {
  const slot = slotOf(id);
  if (slot) ro.observe(slot);
  }
  }
- return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+ return () => { ro.disconnect(); cancelAnimationFrame(raf); timers.forEach(clearTimeout); };
  }, [mapLayouts]);
 
  // Diagrams and 3D models take their brand look from the folder config at
