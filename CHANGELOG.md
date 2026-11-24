@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.7 — 2026-11-24
+
+### Fixed
+- **The in-chat studio opens projects that contain symlinked folders.** A symlink to a folder inside `.lerret/` (or a broken symlink) was read as a file, so the studio failed with "EISDIR: illegal operation on a directory". Linked folders are now skipped by the MCP App (they can point at gigabytes outside the project); `@lerret/cli dev` is unchanged.
+
 ## @lerret/cli 0.5.6 · create-lerret 0.1.10 · Lerret plugin 0.2.9 — 2026-11-24
 
 ### Fixed

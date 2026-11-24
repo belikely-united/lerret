@@ -356,7 +356,7 @@ export async function statEntry(targetPath) {
  */
 export async function fileInfo(targetPath) {
   const st = await fsp.stat(toNativePath(targetPath));
-  return { size: st.size, mtimeMs: st.mtimeMs };
+  return { size: st.size, mtimeMs: st.mtimeMs, isFile: st.isFile() };
 }
 
 // ---------------------------------------------------------------------------

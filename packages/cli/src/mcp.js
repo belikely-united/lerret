@@ -95,7 +95,10 @@ export async function walkProject(projectRoot) {
       const abs = join(dir, e.name);
       if (e.isDirectory) await walk(abs);
       else {
-        const info = await fileInfo(abs);
+        // A symlink to a folder (or a broken one) shows up as a file: skip it rather than read it.
+        // ponytail: linked folders aren't followed — they can point at GBs outside the project.
+        const info = await fileInfo(abs).catch(() => null);
+        if (!info?.isFile) continue;
         out.push({ abs, rel: relative(projectRoot, abs).split(sep).join('/'), ...info });
       }
     }
