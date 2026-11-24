@@ -1,7 +1,7 @@
 // mcp.test.js — `@lerret/cli mcp` helpers: the path guard, the project walk,
 // paging under the host's tool-result cap, and the change signature.
 
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -52,6 +52,16 @@ describe('walkProject', () => {
   it('lists project files and skips dot-files', async () => {
     const files = (await walkProject(root)).map((f) => f.rel);
     expect(files).toEqual(['.lerret/social/Card.jsx']);
+  });
+  it('skips symlinks to folders and broken symlinks instead of reading them', async () => {
+    const outside = join(root, 'outside');
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(outside, 'big.wav'), 'x');
+    await symlink(outside, join(root, '.lerret', '_linked'));
+    await symlink(join(root, 'missing'), join(root, '.lerret', 'broken.jsx'));
+    const files = (await walkProject(root)).map((f) => f.rel);
+    expect(files.some((f) => f.includes('_linked') || f.includes('broken'))).toBe(false);
+    await expect(filesPage(root)).resolves.toBeTruthy();
   });
 });
 
