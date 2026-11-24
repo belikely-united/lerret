@@ -229,7 +229,9 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
         'Lerret is a design canvas: every .jsx file under .lerret/ is a visual asset (React), .mmd files are Mermaid diagrams, .md files are notes, .glb/.stl files are 3D models. ' +
         'Before authoring, call lerret_guide once for the conventions and aesthetic bar. Author with lerret_write, verify with lerret_render, ' +
         'and call lerret_open to show the live studio to the user in the chat — it updates as you write. ' +
-        'When you are working in a project folder (a coding session), pass its absolute path as `folder` to lerret_open.',
+        'When you are working in a project folder (a coding session), pass its absolute path as `folder` to lerret_open. ' +
+        'Whenever the user asks to open, show or preview the studio, call lerret_open — also in Claude Code — instead of starting ' +
+        '`@lerret/cli dev`, a browser or a preview-pane server, even if a launch config for one already exists.',
     },
   );
 
@@ -241,6 +243,7 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
       title: 'Open the Lerret studio',
       description:
         'Show the live Lerret studio (the design canvas) inside the chat. The user can browse pages, open the full studio, edit props and export. It updates live as files change. ' +
+        'Use this, not a browser or `@lerret/cli dev` server, whenever the user wants to see the studio. ' +
         'Pass `folder` (absolute path) when you are working in a project folder, e.g. a coding session: the studio then shows that project, and later calls use it too. ' +
         'Optional `page`: a page folder to mention.',
       inputSchema: z.object({ folder: folderArg, page: z.string().optional() }),
