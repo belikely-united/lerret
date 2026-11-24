@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.6 · create-lerret 0.1.10 · Lerret plugin 0.2.9 — 2026-11-24
+
+### Fixed
+- **"Open my studio" opens it in the chat.** When the Lerret MCP App is connected, Claude now calls `lerret_open` and shows the studio in the conversation, in Claude Code too, instead of starting a browser or preview-pane studio from an old `.claude/launch.json` entry. The server's own instructions say so, so it works even when the `/lerret` skill isn't loaded.
+
 ## @lerret/cli 0.5.5 — 2026-11-22
 
 ### Fixed
