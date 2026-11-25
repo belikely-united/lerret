@@ -24,18 +24,22 @@ function tailOf(src) {
  * @param {() => Map<string, string | Uint8Array>} getFiles  path → content.
  * @param {Element} [root]
  * @param {Record<string, string>} [fixed]  Exact `src` → URL for the studio's own UI images.
+ * @param {(path: string) => Promise<Uint8Array | string | undefined>} [load]
+ *   The file's bytes, fetched if not loaded yet (default: what `getFiles` holds).
  * @returns {() => void} stop
  */
-export function startImageResolver(getFiles, root = document.body, fixed = {}) {
-  const cache = new Map(); // tail → data URL | null
+export function startImageResolver(getFiles, root = document.body, fixed = {}, load = async (path) => getFiles().get(path)) {
+  const cache = new Map(); // tail → Promise<data URL | null>
   const lookup = (tail) => {
     if (cache.has(tail)) return cache.get(tail);
     let best = null;
-    for (const [path, content] of getFiles()) {
-      if ((path === tail || path.endsWith(`/${tail}`)) && (!best || path.length < best[0].length)) best = [path, content];
+    for (const path of getFiles().keys()) {
+      if ((path === tail || path.endsWith(`/${tail}`)) && (!best || path.length < best.length)) best = path;
     }
     const mime = imageMime(tail);
-    const url = best && mime && ArrayBuffer.isView(best[1]) ? bytesToDataUrl(best[1], mime) : null;
+    const url = best && mime
+      ? load(best).then((bytes) => (ArrayBuffer.isView(bytes) ? bytesToDataUrl(bytes, mime) : null), () => null)
+      : Promise.resolve(null);
     cache.set(tail, url);
     return url;
   };
@@ -43,8 +47,9 @@ export function startImageResolver(getFiles, root = document.body, fixed = {}) {
     const src = img.getAttribute('src');
     if (fixed[src]) return img.setAttribute('src', fixed[src]);
     if (!src || /^(data:|https?:|blob:)/i.test(src) || !imageMime(src.split(/[?#]/)[0])) return;
-    const url = lookup(tailOf(src));
-    if (url) img.setAttribute('src', url);
+    lookup(tailOf(src)).then((url) => {
+      if (url && img.getAttribute('src') === src) img.setAttribute('src', url);
+    });
   };
   const scan = (node) => {
     if (node.nodeType !== 1) return;

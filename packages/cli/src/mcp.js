@@ -119,13 +119,20 @@ export async function projectVersion(projectRoot) {
  * The project's files as pieces that fit the cap: a text file is one piece; a
  * binary is base64, split across pieces when large. Page `cursor` returns the
  * pieces from that index while they fit in PAGE_CHARS.
+ *
+ * With `lazy`, binaries (except fonts) come as `{ path, lazy: signature }`
+ * with no content; the app fetches each with `blobPage` when it needs it.
  */
-export async function filesPage(projectRoot, cursor = 0) {
+export async function filesPage(projectRoot, cursor = 0, { lazy = false } = {}) {
   const pieces = [];
   const skipped = [];
   for (const f of await walkProject(projectRoot)) {
     if (f.size > MAX_FILE_BYTES) {
       skipped.push(f.rel);
+      continue;
+    }
+    if (lazy && !TEXT_EXT.test(f.rel) && !f.rel.includes('/_fonts/')) {
+      pieces.push({ path: f.rel, stub: `${f.size}:${f.mtimeMs}` });
       continue;
     }
     // Big files go in slices (text by characters, binaries as base64); the app joins them.
@@ -141,6 +148,13 @@ export async function filesPage(projectRoot, cursor = 0) {
   const cache = new Map();
   for (; i < pieces.length; i++) {
     const p = pieces[i];
+    if (p.stub) {
+      const size = p.path.length + p.stub.length + 30;
+      if (files.length > 0 && used + size > PAGE_CHARS) break;
+      files.push({ path: p.path, lazy: p.stub });
+      used += size;
+      continue;
+    }
     if (!cache.has(p.abs)) {
       const buf = await readBytes(p.abs);
       cache.set(p.abs, p.text ? buf.toString('utf8') : buf.toString('base64'));
@@ -153,6 +167,20 @@ export async function filesPage(projectRoot, cursor = 0) {
     used += size;
   }
   return { files, next: i < pieces.length ? i : null, skipped };
+}
+
+/**
+ * One project file as base64, from character `from`, sized under the cap.
+ * Only files the project walk lists can be read.
+ */
+export async function blobPage(projectRoot, path, from = 0) {
+  const f = (await walkProject(projectRoot)).find((x) => x.rel === path);
+  if (!f) throw new Error(`No file ${path} in the project.`);
+  if (f.size > MAX_FILE_BYTES) throw new Error(`${path} is too large to load.`);
+  // ponytail: re-reads the whole file per slice; fine at ~40 slices for a big image. Cache by path+mtime if it shows up.
+  const b64 = (await readBytes(f.abs)).toString('base64');
+  const to = from + PAGE_CHARS - 1000;
+  return { base64: b64.slice(from, to), next: to < b64.length ? to : null };
 }
 
 // ── Render (headless export in a child process; stdout stays clean) ─────────
@@ -389,15 +417,31 @@ export async function createLerretMcpServer(projectRoot, opts = {}) {
     {
       title: 'Project files (app)',
       description: 'Paged project contents for the Lerret studio app.',
-      inputSchema: z.object({ cursor: z.number().int().min(0).optional(), folder: folderArg }),
+      inputSchema: z.object({ cursor: z.number().int().min(0).optional(), lazy: z.boolean().optional(), folder: folderArg }),
       annotations: { readOnlyHint: true },
       _meta: ui(['app']),
     },
-    async ({ cursor = 0, folder }) => {
+    async ({ cursor = 0, lazy = false, folder }) => {
       const root = await rootFor(folder);
-      const page = await filesPage(root, cursor);
+      const page = await filesPage(root, cursor, { lazy });
       const v = cursor === 0 ? await projectVersion(root) : undefined;
       return { content: [text(`${page.files.length} files`)], structuredContent: { ...page, version: v, name: nameOf(root) } };
+    },
+  );
+
+  server.registerTool(
+    'lerret_blob',
+    {
+      title: 'One project file (app)',
+      description: 'One binary project file, in base64 slices, for the Lerret studio app.',
+      inputSchema: z.object({ path: z.string(), from: z.number().int().min(0).optional(), folder: folderArg }),
+      annotations: { readOnlyHint: true },
+      _meta: ui(['app']),
+    },
+    async ({ path, from = 0, folder }) => {
+      const root = await rootFor(folder);
+      const slice = await blobPage(root, path, from);
+      return { content: [text(`${slice.base64.length} chars`)], structuredContent: slice };
     },
   );
 

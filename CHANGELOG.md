@@ -8,6 +8,11 @@ The published packages are [`@lerret/cli`](https://www.npmjs.com/package/@lerret
 
 ## [Unreleased]
 
+## @lerret/cli 0.5.8 — 2026-11-25
+
+### Changed
+- **The in-chat studio opens big projects fast.** It used to download every file, images included, before showing anything (a 1.4 GB project took about 7 minutes). It now loads code, notes and fonts first and fetches each image or model only when the canvas shows it. Opening that project went from about 18,500 server calls to 66.
+
 ## @lerret/cli 0.5.7 — 2026-11-24
 
 ### Fixed
