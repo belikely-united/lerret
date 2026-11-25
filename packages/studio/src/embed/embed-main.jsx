@@ -80,6 +80,42 @@ const bridge = createEmbedBridge(app, () => folderReady);
 
 /** Path → content of every project file the app holds (images, fonts, diffing). */
 const files = new Map();
+/** Binary path → size:mtime, for every binary the server sent without content. */
+const sigs = new Map();
+/** Binaries not fetched yet (an empty placeholder sits in `files` and memory). */
+const unloaded = new Set();
+const fetching = new Map();
+let memoryRef = null;
+
+/** A binary's bytes, fetched from the server the first time it's read. */
+function ensureLoaded(path) {
+  if (!unloaded.has(path)) return Promise.resolve(files.get(path));
+  if (!fetching.has(path)) {
+    const sig = sigs.get(path);
+    const job = bridge.loadBlob(path).then(async (bytes) => {
+      // Changed again while fetching: leave it for the next read.
+      if (sigs.get(path) === sig && unloaded.has(path)) {
+        unloaded.delete(path);
+        files.set(path, bytes);
+        await memoryRef.writeFile(path, bytes);
+      }
+      return bytes;
+    });
+    fetching.set(path, job);
+    job.finally(() => fetching.delete(path)).catch(() => {});
+  }
+  return fetching.get(path);
+}
+
+/** Record binaries sent without content; true when `path` is new or changed. */
+function markLazy(path, sig) {
+  if (sigs.get(path) === sig) return false;
+  sigs.set(path, sig);
+  unloaded.add(path);
+  files.set(path, EMPTY);
+  return true;
+}
+const EMPTY = new Uint8Array(0);
 
 // ── Host integration ────────────────────────────────────────────────────────
 
@@ -197,13 +233,21 @@ function EmbedStudio() {
     let faces = [];
 
     async function boot() {
-      const { files: seed, version } = await bridge.loadFiles();
+      const { files: seed, lazy, version } = await bridge.loadFiles();
       for (const [p, c] of Object.entries(seed)) files.set(p, c);
-      const memory = createMemoryBackend(seed);
-      const fs = createSyncedBackend(memory, bridge, (path, data) => {
-        if (data == null) files.delete(path);
-        else files.set(path, data);
-      });
+      for (const [p, sig] of Object.entries(lazy)) markLazy(p, sig);
+      const memory = createMemoryBackend(Object.fromEntries(files));
+      memoryRef = memory;
+      const fs = createSyncedBackend(
+        memory,
+        bridge,
+        (path, data) => {
+          unloaded.delete(path);
+          if (data == null) files.delete(path);
+          else files.set(path, data);
+        },
+        ensureLoaded,
+      );
       const store = createModuleStore();
       let project = null;
       const importModule = createInlineImporter({
@@ -218,7 +262,7 @@ function EmbedStudio() {
       setHostedWriter(createHostedWriter(fs));
       setHostedDataReader(createHostedDataReader(fs, { loadDataModule: runtime.loadDataModule }));
       faces = await registerFonts(files);
-      stopImages = startImageResolver(() => files, document.body, UI_IMAGES);
+      stopImages = startImageResolver(() => files, document.body, UI_IMAGES, ensureLoaded);
       Object.assign(ref.current, { memory, fs, runtime, version, setProject: (p) => (project = p) });
       currentProject = loaded.project;
       if (alive) setState({ phase: 'ready', runtime, ...loaded });
@@ -233,7 +277,7 @@ function EmbedStudio() {
         const version = await bridge.version();
         if (version === r.version) return;
         r.version = version;
-        const { files: next } = await bridge.loadFiles();
+        const { files: next, lazy } = await bridge.loadFiles();
         const changed = [];
         for (const [path, content] of Object.entries(next)) {
           if (!sameContent(files.get(path), content)) {
@@ -242,10 +286,18 @@ function EmbedStudio() {
             await r.memory.writeFile(path, content);
           }
         }
+        for (const [path, sig] of Object.entries(lazy)) {
+          if (markLazy(path, sig)) {
+            changed.push(path);
+            await r.memory.writeFile(path, EMPTY);
+          }
+        }
         for (const path of [...files.keys()]) {
-          if (!(path in next)) {
+          if (!(path in next) && !(path in lazy)) {
             changed.push(path);
             files.delete(path);
+            sigs.delete(path);
+            unloaded.delete(path);
             await r.memory.deleteFile(path).catch(() => {});
           }
         }
@@ -254,7 +306,7 @@ function EmbedStudio() {
         for (const path of changed) r.runtime.notifyChange(path);
         if (changed.some((p) => p.includes('/_fonts/'))) faces = await registerFonts(files, faces);
         stopImages();
-        stopImages = startImageResolver(() => files, document.body, UI_IMAGES);
+        stopImages = startImageResolver(() => files, document.body, UI_IMAGES, ensureLoaded);
         const loaded = await loadHostedProject(r.fs);
         r.setProject(loaded.project);
         currentProject = loaded.project;

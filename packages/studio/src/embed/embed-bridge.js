@@ -41,27 +41,43 @@ export function createEmbedBridge(app, getFolder = async () => undefined) {
     /**
      * Every project file, as `{ path: string | Uint8Array }`, read in pages.
      * Text files arrive as text; binaries as base64, possibly split in parts.
+     * Images and other binaries (not fonts) are left out: `lazy` maps each one
+     * to a change signature, and `loadBlob` fetches it when it's needed.
      */
     async loadFiles() {
       const files = {};
+      const lazy = {}; // binary path → size:mtime
       const parts = {}; // binary path → base64 slices
       const texts = {}; // text path → slices
       let cursor = 0;
       let version = null;
       let name = null;
       do {
-        const page = await call('lerret_files', { cursor });
+        const page = await call('lerret_files', { cursor, lazy: true });
         version ??= page.version;
         name ??= page.name;
         for (const f of page.files) {
-          if (f.text != null) (texts[f.path] ??= []).push(f.text);
+          if (f.lazy != null) lazy[f.path] = f.lazy;
+          else if (f.text != null) (texts[f.path] ??= []).push(f.text);
           else (parts[f.path] ??= []).push(f.base64);
         }
         cursor = page.next;
       } while (cursor != null);
       for (const [path, chunks] of Object.entries(texts)) files[path] = chunks.join('');
       for (const [path, chunks] of Object.entries(parts)) files[path] = b64decode(chunks.join(''));
-      return { files, version, name };
+      return { files, lazy, version, name };
+    },
+
+    /** One binary file's bytes, read in slices. */
+    async loadBlob(path) {
+      const chunks = [];
+      let from = 0;
+      do {
+        const slice = await call('lerret_blob', { path, from });
+        chunks.push(slice.base64);
+        from = slice.next;
+      } while (from != null);
+      return b64decode(chunks.join(''));
     },
 
     /** Write a text or binary file, chunked under the cap. */
@@ -90,10 +106,16 @@ export function createEmbedBridge(app, getFolder = async () => undefined) {
  * @param {ReturnType<typeof createEmbedBridge>} bridge
  * @param {(path: string, data: string | Uint8Array | null) => void} [onLocalWrite]
  *   Mirrors our own writes (null = deleted) so the app's file map stays current.
+ * @param {(path: string) => Promise<unknown>} [beforeRead]
+ *   Fetches a not-yet-loaded binary into memory before it's read.
  */
-export function createSyncedBackend(memory, bridge, onLocalWrite = () => {}) {
+export function createSyncedBackend(memory, bridge, onLocalWrite = () => {}, beforeRead = async () => {}) {
   return {
     ...memory,
+    async readFile(path, options) {
+      await beforeRead(String(path).replace(/\/+$/, ''));
+      return memory.readFile(path, options);
+    },
     async writeFile(path, data, options) {
       await memory.writeFile(path, data, options);
       onLocalWrite(path, data);

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createLerretMcpServer, filesPage, PAGE_CHARS, projectVersion, safePath, walkProject } from './mcp.js';
+import { blobPage, createLerretMcpServer, filesPage, PAGE_CHARS, projectVersion, safePath, walkProject } from './mcp.js';
 
 let root;
 beforeEach(async () => {
@@ -77,6 +77,33 @@ describe('filesPage', () => {
     expect(Buffer.from(bin['.lerret/social/big.glb'], 'base64').equals(bigBin)).toBe(true);
     expect(text['.lerret/social/Card.jsx']).toBe('export default () => null;');
     expect(PAGE_CHARS).toBeLessThan(150_000);
+  });
+});
+
+describe('lazy binaries', () => {
+  it('lists images without content, keeps fonts, and blobPage joins back intact', async () => {
+    const img = Buffer.alloc(400_000, 9);
+    await writeFile(join(root, '.lerret', 'social', 'photo.png'), img);
+    await mkdir(join(root, '.lerret', '_fonts'));
+    await writeFile(join(root, '.lerret', '_fonts', 'Inter.woff2'), Buffer.alloc(10, 1));
+    const page = await filesPage(root, 0, { lazy: true });
+    expect(page.next).toBe(null);
+    expect(page.files.find((f) => f.path === '.lerret/social/photo.png')).toEqual({ path: '.lerret/social/photo.png', lazy: expect.stringMatching(/^400000:/) });
+    expect(page.files.find((f) => f.path === '.lerret/_fonts/Inter.woff2').base64).toBeTruthy();
+    let b64 = '';
+    let from = 0;
+    do {
+      const slice = await blobPage(root, '.lerret/social/photo.png', from);
+      expect(JSON.stringify(slice).length).toBeLessThan(150_000);
+      b64 += slice.base64;
+      from = slice.next;
+    } while (from != null);
+    expect(Buffer.from(b64, 'base64').equals(img)).toBe(true);
+  });
+  it('blobPage only reads files the project lists', async () => {
+    await writeFile(join(root, 'secret.png'), 'x');
+    await expect(blobPage(root, 'secret.png')).rejects.toThrow(/No file/);
+    await expect(blobPage(root, '.lerret/../secret.png')).rejects.toThrow(/No file/);
   });
 });
 
